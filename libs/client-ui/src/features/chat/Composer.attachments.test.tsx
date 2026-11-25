@@ -126,13 +126,16 @@ it('uploads before prompting and uses the Host path, never the picked local path
   expect(pi).toHaveBeenCalledWith(mockRemoteInfo.sessionId, {
     type: 'prompt',
     message: 'read this\n\n<attached-files>\n/host/attachments/a.pdf\n</attached-files>',
+    streamingBehavior: 'followUp',
   })
   expect(useDraftsStore.getState().get(key).attachments).toEqual([])
 })
 it('never prompts on upload uncertainty, restores text and document bytes', async () => {
-  vi.spyOn(window.phosphor, 'invoke').mockRejectedValue(
-    new Error('Upload not confirmed. Attach again.'),
-  )
+  vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (channel) => {
+    if (channel === 'hosts:uploadAttachments')
+      throw new Error('Upload not confirmed. Attach again.')
+    return undefined
+  })
   const pi = vi.spyOn(window.phosphor, 'piCommand')
   await draw()
   await send()

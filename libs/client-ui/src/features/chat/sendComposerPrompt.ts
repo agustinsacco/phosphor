@@ -1,5 +1,4 @@
 import { ipcErrorText } from '@shared/errors'
-import type { RpcCommand } from '@shared/rpc'
 import { piCallInline } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { takeSubmittedDraft, useDraftsStore } from '@/stores/drafts'
@@ -8,6 +7,8 @@ import { composePrompt, toImageContents, type PendingAttachment } from './attach
 import { uploadPromptFiles } from './uploadPromptFiles'
 import { type createReceiptGuard, withDraftIds } from './receiptGuard'
 import { laneBusyNow } from './laneBusy'
+import { canControlSession } from '@/stores/remoteLanes'
+import { sessionTransitionPending } from '@/features/sessions/sessionTransition'
 
 type Submission = {
   sessionId: string
@@ -17,26 +18,26 @@ type Submission = {
   /** How the message goes while the lane is busy; Enter and Send steer. Unused while idle. */
   busyBehavior?: 'followUp' | 'steer'
 }
-type PromptCommand = Extract<RpcCommand, { type: 'prompt' }>
+export const COMPACTING_DRAFT = 'Compaction in progress. Send your draft when it finishes.'
 
-/** pi's refusal of a plain prompt while it is processing. */
-const PI_BUSY_REFUSAL = 'Agent is already processing'
+/** Order prompts within each pi queue, including upload and preflight. */
+const pending = new Map<string, Promise<void>>()
 
-/**
- * A plain prompt pi refuses because it is processing goes again, once, as a
- * follow-up: the composer read the lane idle a moment before pi started work.
- */
-async function deliverPrompt(sessionId: string, command: PromptCommand) {
-  const first = await piCallInline(sessionId, command)
-  if (first.ok || command.streamingBehavior || !first.error.includes(PI_BUSY_REFUSAL)) return first
-  return piCallInline(sessionId, { ...command, streamingBehavior: 'followUp' })
+function promptSlot(key: string) {
+  const previous = pending.get(key)
+  let done!: () => void
+  const tail = new Promise<void>((resolve) => {
+    done = resolve
+  })
+  pending.set(key, tail)
+  return {
+    previous,
+    release() {
+      if (pending.get(key) === tail) pending.delete(key)
+      done()
+    },
+  }
 }
-
-/** pi's own words never reach the user for a busy refusal. */
-const notSent = (reason: string): string =>
-  reason.includes(PI_BUSY_REFUSAL)
-    ? 'The agent is busy and did not take your message.'
-    : `Message not sent: ${reason}`
 
 /** Steers and follow-ups stay editable until acknowledged. Never clear a newer draft. */
 function queuedDraft(
@@ -81,9 +82,13 @@ export async function sendComposerPrompt(
   const draft = drafts.get(draftKey)
   const message = draft.text.trim()
   if (!message && !draft.attachments.length) return
-  const behavior = laneBusyNow(sessionId) ? (opts.busyBehavior ?? 'steer') : undefined
+  if (chat.sessions[sessionId]?.isCompacting) return
+  const busy = laneBusyNow(sessionId)
+  // Idle pi starts this normally. If a turn began in the meantime, queue it
+  // once rather than replaying its input hooks after a plain prompt refusal.
+  const behavior = busy ? (opts.busyBehavior ?? 'steer') : 'followUp'
   const queue =
-    remote && behavior ? queuedDraft(draftKey, draft.attachments, guard, message) : undefined
+    remote && busy ? queuedDraft(draftKey, draft.attachments, guard, message) : undefined
   if (queue === null) return
   const submitted = queue?.submitted ?? draft.attachments
   const images = toImageContents(submitted)
@@ -92,27 +97,37 @@ export async function sendComposerPrompt(
     message,
     submitted.map((a) => (a.kind === 'file' && !a.path ? { ...a, path: a.name } : a)),
   )
-  const bubble = !behavior
+  const bubble = !busy
     ? chat.addUserMessage(sessionId, preview, images.length ? images : undefined)
     : undefined
-  const finishDraft = remote && bubble ? takeSubmittedDraft(draftKey) : undefined
+  const slot = promptSlot(`${sessionId}:${behavior}`)
+  const finishDraft = queue ? undefined : takeSubmittedDraft(draftKey)
   let prompt = preview
   let accepted = false
   try {
-    if (!remote) drafts.clear(draftKey)
+    if (slot.previous) await slot.previous
+    if (!canControlSession(sessionId) || sessionTransitionPending(sessionId))
+      throw new Error('Lane no longer ready to send.')
     if (remote && submitted.length) {
       if (!opts.remoteAttachments) throw new Error('Attachment upload unavailable.')
       prompt = composePrompt(message, await uploadPromptFiles(sessionId, submitted))
       if (bubble && prompt !== preview) chat.updatePendingPrompt(sessionId, bubble, prompt)
     }
-    const response = await deliverPrompt(sessionId, {
+    if (useChatStore.getState().sessions[sessionId]?.isCompacting) throw new Error(COMPACTING_DRAFT)
+    chat.setError(sessionId, null)
+    const response = await piCallInline(sessionId, {
       type: 'prompt',
       message: prompt,
       ...(images.length ? { images } : {}),
-      ...(behavior ? { streamingBehavior: behavior } : {}),
+      streamingBehavior: behavior,
     })
     if (!response.ok) {
-      chat.setError(sessionId, notSent(response.error))
+      chat.setError(
+        sessionId,
+        response.error.startsWith('Cannot submit a prompt while compaction is in progress')
+          ? COMPACTING_DRAFT
+          : response.error,
+      )
       return
     }
     accepted = true
@@ -129,8 +144,9 @@ export async function sendComposerPrompt(
     if (bubble && (disposition === 'handled' || disposition === 'queued' || legacyCommand))
       chat.promptHandled(sessionId, prompt)
   } catch (error) {
-    chat.setError(sessionId, notSent(ipcErrorText(error)))
+    chat.setError(sessionId, ipcErrorText(error))
   } finally {
+    slot.release()
     queue?.finish(accepted)
     if (bubble && !accepted) chat.promptHandled(sessionId, prompt)
     finishDraft?.(accepted)

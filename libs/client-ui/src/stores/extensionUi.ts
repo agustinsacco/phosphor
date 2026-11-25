@@ -137,11 +137,7 @@ interface ExtensionUiState {
 
 let toastId = 1
 
-/**
- * Auto-dismiss clocks, outside the store because nothing renders from them.
- * `remaining` is what is left when the clock is stopped; `startedAt` is when
- * the running stretch began.
- */
+/** Auto-dismiss clocks, outside the store because nothing renders from them. */
 const toastClocks = new Map<
   number,
   { remaining: number; startedAt: number; handle?: ReturnType<typeof setTimeout> }
@@ -161,6 +157,26 @@ function runClock(id: number, dismiss: (id: number) => void): void {
   if (!clock || clock.handle || pauseReasons.size > 0) return
   clock.startedAt = Date.now()
   clock.handle = setTimeout(() => dismiss(id), clock.remaining)
+}
+
+const dialogTimers = new WeakMap<PendingDialog, ReturnType<typeof setTimeout>>()
+
+function stopDialogTimer(dialog: PendingDialog): void {
+  clearTimeout(dialogTimers.get(dialog))
+  dialogTimers.delete(dialog)
+}
+
+function armDialogTimer(dialog: PendingDialog, expire: () => void): void {
+  const { request } = dialog
+  if (!('timeout' in request) || request.timeout === undefined) return
+  // pi times out independently; no UI answer is sent on expiry.
+  dialogTimers.set(
+    dialog,
+    setTimeout(() => {
+      dialogTimers.delete(dialog)
+      expire()
+    }, request.timeout),
+  )
 }
 
 export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
@@ -183,9 +199,14 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
       case 'select':
       case 'confirm':
       case 'editor':
-      case 'input':
-        set((s) => ({ dialogs: [...s.dialogs, { sessionId, request } as PendingDialog] }))
+      case 'input': {
+        const dialog = { sessionId, request }
+        set((s) => ({ dialogs: [...s.dialogs, dialog] }))
+        armDialogTimer(dialog, () =>
+          set((s) => ({ dialogs: s.dialogs.filter((d) => d !== dialog) })),
+        )
         break
+      }
 
       case 'notify':
         get().pushToast(request.message, request.notifyType ?? 'info')
@@ -255,6 +276,8 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
   },
 
   resolveDialog: (dialog, response) => {
+    if (!get().dialogs.includes(dialog)) return
+    stopDialogTimer(dialog)
     set((s) => ({ dialogs: s.dialogs.filter((d) => d !== dialog) }))
     void answerDialog(dialog, response).catch((error: unknown) =>
       get().pushToast(ipcErrorText(error), 'error'),
@@ -333,6 +356,9 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
   },
 
   clearSession: (sessionId) => {
+    get()
+      .dialogs.filter((d) => d.sessionId === sessionId)
+      .forEach(stopDialogTimer)
     get().dismissSessionToast(sessionId)
     useNotificationsStore.getState().forgetSession(sessionId)
     get().forgetSubagents(sessionId)

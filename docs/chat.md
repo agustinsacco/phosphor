@@ -89,19 +89,20 @@ The composer is one small field with several ways in.
   Busy is one derivation, `features/chat/laneBusy.ts`, read at the moment of sending:
   a run, compaction, an auto-retry, a prompt pi has not answered, queued messages,
   a pending question, background agents still running, or a Host lane whose Host
-  reports it `working` or `needs-input`. pi refuses a plain prompt while it
-  processes and starts a steer or follow-up as an ordinary prompt when it is idle,
-  so a busy lane never sends a plain prompt. If pi still refuses one ("Agent is
-  already processing"), because it started work a moment before the prompt
-  arrived, the composer sends it once more as a follow-up, and shows no error;
-  a queued message enters the transcript when delivered. pi's text for that
-  refusal is never shown; any other failed send reads "Message not sent: …".
+  reports it `working` or `needs-input`. Timed-out questions no longer count as
+  waiting. During compaction you can edit your draft, but sending is unavailable;
+  if compaction starts before pi accepts the prompt, your draft is kept. Otherwise
+  the composer sends one prompt with the selected queue behavior. When the lane
+  looks idle, the prompt starts normally, or queues as a follow-up if pi started
+  work before it arrived. Submissions to the same queue go in order. If a Host
+  cannot confirm delivery, check the lane before retrying.
   Escape and Stop abort a running turn and hand queued messages back to the composer. pi's abort
   keeps its queues, so they first drain them with `clear_queue`; otherwise the
   messages would also go out with the next one. On a pi without `clear_queue`
   they come back from the chips and pi keeps its own. Once the draft
   has text, **Steer now** and **Queue follow-up** buttons expose both without
-  a keyboard, whenever the lane is busy.
+  a keyboard while the busy lane can accept prompts. A `!cmd` draft sent while
+  busy is a chat message, not a shell command.
 - A queued message is a chip above the composer, not a bubble. Its bubble
   appears in the transcript only when pi delivers it (the user `message_end`),
   so it sits after the work the agent finished first. Each chip has a ✕ that

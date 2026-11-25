@@ -1,10 +1,10 @@
 import { useComposerSlash } from './useComposerSlash'
-import { sendComposerPrompt } from './sendComposerPrompt'
-import { useLaneBusy } from './laneBusy'
+import { COMPACTING_DRAFT, sendComposerPrompt } from './sendComposerPrompt'
+import { laneBusyNow, useLaneBusy } from './laneBusy'
 import { offersLaneEditing } from './hostLaneEditing'
-import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, canControlSession, useSessionHostLane } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
-import { TooltipButton } from '@/components/Tooltip'
+import { BusyPromptButtons } from './composer/BusyPromptButtons'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { ModelPicker } from './composer/ModelPicker'
@@ -93,6 +93,7 @@ export function Composer({
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const busy = useLaneBusy(sessionId)
   const booting = useSessionBooting(sessionId)
+  const starting = useSessionHostLane(sessionId)?.lane?.activity === 'stopped' && booting
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
   // Named in the status strip only when pi does not ship the provider: the
   // chip shows the model name alone, and two providers can offer one name.
@@ -115,14 +116,20 @@ export function Composer({
 
   const slash = useComposerSlash(sessionId, piCommands, setText, () => textareaRef.current?.focus())
 
+  const { close: closeSlash } = slash
   const send = useCallback(
     async (behavior?: 'steer' | 'followUp') => {
-      if (!canControlSession(sessionId) || sessionTransitionPending(sessionId)) return
+      if (
+        useChatStore.getState().sessions[sessionId]?.isCompacting ||
+        !canControlSession(sessionId) ||
+        sessionTransitionPending(sessionId)
+      )
+        return
       const message = text.trim()
       if (!message && images.length === 0) return
 
       // `!command` / `!!command` → RPC bash execution.
-      if (message.startsWith('!') && !isStreaming) {
+      if (message.startsWith('!') && !busy && !laneBusyNow(sessionId)) {
         const exclude = message.startsWith('!!')
         const shellCommand = message.slice(exclude ? 2 : 1).trim()
         if (!shellCommand) return
@@ -132,7 +139,7 @@ export function Composer({
       }
 
       setAttachWarning(null)
-      slash.close()
+      closeSlash()
       setHistoryIndex(null)
       await sendComposerPrompt(
         {
@@ -145,7 +152,7 @@ export function Composer({
         awaiting.current,
       )
     },
-    [sessionId, text, images, isStreaming, draftKey, remote, remoteAttachments],
+    [sessionId, text, images, draftKey, remote, remoteAttachments, busy, closeSlash],
   )
 
   const abort = useCallback(async () => {
@@ -242,13 +249,15 @@ export function Composer({
   )
 
   // A soft keyboard has no Alt or Esc and its Return adds a line; Esc stops only a running turn.
-  const placeholder = booting
-    ? 'Starting pi…'
-    : !busy
-      ? 'Describe a task…'
-      : softKeyboard()
-        ? 'Steer or queue a follow-up…'
-        : `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')}${isStreaming ? ' · Esc to stop' : ''}`
+  const placeholder = isCompacting
+    ? COMPACTING_DRAFT
+    : starting
+      ? 'Starting lane…'
+      : !busy
+        ? 'Describe a task…'
+        : softKeyboard()
+          ? 'Steer or queue a follow-up…'
+          : `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')}${isStreaming ? ' · Esc to stop' : ''}`
 
   return (
     <div className="composer shrink-0 px-3 pb-4 pt-1 sm:px-5">
@@ -258,7 +267,7 @@ export function Composer({
       <SessionTransitionBanner sessionId={sessionId} />
       <fieldset
         {...lock}
-        disabled={lock.disabled || restoring || (remote && booting)}
+        disabled={lock.disabled || restoring || starting}
         className="relative mx-auto min-w-0 max-w-3xl"
       >
         <ComposerInput
@@ -300,7 +309,11 @@ export function Composer({
                 <StopIconButton onClick={() => void abort()} />
               ) : (
                 <SubmitIconButton
-                  disabled={(!text.trim() && !images.length) || !canControlSession(sessionId)}
+                  disabled={
+                    isCompacting ||
+                    (!text.trim() && !images.length) ||
+                    !canControlSession(sessionId)
+                  }
                   onClick={() => void send()}
                   label="Send message"
                 />
@@ -308,38 +321,13 @@ export function Composer({
             </div>
           }
         >
-          {/* Only while the lane is busy AND there is something to send: an
-              always-present disabled row cost every reader a line of chrome
-              for a control they could not use. */}
-          {busy && (text.trim() !== '' || images.length > 0) && (
-            <div
-              className="flex flex-wrap justify-end gap-1 px-2.5 pb-1"
-              role="group"
-              aria-label="Send to running agent"
-            >
-              <TooltipButton
-                type="button"
-                onClick={() => {
-                  void send('steer')
-                  textareaRef.current?.focus()
-                }}
-                title="Steer the current turn (Enter)"
-                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-7 rounded-md px-2 text-base"
-              >
-                Steer now
-              </TooltipButton>
-              <TooltipButton
-                type="button"
-                onClick={() => {
-                  void send('followUp')
-                  textareaRef.current?.focus()
-                }}
-                title={`Queue after this turn (${formatShortcut('alt', 'Enter')})`}
-                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-7 rounded-md px-2 text-base"
-              >
-                Queue follow-up
-              </TooltipButton>
-            </div>
+          {busy && !isCompacting && (text.trim() !== '' || images.length > 0) && (
+            <BusyPromptButtons
+              onSend={(behavior) => {
+                void send(behavior)
+                textareaRef.current?.focus()
+              }}
+            />
           )}
         </ComposerInput>
 
@@ -353,7 +341,7 @@ export function Composer({
             the line over to explain itself; an empty field lends its right
             end to the cheat sheet that used to crowd the placeholder. */}
         <div className="composer-status text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
-          {text.startsWith('!') ? (
+          {!busy && text.startsWith('!') ? (
             <span className="text-text-secondary">
               <span className="font-mono">!cmd</span> runs in {remote ? "the Host's" : 'your'} shell
               and enters context on the next prompt · <span className="font-mono">!!cmd</span> keeps
