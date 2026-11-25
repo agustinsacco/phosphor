@@ -84,7 +84,8 @@ const button = (scope: ParentNode | null, label: string): HTMLButtonElement | un
 it('a throwing section shows an error card in place and Settings stays usable', async () => {
   crash.on = true
   await showAdvanced()
-  expect(card()?.textContent).toContain('section exploded')
+  expect(card()?.textContent).toContain('This section couldn’t load.')
+  expect(card()?.textContent).not.toContain('section exploded')
   expect(container.querySelector('nav[aria-label="Settings sections"]')).not.toBeNull()
 
   crash.on = false

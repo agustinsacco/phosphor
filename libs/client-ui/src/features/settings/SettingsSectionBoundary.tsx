@@ -21,15 +21,14 @@ export class SettingsSectionBoundary extends Component<
   }
 
   override render(): ReactNode {
-    const { error } = this.state
-    if (!error) return this.props.children
+    if (!this.state.error) return this.props.children
     return (
       <div
         role="alert"
         data-testid="settings-section-error"
         className="border-border text-danger space-y-2 rounded-md border p-3 text-sm"
       >
-        <p className="wrap-anywhere">This section couldn’t load: {error.message}</p>
+        <p>This section couldn’t load.</p>
         <Button onClick={() => this.setState({ error: null })}>Retry</Button>
       </div>
     )
