@@ -44,6 +44,7 @@ it('opens an oversized stopped preview and reattaches when the lane runs', async
   expect(lanes.list(1)).toEqual([info])
   expect(stopped).toMatchObject({
     success: false,
+    messagesUnavailable: true,
     error: 'This conversation is too large to preview.',
   })
   expect(await lanes.command(1, info.sessionId, { type: 'get_messages' })).toEqual(stopped)
@@ -84,6 +85,7 @@ it('delivers the live turn without history and clears the notice on a complete r
   const history = () => lanes.command(1, info.sessionId, { type: 'get_messages' })
   expect(await history()).toMatchObject({
     success: false,
+    messagesUnavailable: true,
     error: 'This conversation is too large to preview.',
   })
   await vi.waitFor(() =>

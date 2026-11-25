@@ -371,7 +371,7 @@ it.each(['source budget', 'frame budget'])(
     // Avoid printing multi-MiB payloads if a suffix leaks out as a success.
     expect(response.ok).toBe(false)
     expect(response).toMatchObject({
-      error: { code: 'too-large', message: expect.stringMatching(/summary|running/) },
+      error: { code: 'too-large', message: 'the lane query could not complete' },
     })
   },
 )
