@@ -1,4 +1,6 @@
-import { mkdirSync } from 'node:fs'
+import { routineHandlers } from '../../ops/handlers/routines'
+import type { DaemonHandlerDeps } from '../../ops/handlers'
+import { appendFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { newRoutine, type RoutineInput } from '@phosphor/shared/routines'
@@ -128,3 +130,49 @@ it('abort removes exactly the rows the import added', async () => {
   await importer.restore!(folder)
   expect(daemonRoutines()).toEqual({ routines: [kept], runs: [], background: false })
 })
+
+// PR #752 already copied these exact run rows, without admitting a lane.
+it.each(['fresh import', 'already committed'])(
+  'opens saved output after %s without a sidebar lane',
+  async (mode) => {
+    const file = host.session('repo')
+    const message = { role: 'assistant', content: [{ type: 'text', text: 'Saved conversation.' }] }
+    appendFileSync(file, `${JSON.stringify({ type: 'message', message })}\n`)
+    const db = mode === 'fresh import' ? desktop : daemonDatabase()
+    mkdirSync(join(host.root, 'backup'), { recursive: true })
+    const source = new RoutineRepository(db)
+    const routine = source.save(input(), now)
+    const run = source.manual(routine.id, 'click', now)
+    source.patchRun(run.id, { status: 'finished', sessionPath: file })
+    source.close()
+    if (mode === 'fresh import') await importRoutines()
+    const kept = new RoutineRepository(daemonDatabase())
+    try {
+      const handlers = routineHandlers({
+        store: host.store,
+        sessionsRoot: host.sessions,
+        routines: { sessionPathForRun: (id: string) => kept.run(id).sessionPath },
+        lanes: {
+          calls: {
+            capabilityFor: () => 'sessions.read',
+            call: async () => ({ ok: true, data: [] }),
+          },
+        },
+      } as unknown as DaemonHandlerDeps)
+      const ctx = {
+        principal: { kind: 'surface', caps: ['routines', 'sessions.read'] },
+        signal: new AbortController().signal,
+      } as never
+      for (let i = 0; i < 2; i++) {
+        const result = await handlers['routine.history']!({ runId: run.id }, ctx)
+        expect(result.data).toMatchObject({
+          content: expect.stringContaining('Saved conversation.'),
+        })
+        expect(JSON.stringify(result)).not.toContain(file)
+      }
+      expect(host.store.listLanes()).toEqual([])
+    } finally {
+      kept.close()
+    }
+  },
+)
