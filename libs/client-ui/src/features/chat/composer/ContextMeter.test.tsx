@@ -7,7 +7,9 @@ import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useContextBudgetStore } from '@/stores/contextBudgetPref'
-import { MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { MOCK_HOST_ID, mockRemoteHosts, mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useMachinesStore } from '@/stores/machines'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -128,9 +130,14 @@ function click(text: string): void {
 beforeEach(() => {
   invoke.mockClear()
   useSessionsStore.setState({ live: {} })
+  useRemoteLanesStore.setState({ hosts: {} })
+  useMachinesStore.setState({ machines: [] })
   sessionAccount = null
   usageResult = null
-  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
+  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = {
+    invoke,
+    platform: 'darwin',
+  }
   useChatStore.setState({ sessions: {} })
   useExtensionUiStore.setState({ statuses: {} })
   useContextBudgetStore.setState({ contextBudget: '' })
@@ -511,6 +518,36 @@ describe('remote context budget', () => {
     expect(document.body.textContent).toContain('Plan usage · Claude on remote machine')
     expect(document.body.textContent).toContain('Plan usage is unavailable from remote machine')
   })
+
+  it.each([
+    { connection: 'owner socket', local: true, name: 'This Mac' },
+    { connection: 'enrolled Host', local: false, name: 'Studio' },
+  ])(
+    'names the $connection in the open meter and its last-known reading',
+    async ({ local, name }) => {
+      usageResult = { ok: true, snapshot: { stale: true, windows: [] } }
+      seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 })
+      render()
+      click('25%')
+      await act(async () => {})
+      act(() => {
+        useRemoteLanesStore.setState({
+          hosts: { [MOCK_HOST_ID]: { ...mockRemoteHosts[MOCK_HOST_ID]!, local } },
+        })
+        if (!local)
+          useMachinesStore.setState({ machines: [{ id: MOCK_HOST_ID, label: name } as never] })
+      })
+      expect(document.body.textContent).toContain(`Plan usage · Claude on ${name} · last known`)
+      expect(document.body.textContent).toContain(`budget on ${name}`)
+      expect(document.body.textContent).not.toContain('remote machine')
+      expect(invoke).toHaveBeenCalledWith(
+        'hosts:claudeUsage',
+        MOCK_HOST_ID,
+        mockRemoteInfo.laneId,
+        false,
+      )
+    },
+  )
 
   it('shows the Host plan windows and refreshes past its cache', async () => {
     usageResult = {

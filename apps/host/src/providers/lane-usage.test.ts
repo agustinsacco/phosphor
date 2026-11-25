@@ -4,6 +4,7 @@ import type {
   ClaudeAccountPrefs,
   ClaudeUsageSnapshot,
 } from '@phosphor/shared/models'
+import { createClaudeUsage } from '@phosphor/session-runtime/claude/usage'
 import { createLaneUsage, USAGE_FORCE_FLOOR_MS } from './lane-usage'
 
 const account = (id: string): ClaudeAccount => ({ id, label: id }) as ClaudeAccount
@@ -80,4 +81,36 @@ it('passes CLI failures through unchanged', async () => {
   const t = setup(prefs())
   t.fetchUsageSnapshot.mockResolvedValueOnce({ ok: false, error: 'no-usage' } as never)
   expect(await t.read('lane', false)).toEqual({ ok: false, error: 'no-usage' })
+})
+
+it('serves only the failed account’s last known windows without renewing their age', async () => {
+  const run = vi.fn<() => Promise<string | null>>().mockResolvedValue(null)
+  const output = (percent: number) =>
+    JSON.stringify({
+      result: `Current session: ${percent}% used\nWhat's contributing to your limits usage?\nprivate`,
+    })
+  const usage = createClaudeUsage({
+    binary: async () => '/stub',
+    environment: async () => ({}),
+    run,
+  })
+  const read = createLaneUsage({
+    accounts: { loadAccounts: async () => prefs(), accountUsageEnv: () => ({}), usage },
+    accountForLane: (laneId) => laneId,
+  })
+  run.mockResolvedValueOnce(output(3))
+  expect(await read('a', false, 1)).toEqual({
+    ok: true,
+    snapshot: { ...snapshot, contributing: null },
+  })
+  expect(await read('b', false, 61_000)).toEqual({ ok: false, error: 'run-failed' })
+  expect(await read('a', false, 61_000)).toEqual({
+    ok: true,
+    snapshot: { ...snapshot, stale: true, contributing: null },
+  })
+  run.mockResolvedValueOnce(output(5))
+  expect(await read('a', false, 61_001)).toMatchObject({
+    ok: true,
+    snapshot: { fetchedAt: 61_001, stale: false, windows: [{ percentUsed: 5 }] },
+  })
 })
