@@ -1,4 +1,4 @@
-import { runLaneAction, ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
+import { runLaneAction, laneActionErrorText } from '@/platform/serviceLaneControl'
 import { HostTreeDialog, useEditingMenu } from '@/features/chat/HostTreeDialog'
 import { useHostTraits } from '@/platform/machineTraits'
 import { useState } from 'react'
@@ -34,7 +34,6 @@ import {
   usedMarkers,
 } from './remoteLaneSessionHelpers'
 
-const ACTION_FAILED = 'The Host could not confirm this. Check the lane before retrying.'
 type LaneDialog = 'delete' | 'marker' | 'tree' | null
 type HostLaneChannel =
   | 'hosts:takeControl'
@@ -197,7 +196,7 @@ function useLaneActionRunner(onDone: (() => void) | undefined) {
       onDone?.()
       return true
     } catch (error) {
-      const message = error instanceof ServiceLaneControlRefused ? error.message : ACTION_FAILED
+      const message = laneActionErrorText(error)
       setError(message)
       useRemoteLanesStore.setState({ error: message })
       return false

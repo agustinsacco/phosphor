@@ -1,5 +1,5 @@
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
-import { ipcErrorText } from '@shared/errors'
+import { ipcErrorText, LANE_ACTION_FAILED, UNKNOWN_OUTCOME } from '@shared/errors'
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import type { SessionHostLane } from '@/stores/hostLaneOf'
@@ -28,6 +28,10 @@ export function laneControlPolicy(local: boolean | undefined, lane: HostLaneView
 }
 
 export class ServiceLaneControlRefused extends Error {}
+export function laneActionErrorText(error: unknown): string {
+  return error instanceof ServiceLaneControlRefused ? error.message : UNKNOWN_OUTCOME
+}
+
 const claims = new Map<string, Promise<void>>()
 
 /** Only claim to run an operation. The Host atomically arbitrates a stale view or competing claim. */
@@ -93,7 +97,7 @@ export function warmOpenedLane(
       !now.lane.pause &&
       now.lane.control.controller?.self
     )
-      await window.phosphor.invoke('hosts:resumeLane', hostId, lane.laneId)
+      await invokeLifecycle('hosts:resumeLane', hostId, lane.laneId)
   }
   warming.set(
     sessionId,
@@ -117,8 +121,25 @@ type ActionChannel =
   | 'hosts:takeControl'
   | 'hosts:releaseControl'
   | 'hosts:markRead'
+async function invokeLifecycle(
+  channel: 'hosts:resumeLane' | 'hosts:stopLane',
+  hostId: string,
+  laneId: string,
+) {
+  try {
+    await window.phosphor.invoke(channel, hostId, laneId)
+  } catch (error) {
+    if (ipcErrorText(error) !== LANE_ACTION_FAILED) throw error
+    throw new ServiceLaneControlRefused(
+      channel === 'hosts:resumeLane' ? "Couldn't start this lane." : "Couldn't stop this lane.",
+    )
+  }
+}
+
 export async function runLaneAction(channel: ActionChannel, hostId: string, laneId: string) {
-  if (channel === 'hosts:stopLane' || channel === 'hosts:resumeLane')
+  if (channel === 'hosts:stopLane' || channel === 'hosts:resumeLane') {
     await ensureServiceLaneControl(hostId, laneId)
+    return invokeLifecycle(channel, hostId, laneId)
+  }
   await window.phosphor.invoke(channel, hostId, laneId)
 }

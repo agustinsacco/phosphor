@@ -1,7 +1,7 @@
 import {
   laneControlPolicy,
   runLaneAction,
-  ServiceLaneControlRefused,
+  laneActionErrorText,
 } from '@/platform/serviceLaneControl'
 import { useState } from 'react'
 import type { HostConnectionView, HostLaneView } from '@shared/ipc'
@@ -81,11 +81,7 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
       setError(null)
       return true
     } catch (error) {
-      setError(
-        error instanceof ServiceLaneControlRefused
-          ? error.message
-          : 'The Host could not confirm this. Check the lane before retrying.',
-      )
+      setError(laneActionErrorText(error))
       return false
     } finally {
       setBusy(false)
