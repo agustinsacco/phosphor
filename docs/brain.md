@@ -89,7 +89,9 @@ transcript or the record of what the reader saw.
 A saved read is one change, for example “Read Harbor planning: 9 memories”. An empty read has
 no change to undo. So does a read with only group questions when none opens (already asked,
 or fewer than two members). Undo removes what the read added and restores what it replaced,
-including its links. It refuses if later work depends on the change or a later read of the lane exists.
+including its links. It refuses if later work depends on the change or a later read of the lane exists. The page
+polls Brain, so upkeep right after a read can make Undo refuse with "Brain changed"; What
+changed then reloads, and the next click undoes.
 The job stays in history as not saved (`rejected`, zero memories), with its extraction record.
 It does not run again on restart. Use the lane menu to **Read again**.
 

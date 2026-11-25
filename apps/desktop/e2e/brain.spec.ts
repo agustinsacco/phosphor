@@ -296,7 +296,17 @@ async function undoSavedRead(page: Page, lane: BrainLane): Promise<void> {
   await awaitSettled(page)
   const read = (await changes(page)).items.find((i) => i.kind === 'read')!
   const row = whatChanged(page).getByRole('listitem').filter({ hasText: read.summary }).first()
-  await row.getByRole('button', { name: 'Undo', exact: true }).click()
+  const undo = row.getByRole('button', { name: 'Undo', exact: true })
+  await undo.click()
+  // The page polls, so upkeep after Read again can leave the list a revision behind. That
+  // refusal reloads the list and a second click undoes; any other refusal fails with its text.
+  const refusal = whatChanged(page).getByRole('alert')
+  await expect
+    .poll(async () =>
+      (await refusal.count()) ? await refusal.textContent() : await row.textContent(),
+    )
+    .toMatch(/undone|Brain changed/)
+  if (await refusal.count()) await undo.click()
   await expect(row).toContainText('undone')
   const after = await page.evaluate(
     (id) => window.phosphor.invoke('brain:laneRead', id),

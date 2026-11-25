@@ -54,7 +54,7 @@ export async function awaitSaved(page: Page, lane: BrainLane): Promise<void> {
 
 /**
  * A saved read is followed by background upkeep that may move the revision. Wait until it has
- * held still for a second, so the page has reloaded at the revision an action checks.
+ * held still for a second; the page may still hold the previous revision until it next polls.
  */
 export async function awaitSettled(page: Page): Promise<void> {
   let last = -1
