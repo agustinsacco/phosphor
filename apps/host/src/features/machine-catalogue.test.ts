@@ -91,3 +91,34 @@ it('delivers the answer before shutdown but holds the resource slot until child 
   }
   expect(await next).toMatchObject({ data: { commands: [{ name: 'alone' }] } })
 })
+
+it('reads a positive configured window in a cold catalogue without starting pi', async () => {
+  const dir = join(home, '.pi', 'agent')
+  await mkdir(dir, { recursive: true })
+  const invalid = [-1, 0, 1.5, Number.MAX_SAFE_INTEGER + 1, '200000']
+  await writeFile(
+    join(dir, 'models.json'),
+    JSON.stringify({
+      providers: {
+        p: {
+          models: [
+            ...invalid.map((contextWindow, i) => ({ id: `invalid-${i}`, contextWindow })),
+            { id: 'custom', contextWindow: 200_000 },
+          ],
+        },
+      },
+    }),
+  )
+  let windowFor: (model: { provider: string; id: string }) => number | undefined = () => undefined
+  createSkillsFeature(
+    { home, env: {}, log: () => {}, store: { getLane: () => null, listRepositories: () => [] } },
+    {},
+    (read) => {
+      windowFor = read
+    },
+  )
+  expect(windowFor({ provider: 'p', id: 'custom' })).toBe(200_000)
+  for (const i of invalid.keys())
+    expect(windowFor({ provider: 'p', id: `invalid-${i}` })).toBeUndefined()
+  expect(windowFor({ provider: 'other', id: 'custom' })).toBeUndefined()
+})

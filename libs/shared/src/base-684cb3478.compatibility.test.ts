@@ -231,3 +231,18 @@ it('older clients accept a stream without its oversized messages; current client
     parseSnapshotFrame({ ...plain, snapshot: { ...snapshot, messagesUnavailable: 1 } }),
   ).toBeNull()
 })
+
+it('both readers accept a summary event carrying stopped composer data', async () => {
+  const { parseEventFrame } = await import('./host-protocol/host-snapshot')
+  const plain = HOST_FRAMES.event.summary
+  const event = { ...plain.event, summary: { ...plain.event.summary, activity: 'stopped' } }
+  const stopped = { ...plain, event }
+  const stoppedComposer = { tokens: 72_000, contextWindow: 200_000 }
+  const frame = { ...stopped, event: { ...event, stoppedComposer } }
+  expect(baseSnapshot.parseEventFrame(frame)).toStrictEqual(stopped)
+  expect(parseEventFrame(frame)).toStrictEqual(frame)
+  expect(parseEventFrame(stopped)).toStrictEqual(stopped)
+  expect(
+    parseEventFrame({ ...stopped, event: { ...event, stoppedComposer: { tokens: -1 } } }),
+  ).toStrictEqual(stopped)
+})

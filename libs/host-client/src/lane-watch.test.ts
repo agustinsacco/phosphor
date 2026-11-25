@@ -68,3 +68,65 @@ it('keeps stopped composer data across list changes until a live reset', () => {
   )
   expect(connectionView(view, [watch], epoch).lanes[0]).not.toHaveProperty('stoppedComposer')
 })
+
+it('accepts replayed stop metadata without needing another transcript snapshot', () => {
+  const epoch = 'a'.repeat(16)
+  const summary: LaneSummary = {
+    laneId: 'lane',
+    repositoryId: 'repo',
+    cwd: '/repo',
+    title: null,
+    branch: null,
+    worktree: false,
+    model: null,
+    activity: 'idle',
+    createdAt: '',
+    updatedAt: '',
+    attention: 0,
+    read: 0,
+    control: { fence: 1, controller: null },
+  }
+  let view: HostConnectionSnapshot = {
+    state: 'ready',
+    connectionToken: 'token',
+    capabilities: [],
+    repositories: [],
+    lanes: [summary],
+  }
+  const watch: LaneWatch = { laneId: summary.laneId, cursor: { epoch, seq: 1 }, listener() {} }
+  const stoppedComposer = { tokens: 72_000, contextWindow: 200_000 }
+  const event = {
+    kind: 'summary' as const,
+    summary: { ...summary, activity: 'stopped' as const },
+    stoppedComposer,
+  }
+  const update = (next: Partial<HostConnectionSnapshot>) => {
+    view = { ...view, ...next }
+  }
+  const frame = {
+    type: 'event' as const,
+    id: 'watch',
+    laneId: summary.laneId,
+    cursor: { epoch, seq: 2 },
+  }
+  acceptLaneFrame(watch, { ...frame, event }, view, update, () => {})
+  expect(connectionView(view, [watch], epoch).lanes[0]).toMatchObject({
+    activity: 'stopped',
+    stoppedComposer,
+  })
+  acceptLaneFrame(
+    watch,
+    {
+      ...frame,
+      cursor: { epoch, seq: 3 },
+      event: { kind: 'summary', summary: { ...event.summary, title: 'renamed' } },
+    },
+    view,
+    update,
+    () => {},
+  )
+  expect(connectionView(view, [watch], epoch).lanes[0]).toMatchObject({
+    title: 'renamed',
+    stoppedComposer,
+  })
+})

@@ -419,3 +419,45 @@ it.each(['source budget', 'frame budget'])(
     })
   },
 )
+
+it.each([
+  ['model ID', [{ provider: 'test', modelId: 'next' }], { provider: 'test', id: 'next' }],
+  ['provider', [{ provider: 'other', modelId: 'first' }], { provider: 'other', id: 'first' }],
+  [
+    'model ID and back',
+    [
+      { provider: 'test', modelId: 'next' },
+      { provider: 'test', modelId: 'first' },
+    ],
+    { provider: 'test', id: 'first' },
+  ],
+])('does not report the previous reply’s tokens after changing %s', (_label, changes, model) => {
+  const path = file()
+  fs.writeFileSync(
+    path,
+    [
+      header,
+      JSON.stringify({
+        type: 'message',
+        id: '0',
+        parentId: null,
+        message: {
+          role: 'assistant',
+          provider: 'test',
+          model: 'first',
+          content: [],
+          usage: { totalTokens: 72_000 },
+        },
+      }),
+      ...changes.map((change, index) =>
+        JSON.stringify({
+          type: 'model_change',
+          id: String(index + 1),
+          parentId: String(index),
+          ...change,
+        }),
+      ),
+    ].join('\n'),
+  )
+  expect(snapshot(read('lane')).stoppedComposer).toEqual({ model })
+})
