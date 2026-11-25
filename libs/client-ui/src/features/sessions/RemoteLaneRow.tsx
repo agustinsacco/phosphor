@@ -39,7 +39,7 @@ export function RemoteLaneRow({
   const [draft, setDraft] = useState('')
   const actions = useRemoteLaneActions({ hostId, lane, ready, onRename: rename })
   const { title, busy } = actions
-  const menu = useMenuTriggers(actions.items, { title, disabled: !ready })
+  const menu = useMenuTriggers(actions.items, { title, disabled: !ready, revision: lane.activity })
   function rename(): void {
     setDraft(title === 'Untitled lane' ? '' : title)
     setRenaming(true)

@@ -241,7 +241,7 @@ it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
       [...menu.querySelectorAll('button')].find((b) => b.textContent === label)
     expect(action('Resume')).toBeDefined()
     const idle = structuredClone(view)
-    idle.lanes[0]!.activity = 'idle'
+    idle.lanes[0] = { ...idle.lanes[0]!, activity: 'idle' }
     act(() => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: idle } }))
     expect(action('Stop')).toBeDefined()
     expect(action('Resume')).toBeUndefined()
