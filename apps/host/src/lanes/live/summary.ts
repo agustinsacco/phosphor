@@ -52,7 +52,7 @@ export function summaryFor(state: LiveState, laneId: string): LaneSummary | null
   if (!stored || stored.removedAt !== null) return null
   const { sessionFile: _sessionFile, removedAt: _removedAt, ...summary } = stored
   const live = state.attached.get(laneId)
-  const sessionState = live?.projection.view().state
+  const sessionState = live?.projection.sessionState()
   const pullRequests = state.lanePrs?.signalsFor(laneId, stored.sessionFile)
   const pause = state.options.pauseFor?.(laneId)
   const candidate: LaneSummary = {
@@ -64,7 +64,7 @@ export function summaryFor(state: LiveState, laneId: string): LaneSummary | null
       title(sessionState?.sessionName) ??
       title(summary.title) ??
       live?.firstPrompt ??
-      firstPromptTitle(live?.projection.view().messages),
+      firstPromptTitle(live?.projection.messages()),
     model: model(sessionState?.model) ?? model(summary.model),
     branch: isLaneBranchName(summary.branch) ? summary.branch : null,
   }
