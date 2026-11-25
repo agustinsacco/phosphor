@@ -352,3 +352,54 @@ it.each([
       expect(el.textContent).not.toContain(`Work for ${other}`)
   }
 })
+
+it('names a parallel batch plainly and lists its members by task, without nesting them', async () => {
+  const chat = useChatStore.getState().sessions.process!
+  const tasks = ['Audit the login flow', 'Fix the cache key', 'Write the release notes']
+  useChatStore.setState({
+    sessions: {
+      process: {
+        ...chat,
+        tools: {
+          batch: {
+            ...soloLaunch,
+            toolCallId: 'batch',
+            args: { tasks: tasks.map((task) => ({ agent: 'worker', task })), async: true },
+            result: {
+              content: [],
+              details: { mode: 'parallel', asyncId: '3c2743cb-run', background: true },
+            },
+          },
+        },
+      },
+    },
+  })
+  await publishRuns([
+    {
+      id: '3c2743cb-run',
+      kind: 'subagent',
+      label: 'worker, worker, worker',
+      state: 'running',
+      children: [0, 1, 2].map((i) => ({
+        id: `step:${i}`,
+        kind: 'step',
+        label: `task-${i + 1}`,
+        state: 'running',
+        // A step that runs its own agent is real nesting, and still looks nested.
+        children:
+          i === 2 ? [{ id: 'step:2:0', kind: 'step', label: 'scout', state: 'running' }] : [],
+      })),
+    },
+  ])
+  await render()
+  const nav = el.querySelector('nav')!
+  const batch = nav.querySelector<HTMLButtonElement>('[aria-label="Parallel run · 3 agents"]')
+  expect(batch?.textContent).toBe('Parallel run · 3 agents')
+  const rows = [...nav.querySelectorAll<HTMLElement>('[data-testid="subagent-work-row"]')]
+  expect(rows.map((r) => r.querySelector('.font-medium')?.textContent)).toEqual([
+    ...tasks.slice(0, 2),
+    'scout',
+  ])
+  expect(rows.map((r) => !!r.closest('[data-nested]'))).toEqual([false, false, true])
+  expect(nav.querySelector('.border-l')).toBe(nav.querySelector('[data-nested]'))
+})
