@@ -95,7 +95,6 @@ describe('session service steps', () => {
     await h.service.command(live.sessionId, { type: 'prompt', message: 'go' })
     expect(client.request.mock.calls.map(([command]) => command)).toEqual([
       { type: 'get_state' },
-      { type: 'get_state' },
       { type: 'prompt', message: '/phosphor-context-budget 400000' },
       { type: 'prompt', message: 'go' },
     ])
@@ -159,4 +158,77 @@ describe('session service steps', () => {
     expect(forget).toHaveBeenCalledWith(live.sessionId)
     expect(h.registry.list()).toEqual([])
   })
+})
+
+const stateRead = { type: 'get_state' }
+const prompt = { type: 'prompt', message: 'go' } as const
+const cap = (value = '200000') => ({ type: 'prompt', message: `/phosphor-context-budget ${value}` })
+
+async function promptFixture() {
+  const h = fixture()
+  const { sessionId } = await h.service.create({ workspacePath: '/repo' })
+  const client = h.clients[0]!
+  const send = async () => {
+    client.request.mockClear()
+    await h.service.command(sessionId, prompt)
+    return client.request.mock.calls.map(([command]) => command)
+  }
+  return { ...h, client, sessionId, send }
+}
+
+it('sends a busy prompt without a budget control, even before the first idle turn', async () => {
+  const h = await promptFixture()
+  const state = { isStreaming: true, model: { provider: 'native' }, autoCompactionEnabled: true }
+  h.client.request.mockResolvedValueOnce({ success: true, data: state })
+  expect(await h.send()).toEqual([stateRead, prompt])
+  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+})
+
+it('stages once per live process and restages a changed preference or observed model', async () => {
+  const h = await promptFixture()
+  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+  expect(await h.send()).toEqual([stateRead, prompt])
+  vi.mocked(h.runtime.readBudget).mockReturnValue('400k')
+  expect(await h.send()).toEqual([stateRead, cap('400000'), prompt])
+  const state = { model: { provider: 'native', id: 'other' }, autoCompactionEnabled: true }
+  h.client.request.mockResolvedValueOnce({ success: true, data: state })
+  expect(await h.send()).toEqual([stateRead, cap('400000'), prompt])
+  await h.service.dispose(h.sessionId)
+  const next = await h.service.create({ workspacePath: '/repo' })
+  const request = h.clients[1]!.request.mockClear()
+  await h.service.command(next.sessionId, prompt)
+  expect(request.mock.calls.flat()).toEqual([stateRead, cap('400000'), prompt])
+})
+
+it('restages a cached cap only when beforePrompt can have reloaded extensions', async () => {
+  const h = await promptFixture()
+  await h.send()
+  h.runtime.laneReload = { beforePrompt: vi.fn(async () => 'unchanged' as const) }
+  expect(await h.send()).toEqual([stateRead, prompt])
+  h.runtime.laneReload.beforePrompt = async () => 'applied'
+  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+})
+
+it.each([
+  { type: 'set_model', provider: 'native', modelId: 'other' },
+  { type: 'cycle_model' },
+] as const)(
+  'restages after $type even if the selected model has the same identity',
+  async (change) => {
+    const h = await promptFixture()
+    await h.send()
+    await h.service.command(h.sessionId, change)
+    expect(await h.send()).toEqual([stateRead, cap(), prompt])
+  },
+)
+
+it('stages immediately after the auto-compaction toggle and remembers the new state', async () => {
+  const h = await promptFixture()
+  await h.send()
+  const change = { type: 'set_auto_compaction', enabled: false } as const
+  const state = { model: { provider: 'native' }, autoCompactionEnabled: false }
+  h.client.request.mockClear().mockResolvedValue({ success: true, data: state })
+  await h.service.command(h.sessionId, change)
+  expect(h.client.request.mock.calls.flat()).toEqual([change, stateRead, cap('off')])
+  expect(await h.send()).toEqual([stateRead, prompt])
 })
