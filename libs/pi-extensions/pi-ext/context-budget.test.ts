@@ -43,6 +43,10 @@ function setup(window = 1_000_000, env: NodeJS.ProcessEnv = {}) {
     busy: () => {
       idle = false
     },
+    settle: async () => {
+      idle = true
+      await handlers.get('agent_settled')?.({}, ctx)
+    },
     event: (s: string) => handlers.get(s)?.({}, ctx),
   }
 }
@@ -69,6 +73,17 @@ describe('pi-native budget window', () => {
     expect(s.ctx.model.contextWindow).toBe(400_000)
     await s.event('turn_end')
     expect(s.ctx.model.contextWindow).toBe(1_000_000)
+  })
+  it('applies a change staged after the final tool boundary when the run settles', async () => {
+    const s = setup()
+    s.busy()
+    await s.event('turn_end')
+    await s.command('100000')
+    expect(s.select).not.toHaveBeenCalled()
+    await s.settle()
+    expect(s.ctx.model.contextWindow).toBe(100_000)
+    await s.settle()
+    expect(s.select).toHaveBeenCalledOnce()
   })
   it('applies before a resumed prompt and after a model switch', async () => {
     const s = setup()
