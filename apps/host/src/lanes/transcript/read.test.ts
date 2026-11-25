@@ -146,11 +146,11 @@ describe('bounded transcript reader', () => {
     },
   )
 
-  it('rejects more than 64 MiB before allocating or reading', async () => {
+  it('rejects more than 2 GiB before allocating or reading', async () => {
     const original = (await vi.importActual<typeof fs>('node:fs')).fstatSync
     vi.mocked(fs.fstatSync).mockImplementation((fd) => {
       const stat = original(fd)
-      stat.size = 64 * 1024 * 1024 + 1
+      stat.size = 2 * 1024 ** 3 + 1
       return stat
     })
     expect(read()).toEqual({ kind: 'too-large' })

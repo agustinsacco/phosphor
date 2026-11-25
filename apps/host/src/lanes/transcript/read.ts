@@ -1,43 +1,18 @@
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  openSync,
-  readSync,
-  realpathSync,
-  statSync,
-} from 'node:fs'
+import { closeSync, constants, fstatSync, openSync, realpathSync, statSync } from 'node:fs'
 import type { AgentMessage } from '@phosphor/shared/rpc'
-import { parseSessionEntries, sessionContext } from '@phosphor/session-runtime/pi/session-context'
+import { PreviewRefused } from './lines'
+import { readPreview } from './preview'
 import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
-import { PI_MESSAGES_MAX } from '../pi-results'
 import type { TranscriptCache } from './cache'
 
-const FILE_BYTES = 64 * 1024 * 1024
+const FILE_BYTES = 2 * 1024 ** 3
 type TranscriptUnreadableReason = 'open' | 'type' | 'outside' | 'parse'
-export type TranscriptFailureReason = TranscriptUnreadableReason | 'limit'
+export type TranscriptFailureReason = TranscriptUnreadableReason | PreviewRefused['reason']
 export type TranscriptReadResult =
   | { kind: 'messages'; messages: AgentMessage[] }
   | { kind: 'missing' }
   | { kind: 'unreadable'; reason: TranscriptUnreadableReason }
   | { kind: 'too-large' }
-
-function readMessages(fd: number, size: number): TranscriptReadResult {
-  // One extra byte detects growth after fstat without allowing an unbounded read.
-  const buffer = Buffer.alloc(size + 1)
-  let bytes = 0
-  while (bytes < buffer.length) {
-    const count = readSync(fd, buffer, bytes, buffer.length - bytes, null)
-    if (!count) break
-    bytes += count
-  }
-  if (bytes > size) return { kind: 'too-large' }
-  const entries = parseSessionEntries(buffer.subarray(0, bytes).toString('utf8'))
-  const context = entries && sessionContext(entries, PI_MESSAGES_MAX)
-  return context
-    ? { kind: 'messages', messages: context.messages }
-    : { kind: 'unreadable', reason: 'parse' }
-}
 
 export function readTranscript(options: {
   sessionFile: string
@@ -49,7 +24,9 @@ export function readTranscript(options: {
   // Invalidation and logging precede close, even when close itself throws.
   const failed = (reason: TranscriptFailureReason): TranscriptReadResult => {
     options.onFailure(reason)
-    return reason === 'limit' ? { kind: 'too-large' } : { kind: 'unreadable', reason }
+    return reason === 'limit' || reason === 'line-limit' || reason === 'index-limit'
+      ? { kind: 'too-large' }
+      : { kind: 'unreadable', reason }
   }
   let fd: number
   try {
@@ -71,15 +48,11 @@ export function readTranscript(options: {
     if (stat.size > FILE_BYTES) return failed('limit')
     const stamp = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`
     const cached = options.cache.get(options.laneId, stamp)
-    const result: TranscriptReadResult = cached
-      ? { kind: 'messages', messages: cached }
-      : readMessages(fd, stat.size)
-    if (result.kind === 'too-large') return failed('limit')
-    if (result.kind === 'unreadable') return failed(result.reason)
-    if (result.kind === 'messages') options.cache.set(options.laneId, stamp, result.messages)
-    return result
-  } catch {
-    return failed('open')
+    const messages = cached ?? readPreview(fd, stat.size)
+    options.cache.set(options.laneId, stamp, messages)
+    return { kind: 'messages', messages }
+  } catch (error) {
+    return failed(error instanceof PreviewRefused ? error.reason : 'open')
   } finally {
     closeSync(fd)
   }

@@ -1507,7 +1507,13 @@ the divider and subsequent events in live order.
 The unattached snapshot reader reads a stopped lane's context from pi's session
 file, with `state: null`. A null or missing file means an empty transcript: pi
 creates the file when the first message is sent. The same snapshot size and image omission
-rule applies. Reads are synchronous, capped at 64 MiB, and cached for four lanes;
+rule applies; if necessary a stopped preview drops older whole messages after eliding
+images. Synchronous reads scan LF-framed entries on the checked descriptor, index their
+branch and edit metadata, then load the active context's newest messages by byte offset.
+The scan is limited to 2 GiB per file, 32 MiB per line and 200,000 entries with at most
+32 MiB of serialized index fields. The preview selects up to 100,000 messages and
+32 MiB of source lines (a newest entry and its edit are always considered together).
+The four-lane stamp cache stores only the selected messages;
 invalid or inaccessible files refuse a stream subscription as `unknown-lane`,
 while a `lane.messages` call maps reader failure to `internal` (or `too-large` for
 size failures). The running Host serves this reader for stopped lanes.

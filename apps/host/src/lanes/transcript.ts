@@ -28,15 +28,18 @@ export function createUnattachedSnapshots(options: {
       return null
     }
     const snapshot = (): SnapshotResult =>
-      fitSnapshot({
-        cursor: options.cursor(laneId),
-        summary,
-        state: null,
-        messages,
-        pending: [],
-        dialogs: [],
-        ui: [],
-      })
+      fitSnapshot(
+        {
+          cursor: options.cursor(laneId),
+          summary,
+          state: null,
+          messages,
+          pending: [],
+          dialogs: [],
+          ui: [],
+        },
+        true,
+      )
     if (lane.sessionFile !== null) {
       const result = readTranscript({
         sessionFile: lane.sessionFile,

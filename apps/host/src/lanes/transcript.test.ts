@@ -27,7 +27,6 @@ const summary: LaneSummary = {
   control: { fence: 1, controller: null },
 }
 const cursor = { epoch: 'epoch', seq: 0 }
-const fileBytes = 64 * 1024 * 1024
 const header = JSON.stringify({ type: 'session', version: 3, id: 'fixture' })
 function transcript(messages: AgentMessage[]) {
   return [
@@ -188,17 +187,11 @@ describe('unattached transcripts', () => {
     expect(read('lane')).toBeNull()
     logged('parse')
   })
-  it('accepts exactly 64 MiB and rejects one byte past it before reading', () => {
+  it('refuses an entry over 32 MiB without guessing its parent or edit target', () => {
     const path = file()
-    const buffer = Buffer.alloc(fileBytes, ' ')
-    buffer.write(header)
-    fs.writeFileSync(path, buffer)
-    expect(snapshot(read('lane')).messages).toEqual([])
-    const spy = vi.spyOn(fs, 'readSync').mockClear()
-    fs.appendFileSync(path, ' ')
+    fs.truncateSync(path, 33 * 1024 * 1024)
     expect(read('lane')).toEqual({ ok: false, reason: 'too-large' })
-    expect(spy).not.toHaveBeenCalled()
-    logged('limit')
+    logged('line-limit')
   })
   it('bounds reads if the file grows after fstat', async () => {
     file()
@@ -312,6 +305,16 @@ describe('unattached transcripts', () => {
     expect(snapshot(read('lane')).messages).toEqual([])
     lane('lane', null)
     expect(snapshot(read('lane')).messages).toEqual([])
+  })
+  it('drops older whole text messages when a stopped preview still exceeds a frame', () => {
+    const content = 'x'.repeat(HOST_LIMITS.outboundFrameBytes / 2)
+    file('lane', [
+      { role: 'user', content },
+      { role: 'user', content: 'newer' + content },
+    ])
+    const messages = snapshot(read('lane')).messages
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.role === 'user' && messages[0].content === 'newer' + content).toBe(true)
   })
   it('uses the shared snapshot size rule and elides images oldest first', () => {
     const images: AgentMessage[] = ['a', 'b'].map((data) => ({

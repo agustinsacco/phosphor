@@ -10,16 +10,11 @@ it('previews the newest active messages beyond the old 64 MiB file bound', () =>
   try {
     const sessionFile = join(sessionsRoot, 'lane.jsonl')
     writeFileSync(sessionFile, '{"type":"session","version":3,"id":"test"}\n')
-    const data = 'x'.repeat(1024 * 1024)
+    const payload = JSON.stringify({ role: 'user', content: 'x'.repeat(1024 * 1024) })
     for (let i = 0; i < 65; i++) {
       appendFileSync(
         sessionFile,
-        JSON.stringify({
-          type: 'message',
-          id: String(i),
-          parentId: null,
-          message: { role: 'user', content: data },
-        }) + '\n',
+        `{"type":"message","id":"${i}","parentId":null,"message":${payload}}\n`,
       )
     }
     const message = { role: 'user', content: 'latest\u2028message' }

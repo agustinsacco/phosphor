@@ -66,7 +66,7 @@ export function createHostLaneProjection(
   }
 }
 
-export function fitSnapshot(input: LaneSnapshot): SnapshotResult {
+export function fitSnapshot(input: LaneSnapshot, preview = false): SnapshotResult {
   let snapshot = input
   let bytes = Buffer.byteLength(JSON.stringify(snapshot))
   if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
@@ -84,6 +84,15 @@ export function fitSnapshot(input: LaneSnapshot): SnapshotResult {
       bytes += Buffer.byteLength(JSON.stringify(omitted)) - Buffer.byteLength(JSON.stringify(block))
       message.content[index] = omitted
       if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
+    }
+  }
+  if (preview) {
+    // Stopped snapshots are previews: after eliding images, keep a whole-message suffix.
+    // Do not claim an empty conversation when the newest message alone cannot fit.
+    for (let i = 0; i + 1 < messages.length; i++) {
+      bytes -= Buffer.byteLength(JSON.stringify(messages[i])) + 1
+      if (bytes <= SNAPSHOT_BYTES)
+        return { ok: true, snapshot: { ...snapshot, messages: messages.slice(i + 1) } }
     }
   }
   return { ok: false, reason: 'too-large' }
