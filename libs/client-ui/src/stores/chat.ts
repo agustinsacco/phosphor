@@ -48,6 +48,8 @@ export interface ChatSession extends ChatSessionState {
    * state over a session with ten turns of history.
    */
   resuming: boolean
+  /** Settled history omitted by the Host; live turn events do not restore it. */
+  historyNotice: string | null
 }
 
 const emptySession = (): ChatSession => ({
@@ -60,6 +62,7 @@ const emptySession = (): ChatSession => ({
   commands: [],
   thinkingLevels: null,
   resuming: false,
+  historyNotice: null,
 })
 
 /**
@@ -92,6 +95,7 @@ interface ChatStore {
   hydrate: (sessionId: string, messages: AgentMessage[], events?: readonly PiEvent[]) => void
   /** Clear the resuming flag; safe to call when it is already clear. */
   doneResuming: (sessionId: string) => void
+  setHistoryNotice: (sessionId: string, notice: string) => void
   setError: (sessionId: string, error: string | null) => void
   setMeta: (sessionId: string, meta: RpcSessionState) => void
   patchMeta: (sessionId: string, patch: Partial<RpcSessionState>) => void
@@ -168,6 +172,36 @@ function promptActions(
   }
 }
 
+function historyActions(
+  set: (update: (s: ChatStore) => Partial<ChatStore>) => void,
+): Pick<ChatStore, 'hydrate' | 'doneResuming' | 'setHistoryNotice'> {
+  return {
+    hydrate: (sessionId, messages, events) =>
+      set((state) => ({
+        sessions: chats.patch(state.sessions, sessionId, (session) => ({
+          ...session,
+          ...(events ? hydrateRunning(messages, events, session) : hydrateFromMessages(messages)),
+          historyNotice: null,
+          resuming: false,
+        })),
+      })),
+
+    doneResuming: (sessionId) =>
+      set((s) =>
+        s.sessions[sessionId]?.resuming
+          ? { sessions: patchSession(s.sessions, sessionId, { resuming: false }) }
+          : s,
+      ),
+
+    setHistoryNotice: (sessionId, historyNotice) =>
+      set((s) =>
+        s.sessions[sessionId]
+          ? { sessions: patchSession(s.sessions, sessionId, { historyNotice, resuming: false }) }
+          : s,
+      ),
+  }
+}
+
 export const useChatStore = create<ChatStore>((set) => ({
   sessions: {},
 
@@ -222,21 +256,7 @@ export const useChatStore = create<ChatStore>((set) => ({
       }
     }),
 
-  hydrate: (sessionId, messages, events) =>
-    set((state) => ({
-      sessions: chats.patch(state.sessions, sessionId, (session) => ({
-        ...session,
-        ...(events ? hydrateRunning(messages, events, session) : hydrateFromMessages(messages)),
-        resuming: false,
-      })),
-    })),
-
-  doneResuming: (sessionId) =>
-    set((s) =>
-      s.sessions[sessionId]?.resuming
-        ? { sessions: patchSession(s.sessions, sessionId, { resuming: false }) }
-        : s,
-    ),
+  ...historyActions(set),
 
   setError: (sessionId, error) =>
     set((s) => ({

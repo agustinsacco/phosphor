@@ -1,3 +1,4 @@
+import { missingHistoryResponse } from '@phosphor/shared/errors'
 import { HOST_LIMITS, utf8Length } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { browserCrypto } from './crypto'
@@ -78,12 +79,7 @@ export async function laneCommand(
           if (ports.current() && h.hydration === hydration) flush(h)
         }, 0)
       }
-      if (h.previewUnavailable)
-        return {
-          ...base,
-          success: false,
-          error: 'This conversation is too large to preview.',
-        }
+      if (h.previewUnavailable) return { ...base, ...missingHistoryResponse }
       return {
         ...base,
         success: true,
