@@ -691,6 +691,15 @@ outside the repository are skipped. Removed lanes are kept for 30 days, with at
 most 1000 removed rows after reconciliation. A returning session file keeps its
 lane id until that row is pruned. Vanished files are removed before new files
 are admitted, so replacements can be indexed in one scan even at capacity.
+A lane records its model when the Host starts it or switches it. After
+reconciliation, each lane with no model yet (one admitted from disk, or moved
+from This Mac) gets the model its transcript resumes with: the nearest
+`model_change`, or else the nearest assistant message's provider and model, on
+the leaf's branch (`lanes/reconcile/models.ts`). It reads only the last 4 MB
+of each transcript, backward, and at most 128 MB in total per start. A lane it
+cannot read waits for the next start. A lane that already has a model is never
+read. The lane's `updatedAt` is unchanged, and one count-only line
+(`lanes.models_repaired`: repaired, skipped, unreadable) is logged.
 Corrupt lane and repository rows are skipped on reads and logged only by count;
 reads do not repair or delete them.
 

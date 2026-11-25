@@ -31,7 +31,7 @@ vi.mock('./BackgroundWorkIndicator', async (orig) =>
   counted('BackgroundWorkIndicator', await orig()),
 )
 vi.mock('./WorkingIndicator', async (orig) => counted('WorkingIndicator', await orig()))
-vi.mock('./composer/ContextMeter', async (orig) => counted('ContextMeter', await orig()))
+vi.mock('./composer/ContextReadout', async (orig) => counted('ContextReadout', await orig()))
 vi.mock('./composer/ModelPicker', async (orig) => counted('ModelPicker', await orig()))
 
 const { installMockPhosphor } = await import('@/dev/mockPhosphor')
@@ -77,7 +77,7 @@ it('typing re-renders none of the strips and readouts around the field', async (
   expect(counts).toEqual({
     BackgroundWorkIndicator: 0,
     WorkingIndicator: 0,
-    ContextMeter: 0,
+    ContextReadout: 0,
     ModelPicker: 0,
   })
   expect((el.querySelector('[data-composer-input]') as HTMLTextAreaElement | null)?.value).toBe(

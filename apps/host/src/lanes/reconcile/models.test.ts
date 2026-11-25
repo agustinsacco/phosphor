@@ -17,7 +17,9 @@ beforeEach(async () => {
   sessions = join(root, 'sessions')
   repository = join(root, 'repository')
   for (const dir of [sessions, repository]) mkdirSync(dir)
-  store = await openStore(join(root, 'state'), uid, { now: () => Date.parse('2026-06-01Z') })
+  store = await openStore(join(root, 'state'), uid, {
+    now: () => Date.parse('2025-01-01T00:00:00.000Z'),
+  })
   store.syncRepositories([repository])
 })
 afterEach(() => {

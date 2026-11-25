@@ -9,6 +9,7 @@ import type { RunContext } from '../../commands/run'
 import { prepareStateDirectory, prepareStateFile } from '../state-dir'
 import type { HostStore } from '../store'
 import { reconcile } from '../reconcile'
+import { repairLaneModels } from './models'
 
 function routinePaths(directory: string, uid: number | undefined) {
   const dir = join(directory, 'routines')
@@ -42,13 +43,17 @@ export async function reconcileRunFolders(
         routinePaths: routinePaths(hostStateDirectory(context.env, context.home), context.uid),
       }
     : undefined
+  const sessionsRoot = piSessionsRoot(context.env, context.home)
   const counts = await (context.reconcile ?? reconcile)(
     store,
-    piSessionsRoot(context.env, context.home),
+    sessionsRoot,
     (skipped) => context.log?.('host', 'lanes.skipped', { skipped }),
     signal,
     owner,
   )
   signal.throwIfAborted()
   context.log?.('host', 'lanes.reconciled', counts)
+  const models = repairLaneModels(store, sessionsRoot, { signal })
+  if (models.repaired + models.skipped + models.unreadable)
+    context.log?.('host', 'lanes.models_repaired', models)
 }
