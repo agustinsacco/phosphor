@@ -264,7 +264,16 @@ it.each(['none', 'text', 'attachment'] as const)(
   },
 )
 
-it('retains the submission claim after adoption unmounts Home and the user returns before receipt', async () => {
+it('keeps one create pending through a slow start and sends one first prompt after opening', async () => {
+  vi.useFakeTimers()
+  const fallback = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel, ...args) => {
+    if (channel === 'hosts:createLane') {
+      await new Promise((resolve) => setTimeout(resolve, 75_000))
+      return mockRemoteInfo
+    }
+    return fallback(channel, ...args)
+  })
   let finish!: (value: unknown) => void
   receipt.mockImplementation(
     () =>
@@ -278,13 +287,24 @@ it('retains the submission claim after adoption unmounts Home and the user retur
   }
   await act(async () => root.render(<NavigatingHome />))
   await send()
+  await act(async () => vi.advanceTimersByTimeAsync(74_999))
+  await send()
+  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(1)
+  expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
+  expect(receipt).not.toHaveBeenCalled()
+  await act(async () => vi.advanceTimersByTimeAsync(1))
   expect(el.textContent).toBe('Lane open')
   await act(async () => useSessionsStore.setState({ activeSessionId: null }))
   await send()
   expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(1)
-  expect(receipt).toHaveBeenCalledOnce()
+  expect(receipt).toHaveBeenCalledExactlyOnceWith(mockRemoteInfo.sessionId, {
+    type: 'prompt',
+    message: 'First prompt',
+    images: [],
+  })
   await act(async () => finish({ success: true }))
   expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
+  expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
 })
 
 it('renders This Mac -> Host -> This Mac dashboards without leaking lanes, ledger or stats', async () => {

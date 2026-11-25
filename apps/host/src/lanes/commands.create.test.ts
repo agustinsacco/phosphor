@@ -4,6 +4,7 @@ import { HOST_LIMITS, parseHostFrame, type LaneOp } from '@phosphor/shared/host-
 import * as folders from './worktree'
 import { LaneCapacityReached } from './store'
 import { type LaneCommandFrame } from './commands'
+import { LANE_CREATE_ANSWER_MS } from './commands/queue'
 import {
   createCommandsFixture,
   deferred,
@@ -48,6 +49,30 @@ describe('lane.create', () => {
     await f.service.submit(f.one, request)
     expect(f.last(request.requestId)).toEqual(receipt)
     expect(f.ports.sessions.start).toHaveBeenCalledTimes(1)
+  })
+  it('keeps a slow create pending through replay and returns the same lane once done', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: f.lane.cwd,
+      branch: 'slow',
+      undo: async () => {},
+    })
+    const gate = deferred<{ sessionId: string; sessionFile: null }>()
+    vi.mocked(f.ports.sessions.start).mockReturnValueOnce(gate.promise)
+    const request = create({ worktree: { branch: 'slow', fresh: true } })
+    const running = f.service.submit(f.one, request)
+    await vi.advanceTimersByTimeAsync(75_000)
+    expect(f.receipts(request.requestId)).toEqual([])
+    await f.service.submit(f.one, request)
+    expect(f.last(request.requestId)).toMatchObject({ status: 'pending' })
+    gate.release({ sessionId: 'slow', sessionFile: null })
+    await running
+    const done = f.last(request.requestId)
+    expect(done).toMatchObject({ status: 'done', laneId: expect.any(String), fence: 1 })
+    expect(f.receipts(request.requestId).map(({ status }) => status)).toEqual(['pending', 'done'])
+    await f.service.submit(f.one, request)
+    expect(f.last(request.requestId)).toEqual(done)
+    expect(f.ports.sessions.start).toHaveBeenCalledOnce()
+    expect(f.store.listLanes()).toHaveLength(2)
   })
   it('rejects laneId, unknown and inactive repositories, and unnormalized or oversized names', async () => {
     const requests = [
@@ -129,7 +154,7 @@ describe('lane.create', () => {
     const first = create({ worktree: { branch: 'same' } })
     const a = f.service.submit(f.one, first)
     await entered.promise
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.last(first.requestId)?.status).toBe('unknown')
     const second = create({ worktree: { branch: 'same' } })
     const b = f.service.submit(f.two, second)
@@ -159,7 +184,7 @@ describe('lane.create', () => {
     const request = create()
     const running = f.service.submit(f.one, request)
     const laneId = await entered.promise
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.receipts(request.requestId)).toEqual([
       { requestId: request.requestId, status: 'unknown' },
     ])
@@ -359,7 +384,7 @@ describe('lane.create', () => {
     const request = create()
     const running = f.service.submit(f.one, request)
     await lateEntered.promise
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.last(request.requestId)).toMatchObject({ status: 'unknown' })
     late.release({ sessionId: 'late', sessionFile: null })
     await running

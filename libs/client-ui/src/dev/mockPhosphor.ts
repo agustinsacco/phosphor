@@ -31,6 +31,7 @@ import { mockLocalRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { mockHostConnectionInvoke } from './mockHostConnectionInvoke'
 import { OPS_MOCK, mockOpsInvoke, mockOpsSnapshot, onMockOpsChanged } from './mock/ops'
 import { LOCAL_MACHINE_MOCK, mockLocalMachineInvoke } from './mock/localMachine'
+import { MAINTENANCE_MOCK, mockMaintenanceInvoke, mockMaintenancePrefs } from './mock/maintenance'
 import { REACH_MOCK, mockReachFlags, mockReachInvoke } from './mock/reach'
 import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
 import type {
@@ -984,6 +985,7 @@ export function installMockPhosphor(): void {
         return Promise.resolve().then(() => mockInstructionsInvoke(channel, args) as never)
       if (OPS_MOCK.has(channel)) return mockOpsInvoke(args) as never
       if (LOCAL_MACHINE_MOCK.has(channel)) return mockLocalMachineInvoke(channel) as never
+      if (MAINTENANCE_MOCK.has(channel)) return mockMaintenanceInvoke(channel, args) as never
       if (REACH_MOCK.has(channel))
         return mockReachInvoke(
           args,
@@ -1039,6 +1041,7 @@ export function installMockPhosphor(): void {
             worktrees: DEFAULT_APP_PREFS.worktrees,
             contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
             contextFiles: mockContextFiles(),
+            maintenance: mockMaintenancePrefs(),
           })
         case 'app:setContextFile':
           localStorage.setItem(
@@ -2171,39 +2174,6 @@ export function installMockPhosphor(): void {
           return Promise.resolve({ removed: true, branchDeleted: false })
         case 'git:renameBranch':
           return Promise.resolve({ renamed: true, branch: args[2] as string })
-        case 'maintenance:scan':
-        case 'maintenance:run':
-          return [
-            {
-              ranAt: Date.now(),
-              workspacePath: '/Users/dev/projects/phosphor',
-              worktreeCount: 3,
-              candidates: [
-                {
-                  path: '/repo/.phosphor/worktrees/merged-lane',
-                  branch: 'phosphor/merged-lane',
-                  bytes: 980 * 1024 * 1024,
-                  reason: 'merged',
-                },
-              ],
-              held: [
-                { path: '/repo', branch: 'main', reason: 'main-checkout' },
-                {
-                  path: '/repo/.phosphor/worktrees/busy',
-                  branch: 'phosphor/busy',
-                  reason: 'dirty',
-                },
-              ],
-              prunedRegistrations: [],
-              reclaimed: [],
-              reclaimableBytes: 980 * 1024 * 1024,
-              reclaimedBytes: 0,
-              liveSessionCount: 1,
-              errors: [],
-            },
-          ]
-        case 'maintenance:setPrefs':
-          return undefined
         case 'git:pruneWorktrees':
           return Promise.resolve({ pruned: [] })
         case 'git:commitAll':

@@ -296,7 +296,9 @@ describe('executeCreate', () => {
     expect(execution.detached).toBe(false)
     let completed = false
     void execution.completion.then(() => (completed = true))
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(119_999)
+    expect(f.last(current.frame.requestId)).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
     expect(f.last(current.frame.requestId)).toEqual({
       requestId: current.frame.requestId,
       status: 'unknown',
