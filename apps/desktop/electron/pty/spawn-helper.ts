@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, statSync } from 'node:fs'
+import { repairSpawnHelper } from '@phosphor/session-runtime/spawn-helper'
 import { dirname, join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
 
@@ -26,16 +26,7 @@ import { createRequire } from 'node:module'
  * a failure here must surface as the spawn error, not as a boot crash.
  */
 export function ensureSpawnHelperExecutable(): void {
-  for (const helper of spawnHelperCandidates()) {
-    try {
-      if (!existsSync(helper)) continue
-      const mode = statSync(helper).mode & 0o777
-      if (mode & 0o111) continue
-      chmodSync(helper, mode | 0o755)
-    } catch {
-      // Read-only install, foreign owner, … — let the spawn error speak.
-    }
-  }
+  for (const helper of spawnHelperCandidates()) repairSpawnHelper(helper)
 }
 
 /** Every directory node-pty's loader may resolve its native module from. */

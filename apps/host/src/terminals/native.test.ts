@@ -1,4 +1,5 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import type * as NodeModule from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { expect, it, vi } from 'vitest'
@@ -6,7 +7,7 @@ import { loadHostPty } from './native'
 
 let bundleEntry: string
 vi.mock('node:module', async (importOriginal) => {
-  const mod = await importOriginal<typeof import('node:module')>()
+  const mod = await importOriginal<typeof NodeModule>()
   return { ...mod, createRequire: () => mod.createRequire(bundleEntry) }
 })
 

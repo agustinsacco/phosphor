@@ -1964,7 +1964,11 @@ The builder discards Desktop's rebuilt addon, uses the shipped macOS prebuild or
 rebuilds for the pinned Node, and proves spawn, resize, output and exit with that Node.
 Pass the resulting directory to `build-bundle.mjs --native DIR`. Its target marker
 must match `--target`. Native resources and the license are included in BUILD-INFO
-and signed archive hashes. The macOS spawn helper has mode 0755 in the archive.
+and signed archive hashes. The release writer and installer give the macOS spawn helper mode 0755.
+When loading node-pty, the Host also restores a missing execute bit so an update
+extracted by an older Host can start shells for both Desktop and the PWA.
+A native spawn failure logs `terminal.spawn_failed` with a clipped error message,
+not the shell environment.
 Linux uses node-pty's fork path and does not need the macOS helper.
 
 `terminal.list {laneId}` returns identities and status, never paths; `terminal.list {}`
