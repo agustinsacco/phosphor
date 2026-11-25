@@ -7,7 +7,7 @@ import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteL
 import { installMockPhosphor } from '@/dev/mockPhosphor'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
-import { useDraftsStore } from '@/stores/drafts'
+import { clearDraftMemory, useDraftsStore } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from './composer/contextBreakdown'
@@ -342,4 +342,19 @@ it('queues a remote follow-up typed while the steer before it awaits its receipt
   ])
   await act(async () => receipts.forEach((done) => done()))
   expect(useDraftsStore.getState().get(key).text).toBe('')
+})
+
+it('does not return an outstanding draft to a new browser owner', async () => {
+  let fail!: () => void
+  vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
+    if (args[0] !== 'hosts:uploadAttachments') return undefined
+    return new Promise((_, reject) => {
+      fail = () => reject(new Error('disconnected'))
+    })
+  })
+  await draw()
+  await send()
+  act(() => clearDraftMemory())
+  await act(async () => fail())
+  expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
 })
