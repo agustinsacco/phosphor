@@ -2,6 +2,7 @@ import type { LaneSummary } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { createLiveLanes } from './live'
 import type { LiveOptions } from './live/state'
+import type { HostStore } from './store'
 import { createUnattachedSnapshots } from './transcript'
 import { gitTracking } from './worktree'
 import { createLanePrReader } from './live/lane-pr-fold'
@@ -16,7 +17,7 @@ export function createHostLiveLanes(
   options: Pick<LiveOptions, 'epoch' | 'store' | 'runtime' | 'now' | 'pauseFor'> & {
     log: RuntimeLog
     sessionsRoot: string
-    composerWindows?: import('./store').HostStore['composerWindows']
+    composerWindows?: HostStore['composerWindows']
     contextBudget?: () => string
   },
 ) {
