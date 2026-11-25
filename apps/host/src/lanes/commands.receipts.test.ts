@@ -27,7 +27,12 @@ describe('lane command guards and operations', () => {
     async (streamingBehavior) => {
       const first = f.frame()
       const running = f.service.submit(f.one, first)
-      const op = { type: 'prompt' as const, message: 'next', streamingBehavior, busy: true }
+      const op = {
+        type: 'prompt' as const,
+        message: 'next',
+        streamingBehavior,
+        busy: true as const,
+      }
       const next = f.frame(op, 2)
       const sending = f.service.submit(f.one, next)
       try {

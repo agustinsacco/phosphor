@@ -228,6 +228,18 @@ export function submit(
     rejected(state, ports, immediate, begin.kind, false)
     return Promise.resolve()
   }
+  // Registration is durable, but not a claim that pi has seen or queued the input.
+  if (
+    frame.op.type === 'steer' ||
+    frame.op.type === 'follow_up' ||
+    (frame.op.type === 'prompt' && frame.op.busy && frame.op.streamingBehavior)
+  )
+    deliver(
+      ports,
+      client.id,
+      { requestId: frame.requestId, status: 'pending' },
+      client.connectionId,
+    )
   queue ??= queueFor(state, key)
   const completion = new Promise<void>((resolve) => queue.jobs.push({ ...jobBase, resolve }))
   if (!queue.draining && !queue.holds)

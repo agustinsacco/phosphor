@@ -8,7 +8,7 @@ import { useChatStore } from '@/stores/chat'
 import { useDraftsStore } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { createReceiptGuard } from './receiptGuard'
+import { usePendingQueue } from './composer/pendingQueue'
 import { sendComposerPrompt } from './sendComposerPrompt'
 
 /** pi's own words when a plain prompt reaches it mid-run. */
@@ -39,10 +39,13 @@ function answers(...responses: PromptResponse[]) {
 }
 
 const send = (remote: boolean, busyBehavior?: 'steer' | 'followUp') =>
-  sendComposerPrompt(
-    { sessionId: id, draftKey: KEY, remote, remoteAttachments: false, busyBehavior },
-    createReceiptGuard(),
-  )
+  sendComposerPrompt({
+    sessionId: id,
+    draftKey: KEY,
+    remote,
+    remoteAttachments: false,
+    busyBehavior,
+  })
 const session = () => useChatStore.getState().sessions[id]!
 
 function hostLane(activity: 'idle' | 'working') {
@@ -81,7 +84,7 @@ describe('the busy behaviour', () => {
     const prompts = answers(accepted('queued'))
     await send(true)
     expect(prompts()).toEqual([
-      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer' },
+      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer', busy: true },
     ])
     expect(session().items).toEqual([])
     expect(session().error).toBeNull()
@@ -92,7 +95,7 @@ describe('the busy behaviour', () => {
     const prompts = answers(accepted('queued'))
     await send(true, 'followUp')
     expect(prompts()).toEqual([
-      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'followUp' },
+      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'followUp', busy: true },
     ])
   })
 
@@ -115,6 +118,10 @@ describe('the busy behaviour', () => {
       const sent = pi.mock.calls.map(([, command]) => command)
       try {
         expect(cleared).toBe('')
+        expect(usePendingQueue.getState().chips.map((chip) => chip.text)).toEqual([
+          'PHX-message',
+          'second',
+        ])
         expect(sent).toMatchObject([
           { message: 'PHX-message', busy: true, streamingBehavior: behavior },
           { message: 'second', busy: true, streamingBehavior: behavior },
@@ -125,6 +132,7 @@ describe('the busy behaviour', () => {
         await Promise.all([first, second])
       }
       expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
+      expect(usePendingQueue.getState().chips).toEqual([])
     },
   )
 
@@ -133,7 +141,7 @@ describe('the busy behaviour', () => {
     const prompts = answers(accepted('queued'))
     await send(false)
     expect(prompts()).toEqual([
-      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer' },
+      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'steer', busy: true },
     ])
   })
 })

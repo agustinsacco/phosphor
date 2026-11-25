@@ -6,6 +6,7 @@ import type { RuntimeLog } from '../file-log'
 interface BudgetGate {
   tail: Promise<void>
   checking: boolean
+  compactions: number
   stopped: boolean
   revision: number
 }
@@ -26,7 +27,12 @@ function enqueue<T>(gate: BudgetGate, action: () => Promise<T>): Promise<T> {
 
 type BudgetClient = Pick<PiRpcClient, 'request'>
 // A new pi process never inherits a staged budget from a previous client.
-const staged = new WeakMap<BudgetClient, string>()
+const staged = new WeakMap<BudgetClient, { key: string; budget: number | null; auto: boolean }>()
+
+export function stagedBudgetIsCurrent(client: BudgetClient, rawBudget: string): boolean {
+  const memo = staged.get(client)
+  return !!memo && memo.budget === (memo.auto ? contextBudgetTokens(rawBudget) : null)
+}
 
 export function forgetStagedBudget(client: BudgetClient): void {
   staged.delete(client)
@@ -60,14 +66,14 @@ export async function syncContextBudget(
   const capped = observed !== undefined && budget !== null ? Math.min(observed, budget) : observed
   // Remember the capped window, not the over-budget one: an extension can replace
   // a model with its uncapped catalogue entry without a model_select event.
-  if (promptState && staged.get(client) === key(observed)) return
+  if (promptState && staged.get(client)?.key === key(observed)) return
   forgetStagedBudget(client)
   const result = await client.request({
     type: 'prompt',
     message: `/phosphor-context-budget ${budget ?? 'off'}`,
   })
   if (!result.success) throw new Error(result.error ?? 'Cannot apply pi context budget.')
-  staged.set(client, key(capped))
+  staged.set(client, { key: key(capped), budget, auto: autoCompactionEnabled })
 }
 
 /** A failed check leaves the session alone; a failed compaction is reported by pi. */
@@ -115,6 +121,7 @@ function watchContextBudget(
   const gate: BudgetGate = {
     tail: Promise.resolve(),
     checking: false,
+    compactions: 0,
     stopped: false,
     revision: 0,
   }
@@ -151,6 +158,7 @@ function withBudgetCompaction<T>(
   sessionId: string,
   command: RpcCommand['type'],
   action: () => Promise<T>,
+  whilePromptPending?: boolean,
 ): Promise<T> {
   const gate = gates.get(sessionId)
   if (!gate || command.startsWith('get_') || command === 'export_html') return action()
@@ -158,13 +166,20 @@ function withBudgetCompaction<T>(
     gate.revision++
     return action()
   }
+  if (whilePromptPending && !gate.checking && !gate.compactions) return action()
+  if (command === 'compact') gate.compactions++
   const revision = gate.revision
-  return enqueue(gate, () => {
+  const result = enqueue(gate, () => {
     if (gate.stopped || revision !== gate.revision) {
       throw new Error('Queued command cancelled before compaction finished.')
     }
     return action()
   })
+  return command === 'compact'
+    ? result.finally(() => {
+        gate.compactions--
+      })
+    : result
 }
 
 /** Each process owner supplies its logger and owns an independent set of command gates. */
@@ -177,6 +192,7 @@ export function createContextBudgetRuntime(log: RuntimeLog) {
       sessionId: string,
       command: RpcCommand['type'],
       action: () => Promise<T>,
-    ) => withBudgetCompaction(runtime, sessionId, command, action),
+      whilePromptPending?: boolean,
+    ) => withBudgetCompaction(runtime, sessionId, command, action, whilePromptPending),
   }
 }

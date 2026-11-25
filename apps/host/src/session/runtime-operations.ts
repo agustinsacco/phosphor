@@ -141,7 +141,14 @@ export function createRuntimeOperations(
     async reloadNow(id: string) {
       const session = registry.get(id)
       if (!session?.client.alive) return 'failed' as const
-      return reloadLaneNow(id, session.client, state.machine.log.write)
+      // A reload replaces model/extension state just like a compact command is a pi barrier.
+      try {
+        return await state.budget.withBudgetCompaction(id, 'compact', () =>
+          reloadLaneNow(id, session.client, state.machine.log.write),
+        )
+      } catch {
+        return 'failed' as const
+      }
     },
     /** Send a controller's answer without treating it as an RPC command. */
     extensionUiResponse(id: string, response: ExtensionUIResponse): void {

@@ -193,7 +193,12 @@ describe('portable session admission', () => {
       const first = h.service.command(live.sessionId, { type: 'prompt', message: 'first' })
       await entered
       client.request.mockClear()
-      const command = { type: 'prompt' as const, message: 'next', streamingBehavior, busy: true }
+      const command = {
+        type: 'prompt' as const,
+        message: 'next',
+        streamingBehavior,
+        busy: true as const,
+      }
       const next = h.service.command(live.sessionId, command)
       try {
         await new Promise(setImmediate)
@@ -206,6 +211,50 @@ describe('portable session admission', () => {
       }
     },
   )
+
+  it('keeps a busy prompt behind compaction and stages a changed budget first', async () => {
+    const h = fixture()
+    const live = await h.service.create({ workspacePath: '/repo' })
+    const client = h.clients[0]!
+    let finish!: () => void
+    let enter!: () => void
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve
+    })
+    const model = { provider: 'native', id: 'model', contextWindow: 128_000 }
+    client.request.mockImplementation(async (request) => {
+      if (request.type === 'compact') {
+        enter()
+        await new Promise<void>((resolve) => {
+          finish = resolve
+        })
+      }
+      return { success: true, data: { model, autoCompactionEnabled: true } } as never
+    })
+    await h.service.command(live.sessionId, { type: 'prompt', message: 'stage' })
+    const compact = h.service.command(live.sessionId, { type: 'compact' })
+    await entered
+    client.request.mockClear()
+    const busy = h.service.command(live.sessionId, {
+      type: 'prompt',
+      message: 'next',
+      streamingBehavior: 'steer',
+      busy: true,
+    })
+    try {
+      await new Promise(setImmediate)
+      expect(client.request).not.toHaveBeenCalled()
+      vi.mocked(h.runtime.budget.read).mockReturnValue('100k')
+    } finally {
+      finish()
+      await Promise.all([compact, busy])
+    }
+    expect(client.request.mock.calls.map(([request]) => request)).toEqual([
+      { type: 'get_state' },
+      { type: 'prompt', message: '/phosphor-context-budget 100000' },
+      { type: 'prompt', message: 'next', streamingBehavior: 'steer' },
+    ])
+  })
 
   it('rechecks routine ownership after waiting in the command gate', async () => {
     const h = fixture()

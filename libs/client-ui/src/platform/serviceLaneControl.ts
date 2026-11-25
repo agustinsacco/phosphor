@@ -111,7 +111,7 @@ export function ensureSessionControl(sessionId: string): Promise<void> | undefin
   const starting = warming.get(sessionId)
   if (starting) return starting.then(() => ensureSessionControl(sessionId))
   const remote = views?.session(sessionId)
-  if (remote?.host?.local && remote.laneId)
+  if (remote?.host?.local && remote.laneId && remote.lane?.control.controller?.self !== true)
     return ensureServiceLaneControl(remote.hostId, remote.laneId)
 }
 

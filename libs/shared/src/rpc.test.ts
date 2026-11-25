@@ -9,6 +9,7 @@ type ExpectedCommand =
       message: string
       images?: Rpc.ImageContent[]
       streamingBehavior?: Rpc.StreamingBehavior
+      busy?: true
     }
   | { id?: string; type: 'steer'; message: string; images?: Rpc.ImageContent[] }
   | { id?: string; type: 'follow_up'; message: string; images?: Rpc.ImageContent[] }

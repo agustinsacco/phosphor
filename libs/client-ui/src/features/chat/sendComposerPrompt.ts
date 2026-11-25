@@ -5,7 +5,7 @@ import { takeSubmittedDraft, useDraftsStore } from '@/stores/drafts'
 import { useWritingStore } from '@/stores/writing'
 import { composePrompt, toImageContents, type PendingAttachment } from './attachments'
 import { uploadPromptFiles } from './uploadPromptFiles'
-import { type createReceiptGuard, withDraftIds } from './receiptGuard'
+import { showPendingChip } from './composer/pendingQueue'
 import { laneBusyNow } from './laneBusy'
 import { canControlSession } from '@/stores/remoteLanes'
 import { sessionTransitionPending } from '@/features/sessions/sessionTransition'
@@ -20,7 +20,7 @@ type Submission = {
 }
 export const COMPACTING_DRAFT = 'Compaction in progress. Send your draft when it finishes.'
 
-/** Order prompts within each pi queue, including upload and preflight. */
+/** Preserve send order across document uploads, not across pi replies. */
 const pending = new Map<string, Promise<void>>()
 
 function promptSlot(key: string) {
@@ -39,43 +39,8 @@ function promptSlot(key: string) {
   }
 }
 
-/** Steers and follow-ups stay editable until acknowledged. Never clear a newer draft. */
-function queuedDraft(
-  key: string,
-  images: PendingAttachment[],
-  guard: ReturnType<typeof createReceiptGuard>,
-  message: string,
-) {
-  const drafts = useDraftsStore.getState()
-  const drafted = withDraftIds(images, true)
-  const submitted = guard.fresh(drafted)
-  if (guard.isResend(message, submitted)) return null
-  const ids = new Set(submitted.map((a) => a.draftAttachmentId))
-  const release = guard.hold(message, ids)
-  let edited = false
-  const off = useDraftsStore.subscribe((s, p) => {
-    if (s.drafts[key]?.text !== p.drafts[key]?.text) edited = true
-  })
-  drafts.setAttachments(key, drafted)
-  return {
-    submitted,
-    finish(success: boolean) {
-      off()
-      release()
-      if (success)
-        drafts.patch(key, {
-          ...(!edited ? { text: '' } : {}),
-          attachments: drafts.get(key).attachments.filter((a) => !ids.has(a.draftAttachmentId)),
-        })
-    },
-  }
-}
-
 /** Present the idle prompt before the first await, including before any file upload. */
-export async function sendComposerPrompt(
-  opts: Submission,
-  guard: ReturnType<typeof createReceiptGuard>,
-) {
+export async function sendComposerPrompt(opts: Submission) {
   const { sessionId, draftKey, remote } = opts
   const chat = useChatStore.getState()
   const drafts = useDraftsStore.getState()
@@ -87,10 +52,7 @@ export async function sendComposerPrompt(
   // Idle pi starts this normally. If a turn began in the meantime, queue it
   // once rather than replaying its input hooks after a plain prompt refusal.
   const behavior = busy ? (opts.busyBehavior ?? 'steer') : 'followUp'
-  const queue =
-    remote && busy ? queuedDraft(draftKey, draft.attachments, guard, message) : undefined
-  if (queue === null) return
-  const submitted = queue?.submitted ?? draft.attachments
+  const submitted = draft.attachments
   const images = toImageContents(submitted)
   // The Host chooses final document paths. Show filenames until it returns those paths.
   const preview = composePrompt(
@@ -100,8 +62,9 @@ export async function sendComposerPrompt(
   const bubble = !busy
     ? chat.addUserMessage(sessionId, preview, images.length ? images : undefined)
     : undefined
-  const slot = promptSlot(`${sessionId}:${behavior}`)
-  const finishDraft = queue ? undefined : takeSubmittedDraft(draftKey)
+  const finishDraft = takeSubmittedDraft(draftKey)
+  const hideChip = busy ? showPendingChip(sessionId, behavior, preview) : undefined
+  const slot = promptSlot(sessionId)
   let prompt = preview
   let accepted = false
   try {
@@ -110,17 +73,22 @@ export async function sendComposerPrompt(
       throw new Error('Lane no longer ready to send.')
     if (remote && submitted.length) {
       if (!opts.remoteAttachments) throw new Error('Attachment upload unavailable.')
-      prompt = composePrompt(message, await uploadPromptFiles(sessionId, submitted))
+      if (submitted.length > 10) throw new Error('At most 10 attachments per message.')
+      if (submitted.some((a) => a.kind === 'file'))
+        prompt = composePrompt(message, await uploadPromptFiles(sessionId, submitted))
       if (bubble && prompt !== preview) chat.updatePendingPrompt(sessionId, bubble, prompt)
     }
     if (useChatStore.getState().sessions[sessionId]?.isCompacting) throw new Error(COMPACTING_DRAFT)
     chat.setError(sessionId, null)
-    const response = await piCallInline(sessionId, {
+    const receipt = piCallInline(sessionId, {
       type: 'prompt',
       message: prompt,
       ...(images.length ? { images } : {}),
       streamingBehavior: behavior,
+      ...(busy ? { busy: true as const } : {}),
     })
+    slot.release()
+    const response = await receipt
     if (!response.ok) {
       chat.setError(
         sessionId,
@@ -147,8 +115,8 @@ export async function sendComposerPrompt(
     chat.setError(sessionId, ipcErrorText(error))
   } finally {
     slot.release()
-    queue?.finish(accepted)
+    hideChip?.()
     if (bubble && !accepted) chat.promptHandled(sessionId, prompt)
-    finishDraft?.(accepted)
+    finishDraft(accepted)
   }
 }

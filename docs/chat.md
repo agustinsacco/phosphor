@@ -94,8 +94,12 @@ The composer is one small field with several ways in.
   if compaction starts before pi accepts the prompt, your draft is kept. Otherwise
   the composer sends one prompt with the selected queue behavior. When the lane
   looks idle, the prompt starts normally, or queues as a follow-up if pi started
-  work before it arrived. Submissions to the same queue go in order. If a Host
-  cannot confirm delivery, check the lane before retrying.
+  work before it arrived. A busy send clears the editor and shows a provisional chip
+  immediately; a refusal restores the draft without discarding new edits. The Host
+  acknowledges registration before pi replies. Registration is not delivery. Sends
+  stay in order (files must upload first), without waiting for earlier pi replies
+  when the context budget is current and no settings or compaction change is pending.
+  If a Host cannot confirm delivery, check the lane before retrying.
   Escape and Stop abort a running turn and hand queued messages back to the composer. pi's abort
   keeps its queues, so they first drain them with `clear_queue`; otherwise the
   messages would also go out with the next one. On a pi without `clear_queue`
