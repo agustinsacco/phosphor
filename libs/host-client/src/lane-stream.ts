@@ -32,6 +32,20 @@ export type Handle = {
   }
   messageBytes: number
   lastState?: Record<string, unknown>
+  /**
+   * The lane's pi run: counts each start after a stop. `lastState` and the
+   * projection's state belong to the run they were read in (`stateRun`,
+   * `projectionRun`), so a resumed lane never serves the last process's state.
+   */
+  run?: number
+  stateRun?: number
+  projectionRun?: number
+}
+
+/** Takes the lane's new summary; a start after a stop is a new pi run. */
+export function setSummary(h: Handle, summary: LaneSummary) {
+  if (isStopped(h.summary.activity) && !isStopped(summary.activity)) h.run = (h.run ?? 0) + 1
+  h.summary = summary
 }
 function push(h: Handle, value: SessionPush) {
   if (!h.window.destroyed()) h.window.send(`pi:event:${h.info.sessionId}`, value)
@@ -112,10 +126,13 @@ function applyFrame(h: Handle, frame: LaneFrame) {
   }
   if (frame.type === 'snapshot') {
     h.previewUnavailable = frame.snapshot.messagesUnavailable ? 'streaming' : undefined
-    h.summary = frame.snapshot.summary
-    if (frame.snapshot.state)
+    setSummary(h, frame.snapshot.summary)
+    if (frame.snapshot.state) {
       h.lastState = frame.snapshot.state as unknown as Record<string, unknown>
+      h.stateRun = h.run
+    }
     h.projection = projection(h)
+    h.projectionRun = h.run
     h.projection.settle(frame.snapshot.messages, frame.snapshot.state)
     for (const event of frame.snapshot.pending) h.projection.apply({ kind: 'event', event })
     for (const request of [...frame.snapshot.ui, ...frame.snapshot.dialogs])
@@ -134,7 +151,7 @@ function applyFrame(h: Handle, frame: LaneFrame) {
           reattach(h)
         }
       }
-    } else if (event.kind === 'summary') h.summary = event.summary
+    } else if (event.kind === 'summary') setSummary(h, event.summary)
     else if (event.kind === 'control') h.summary = { ...h.summary, control: event.control }
     else {
       h.projection.resolveDialog(event.dialogId)

@@ -267,7 +267,10 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     render(platform)
     const trigger = el.querySelector<HTMLButtonElement>('[data-testid=context-meter]')!
     expect(trigger.classList.contains('whitespace-nowrap')).toBe(true)
+    // The popover reads the Host's Claude plan usage; nothing answers it here.
+    const invoke = vi.spyOn(window.phosphor, 'invoke').mockResolvedValue(null)
     act(() => trigger.click())
+    invoke.mockRestore()
     const heading = [...document.querySelectorAll('span')].find(
       (span) => span.textContent === 'Session usage',
     )

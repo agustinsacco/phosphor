@@ -127,7 +127,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             ? 'Context: measuring — session usage'
             : `Context: ${percent}% of ${formatTokens(window)}${of}`
         }
-        className="text-text-secondary hover:bg-bg-secondary hover:text-text flex items-center gap-1 rounded px-1 py-0.5 transition-colors"
+        className="text-text-secondary hover:bg-bg-secondary hover:text-text flex items-center gap-1 whitespace-nowrap rounded px-1 py-0.5 transition-colors"
       >
         <svg width="14" height="14" viewBox="0 0 16 16" className="-rotate-90 shrink-0">
           <circle

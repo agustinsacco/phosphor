@@ -1,7 +1,6 @@
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { dirname, resolve } from 'node:path'
 import { isWithinFolder } from '@phosphor/shared/paths'
-import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { createHostSandboxes } from '../features/sandboxes'
 import { ownerTrash } from '../lanes/delete-target'
 import { transcriptTrash } from '../lanes/delete'

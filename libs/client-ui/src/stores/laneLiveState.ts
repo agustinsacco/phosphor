@@ -1,78 +1,90 @@
-import { useEffect } from 'react'
 import { create } from 'zustand'
 import type { RpcSessionState, SessionStats } from '@shared/rpc'
+import { clearLiveStats } from '@/lib/liveStats'
 import { useChatStore } from './chat'
 import { hostLaneOf, laneWithoutPi } from './hostLaneOf'
-import { useRemoteLanesStore, useSessionHostLane } from './remoteLanes'
-import { useSessionsStore } from './sessions'
+import { useRemoteLanesStore } from './remoteLanes'
+import { bootstrapSession, useSessionsStore } from './sessions'
 
 /**
  * A Host lane's pi state in the chat store outlives the pi that reported it:
- * stopping the lane leaves its last `meta` and `stats` in place, and a resume
- * shows the lane running before the new pi's `get_state` and
- * `get_session_stats` replies land (or when one fails). These hooks answer the
- * chat store's meta and stats only once they come from the lane's current pi:
- * never while the lane runs no pi, and after a resume only once the value is a
- * new one, not the one it held when the lane stopped. Every reply is a fresh
- * object, so identity tells them apart. A session on This Mac's in-app runtime
- * has no Host lane and always reads its live state.
+ * stopping the lane leaves its last `meta` and `stats` in place, a read while
+ * stopped answers with the last process's state, and a resume shows the lane
+ * running before the new pi's replies land. So each Host lane session has a
+ * generation, its pi run as this client sees it, which moves whenever the lane
+ * stops or starts. A meta or stats write is stamped with the generation it
+ * landed in, and counts only while the lane runs and its stamp is the current
+ * generation. A start re-reads the lane (`bootstrapSession`), so a reply that
+ * landed before the start was seen is read again; the Host client serves a
+ * resumed lane only its current run's state. A stop resets the usage overlay's
+ * baseline, so a message after the resume adds to no earlier measurement.
+ * A session on This Mac's in-app runtime has no Host lane: always live.
  */
-interface Leftover {
-  readonly meta: RpcSessionState | null
-  readonly stats: SessionStats | null
+interface LaneRun {
+  readonly running: boolean
+  readonly generation: number
+  readonly metaGeneration: number
+  readonly statsGeneration: number
 }
 
-const useLeftovers = create<Readonly<Record<string, Leftover>>>(() => ({}))
-/** Whether each Host lane session's lane ran no pi when last looked at. */
-const withoutPi = new Map<string, boolean>()
+const useRuns = create<Readonly<Record<string, LaneRun>>>(() => ({}))
+/** The meta and stats objects each session's stamps were taken for. */
+const seen = new Map<string, { meta: unknown; stats: unknown }>()
 
-/** Takes each Host lane session's chat state as it was when its lane stopped. */
 function observe(): void {
   const hosts = useRemoteLanesStore.getState().hosts
   const chats = useChatStore.getState().sessions
-  const stopped: Record<string, Leftover> = {}
+  const runs = useRuns.getState()
+  const next: Record<string, LaneRun> = {}
+  const started: string[] = []
   for (const [sessionId, entry] of Object.entries(useSessionsStore.getState().live)) {
     const host = entry.target?.kind === 'remote' ? hosts[entry.target.hostId] : undefined
     const remote = hostLaneOf(entry, host)
     if (!remote) continue
-    const now = laneWithoutPi(remote.lane)
-    if (now && !withoutPi.get(sessionId))
-      stopped[sessionId] = {
-        meta: chats[sessionId]?.meta ?? null,
-        stats: chats[sessionId]?.stats ?? null,
-      }
-    withoutPi.set(sessionId, now)
+    const running = !laneWithoutPi(remote.lane)
+    const before = runs[sessionId]
+    let run = before ?? { running, generation: 0, metaGeneration: 0, statsGeneration: 0 }
+    if (before && before.running !== running) {
+      run = { ...run, running, generation: run.generation + 1 }
+      if (running) started.push(sessionId)
+      else clearLiveStats(sessionId)
+    }
+    const { meta = null, stats = null } = chats[sessionId] ?? {}
+    const was = seen.get(sessionId)
+    if (was && was.meta !== meta) run = { ...run, metaGeneration: run.generation }
+    if (was && was.stats !== stats) run = { ...run, statsGeneration: run.generation }
+    seen.set(sessionId, { meta, stats })
+    if (run !== before) next[sessionId] = run
   }
-  if (Object.keys(stopped).length) useLeftovers.setState(stopped)
+  if (Object.keys(next).length) useRuns.setState(next)
+  for (const sessionId of started) void bootstrapSession(sessionId).catch(() => false)
 }
 
-let watching = false
-/** Watches lanes from the first composer on, also while no composer is open. */
-function watchLanes(): void {
-  if (watching) return
-  watching = true
-  observe()
-  useRemoteLanesStore.subscribe(observe)
-  useSessionsStore.subscribe(observe)
+// From load on, ahead of any component's subscription, so a render never sees
+// a store change these stamps have not taken in yet.
+observe()
+useRemoteLanesStore.subscribe(observe)
+useSessionsStore.subscribe(observe)
+useChatStore.subscribe(observe)
+
+function useCurrent<T>(sessionId: string, value: T | null, stamp: keyof LaneRun): T | null {
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  const live = useRuns((s) => {
+    const run = s[sessionId]
+    return !!run && run.running && run[stamp] === run.generation
+  })
+  if (!remote) return value
+  return live ? value : null
 }
 
-function useCurrent<T>(sessionId: string, value: T | null, leftover: (l: Leftover) => T | null) {
-  useEffect(watchLanes, [])
-  const hostLane = useSessionHostLane(sessionId)
-  const left = useLeftovers((s) => s[sessionId])
-  if (!hostLane) return value
-  if (laneWithoutPi(hostLane.lane) || (left && leftover(left) === value)) return null
-  return value
-}
-
-/** The session's pi state, once it comes from the lane's current pi; else null. */
+/** The session's pi state, once its lane's current pi run reported it; else null. */
 export function useLiveMeta(sessionId: string): RpcSessionState | null {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta ?? null)
-  return useCurrent(sessionId, meta, (l) => l.meta)
+  return useCurrent(sessionId, meta, 'metaGeneration')
 }
 
-/** The session's usage, once it comes from the lane's current pi; else null. */
+/** The session's usage, once its lane's current pi run measured it; else null. */
 export function useLiveStats(sessionId: string): SessionStats | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats ?? null)
-  return useCurrent(sessionId, stats, (l) => l.stats)
+  return useCurrent(sessionId, stats, 'statsGeneration')
 }
