@@ -126,7 +126,7 @@ function registerLaneReadHandlers(): void {
 }
 
 /** Lane actions on any Host's lane, named by Host and lane id. */
-function registerLaneActionHandlers(): void {
+function registerLaneActionHandlers(canClaim: (hostId: string) => boolean): void {
   handle('hosts:stopLane', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'lane.stop'),
   )
@@ -136,8 +136,7 @@ function registerLaneActionHandlers(): void {
   handle('hosts:takeControl', (_event, hostId, laneId, options) => {
     if (options === undefined) return remoteLanes().action(hostId, laneId, 'control.take')
     // Older remote Hosts discard unknown take options: never send a conditional take there.
-    if (options?.ifUnheld !== true || sameMachine()?.hostId !== hostId)
-      throw new Error(REMOTE_UNAVAILABLE)
+    if (options?.ifUnheld !== true || !canClaim(hostId)) throw new Error(REMOTE_UNAVAILABLE)
     return remoteLanes().action(hostId, laneId, { type: 'control.take', ifUnheld: true })
   })
   handle('hosts:releaseControl', (_event, hostId, laneId) =>
@@ -347,7 +346,9 @@ export function registerHostsHandlers(): void {
   handle('hosts:createLane', (event, hostId, input) =>
     remoteLanes().create(window(event), hostId, input),
   )
-  registerLaneActionHandlers()
+  registerLaneActionHandlers(
+    (id) => sameMachine()?.hostId === id || manager.connection(id)?.snapshot().warmOnOpen === true,
+  )
   registerLaneReadHandlers()
   handle('hosts:setFocusedLane', (event, target) => {
     window(event)

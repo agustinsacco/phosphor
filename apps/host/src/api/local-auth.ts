@@ -152,6 +152,7 @@ export function createLocalAuth(ports: LocalAuthPorts): ConnectionAuthenticator 
             grantExpiresAt,
             caps,
             flags: ports.readyFlags?.(),
+            warmOnOpen: true,
             ownerLocal: owner,
           }),
       })

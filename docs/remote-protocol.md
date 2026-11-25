@@ -524,6 +524,11 @@ too. With a dispatcher bound, a Host announces `ops` and serves both forms throu
 `libs/shared/src/base-684cb3478.compatibility.test.ts` runs every new frame
 through frozen copies of the previous release's parsers.
 
+The optional boolean `ready.warmOnOpen` is a machine policy, not a grant. A Host running
+with its local-mode marker advertises it on both listeners; a headless Host omits it.
+True permits a client with lane control authority to warm the opened stopped lane. A claim
+uses `control.take` with `ifUnheld: true`, never a takeover. Absent or false disables warm-up.
+
 Clients project the flags as `HostConnectionView` booleans, false when absent so a
 reconnect to an older Host forgets them (`libs/host-client/src/ready-view.ts`).
 `ownerLocal` is projected only on a connection created with `local: true`, this

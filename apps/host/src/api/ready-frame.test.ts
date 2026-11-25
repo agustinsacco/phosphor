@@ -39,3 +39,8 @@ describe('ready frame op flags', () => {
     expect(parsed).toMatchObject({ ok: true, value: { ops: true, ownerLocal: true } })
   })
 })
+
+it('sends the local service policy only when configured', () => {
+  expect(readyFrame(base)).not.toHaveProperty('warmOnOpen')
+  expect(readyFrame({ ...base, warmOnOpen: true })).toMatchObject({ warmOnOpen: true })
+})

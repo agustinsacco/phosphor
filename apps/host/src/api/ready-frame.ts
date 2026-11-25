@@ -44,6 +44,8 @@ export function readyFrame(options: {
   webPushKey?: string
   /** The agent-control features this Host serves; none announces nothing new. */
   flags?: ReadonlySet<ReadyOpFlag>
+  /** The machine runs the local service, regardless of the connection transport. */
+  warmOnOpen?: boolean
   /** The connection is the machine's owner on its local socket. */
   ownerLocal?: boolean
 }): Extract<HostFrame, { type: 'ready' }> {
@@ -61,6 +63,7 @@ export function readyFrame(options: {
     settings: hello.capabilities.includes('machine.configure'),
     machineShell: hello.capabilities.includes('terminal'),
     laneMarks: true,
+    ...(options.warmOnOpen ? { warmOnOpen: true } : {}),
     laneArchive: true,
     laneTransfer: true,
     fileBytes: true,

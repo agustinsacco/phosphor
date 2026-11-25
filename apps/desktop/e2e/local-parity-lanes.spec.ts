@@ -34,6 +34,7 @@ test('sidebar lists only the service lane under This Mac, without a control hand
   await page.keyboard.press('Escape')
   await row.click()
   await expect(row).toHaveAttribute('aria-current', 'page')
+  await expect.poll(async () => (await serviceView(page, daemon))!.lanes[0]?.activity).toBe('idle')
   await expect(page.getByRole('button', { name: /^(Take|Release) control/ })).toHaveCount(0)
   await daemon.stop()
   await expect.poll(async () => (await serviceView(page, daemon))?.state).not.toBe('ready')

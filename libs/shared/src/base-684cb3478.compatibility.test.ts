@@ -76,6 +76,16 @@ describe('frozen 684cb3478 parsers agree with today on frames both releases send
     expect(parseCommandFrame({ ...frame, op: { ...frame.op, ifUnheld: false } }).ok).toBe(false)
   })
 
+  it('old readers ignore warm-on-open; current readers retain only booleans', () => {
+    const plain = HOST_FRAMES.ready.ready
+    for (const warmOnOpen of [true, false]) {
+      const frame = { ...plain, warmOnOpen }
+      expect(base.parseReadyFrame(frame)).toEqual(parseReadyFrame(plain))
+      expect(parseReadyFrame(frame)).toMatchObject({ warmOnOpen })
+    }
+    expect(parseReadyFrame({ ...plain, warmOnOpen: 'yes' })).toBeNull()
+  })
+
   it('reads commands alike', () => {
     for (const frame of [CLIENT_FRAMES.command.fenced, CLIENT_FRAMES.command.unfenced])
       expect(baseCommands.parseCommandFrame(frame)).toStrictEqual(parseCommandFrame(frame))

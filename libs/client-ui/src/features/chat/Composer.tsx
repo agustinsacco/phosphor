@@ -1,10 +1,10 @@
-import { uploadPromptFiles } from './uploadPromptFiles'
+import { useComposerSlash } from './useComposerSlash'
+import { sendComposerPrompt } from './sendComposerPrompt'
 import { offersLaneEditing } from './hostLaneEditing'
 import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
@@ -12,33 +12,22 @@ import { ContinueButton } from './composer/ContinueButton'
 import { ContextSourcesMenu } from './composer/ContextSourcesMenu'
 import { namedProvider } from './composer/ModelChip'
 import { submitBehavior } from './composer/submitBehavior'
-import { buildCommandEntries, type NativeCommand } from './composer/CommandMenu'
-import { useSlashMenu } from './composer/useSlashMenu'
-import { recallNext, recallPrevious } from './promptHistory'
+import { promptHistory, recallNext, recallPrevious } from './promptHistory'
 import { useSessionBooting } from './BootingIndicator'
 import { ComposerStrips } from './ComposerStrips'
 import { Spinner } from '@/components/icons'
 import { StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
-import { exportSession, renameSession } from '@/features/sessions/sessionActions'
-import { usePlatform } from '@/platform/Platform'
-import { piCallAccepted, piCallOk } from '@/lib/rpc'
 import { stopRun } from './composer/queueActions'
 import { formatShortcut } from '@/lib/shortcuts'
 import { softKeyboard } from '@/lib/softKeyboard'
-import {
-  composePrompt,
-  fromImageContents,
-  toImageContents,
-  type PendingAttachment,
-} from './attachments'
+import { fromImageContents, type PendingAttachment } from './attachments'
 import { ComposerInput } from './composer/ComposerInput'
 import { composerDraftKey, useDraftsStore } from '@/stores/drafts'
-import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
-import { useWritingStore } from '@/stores/writing'
+import { useSessionsStore } from '@/stores/sessions'
 import { ipcErrorText } from '@shared/errors'
-import { createReceiptGuard, withDraftIds } from './receiptGuard'
+import { createReceiptGuard } from './receiptGuard'
 import { runShellCommand } from './composer/runShellCommand'
 import {
   sessionTransitionPending,
@@ -53,15 +42,7 @@ export function Composer({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
-  /*
-   * Draft state lives in the store, not in `useState`.
-   *
-   * `App` renders `<ChatView key={activeSessionId}>`, so switching session
-   * unmounts this whole subtree — a local draft went with it, silently, along
-   * with any pasted image. Keyed by the session's FILE path once we know it,
-   * because that is the only identity that survives a restart; `rekey` below
-   * moves the draft across when pi finally tells us the path.
-   */
+  // Key drafts by the lane so a switch does not discard them.
   const entry = useSessionsStore((s) => s.live[sessionId])
   const remote = entry?.target?.kind === 'remote'
   const host = useRemoteLanesStore((s) =>
@@ -77,7 +58,6 @@ export function Composer({
     host.capabilities.includes('workspaces.write') &&
     host.capabilities.includes('sessions.control') &&
     canControlSession(sessionId)
-  const uploading = useRef(false)
   const awaiting = useRef(createReceiptGuard())
   const draftKey = composerDraftKey(entry, sessionId)
   const draft = useDraftsStore((s) => s.drafts[draftKey])
@@ -131,48 +111,13 @@ export function Composer({
     textareaRef.current?.focus()
   }, [prefill, sessionId, setText, setImages])
 
-  const { nativeFiles } = usePlatform()
-  const nativeCommands = useMemo<NativeCommand[]>(
-    () => [
-      {
-        name: 'compact',
-        description: 'Compact conversation context now',
-        run: () => void runCompact(sessionId),
-      },
-      {
-        name: 'export',
-        description: 'Export this session as HTML',
-        run: () => void exportSession(sessionId, nativeFiles),
-      },
-      {
-        name: 'name',
-        description: 'Rename this session',
-        run: () => void renameSession(sessionId),
-      },
-    ],
-    [sessionId, nativeFiles],
-  )
-
-  const commandEntries = useMemo(
-    () => buildCommandEntries(piCommands, nativeCommands),
-    [piCommands, nativeCommands],
-  )
-  const slash = useSlashMenu({
-    entries: commandEntries,
-    setText,
-    // The session's list was fetched at bootstrap; `/mcp reconnect` since then
-    // may have registered prompt commands it does not have. Throttled inside.
-    onOpen: () => void refreshSessionCommands(sessionId),
-    focus: () => textareaRef.current?.focus(),
-  })
+  const slash = useComposerSlash(sessionId, piCommands, setText, () => textareaRef.current?.focus())
 
   const send = useCallback(
     async (behavior?: 'steer' | 'followUp') => {
       if (!canControlSession(sessionId) || sessionTransitionPending(sessionId)) return
       const message = text.trim()
-      if ((!message && images.length === 0) || uploading.current) return
-
-      const chat = useChatStore.getState()
+      if (!message && images.length === 0) return
 
       // `!command` / `!!command` → RPC bash execution.
       if (message.startsWith('!') && !isStreaming) {
@@ -184,103 +129,21 @@ export function Composer({
         return
       }
 
-      // Remote sends await uploads and receipts while the next draft stays editable.
-      const drafted = withDraftIds(images, remote)
-      const submitted = awaiting.current.fresh(drafted)
-      if (awaiting.current.isResend(message, submitted)) return
-      const submittedIds = new Set(submitted.map((a) => a.draftAttachmentId))
-      let textEdited = false
-      const unsubscribe = remote
-        ? useDraftsStore.subscribe((next, previous) => {
-            if (next.drafts[draftKey]?.text !== previous.drafts[draftKey]?.text) textEdited = true
-          })
-        : () => undefined
-      if (remote) setImages(drafted)
-      let consumed = false
-      const finishRemoteDraft = (success: boolean) => {
-        if (!remote) return
-        const current = useDraftsStore.getState().get(draftKey)
-        useDraftsStore.getState().patch(draftKey, {
-          ...(success && !textEdited ? { text: '' } : {}),
-          attachments: current.attachments.filter(
-            (a) =>
-              !submittedIds.has(a.draftAttachmentId) ||
-              (!success && !(consumed && a.kind === 'file' && a.data !== undefined)),
-          ),
-        })
-      }
-      const imagePayload: ImageContent[] = toImageContents(submitted)
-      // Non-image attachments ride along as paths in the prompt: pi's protocol
-      // has no document type, so the agent opens them with its own tools.
-      let messageWithFiles: string
-      try {
-        if (remote && submitted.length && !remoteAttachments)
-          throw new Error('Attachment upload unavailable.')
-        uploading.current = true
-        const attached = remote
-          ? await uploadPromptFiles(sessionId, submitted, () => {
-              consumed = true
-            })
-          : submitted
-        messageWithFiles = composePrompt(message, attached)
-      } catch (error) {
-        finishRemoteDraft(false)
-        chat.setError(sessionId, ipcErrorText(error))
-        unsubscribe()
-        uploading.current = false
-        return
-      }
-
-      if (!remote) useDraftsStore.getState().clear(draftKey)
       setAttachWarning(null)
       slash.close()
       setHistoryIndex(null)
-
-      // Local idle prompts render now; remote prompts wait for the Host echo,
-      // which can arrive before the receipt. A steer or follow-up does not:
-      // pi holds it in a queue (shown as a chip) and the reducer appends the
-      // bubble at its `message_end`, where pi actually delivered it. Drawing it
-      // at send time put it above work the agent did before reading it, so a
-      // follow-up looked like a steer and an aborted queue showed it twice.
-      if (!remote && !isStreaming) {
-        chat.addUserMessage(
+      await sendComposerPrompt(
+        {
           sessionId,
-          messageWithFiles,
-          imagePayload.length ? imagePayload : undefined,
-        )
-      }
-
-      uploading.current = false // uploads are exclusive, receipt waits are not
-      const release = awaiting.current.hold(message, submittedIds)
-      try {
-        const accepted = await piCallAccepted(sessionId, {
-          type: 'prompt',
-          message: messageWithFiles,
-          ...(imagePayload.length ? { images: imagePayload } : {}),
-          ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
-        })
-        // A refused prompt keeps a remote draft and its attachments for another try.
-        if (!accepted) {
-          finishRemoteDraft(false)
-          return
-        }
-        finishRemoteDraft(true)
-        // Only once pi took it, so a failed send typed again is not learned twice.
-        useWritingStore.getState().recordPrompt(message)
-        // An extension command consumed it: no run starts, so no event will
-        // ever clear the booting strip or confirm the bubble.
-        if (accepted.data?.disposition === 'handled') {
-          chat.promptHandled(sessionId, messageWithFiles)
-        }
-      } catch (error) {
-        finishRemoteDraft(false)
-        chat.setError(sessionId, ipcErrorText(error))
-      } finally {
-        unsubscribe()
-        release()
-      }
+          draftKey,
+          remote,
+          remoteAttachments,
+          behavior: isStreaming ? (behavior ?? 'steer') : undefined,
+        },
+        awaiting.current,
+      )
     },
-    [sessionId, text, images, isStreaming, draftKey, remote, remoteAttachments, setImages],
+    [sessionId, text, images, isStreaming, draftKey, remote, remoteAttachments],
   )
 
   const abort = useCallback(async () => {
@@ -309,7 +172,10 @@ export function Composer({
     const plainArrow = !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey
     const browsing = historyIndex !== null
     if (plainArrow && event.key === 'ArrowUp' && (browsing || text === '')) {
-      const recalled = recallPrevious(promptHistory(sessionId), historyIndex)
+      const recalled = recallPrevious(
+        promptHistory(useChatStore.getState().sessions[sessionId]?.items ?? []),
+        historyIndex,
+      )
       if (!recalled) return false
       event.preventDefault()
       if (!browsing) draftRef.current = text
@@ -318,7 +184,11 @@ export function Composer({
       return true
     }
     if (plainArrow && event.key === 'ArrowDown' && browsing) {
-      const recalled = recallNext(promptHistory(sessionId), historyIndex, draftRef.current)
+      const recalled = recallNext(
+        promptHistory(useChatStore.getState().sessions[sessionId]?.items ?? []),
+        historyIndex,
+        draftRef.current,
+      )
       if (!recalled) return false
       event.preventDefault()
       setHistoryIndex(recalled.index)
@@ -386,7 +256,7 @@ export function Composer({
       <SessionTransitionBanner sessionId={sessionId} />
       <fieldset
         {...lock}
-        disabled={lock.disabled || restoring}
+        disabled={lock.disabled || restoring || (remote && booting)}
         className="relative mx-auto min-w-0 max-w-3xl"
       >
         <ComposerInput
@@ -521,32 +391,8 @@ const BelowEditorWidgets = memo(function BelowEditorWidgets({
   return <WidgetSlot sessionId={sessionId} placement="belowEditor" />
 })
 
-async function runCompact(sessionId: string): Promise<void> {
-  await piCallOk(sessionId, { type: 'compact' })
-}
-
 /** Two Escapes inside this window count as the rewind chord, not two aborts. */
 const DOUBLE_ESCAPE_MS = 600
-
-/**
- * The prompts this session has already sent, oldest first.
- *
- * Read straight off the transcript rather than kept as a second list: every
- * send appends a user item (optimistically, before pi echoes it), so the
- * transcript is already the history — and a session resumed from disk has one
- * without Phosphor persisting anything of its own.
- */
-function promptHistory(sessionId: string): string[] {
-  const items = useChatStore.getState().sessions[sessionId]?.items ?? []
-  const prompts: string[] = []
-  for (const item of items) {
-    if (item.kind !== 'user') continue
-    const text = item.text.trim()
-    // Consecutive duplicates (a retried prompt) would make ↑ look stuck.
-    if (text && text !== prompts[prompts.length - 1]) prompts.push(text)
-  }
-  return prompts
-}
 
 /** Stable empty list: a fresh `[]` per render would remount the chip row. */
 const EMPTY_ATTACHMENTS: PendingAttachment[] = []

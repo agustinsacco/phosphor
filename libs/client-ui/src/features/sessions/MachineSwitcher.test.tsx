@@ -367,7 +367,9 @@ it('content-only chat updates do not rerender the switcher row, while count chan
     ),
   )
   rendered.mockClear()
-  act(() => useChatStore.getState().addUserMessage('local-chat', 'A content-only update'))
+  act(() => {
+    useChatStore.getState().addUserMessage('local-chat', 'A content-only update')
+  })
   expect(rendered).not.toHaveBeenCalled()
   act(() =>
     useChatStore.setState((s) => ({
@@ -409,7 +411,9 @@ it('local All-machines header ignores content-only chat updates', () => {
     ),
   )
   rendered.mockClear()
-  act(() => useChatStore.getState().addUserMessage('local-chat', 'Another content-only update'))
+  act(() => {
+    useChatStore.getState().addUserMessage('local-chat', 'Another content-only update')
+  })
   expect(rendered).not.toHaveBeenCalled()
 })
 

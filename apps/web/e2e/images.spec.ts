@@ -156,7 +156,18 @@ for (const width of [400, 1100]) {
         `data:image/png;base64,${png}`,
       )
       await page.getByRole('textbox', { name: 'Chat message', exact: true }).fill('PHX-hostinputs')
-      await page.getByRole('button', { name: 'Send message', exact: true }).click()
+      expect(
+        await page
+          .getByRole('button', { name: 'Send message', exact: true })
+          .evaluate(async (el) => {
+            ;(el as HTMLButtonElement).click()
+            await Promise.resolve()
+            return {
+              draft: document.querySelector('textarea')?.value,
+              pending: !!document.querySelector('[data-testid="booting-indicator"]'),
+            }
+          }),
+      ).toEqual({ draft: '', pending: true })
       await expect(chips).toHaveCount(0)
       await expect(page.getByText('Attachments: | 1 image/png', { exact: true })).toBeVisible()
       const image = page.getByRole('button', { name: 'Attached image', exact: true }).last()

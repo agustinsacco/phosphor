@@ -75,6 +75,7 @@ export type HostFrame =
       /** Additive support marker: the Host keeps lane pins and markers (`lane.marks`). */
       readonly laneMarks?: boolean
       /** Retained-worktree lane archive, restore and explicit cleanup. */
+      readonly warmOnOpen?: boolean
       readonly laneArchive?: boolean
       /** Additive support marker: the Host exports and imports lanes (`laneTransfer.*`). */
       readonly laneTransfer?: boolean

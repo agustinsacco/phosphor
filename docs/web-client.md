@@ -100,6 +100,9 @@ capability fails the move closed.
 
 ## Shared pages and responsive shells
 
+The [chat composer](chat.md) shows idle Host prompts immediately, including while a
+stopped lane starts. A failed send returns the draft and attachments on either shell.
+
 Browser presentation switches at 900px: a bottom tab bar below that width,
 a persistent sidebar above it. The sidebar holds the Phosphor brand, Desktop's sidebar top (`SidebarNavigation`: New, the global page links,
 then the **Lanes on** machine scope), the Host lane tree for

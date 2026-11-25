@@ -11,7 +11,18 @@ test('Send, steer, follow up and abort have one remote echo; model, thinking and
     await takeControl(h)
     const chat = h.page.getByRole('textbox', { name: 'Chat message', exact: true })
     await chat.fill('stream remote response')
-    await chat.press('Enter')
+    expect(
+      await h.page
+        .getByRole('button', { name: 'Send message', exact: true })
+        .evaluate(async (el) => {
+          ;(el as HTMLButtonElement).click()
+          await Promise.resolve()
+          return {
+            draft: document.querySelector('textarea')?.value,
+            pending: !!document.querySelector('[data-testid="booting-indicator"]'),
+          }
+        }),
+    ).toEqual({ draft: '', pending: true })
     const stream = h.page.locator('main p').filter({ hasText: /^1 2 / }).first()
     await expect(stream).toContainText('1 2 3')
     const partial = await stream.innerText()

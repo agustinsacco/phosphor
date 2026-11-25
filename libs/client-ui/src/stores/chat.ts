@@ -73,7 +73,8 @@ interface ChatStore {
   sessions: Record<string, ChatSession>
   ensure: (sessionId: string, options?: { resuming?: boolean }) => void
   applyEvent: (sessionId: string, event: PiEvent) => void
-  addUserMessage: (sessionId: string, text: string, images?: ImageContent[]) => void
+  addUserMessage: (sessionId: string, text: string, images?: ImageContent[]) => string
+  updatePendingPrompt: (sessionId: string, id: string, text: string) => void
   /** Drop the "waiting for pi to start" state without an agent event (abort). */
   clearPromptSent: (sessionId: string) => void
   /**
@@ -116,6 +117,57 @@ function modelsRead(models: Model[] | null): Partial<ChatSession> {
     : { modelsLoaded: true, modelsFailed: true }
 }
 
+function promptActions(
+  set: (update: (s: ChatStore) => Partial<ChatStore>) => void,
+): Pick<ChatStore, 'addUserMessage' | 'updatePendingPrompt' | 'clearPromptSent' | 'promptHandled'> {
+  return {
+    addUserMessage: (sessionId, text, images) => {
+      const id = newItemId()
+      set((state) => ({
+        sessions: chats.patch(state.sessions, sessionId, (session) => ({
+          ...session,
+          items: [...session.items, { id, kind: 'user', text, images, optimistic: true }],
+          // A prompt is on its way to pi. Cleared by the first agent event, so
+          // the booting indicator covers exactly the silent window.
+          error: null,
+          promptSentAt: Date.now(),
+        })),
+      }))
+      return id
+    },
+    updatePendingPrompt: (sessionId, id, text) =>
+      set((state) => ({
+        sessions: chats.patch(state.sessions, sessionId, (session) => ({
+          ...session,
+          items: session.items.map((item) =>
+            item.kind === 'user' && item.id === id && item.optimistic ? { ...item, text } : item,
+          ),
+        })),
+      })),
+
+    clearPromptSent: (sessionId) =>
+      set((s) =>
+        s.sessions[sessionId]?.promptSentAt == null
+          ? s
+          : { sessions: patchSession(s.sessions, sessionId, { promptSentAt: null }) },
+      ),
+
+    promptHandled: (sessionId, text) =>
+      set((state) => ({
+        sessions: chats.patch(state.sessions, sessionId, (session) => {
+          const index = session.items.findLastIndex(
+            (item) => item.kind === 'user' && item.optimistic === true && item.text === text,
+          )
+          return {
+            ...session,
+            items: index === -1 ? session.items : session.items.toSpliced(index, 1),
+            promptSentAt: null,
+          }
+        }),
+      })),
+  }
+}
+
 export const useChatStore = create<ChatStore>((set) => ({
   sessions: {},
 
@@ -140,40 +192,7 @@ export const useChatStore = create<ChatStore>((set) => ({
     })
   },
 
-  addUserMessage: (sessionId, text, images) =>
-    set((state) => ({
-      sessions: chats.patch(state.sessions, sessionId, (session) => ({
-        ...session,
-        items: [
-          ...session.items,
-          { id: newItemId(), kind: 'user', text, images, optimistic: true },
-        ],
-        // A prompt is on its way to pi. Cleared by the first agent event, so
-        // the booting indicator covers exactly the silent window.
-        promptSentAt: Date.now(),
-      })),
-    })),
-
-  clearPromptSent: (sessionId) =>
-    set((s) =>
-      s.sessions[sessionId]?.promptSentAt == null
-        ? s
-        : { sessions: patchSession(s.sessions, sessionId, { promptSentAt: null }) },
-    ),
-
-  promptHandled: (sessionId, text) =>
-    set((state) => ({
-      sessions: chats.patch(state.sessions, sessionId, (session) => {
-        const index = session.items.findLastIndex(
-          (item) => item.kind === 'user' && item.optimistic === true && item.text === text,
-        )
-        return {
-          ...session,
-          items: index === -1 ? session.items : session.items.toSpliced(index, 1),
-          promptSentAt: null,
-        }
-      }),
-    })),
+  ...promptActions(set),
 
   addBashItem: (sessionId, item) => {
     const id = newItemId()

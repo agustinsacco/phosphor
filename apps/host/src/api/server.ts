@@ -92,6 +92,7 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
     hello,
     key: options.key,
     webPushKey: options.lanes?.webPushKey,
+    warmOnOpen: options.warmOnOpen,
     readyFlags: options.ops?.readyFlags,
   })
 }
@@ -115,6 +116,7 @@ function connectionAdapters(options: ApiOptions) {
 interface ApiOptions {
   authority: Authority
   origin: string
+  warmOnOpen?: boolean
   webOrigin?: string | null
   hostId: string
   hostVersion: string

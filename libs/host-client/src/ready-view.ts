@@ -9,6 +9,7 @@ type ReadyView = Pick<
   | 'configurationSupported'
   | 'machineShell'
   | 'laneMarks'
+  | 'warmOnOpen'
   | 'laneArchive'
   | 'laneTransfer'
   | 'fileBytes'
@@ -40,6 +41,7 @@ export function readyView(frame: Extract<HostFrame, { type: 'ready' }>, local = 
     configurationSupported: frame.settings === true,
     machineShell: frame.machineShell === true,
     laneMarks: frame.laneMarks === true,
+    warmOnOpen: frame.warmOnOpen === true,
     laneArchive: frame.laneArchive === true,
     laneTransfer: frame.laneTransfer === true,
     fileBytes: frame.fileBytes === true,

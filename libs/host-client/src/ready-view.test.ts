@@ -32,3 +32,8 @@ it("projects ownerLocal only for this machine's own socket", () => {
   expect(readyView({ ...ready, ownerLocal: true }, true).ownerLocal).toBe(true)
   expect(readyView(ready, true).ownerLocal).toBe(false)
 })
+
+it.each([true, false])('warm policy is shared on local=%s', (local) => {
+  expect(readyView({ ...ready, warmOnOpen: true }, local).warmOnOpen).toBe(true)
+  expect(readyView(ready, local).warmOnOpen).toBe(false)
+})
