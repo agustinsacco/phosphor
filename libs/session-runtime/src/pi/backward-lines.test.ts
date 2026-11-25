@@ -80,6 +80,17 @@ describe('BackwardLines', () => {
     expect(result).toMatchObject({ found: ['last'], end: 'line-limit' })
   })
 
+  it('refuses a line one byte over lineBytes even when its LF is in the same chunk', () => {
+    expect(readAll(`first\n${'x'.repeat(1001)}`, { lineBytes: 1000 })).toMatchObject({
+      found: [],
+      end: 'line-limit',
+    })
+    expect(readAll(`first\n${'x'.repeat(1000)}`, { lineBytes: 1000 }).found).toEqual([
+      'x'.repeat(1000),
+      'first',
+    ])
+  })
+
   it('reports a file that shrank under the scan', () => {
     writeFileSync(path, 'a\nb\nc')
     const fd = openSync(path, 'r')

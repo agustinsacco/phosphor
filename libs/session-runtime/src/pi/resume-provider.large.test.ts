@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { copyFileSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { copyFileSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -50,6 +50,36 @@ describe('resumeProvider on transcripts over 64 MiB', () => {
       { type: 'custom', id: 'c1', parentId: 'u1' },
     ])
     expect(await resumeProvider(path)).toBe('first-provider')
+  })
+})
+
+describe('resumeProvider at the 64 MiB entry bound', () => {
+  const LINE_BYTES = 64 * 1024 * 1024
+  /** One JSON line of exactly `bytes` bytes, without its LF. */
+  const padded = (value: Record<string, unknown>, bytes: number) => {
+    const json = JSON.stringify({ ...value, pad: '' })
+    return JSON.stringify({ ...value, pad: 'x'.repeat(bytes - json.length) })
+  }
+  const model = { type: 'model_change', id: 'm', parentId: null, provider: 'smuggled' }
+
+  it('never takes a header cut at the bound for a whole line', async () => {
+    const path = join(root, 'cut-header.jsonl')
+    const header = padded({ type: 'session', version: 3, id: 'cut' }, LINE_BYTES)
+    writeFileSync(path, `${header}tail\n${JSON.stringify(model)}\n`)
+    await expect(resumeProvider(path)).rejects.toMatchObject({
+      message: 'Cannot verify the resumed session provider.',
+      code: 'transcript-line-too-large',
+    })
+  })
+
+  it('refuses a last entry one byte over the bound', async () => {
+    const path = join(root, 'long-entry.jsonl')
+    const header = JSON.stringify({ type: 'session', version: 3, id: 'long' })
+    writeFileSync(path, `${header}\n${padded(model, LINE_BYTES + 1)}`)
+    await expect(resumeProvider(path)).rejects.toMatchObject({
+      message: 'Cannot verify the resumed session provider.',
+      code: 'transcript-line-too-large',
+    })
   })
 })
 
