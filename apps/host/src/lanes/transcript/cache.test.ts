@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { AgentMessage } from '@phosphor/shared/rpc'
 import { createTranscriptCache } from './cache'
 
-const preview = { messages: [{ role: 'user', content: 'hello' }] satisfies AgentMessage[] }
+const preview = {
+  messages: [{ role: 'user', content: 'hello' }] satisfies AgentMessage[],
+  composer: {},
+}
 
 describe('transcript stamp cache', () => {
   it('returns only the matching lane and stamp without copying messages', () => {
@@ -17,9 +20,9 @@ describe('transcript stamp cache', () => {
   it('replaces a stamp and explicitly invalidates a lane', () => {
     const cache = createTranscriptCache()
     cache.set('lane', 'old', preview)
-    cache.set('lane', 'new', { messages: [] })
+    cache.set('lane', 'new', { messages: [], composer: {} })
     expect(cache.get('lane', 'old')).toBeUndefined()
-    expect(cache.get('lane', 'new')).toEqual({ messages: [] })
+    expect(cache.get('lane', 'new')).toEqual({ messages: [], composer: {} })
     cache.delete('lane')
     expect(cache.get('lane', 'new')).toBeUndefined()
     cache.delete('missing')
