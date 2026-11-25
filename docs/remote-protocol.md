@@ -276,6 +276,19 @@ with Desktop through `libs/shared/src/external-tool-marker.ts`.
 ## Machine model defaults
 
 `machine.models` (under `skills.read`) answers `{models, source, defaults?}`.
+Desktop and browser send `{partial: true}` only if the Host advertised
+`partialModels: true` on this connection's `ready` frame. Older Hosts receive
+`{}` on the first and only call; older clients ignore the additive boolean.
+Without the opt-in the Host returns a complete pi list within the call budget
+or fails. With it, a failed probe or a cold probe taking over 1.5 s can answer
+with `source: config`. This projection populates a cold picker, but does not
+replace a complete list. The client retries with backoff in either case.
+
+A successful pi answer with no models is complete; the picker offers sign-in.
+Both shells re-read the models and provider readiness after Host sign-in, setup
+or a settings write, on reconnect and on focus (throttled), including when
+the last list was healthy. No skills read is required.
+
 The additive `defaults {model?: {provider, id}, thinkingLevel?}` is the Host pi's
 own new-session default ([host.md](host.md#machine-features)), so a client reads
 it without `machine.configure`; nothing else from the Host's settings crosses.
@@ -283,7 +296,8 @@ It needs no `ready` marker: it rides an answer clients already read, so an older
 Host omits it and an older client ignores it. Clients parse it strictly
 (`libs/shared/src/host-protocol-machine/model-defaults.ts`: only those keys, ids
 bounded as a catalogue model's, a known thinking level) and drop a malformed one
-without losing the catalogue. Desktop and the browser receive it through
+without losing the catalogue. When a refresh omits `defaults`, clients retain the
+last known defaults for that connection, including those from a settings save. Desktop and the browser receive it through
 `hosts:models` (`libs/host-client/src/machine-reads.ts`), and a new Host lane
 starts on it when it is usable
 ([lane creation](remote-desktop.md#machine-context-and-lane-creation)).

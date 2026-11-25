@@ -43,7 +43,10 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
     }
     set((state) => ({ loading: { ...state.loading, [workspacePath]: true } }))
     try {
-      const result = await window.phosphor.invoke('skills:list', workspacePath)
+      const result =
+        hostId && workspacePath === `host:${hostId}/machine`
+          ? await window.phosphor.invoke('hosts:skills', hostId)
+          : await window.phosphor.invoke('skills:list', workspacePath)
       if (!current()) return
       set((state) => ({
         byWorkspace: { ...state.byWorkspace, [workspacePath]: result },

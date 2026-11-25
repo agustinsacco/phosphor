@@ -1,20 +1,14 @@
+import type { ProbeSlot } from './probe-queue'
+import { settingsFile, HOST_FILE_POLICY } from '@phosphor/session-runtime/pi/settings-file'
+import { join } from 'node:path'
+import { checkProviders } from '../machine/providers'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { inspectClaude } from '../machine/claude'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { hostname } from 'node:os'
-import { join } from 'node:path'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
-import { HOST_FILE_POLICY, settingsFile } from '@phosphor/session-runtime/pi/settings-file'
-import {
-  MACHINE_COMMANDS_LIMIT,
-  machineModelDefaults,
-  machineRecord,
-  parseMachineCommands,
-  parseMachineModels,
-  parseMachineProviders,
-  type MachineModelDefaults,
-} from '@phosphor/shared/host-protocol-machine'
+import { machineRecord, parseMachineProviders } from '@phosphor/shared/host-protocol-machine'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import { inspectHost } from '../commands/doctor'
 import { defaultConfigPath } from '../config/load'
@@ -44,7 +38,10 @@ export function featureError(error: unknown): FeatureOutcome {
   }
 }
 /** Trusted wiring may supply the run command's config path. It is never a call parameter. */
+export type CataloguePi = NonNullable<HostInspection['pi']>
 export interface MachinePorts {
+  pi?: CataloguePi
+  generation?: () => number
   inspect?: () => Promise<HostInspection>
   configPath?: string
   claudeAuthentication?: () => Promise<boolean | null>
@@ -123,8 +120,11 @@ export function queryMachine(
   pi: NonNullable<HostInspection['pi']>,
   cwd: string,
   type: 'get_available_models' | 'get_commands',
+  timeoutMs = 15_000,
+  slot?: ProbeSlot,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    const budget = slot?.budget(timeoutMs) ?? timeoutMs
     const child = spawn(
       pi.launch.binaryPath,
       [...pi.launch.prefixArgs, '--mode', 'rpc', '--no-session'],
@@ -135,6 +135,9 @@ export function queryMachine(
         detached: true,
       },
     )
+    // No pid means spawn failed: there is no live child to hold the slot for.
+    if (child.pid !== undefined)
+      slot?.holdUntil(new Promise<void>((done) => child.once('exit', () => done())))
     const decoder = new JsonlDecoder()
     let bytes = 0
     let settled = false
@@ -147,7 +150,7 @@ export function queryMachine(
       if (error) reject(error)
       else resolve(data)
     }
-    const timer = setTimeout(() => finish(new FeatureFailure('internal')), 15_000)
+    const timer = setTimeout(() => finish(new FeatureFailure('internal')), budget)
     child.on('error', () => finish(new FeatureFailure('internal')))
     child.on('close', () => finish(new FeatureFailure('internal')))
     child.stdin.on('error', () => finish(new FeatureFailure('internal')))
@@ -185,10 +188,14 @@ export async function machineCall(
       throw new FeatureFailure('unknown-lane')
     return { ok: true, data: await ports.claudeUsage(params.laneId, params.force === true) }
   }
-  const inspection = await featureInspection(context, ports)
-  if (!inspection.pi) throw new FeatureFailure('internal')
+  const inspection = ports.pi ? null : await featureInspection(context, ports)
+  const pi = ports.pi ?? inspection?.pi
+  if (!pi) throw new FeatureFailure('internal')
   if (method === 'machine.claude') {
-    const data = await inspectClaude(await listPackages(), inspection.pi.environment)
+    const data = await inspectClaude(
+      await listPackages(undefined, piAgentDir(pi.environment.env, context.home)),
+      pi.environment,
+    )
     if (data.cli === 'ok' && ports.claudeAuthentication) {
       const ready = await ports.claudeAuthentication()
       data.auth = ready === null ? 'unknown' : ready ? 'ok' : 'signed-out'
@@ -197,18 +204,23 @@ export async function machineCall(
   }
   if (method === 'machine.providers') {
     // Only names and readiness. Reasons can carry arbitrary provider output or credentials.
-    const providers = parseMachineProviders(inspection.report.providers)
+    const providers = parseMachineProviders(
+      inspection ? inspection.report.providers : await currentProviders(pi, context.home),
+    )
     if (!providers) throw new FeatureFailure('internal')
     const claudeReady = ports.claudeAuthentication ? await ports.claudeAuthentication() : undefined
     const configuredClaude = ports.claudeAuthentication
-      ? await inspectClaude(await listPackages(), inspection.pi.environment)
+      ? await inspectClaude(
+          await listPackages(undefined, piAgentDir(pi.environment.env, context.home)),
+          pi.environment,
+        )
       : undefined
     providers.push({
       id: 'pi-claude-cli',
       name: 'Claude CLI',
       status: (
         claudeReady === undefined
-          ? inspection.report.lanes.claude.available
+          ? inspection?.report.lanes.claude.available
           : claudeReady === true &&
             configuredClaude?.provider === 'ok' &&
             configuredClaude.cli === 'ok'
@@ -218,42 +230,17 @@ export async function machineCall(
     })
     return { ok: true, data: { providers } }
   }
-  if (method === 'machine.commands') {
-    // The cwd is a configured repository's path or the Host's home, never a caller path:
-    // project skills, prompts and extensions are what differ between the two.
-    const repository = params.repositoryId
-      ? context.store.listRepositories().find((r) => r.id === params.repositoryId)
-      : undefined
-    if (params.repositoryId && !repository) throw new FeatureFailure('bad-request')
-    const raw = await queryMachine(inspection.pi, repository?.path ?? context.home, 'get_commands')
-    if (Array.isArray(raw) && raw.length > MACHINE_COMMANDS_LIMIT)
-      throw new FeatureFailure('too-large')
-    const commands = parseMachineCommands(raw)
-    if (!commands) throw new FeatureFailure('internal')
-    return { ok: true, data: { commands } }
-  }
-  const raw = await queryMachine(inspection.pi, context.home, 'get_available_models')
-  if (Array.isArray(raw) && raw.length > 1000) throw new FeatureFailure('too-large')
-  const models = parseMachineModels(raw)
-  if (!models) throw new FeatureFailure('internal')
-  const defaults = piModelDefaults(inspection.pi, context.home)
-  return { ok: true, data: { models, source: 'pi', ...(defaults ? { defaults } : {}) } }
+  throw new FeatureFailure('unsupported')
 }
 
-/**
- * The defaults pi starts a new session on, from the global settings in the agent
- * folder its environment names. Only the projected ids and level leave this
- * function. Settings the Host refuses to read (malformed, a link, oversized)
- * have no defaults; they never fail the catalogue.
- */
-function piModelDefaults(
-  pi: NonNullable<HostInspection['pi']>,
-  home: string,
-): MachineModelDefaults | undefined {
+async function currentProviders(pi: CataloguePi, home: string) {
+  let defaultProvider: string | undefined
   try {
-    const path = join(piAgentDir(pi.environment.env, home), 'settings.json')
-    return machineModelDefaults(settingsFile(path, HOST_FILE_POLICY).raw)
+    const dir = piAgentDir(pi.environment.env, home)
+    const value = settingsFile(join(dir, 'settings.json'), HOST_FILE_POLICY).raw.defaultProvider
+    if (typeof value === 'string') defaultProvider = value
   } catch {
-    return undefined
+    /* No readable default; check the providers known to pi. */
   }
+  return checkProviders(pi.launch, pi.environment, { defaultProvider })
 }

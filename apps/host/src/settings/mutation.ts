@@ -57,5 +57,6 @@ export async function applySettings(
     default:
       await changeConnectorSettings(state, change, before, cwd, input.revision, commitAllowed)
   }
+  state.options.invalidateCatalogue?.()
   return snapshot(input.section, input.repositoryId, true)
 }

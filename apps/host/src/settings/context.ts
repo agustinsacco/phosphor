@@ -15,6 +15,7 @@ import {
 } from '@phosphor/session-runtime/pi/settings-file'
 
 export interface MachineSettingsOptions {
+  invalidateCatalogue?: () => void
   context: FeatureContext
   configPath: string
   env: Record<string, string>
@@ -53,6 +54,7 @@ export class SettingsContext {
   }
 
   invalidateConnectors = () => {
+    this.options.invalidateCatalogue?.()
     this.connectorGeneration++
     this.connectorChecks.clear()
   }

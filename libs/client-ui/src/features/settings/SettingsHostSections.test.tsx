@@ -244,8 +244,8 @@ it('a saved machine-wide model and thinking default is what the next New lane st
   }
   await act(async () => root.render(<NewLane />))
   expect(container.textContent).toBe(`${opus.id}|minimal|Using this Host’s default model.`)
-  // The save's own answer updated the catalogue: no second read of the Host's models.
-  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:models')).toHaveLength(1)
+  // Each acknowledged save refreshes the catalogue, not just its defaults.
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:models')).toHaveLength(3)
 })
 it('keeps older Host model defaults usable without offering unsupported behavior edits', async () => {
   const normal = invoke.getMockImplementation()!

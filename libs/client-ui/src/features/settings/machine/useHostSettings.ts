@@ -1,3 +1,4 @@
+import { patchHostSettings } from './patchHostSettings'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
@@ -146,7 +147,7 @@ export function useHostSettings(
       const patch = { section, repositoryId, revision: data.revision, change }
       const saved = await write(
         writer,
-        () => window.phosphor.invoke('hosts:settingsPatch', hostId, patch),
+        () => patchHostSettings(hostId, patch),
         (next) => update({ result: { key, data: next } }),
       )
       return saved?.value ?? null

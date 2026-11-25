@@ -44,3 +44,7 @@ it('sends the local service policy only when configured', () => {
   expect(readyFrame(base)).not.toHaveProperty('warmOnOpen')
   expect(readyFrame({ ...base, warmOnOpen: true })).toMatchObject({ warmOnOpen: true })
 })
+
+it('advertises partial machine model reads', () => {
+  expect(readyFrame(base)).toMatchObject({ partialModels: true })
+})

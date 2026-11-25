@@ -57,7 +57,10 @@ export function machineReads(connection: Connection) {
         const parsed = parseMachineParams(method, params)
         if (!parsed || !available()) throw new Error(REMOTE_UNAVAILABLE)
         try {
-          const result = await c.call(method, parsed)
+          const result = await c.call(
+            method,
+            parsed.partial && !c.snapshot().partialModels ? {} : parsed,
+          )
           if (!available() || !result.ok) throw new Error(REMOTE_UNAVAILABLE)
           return result.data
         } catch {
@@ -81,7 +84,7 @@ export function machineReads(connection: Connection) {
       ),
     /** The catalogue and the Host pi's defaults; an older Host's answer has no defaults. */
     async models(hostId: string) {
-      const data = await lane(hostId).call('skills.read', 'machine.models', {})
+      const data = await lane(hostId).call('skills.read', 'machine.models', { partial: true })
       const result = parseMachineModelList(data)
       if (!result) throw new Error(REMOTE_UNAVAILABLE)
       return result
