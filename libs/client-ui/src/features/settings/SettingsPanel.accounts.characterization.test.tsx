@@ -1,4 +1,7 @@
 // @vitest-environment jsdom
+import { HOST_SETTINGS_PLATFORM } from "./__fixtures__/hostSettingsSurface"
+import { WIDE_BROWSER_PLATFORM } from "@/platform/Platform"
+import { machineCatalogueKey, useMachineCataloguesStore } from "@/stores/machineCatalogues"
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -336,4 +339,21 @@ describe('A Host › Accounts and Claude Code', () => {
       [HOST.id, 'claude', { accountId: 'd8736746-ea12-452b-a492-411a74fba4f8', configure: true }],
     ])
   })
+})
+
+it.each([HOST_SETTINGS_PLATFORM, WIDE_BROWSER_PLATFORM])('refreshes cached provider readiness on sign-in exit without reconnecting ($formFactor)', async (platform) => {
+  const key = machineCatalogueKey(HOST.id)
+  const provider = { id: 'p', name: 'P', status: 'not_ready' as const }
+  useMachineCataloguesStore.setState({ catalogues: { [key]: { status: 'ready', models: [], providers: [provider], error: null } } })
+  let exit!: (code: number) => void
+  vi.spyOn(window.phosphor, 'onPtyExit').mockImplementation((_id, listener) => { exit = listener; return () => {} })
+  await showHostSettings(root, HOST.id, 'accounts', platform)
+  const row = document.querySelector('[data-provider="openai-codex"]')!
+  await click([...row.querySelectorAll('button')].find(b => b.textContent === 'Sign in')!)
+  const original = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel, ...args) => channel === 'hosts:providers' ? [{...provider, status:'ready'}] : original(channel,...args))
+  try {
+    await act(async () => exit(0))
+    expect(useMachineCataloguesStore.getState().catalogues[key]?.providers[0]?.status).toBe('ready')
+  } finally { invoke.mockImplementation(original) }
 })
