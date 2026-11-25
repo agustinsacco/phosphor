@@ -1,5 +1,5 @@
 import type { AgentMessage } from '@phosphor/shared/rpc'
-import type { LaneSummary, StreamCursor } from '@phosphor/shared/host-protocol'
+import type { LaneSummary, StoppedComposer, StreamCursor } from '@phosphor/shared/host-protocol'
 import { fitSnapshot, type SnapshotResult } from './projection-host'
 import type { HostStore } from './store'
 import { createTranscriptCache } from './transcript/cache'
@@ -10,6 +10,7 @@ export function createUnattachedSnapshots(options: {
   summary: (laneId: string) => LaneSummary | null
   cursor: (laneId: string) => StreamCursor
   sessionsRoot: string
+  window?: (laneId: string, model: NonNullable<LaneSummary['model']>) => number | undefined
   log: (message: string, data: { laneId: string; reason: TranscriptFailureReason }) => void
 }): (laneId: string, mode?: 'complete') => SnapshotResult | null {
   const cache = createTranscriptCache()
@@ -22,6 +23,7 @@ export function createUnattachedSnapshots(options: {
     const summary = options.summary(laneId)
     if (!summary) return null
     let messages: AgentMessage[] = []
+    let stoppedComposer: StoppedComposer | undefined
     const unreadable = (reason: TranscriptFailureReason): null => {
       cache.delete(laneId)
       options.log('lane.transcript_unreadable', { laneId, reason })
@@ -33,6 +35,7 @@ export function createUnattachedSnapshots(options: {
           cursor: options.cursor(laneId),
           summary,
           state: null,
+          ...(stoppedComposer ? { stoppedComposer } : {}),
           messages,
           pending: [],
           dialogs: [],
@@ -56,6 +59,14 @@ export function createUnattachedSnapshots(options: {
       }
       if (mode === 'complete' && result.omitted) return { ok: false, reason: 'too-large' }
       messages = result.messages
+      const model = result.composer.model ?? summary.model
+      const contextWindow = model ? options.window?.(laneId, model) : undefined
+      const composer = {
+        ...result.composer,
+        ...(model ? { model } : {}),
+        ...(contextWindow !== undefined ? { contextWindow } : {}),
+      }
+      if (Object.keys(composer).length) stoppedComposer = composer
     } else cache.delete(laneId)
     try {
       return snapshot()

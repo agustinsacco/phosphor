@@ -99,12 +99,13 @@ async function startRuntime(
     liveness: (sessionId: string, subagents: number) =>
       parts.services?.pauses?.liveness(sessionId, subagents),
   } satisfies HostOpsLanePorts
+  const policy = hostLivePolicy(config.path, config.config)
   const runtime = createHostRuntime(
     { ...machine, log, appServices: ports.appServices, headroom: ports.headroom },
     {
       leases,
       claudeAccounts: accounts,
-      ...hostLivePolicy(config.path, config.config),
+      ...policy,
       dialogs: 'forward',
       ...(ports.ops ? { ops: opsLanes } : {}),
       trashTranscript: trash.move,
@@ -129,6 +130,8 @@ async function startRuntime(
     now: context.now ?? Date.now,
     log: log.write,
     sessionsRoot: piSessionsRoot(context.env, context.home),
+    composerWindows: store.composerWindows,
+    contextBudget: policy.contextBudget,
     pauseFor: (laneId) => parts.services?.pauses?.pauseFor(laneId),
   })
   const live = hosted.live
@@ -147,11 +150,10 @@ async function startRuntime(
   const nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, accounts))
   parts.nameLane = nameLane
   return {
+    ...hosted,
     leases,
     accounts,
     runtime,
-    live,
-    unattached: hosted.unattached,
     routines,
     nameLane,
     opsLanes,
@@ -211,6 +213,7 @@ export function createMachineCommands(
     env: machine.env,
     pi: machine.pi,
     cataloguePi,
+    bindModelWindow: started.bindModelWindow,
     store,
     runtime,
     accounts: started.accounts,

@@ -45,6 +45,7 @@ interface AdministrationOptions {
   configPath: string
   env: Record<string, string>
   cataloguePi?: HostInspection['pi']
+  bindModelWindow?: NonNullable<Parameters<typeof createSkillsFeature>[2]>
   pi: HostMachine['pi']
   store: HostStore
   runtime: HostRuntime
@@ -85,21 +86,25 @@ function features(
     createFilesFeature(context),
     createGitFeature(context),
     // Inspect this Host's effective config and selected private account.
-    createSkillsFeature(context, {
-      pi: options.cataloguePi ?? undefined,
-      generation,
-      configPath: options.configPath,
-      claudeAuthentication: options.accounts.authenticationReady,
-      claudeUsage: createLaneUsage({
-        accounts: options.accounts,
-        accountForLane: (laneId, prefs) => {
-          const sessionId = options.live.sessionFor(laneId)
-          if (sessionId) return options.runtime.accountForSession(sessionId)
-          const file = options.store.getLane(laneId)?.sessionFile
-          return file ? prefs.bindings[file] : undefined
-        },
-      }),
-    }),
+    createSkillsFeature(
+      context,
+      {
+        pi: options.cataloguePi ?? undefined,
+        generation,
+        configPath: options.configPath,
+        claudeAuthentication: options.accounts.authenticationReady,
+        claudeUsage: createLaneUsage({
+          accounts: options.accounts,
+          accountForLane: (laneId, prefs) => {
+            const sessionId = options.live.sessionFor(laneId)
+            if (sessionId) return options.runtime.accountForSession(sessionId)
+            const file = options.store.getLane(laneId)?.sessionFile
+            return file ? prefs.bindings[file] : undefined
+          },
+        }),
+      },
+      options.bindModelWindow,
+    ),
     createArtifactsFeature({ ...context, store: options.store }),
     // Shared skills land where this Host's pi reads global skills.
     createSkillInstallFeature(context, {

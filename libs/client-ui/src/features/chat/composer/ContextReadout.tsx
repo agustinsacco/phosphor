@@ -15,29 +15,45 @@ const WIDEST_BURN = `${WIDEST_TOKENS}/min`
 /** The ring and its readout, in the meter's own spacing. */
 const READOUT = 'flex items-center gap-1 whitespace-nowrap px-1 py-0.5'
 
-function Ring(): React.JSX.Element {
+function Ring({ percent }: { percent?: number }) {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" className="shrink-0" aria-hidden="true">
       <circle cx="8" cy="8" r="6.5" fill="none" stroke="var(--px-border-strong)" strokeWidth="2" />
+      {percent !== undefined && (
+        <circle
+          cx="8"
+          cy="8"
+          r="6.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          pathLength="100"
+          strokeDasharray={`${Math.min(100, percent)} 100`}
+          transform="rotate(-90 8 8)"
+        />
+      )}
     </svg>
   )
 }
 
 /**
- * The status strip's context readout. A lane with no live pi (stopped, or
- * still starting, on its Host; or no usage reported yet) has nothing to
- * measure, so an empty ring keeps the meter's place, without its popover, even
- * when the chat store still holds an earlier pi's usage. The slot is fixed: an invisible copy of the
- * live meter at its widest sizes it, and whichever state shows sits over it
- * out of flow, so stopping, starting or usage arriving never moves the
- * readouts after it, nor wraps the strip. Only the inline readouts keep to
- * one line; the meter's usage popover, which opens from inside the slot,
- * wraps as it always has.
+ * Live and saved readings share a fixed slot. Only live stats open the usage popover.
  */
 export function ContextReadout({ sessionId }: { sessionId: string }): React.JSX.Element {
   const measured = useChatStore((s) => !!s.sessions[sessionId]?.stats)
   const hostLane = useSessionHostLane(sessionId)
-  const live = measured && !laneWithoutPi(hostLane?.lane)
+  const stopped = laneWithoutPi(hostLane?.lane)
+  const saved = stopped ? hostLane?.lane?.stoppedComposer : undefined
+  const { tokens, contextWindow } = saved ?? {}
+  const percent = tokens !== undefined && contextWindow ? (tokens / contextWindow) * 100 : undefined
+  const recorded =
+    percent !== undefined && contextWindow
+      ? `${Math.round(percent)}% of ${formatTokens(contextWindow)}`
+      : tokens !== undefined
+        ? `${formatTokens(tokens)} used`
+        : contextWindow
+          ? `${formatTokens(contextWindow)} window`
+          : undefined
   return (
     <div data-testid="context-readout" className="relative">
       <span data-readout-reserve aria-hidden="true" className={`invisible ${READOUT}`}>
@@ -46,18 +62,22 @@ export function ContextReadout({ sessionId }: { sessionId: string }): React.JSX.
         <span className="text-2xs font-mono uppercase tracking-wide">{WIDEST_BURN}</span>
       </span>
       <div data-readout-layer className="absolute inset-y-0 left-0 flex items-center">
-        {live ? (
+        {measured && !stopped ? (
           <ContextMeter sessionId={sessionId} />
         ) : (
           <span
-            data-testid="context-meter-idle"
+            data-testid={recorded ? 'context-meter-recorded' : 'context-meter-idle'}
             role="img"
-            aria-label="Context: starts with the lane"
-            data-tooltip="Context: starts with the lane"
+            aria-label={
+              recorded ? `Last known context: ${recorded}` : 'Context: starts with the lane'
+            }
+            data-tooltip={
+              recorded ? `Last known context: ${recorded}` : 'Context: starts with the lane'
+            }
             className={READOUT}
           >
-            <Ring />
-            <span className="tabular-nums">—</span>
+            <Ring percent={percent} />
+            <span className="tabular-nums">{recorded ?? '—'}</span>
           </span>
         )}
       </div>

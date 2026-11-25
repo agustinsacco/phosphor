@@ -1,3 +1,4 @@
+import type { LaneSummary } from '@phosphor/shared/host-protocol'
 import { probeDeadline, probeQueue, type ProbeSlot } from './probe-queue'
 import { join } from 'node:path'
 import { configModels } from '@phosphor/session-runtime/pi/config-models'
@@ -91,11 +92,20 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
   const models = new CatalogueCache<ReturnType<typeof modelAnswer>>()
   const commands = new CatalogueCache<Awaited<ReturnType<typeof commandsFromPi>>>()
   const skills = new CatalogueCache<unknown>()
+  let inspectedPi = ports.pi
   const pi = async () => ports.pi ?? (await featureInspection(context, ports)).pi
   const key = (dir: string, pi: CataloguePi, scope?: string) =>
     JSON.stringify([ports.generation?.(), catalogueIdentity(dir, pi), scope])
   return {
     resourceQueue,
+    modelWindow({ provider, id }: NonNullable<LaneSummary['model']>) {
+      const dir = piAgentDir(inspectedPi?.environment.env ?? context.env, context.home)
+      const match = (answer: ReturnType<typeof modelAnswer> | undefined) =>
+        answer?.models.find((model) => model.provider === provider && model.id === id)
+          ?.contextWindow
+      const cached = inspectedPi && match(models.peek(key(dir, inspectedPi)))
+      return cached || match(fallback(dir))
+    },
     async models(partial: boolean) {
       const deadline = probeDeadline()
       let dir = piAgentDir(ports.pi?.environment.env ?? context.env, context.home)
@@ -103,6 +113,7 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
         (async () => {
           const launch = await pi()
           if (!launch) throw new FeatureFailure('internal')
+          inspectedPi = launch
           dir = piAgentDir(launch.environment.env, context.home)
           return models.get(key(dir, launch), () =>
             modelQueue(

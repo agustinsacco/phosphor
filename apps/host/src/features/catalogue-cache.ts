@@ -26,6 +26,9 @@ interface Entry<T> {
 /** Last good answer per admitted identity. A failed refresh cannot evict a good answer. */
 export class CatalogueCache<T> {
   private entries = new Map<string, Entry<T>>()
+  peek(key: string): T | undefined {
+    return this.entries.get(key)?.value
+  }
   get(key: string, read: () => Promise<T>): Promise<T> {
     const entry = this.entries.get(key) ?? { next: 0 }
     if (!this.entries.has(key)) {

@@ -983,10 +983,12 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   model (`LaneSummary.model`, named from a model catalogue this client has
   already read, else its id) as an inert chip with the tooltip "Starts with
   the lane". The live chip replaces it in the same row once the lane runs and
-  pi has reported its state. There is no thinking segment, since a lane does
-  not record its thinking level. The strip's context ring stays in place as an
-  empty ring with `—` (`ContextReadout`) until the lane runs and pi has
-  reported usage. The readout has a fixed slot, sized by an invisible copy of
+  pi has reported its state. A stopped snapshot keeps pi state null, but carries
+  the saved branch’s model, thinking level and latest context usage when known.
+  The Host uses the matching cached model’s window capped by the Host budget,
+  or the last observed effective window for that model. No pi starts for these
+  reads. The thinking chip is read-only and the ring labels the saved reading;
+  `—` means nothing is known. The readout has a fixed slot, sized by an invisible copy of
   the live meter at its widest: `999% of 1000k` (the largest supported budget, 999.9k, formats as
   `1000k`) and a `1000k/min` burn rate. Either state sits over it, so
   stopping, starting or usage arriving never moves the readouts after it or

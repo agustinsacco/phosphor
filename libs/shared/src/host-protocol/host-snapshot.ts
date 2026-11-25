@@ -4,8 +4,9 @@ import type { AgentMessage, ExtensionUIRequest, PiEvent, RpcSessionState } from 
 import { HOST_LIMITS } from './constants'
 import type { HostFrame } from './frames'
 import { boundedList, parseLaneControl, parseLaneSummary } from './host-lanes'
-import type { LaneEvent, LaneSnapshot } from './lanes'
-import { cursor, frameId, integer, record, text } from './primitives'
+import { ALL_THINKING_LEVELS } from '../thinking'
+import type { LaneEvent, LaneSnapshot, StoppedComposer } from './lanes'
+import { cursor, frameId, integer, member, record, text } from './primitives'
 
 type Frame<T extends HostFrame['type']> = Extract<HostFrame, { type: T }>
 
@@ -30,6 +31,20 @@ function piState(v: unknown): v is RpcSessionState {
   return record(v)
 }
 
+function parseStoppedComposer(v: unknown): StoppedComposer | undefined {
+  if (!record(v)) return
+  const model = v.model
+  const data: StoppedComposer = {
+    ...(record(model) && text(model.provider, 200) && text(model.id, 200)
+      ? { model: { provider: model.provider, id: model.id } }
+      : {}),
+    ...(member(v.thinkingLevel, ALL_THINKING_LEVELS) ? { thinkingLevel: v.thinkingLevel } : {}),
+    ...(integer(v.tokens) ? { tokens: v.tokens } : {}),
+    ...(integer(v.contextWindow, 1) ? { contextWindow: v.contextWindow } : {}),
+  }
+  return Object.keys(data).length ? data : undefined
+}
+
 /** UI state is capped per kind: statuses, widgets, and a single title. */
 export function parseLaneSnapshot(v: unknown): LaneSnapshot | null {
   if (!record(v)) return null
@@ -37,6 +52,7 @@ export function parseLaneSnapshot(v: unknown): LaneSnapshot | null {
     s = parseLaneSummary(v.summary)
   if (!c || !s || (v.state !== null && !piState(v.state))) return null
   if (v.messagesUnavailable !== undefined && typeof v.messagesUnavailable !== 'boolean') return null
+  const stoppedComposer = v.state === null ? parseStoppedComposer(v.stoppedComposer) : undefined
   const messages = boundedList(v.messages, HOST_LIMITS.outboundFrameBytes, (x) =>
     piMessage(x) ? x : null,
   )
@@ -59,6 +75,7 @@ export function parseLaneSnapshot(v: unknown): LaneSnapshot | null {
         cursor: c,
         summary: s,
         state: v.state,
+        ...(stoppedComposer ? { stoppedComposer } : {}),
         messages,
         ...(v.messagesUnavailable !== undefined
           ? { messagesUnavailable: v.messagesUnavailable }

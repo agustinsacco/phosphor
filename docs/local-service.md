@@ -4,7 +4,9 @@ Packaged Desktop automatically moves This Mac’s lanes to the service **once**,
 
 Opening a stopped service lane starts pi in the background while you type. The service
 advertises this policy on both the owner socket and its enrolled connection. Only the opened
-lane warms; a paused lane or one held by another controller stays stopped.
+lane warms; a paused lane or one held by another controller stays stopped. The
+client checks the fresh view after opening the lane; it does not wait for pi
+before showing the transcript and [saved composer readings](chat.md).
 
 ## Installation and launch
 
