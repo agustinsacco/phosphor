@@ -1,3 +1,4 @@
+import { lstatSync } from 'node:fs'
 import { isUuid } from '@phosphor/shared/control-api'
 import { parseRoutineHistory } from '@phosphor/shared/host-protocol-routines'
 import type { AgentMessage } from '@phosphor/shared/rpc'
@@ -17,6 +18,15 @@ type RunPage = { id?: string; offset?: number; output?: boolean }
 const canReadOutput = (ctx: OpHandlerContext) =>
   ctx.principal.kind === 'surface' &&
   surfaceAdmits(ctx.principal, { caps: ['routines', 'sessions.read'] })
+
+/** Only a list hint: the open-time reader still verifies and bounds the file. */
+function hasTranscript(path: string): boolean {
+  try {
+    return lstatSync(path, { throwIfNoEntry: false })?.isFile() === true
+  } catch {
+    return false
+  }
+}
 
 /** Plain text, never an inline image payload or pi's private message metadata. */
 function conversationText(message: AgentMessage) {
@@ -59,7 +69,9 @@ export function routineRunHandlers(deps: DaemonHandlerDeps) {
         const path = deps.routines?.sessionPathForRun?.(row.id)
         const laneRef = path && refs.get(path)
         if (laneRef) return { ...row, laneRef }
-        return output && path && canReadOutput(ctx) ? { ...row, savedOutput: true } : row
+        return output && path && canReadOutput(ctx) && hasTranscript(path)
+          ? { ...row, savedOutput: true }
+          : row
       }),
     )
   })
@@ -84,7 +96,10 @@ export function routineRunHandlers(deps: DaemonHandlerDeps) {
       })
       if (result.kind !== 'messages')
         throw new OpRefusal(result.kind === 'too-large' ? 'too-large' : 'unavailable', unavailable)
-      return contentPage(result.messages.map(conversationText).join('\n\n'), {}, ctx)
+      const visible = result.messages.filter(
+        (m) => (m.role !== 'custom' && m.role !== 'customMessage') || m.display !== false,
+      )
+      return contentPage(visible.map(conversationText).join('\n\n'), {}, ctx)
     }),
   }
 }

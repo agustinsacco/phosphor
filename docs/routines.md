@@ -126,7 +126,7 @@ instructions and configuration, not stored account credentials or run history.
   task can surprise you with. Promotion is one-way and never deletes history.
   A lane promoted while its run is still executing stays owned by the routine
   until that run ends; it is visible so you can watch it.
-- **On the service**, **View output** opens the saved conversation read-only in Desktop or the PWA. It does not start pi or add a sidebar lane. If the output already belongs to an ordinary lane, Open or Continue opens that lane instead. Agent-created routines start paused and untrusted; enabling or running a routine does not grant trust. Asked agent ops in an unattended run are denied instead of opening a dialog.
+- **On the service**, **View output** opens the saved conversation read-only in Desktop or the PWA. It is offered only while the recorded file exists. The reader omits hidden extension messages and does not start pi or add a sidebar lane. Agents can request history metadata, but cannot request transcript contents or approval to read them. If the output already belongs to an ordinary lane, Open or Continue opens that lane instead. Agent-created routines start paused and untrusted; enabling or running a routine does not grant trust. Asked agent ops in an unattended run are denied instead of opening a dialog.
 - `Finished · unverified` means the agent returned a written outcome, **not**
   that its report, tests, or external deliveries were independently verified.
   Empty outcomes and provider errors fail. On Desktop and Host, top-level tool
