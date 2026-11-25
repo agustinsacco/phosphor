@@ -66,6 +66,16 @@ describe('readRecordedModel', () => {
     expect(read()).toMatchObject({ kind: 'none' })
   })
 
+  it('reports none only once the walk reaches the branch’s root or the file’s start', () => {
+    writeFileSync(path, piTranscript([userMessage('u1', 'hi'), userMessage('u2', 'again')]))
+    expect(read(1024)).toMatchObject({ kind: 'none' })
+    const headerless = `${JSON.stringify({ type: 'message', id: 'u1', parentId: 'x' })}\n`
+    writeFileSync(path, headerless)
+    expect(read()).toMatchObject({ kind: 'none' })
+    writeFileSync(path, piTranscript([userMessage('u1', 'x'.repeat(4096))]))
+    expect(read(1024)).toMatchObject({ kind: 'capped' })
+  })
+
   it('skips a torn last line', () => {
     writeFileSync(path, `${piTranscript(CLAUDE_LANE)}{"type":"message","id":"a2","par`)
     expect(read()).toMatchObject({ model: { provider: 'pi-claude-cli', id: 'claude-opus-5' } })
@@ -77,8 +87,9 @@ describe('readRecordedModel', () => {
       path,
       piTranscript([modelChange('m1', 'anthropic', 'early'), userMessage('u1', big)]),
     )
+    // Stopping at the cap proves nothing about the branch's model.
     const result = read(16 * 1024)
-    expect(result).toEqual({ kind: 'none', bytes: 16 * 1024 })
+    expect(result).toEqual({ kind: 'capped', bytes: 16 * 1024 })
     expect(read()).toMatchObject({ model: { provider: 'anthropic', id: 'early' } })
   })
 

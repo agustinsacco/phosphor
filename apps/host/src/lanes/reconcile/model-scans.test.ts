@@ -1,37 +1,64 @@
-import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { HOST_SIDECARS } from '@phosphor/shared/host-local'
+import { loadSqlite } from '../sqlite'
+import { prepareStateFile } from '../state-dir'
+import { openStore, type HostStore } from '../store'
 import { readModelScans, writeModelScans } from './model-scans'
 
 const uid = process.getuid?.()
-const LANE = '11111111-1111-4111-8111-111111111111'
-let directory: string
-beforeEach(() => {
-  directory = realpathSync(mkdtempSync(join(tmpdir(), 'host-model-scans-')))
-  chmodSync(directory, 0o700)
+let root: string
+let state: string
+let store: HostStore
+let laneId: string
+beforeEach(async () => {
+  root = realpathSync(mkdtempSync(join(tmpdir(), 'host-model-scans-')))
+  state = join(root, 'state')
+  const repository = join(root, 'repository')
+  mkdirSync(repository)
+  store = await openStore(state, uid)
+  const [entry] = store.syncRepositories([repository])
+  laneId = store.ensureLane({
+    repositoryId: entry!.id,
+    cwd: repository,
+    sessionFile: join(root, 'lane.jsonl'),
+  }).laneId
 })
-afterEach(() => rmSync(directory, { recursive: true, force: true }))
+afterEach(() => {
+  store.close()
+  rmSync(root, { recursive: true, force: true })
+})
 
-describe('model scans sidecar', () => {
-  it('round-trips the lanes read without a result, owner-only', () => {
-    expect(readModelScans(directory, uid)).toEqual(new Map())
-    writeModelScans(directory, uid, new Map([[LANE, '120:1735689600000']]))
-    expect(readModelScans(directory, uid)).toEqual(new Map([[LANE, '120:1735689600000']]))
-    const file = join(directory, HOST_SIDECARS.laneModelScans)
-    expect(JSON.parse(readFileSync(file, 'utf8'))).toMatchObject({ version: 1 })
+async function prefs(): Promise<Record<string, string>[]> {
+  const sqlite = await loadSqlite()
+  const db = new sqlite.DatabaseSync(prepareStateFile(state, uid))
+  try {
+    return db
+      .prepare('SELECT lane_id, key, value FROM lane_prefs ORDER BY lane_id, key')
+      .all()
+      .map((row) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, String(v)])))
+  } finally {
+    db.close()
+  }
+}
+
+describe('model scans', () => {
+  it('live in state.sqlite’s lane_prefs, so purge removes them with it on any version', async () => {
+    expect(await readModelScans(state, uid)).toEqual(new Map())
+    await writeModelScans(state, uid, new Map([[laneId, 'none:120:1735689600000']]))
+    expect(await readModelScans(state, uid)).toEqual(new Map([[laneId, 'none:120:1735689600000']]))
+    expect(await prefs()).toEqual([
+      { lane_id: laneId, key: 'model_scan', value: 'none:120:1735689600000' },
+    ])
+    expect(readdirSync(state).filter((name) => !name.startsWith('state.sqlite'))).toEqual([])
   })
 
-  it('reads a file it cannot trust, or entries it does not know, as nothing remembered', () => {
-    const file = join(directory, HOST_SIDECARS.laneModelScans)
-    writeFileSync(file, 'not json', { mode: 0o600 })
-    expect(readModelScans(directory, uid)).toEqual(new Map())
-    writeFileSync(
-      file,
-      JSON.stringify({ version: 1, lanes: { [LANE]: '1:2', 'not-a-lane': '1:2', x: 3 } }),
-      { mode: 0o600 },
-    )
-    expect(readModelScans(directory, uid)).toEqual(new Map([[LANE, '1:2']]))
+  it('replaces the remembered set, and drops a value it does not know', async () => {
+    await writeModelScans(state, uid, new Map([[laneId, 'capped:1:2']]))
+    await writeModelScans(state, uid, new Map())
+    expect(await prefs()).toEqual([])
+    await writeModelScans(state, uid, new Map([[laneId, 'bogus']]))
+    expect(await readModelScans(state, uid)).toEqual(new Map())
   })
 })

@@ -133,7 +133,7 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     act(() => {
       setActivity('idle')
       useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, META)
+      useChatStore.getState().setMeta(SESSION, { ...META })
     })
     expect(chip()?.textContent).toBe(OPUS.name)
     expect(chip()?.disabled).toBe(false)
@@ -147,8 +147,8 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     stoppedLane(local, 'idle')
     act(() => {
       useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, META)
-      useChatStore.getState().setStats(SESSION, STATS)
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, { ...STATS })
     })
     render(platform)
     expect(chip()?.disabled).toBe(false)
@@ -161,22 +161,67 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
   })
 
-  it('reserves the live readout’s width in the idle ring, so stats arriving move nothing', () => {
+  it.each([
+    ['This Mac’s service', true],
+    ['a remote Host', false],
+  ])('on %s, a resumed lane keeps the idle chips until its new pi reports', (_m, local) => {
+    stoppedLane(local, 'idle')
+    act(() => {
+      useChatStore.getState().setModels(SESSION, [OPUS])
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, { ...STATS })
+    })
+    render(platform)
+    act(() => setActivity('stopped'))
+    // Resumed: the chat store still holds the previous pi's state.
+    act(() => setActivity('idle'))
+    expect(chip()?.disabled).toBe(true)
+    expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
+
+    act(() => useChatStore.getState().setMeta(SESSION, { ...META }))
+    expect(chip()?.disabled).toBe(false)
+    // The new pi's stats have not arrived (or their read failed): no old usage.
+    expect(el.querySelector('[data-testid=context-meter]')).toBeNull()
+    act(() => useChatStore.getState().setStats(SESSION, { ...STATS }))
+    expect(el.querySelector('[data-testid=context-meter]')).not.toBeNull()
+  })
+
+  it('treats a lane that stopped and resumed while its composer was closed the same way', () => {
+    stoppedLane(true, 'idle')
+    act(() => {
+      useChatStore.getState().setModels(SESSION, [OPUS])
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, { ...STATS })
+    })
+    render(platform)
+    act(() => root!.unmount())
+    act(() => setActivity('stopped'))
+    act(() => setActivity('idle'))
+    render(platform)
+    expect(chip()?.disabled).toBe(true)
+    expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
+  })
+
+  it('gives the readout a fixed slot sized for its widest live state', () => {
     stoppedLane(true)
     render(platform)
     const slot = readout()
     const reserve = slot?.querySelector('[data-readout-reserve]')
-    expect(reserve?.textContent).toBe('100% of 200k')
+    // The ring, `100% of 200k` and a burn rate: the widest the live meter gets.
+    expect(reserve?.textContent).toBe('100% of 200k999k/min')
     expect(reserve?.getAttribute('aria-hidden')).toBe('true')
-    expect(slot?.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
+    // Whatever shows sits over the reserve, out of flow, so it never sizes the slot.
+    const layer = slot?.querySelector('[data-readout-layer]')
+    expect(layer?.classList.contains('absolute')).toBe(true)
+    expect(layer?.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
 
     act(() => {
       setActivity('idle')
-      useChatStore.getState().setMeta(SESSION, META)
-      useChatStore.getState().setStats(SESSION, STATS)
+      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setStats(SESSION, { ...STATS })
     })
     expect(readout()).toBe(slot)
     expect(slot?.querySelector('[data-readout-reserve]')).toBe(reserve)
-    expect(slot?.querySelector('[data-testid=context-meter]')).not.toBeNull()
+    expect(layer?.querySelector('[data-testid=context-meter]')).not.toBeNull()
   })
 })

@@ -101,6 +101,7 @@ describe('repairLaneModels', () => {
     const first = repairLaneModels(store, sessions)
     expect(first.counts).toEqual(counts(0, 1, 0))
     expect([...first.scanned.keys()]).toEqual([silent.laneId])
+    expect(first.scanned.get(silent.laneId)).toMatch(/^none:\d+:/)
 
     const again = repairLaneModels(store, sessions, { scanned: first.scanned })
     expect(again.counts).toEqual(counts(0, 0, 0, 1))
@@ -131,6 +132,16 @@ describe('repairLaneModels', () => {
       provider: 'pi-claude-cli',
       id: 'claude-opus-5',
     })
+  })
+
+  it('remembers a lane whose tail ends before its model as capped, apart from none', () => {
+    const far = lane('far', silentTranscript(4096))
+    const first = repairLaneModels(store, sessions, { tailBytes: 1024 })
+    expect(first.counts).toEqual(counts(0, 1, 0))
+    expect(first.scanned.get(far.laneId)).toMatch(/^capped:\d+:/)
+    const again = repairLaneModels(store, sessions, { tailBytes: 1024, scanned: first.scanned })
+    expect(again.counts).toEqual(counts(0, 0, 0, 1))
+    expect(store.getLane(far.laneId)?.model).toBeNull()
   })
 
   it('does not remember a lane the budget cut short', () => {
