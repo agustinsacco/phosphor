@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
+import { CLAUDE_LANE, piTranscript } from '../../lanes/__fixtures__/pi-transcript'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { MigrationLaneItem } from '@phosphor/shared/host-protocol-owner'
 import { sessionFileName } from '@phosphor/shared/visible-lanes'
@@ -91,6 +93,22 @@ describe('lanes', () => {
     const lane = item({ model: { provider: 'p', id: 'm'.repeat(129) } })
     await importLanes([lane])
     expect(host.store.sessionLane(lane.sessionFile)?.model).toBeNull()
+  })
+
+  it('reads a lane’s model from its transcript when Desktop sent none', async () => {
+    const lane = item({ model: null })
+    writeFileSync(lane.sessionFile, piTranscript(CLAUDE_LANE))
+    const silent = item({ model: null })
+    await importLanes([lane, silent])
+    expect(host.store.sessionLane(lane.sessionFile)?.model).toEqual({
+      provider: 'pi-claude-cli',
+      id: 'claude-opus-5',
+    })
+    expect(host.store.sessionLane(silent.sessionFile)?.model).toBeNull()
+    expect(host.events).toContainEqual({
+      event: 'owner.migrate.lane_models_read',
+      fields: { repaired: 1, skipped: 1, unreadable: 0 },
+    })
   })
 })
 
