@@ -86,6 +86,38 @@ describe('ArtifactLibrary', () => {
     expect(new Date(notes!.versions[1]!.createdAt).toISOString()).toBe('2026-10-02T00:00:00.000Z')
   })
 
+  it('gives a pane the artifact a script wrote, whose call has no tool result', async () => {
+    const id = 'session-aaaaaaaa'
+    const path = join(sessions, '--work--', 'a.jsonl')
+    // A `codemode` script's write: pi persists the script's result, not the nested
+    // call's, so the entry the extension appended is the only trace it left.
+    writeFileSync(
+      path,
+      [
+        JSON.stringify({ type: 'session', version: 3, id, timestamp: 't', cwd: '/work' }),
+        JSON.stringify({
+          type: 'custom',
+          id: 'e1',
+          parentId: null,
+          timestamp: '2026-10-01T00:00:00.000Z',
+          customType: 'phosphor-saved-artifact',
+          data: {
+            id: 'chart',
+            title: 'Chart',
+            type: 'html',
+            content: '<p/>',
+            version: 1,
+            toolCallId: 'call_1/1',
+          },
+        }),
+      ]
+        .map((l) => `${l}\n`)
+        .join(''),
+    )
+    const [chart] = await library.forSession(path)
+    expect(chart).toMatchObject({ id: 'chart', versions: [{ version: 1, content: '<p/>' }] })
+  })
+
   it('keeps a deleted session’s artifacts, says so, and removes them only on request', async () => {
     const path = put('a.jsonl', 'session-aaaaaaaa', [{ slug: 'notes', version: 1, content: 'x' }])
     await library.indexFile(path)

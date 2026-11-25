@@ -293,7 +293,7 @@ files and adjacent tests together. Development resolves the resource root at
 asar. The builder copies the same non-test TypeScript inventory, including
 `context-budget.ts`, `context-files.ts`, `global-context.ts`, `message-ledger.ts`, `swarm.ts`, `lane-prs.ts` (the `/phosphor-prs` command Track and Hide send, [lanes.md](lanes.md#which-prs-belong-to-a-lane)) and `subagent-children.ts` imported by `context-breakdown.ts`
 (the last is also what pi-subagents children load, [chat.md](chat.md#sub-agents)),
-`artifact-nested.ts`, `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
+`artifact-write.ts`, `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
 It also ships the optional `phosphor.ts` tool and `skills/phosphor/`, not in
 those six and never in the sub-agent child extension set. The tool registers
 only with `PHOSPHOR_OPS=v1`. `op-channel.ts` sends raw argv in a
@@ -406,13 +406,21 @@ form and open its slug in the current session's pane.
 
 **A write made inside a script is saved too.** A `codemode` script calls the
 artifact tools through `ctx.executeTool()`, and pi keeps those nested calls only
-as bounded metadata on the script's result, never their results. So
-`artifact-nested.ts` saves each successful nested `artifact_create`, `_edit` or
-`_update` as the `phosphor-saved-artifact` entry described below. It saves at
-`turn_end` (or `agent_end`), after pi has appended the script's result, so the
-entry never sits between a tool call and its result. Artifacts a script made
-before this existed have no content in their session file and cannot be
-recovered after the live pane is gone.
+as bounded metadata on the script's result, never their results. So each
+successful nested `artifact_create`, `_edit` or `_update` is saved as the
+`phosphor-saved-artifact` entry described below. Two signals decide whether a
+write needs that, so neither alone can lose one: `createArtifactCommit` in
+`artifact-write.ts`, which every write reaches and which reads pi's
+`<caller id>/<n>` tool-call id as "a script made this", and pi's
+`tool_execution_end`, which names the caller in `parentToolCallId`. Both key on
+the tool-call id, and the entry carries it, so one write is saved once and the
+indexer folds it against a tool result of the same call. A Pi with no
+`appendEntry` cannot make a scripted write durable, so the tool refuses it rather
+than report an artifact nothing will ever read. The save waits for `turn_end` (or
+`agent_end`), after pi has appended the script's result, so the entry never sits
+between a tool call and its result; a save that fails there is logged, never
+retried into a later turn. Artifacts a script made before this existed have no
+content in their session file and cannot be recovered after the live pane is gone.
 
 `session_start` rebuilds the full artifact record, content included, because
 an edit has to apply to the live text in a resumed session. `session_tree`
