@@ -1,11 +1,13 @@
 import type { GitInfo } from '@shared/models'
-import { relativeTimeShort } from '@/lib/time'
+import { relativeTimeShort, absoluteTime } from '@/lib/time'
 
 export interface SubtitleSegment {
   key: 'time' | 'worktree' | 'branch' | 'dirty' | 'state'
   text: string
   /** The branch segment is the only one allowed to truncate. */
   truncate?: boolean
+  /** Hover detail for a segment whose text is deliberately abbreviated. */
+  tooltip?: string
 }
 
 /**
@@ -34,7 +36,17 @@ export interface SubtitleSource {
  */
 export function sessionSubtitle(meta: SubtitleSource, git: GitInfo | undefined): SubtitleSegment[] {
   const segments: SubtitleSegment[] =
-    meta.mtimeMs === undefined ? [] : [{ key: 'time', text: relativeTimeShort(meta.mtimeMs) }]
+    meta.mtimeMs === undefined
+      ? []
+      : [
+          {
+            key: 'time',
+            text: relativeTimeShort(meta.mtimeMs),
+            // The row keeps the age short; the date and clock time the age was
+            // compressed out of is one hover away, same as in the transcript.
+            tooltip: absoluteTime(meta.mtimeMs),
+          },
+        ]
   if (meta.worktreeRemoved) segments.push({ key: 'state', text: 'worktree removed' })
   else if (meta.completedAt) segments.push({ key: 'state', text: 'finished' })
   if (!meta.worktreeRemoved && git?.isRepo) {

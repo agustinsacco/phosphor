@@ -66,7 +66,12 @@ export function SubtitleSegments({
               ⎇ {segment.text}
             </span>
           ) : (
-            <span className={clsx(segment.key === 'dirty' && 'text-warning')}>{segment.text}</span>
+            <span
+              className={clsx(segment.key === 'dirty' && 'text-warning')}
+              data-tooltip={segment.tooltip}
+            >
+              {segment.text}
+            </span>
           )}
         </span>
       ))}
