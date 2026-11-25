@@ -99,7 +99,9 @@ name the machine and controller. A `prompt` rejected `lane-stopped` sends
 resume is the answer. Any other `lane-stopped` rejection tells the user to press
 Resume. Unknown outcomes tell the user to check the lane
 before retrying. Unanswered commands expire after 60 seconds as unknown, never
-as a fresh retry. Local pi routing is unchanged.
+as a fresh retry. `lane.create` gets 180 seconds on the client to allow for queueing
+and the longer Host answer window. The 60-second resend cutoff still applies.
+Local pi routing is unchanged.
 
 Remote snapshots and reset snapshots replace main's in-memory lane projection.
 Main sends `resync` on the handle's usual pi event channel. The renderer obtains

@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HOST_LIMITS, type LaneOp } from '@phosphor/shared/host-protocol'
+import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import * as folders from './worktree'
 import { LaneCapacityReached } from './store'
 import { createLaneCommands, type LaneCommandClient, type LaneCommandFrame } from './commands'
+import { LANE_CREATE_ANSWER_MS } from './commands/queue'
 import {
   createCommandsFixture,
   deferred,
@@ -63,7 +64,7 @@ describe('a timed-out creation keeps the machine queue', () => {
     })
     let settled = false
     void creating.then(() => (settled = true))
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.last(request.requestId)).toEqual({ requestId: request.requestId, status: 'unknown' })
     // The submission resolves with the creation's work, not with its receipt.
     expect(settled).toBe(false)
@@ -102,7 +103,7 @@ describe('the created lane hold', () => {
     const request = create()
     const creating = f.service.submit(f.one, request)
     const laneId = await entered.promise
-    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await vi.advanceTimersByTimeAsync(LANE_CREATE_ANSWER_MS)
     expect(f.last(request.requestId)?.status).toBe('unknown')
     const take = f.frame({ type: 'control.take' }, 1, laneId)
     const taking = f.service.submit(f.two, take)
