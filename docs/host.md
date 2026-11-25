@@ -990,10 +990,10 @@ mode 0644. It pins the absolute node, bundle and config paths, quotes spaces and
 escapes systemd specifiers. Control characters in paths or PATH are refused.
 A `$` in the node executable path is also refused; install Node elsewhere.
 Dollar signs in bundle and config paths are escaped as literal arguments.
-The unit captures the shell's PATH, no other environment, with the node
-executable's directory moved to the front: a version manager's per-shell entry
-(fnm's multishell directory) is gone after logout, so node and the CLIs installed
-beside it must not depend on it. Provider credentials
+The unit captures only PATH from the shell. The service PATH starts with the
+node executable's directory, followed by the caller's absolute directories in
+order, without duplicates or fnm's per-shell `fnm_multishells` folders. Local
+setup uses the same PATH rules. Provider credentials
 stay in pi's and Claude's stores. It restarts on failure after 10 seconds,
 except exits 64, 69, 77 and 78, which require operator action.
 
@@ -1016,7 +1016,7 @@ On macOS, the same commands manage the per-user LaunchAgent
 enrolled identity, writes the plist atomically at 0644, unloads any old job,
 bootstraps it in `gui/<uid>` and starts it. It starts at login and restarts after
 a crash, with a 10-second throttle. It allows 30 seconds for shutdown. No root or
-linger is needed. The plist pins node, bundle and config paths and captures only PATH, with node's directory first.
+linger is needed. The plist pins node, bundle and config paths and uses the same filtered PATH as the systemd unit.
 Strings are XML-escaped; relative paths and control characters are refused.
 
 The LaunchAgent runs `run --supervisor launchd`. Only this supervisor value is

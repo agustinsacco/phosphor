@@ -24,6 +24,7 @@ import {
 import { hostLogDirectory } from '../machine/log'
 import { renderStatus, runStatus, type StatusReport } from './status'
 import type { RunContext } from './run'
+import { stablePathDirs } from '../machine/environment'
 import { serviceProgram } from '@phosphor/session-runtime/host-install/layout'
 
 export type ServiceAction = 'install' | 'status' | 'restart' | 'logs' | 'uninstall'
@@ -97,16 +98,8 @@ async function runServiceCommand(
         context.service?.bundle ?? resolve(process.argv[1] ?? ''),
         context.home,
       )
-      // The node directory leads: a version manager's shell entry (fnm's per-shell
-      // multishell directory) is gone after logout, while execPath is the real path.
-      const nodeDir = dirname(node)
-      const path = [nodeDir, ...(context.env.PATH ?? '').split(':').filter((d) => d !== nodeDir)]
-      const text = serviceUnit(
-        node,
-        bundle,
-        resolve(context.configPath),
-        path.filter(Boolean).join(':'),
-      )
+      const path = stablePathDirs([dirname(node), ...(context.env.PATH ?? '').split(':')]).join(':')
+      const text = serviceUnit(node, bundle, resolve(context.configPath), path)
       await (context.service?.write ?? writeServiceUnit)(unit, text)
       context.log?.('service', 'unit.written', { path: unit, trace: context.trace })
       if (
@@ -240,10 +233,7 @@ async function runLaunchdService(
         context.service?.bundle ?? resolve(process.argv[1] ?? ''),
         context.home,
       )
-      const nodeDir = dirname(node)
-      const path = [nodeDir, ...(context.env.PATH ?? '').split(':').filter((d) => d !== nodeDir)]
-        .filter(Boolean)
-        .join(':')
+      const path = stablePathDirs([dirname(node), ...(context.env.PATH ?? '').split(':')]).join(':')
       const text = launchAgentPlist(node, bundle, resolve(context.configPath), path, logDir)
       await mkdir(logDir, { recursive: true, mode: 0o700 })
       await (context.service?.write ?? writeServiceUnit)(plist, text)
