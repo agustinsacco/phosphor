@@ -26,7 +26,6 @@ const { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mo
 const { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider, WIDE_BROWSER_PLATFORM } =
   await import('@/platform/Platform')
 const { Composer } = await import('./Composer')
-const { recordMessageEnd, recordPolledStats } = await import('@/lib/liveStats')
 const { formatTokens } = await import('@/lib/format')
 
 /*
@@ -107,18 +106,14 @@ function setActivity(activity: 'stopped' | 'idle'): void {
   useRemoteLanesStore.setState({ hosts })
 }
 
-/** pi's replies, held until a test answers them: a resume re-reads the lane's state. */
-let piCommand: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   el = document.createElement('div')
   document.body.append(el)
-  piCommand = vi.spyOn(window.phosphor, 'piCommand').mockReturnValue(new Promise(() => {}))
 })
 afterEach(() => {
   if (root) act(() => root!.unmount())
   root = null
   el.remove()
-  piCommand.mockRestore()
 })
 
 describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platform) => {
@@ -139,7 +134,7 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     act(() => {
       setActivity('idle')
       useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setMeta(SESSION, META)
     })
     expect(chip()?.textContent).toBe(OPUS.name)
     expect(chip()?.disabled).toBe(false)
@@ -153,8 +148,8 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     stoppedLane(local, 'idle')
     act(() => {
       useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, { ...META })
-      useChatStore.getState().setStats(SESSION, { ...STATS })
+      useChatStore.getState().setMeta(SESSION, META)
+      useChatStore.getState().setStats(SESSION, STATS)
     })
     render(platform)
     expect(chip()?.disabled).toBe(false)
@@ -170,43 +165,23 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
   it.each([
     ['This Mac’s service', true],
     ['a remote Host', false],
-  ])('on %s, a resumed lane keeps the idle chips until its new pi reports', (_m, local) => {
-    stoppedLane(local, 'idle')
-    act(() => {
-      useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, { ...META })
-      useChatStore.getState().setStats(SESSION, { ...STATS })
-    })
-    render(platform)
-    act(() => setActivity('stopped'))
-    // Resumed: the chat store still holds the previous pi's state.
-    act(() => setActivity('idle'))
-    expect(chip()?.disabled).toBe(true)
-    expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
-
-    act(() => useChatStore.getState().setMeta(SESSION, { ...META }))
-    expect(chip()?.disabled).toBe(false)
-    // The new pi's stats have not arrived (or their read failed): no old usage.
-    expect(el.querySelector('[data-testid=context-meter]')).toBeNull()
-    act(() => useChatStore.getState().setStats(SESSION, { ...STATS }))
-    expect(el.querySelector('[data-testid=context-meter]')).not.toBeNull()
-  })
-
-  it('treats a lane that stopped and resumed while its composer was closed the same way', () => {
-    stoppedLane(true, 'idle')
-    act(() => {
-      useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, { ...META })
-      useChatStore.getState().setStats(SESSION, { ...STATS })
-    })
-    render(platform)
-    act(() => root!.unmount())
-    act(() => setActivity('stopped'))
-    act(() => setActivity('idle'))
-    render(platform)
-    expect(chip()?.disabled).toBe(true)
-    expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
-  })
+  ])(
+    'on %s, a lane running again shows the live chips, as the chat store holds them',
+    (_m, local) => {
+      stoppedLane(local, 'idle')
+      act(() => {
+        useChatStore.getState().setModels(SESSION, [OPUS])
+        useChatStore.getState().setMeta(SESSION, META)
+        useChatStore.getState().setStats(SESSION, STATS)
+      })
+      render(platform)
+      act(() => setActivity('stopped'))
+      expect(chip()?.disabled).toBe(true)
+      act(() => setActivity('idle'))
+      expect(chip()?.disabled).toBe(false)
+      expect(el.querySelector('[data-testid=context-meter]')).not.toBeNull()
+    },
+  )
 
   it('gives the readout a fixed slot sized for its widest live state', () => {
     stoppedLane(true)
@@ -221,48 +196,19 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
 
     act(() => {
       setActivity('idle')
-      useChatStore.getState().setMeta(SESSION, { ...META })
-      useChatStore.getState().setStats(SESSION, { ...STATS })
+      useChatStore.getState().setMeta(SESSION, META)
+      useChatStore.getState().setStats(SESSION, STATS)
     })
     expect(readout()).toBe(slot)
     expect(slot?.querySelector('[data-readout-reserve]')).toBe(reserve)
     expect(layer?.querySelector('[data-testid=context-meter]')).not.toBeNull()
   })
 
-  it('counts only state read after a resume, not a copy of the old process’s read while stopped', () => {
-    stoppedLane(true, 'idle')
-    act(() => {
-      useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, { ...META })
-      useChatStore.getState().setStats(SESSION, { ...STATS })
-      recordPolledStats(SESSION, STATS)
-    })
-    render(platform)
-    act(() => setActivity('stopped'))
-    // While stopped, a read answers with the last process's state, as a new object.
-    act(() => {
-      useChatStore.getState().setMeta(SESSION, { ...META })
-      useChatStore.getState().setStats(SESSION, { ...STATS })
-    })
-    piCommand.mockClear()
-    act(() => setActivity('idle'))
-    expect(chip()?.disabled).toBe(true)
-    expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
-    // The resume re-reads the lane, so a state that landed before it was seen still counts.
-    expect(piCommand).toHaveBeenCalledWith(SESSION, { type: 'get_state' })
-    // The first message after the resume has no measurement of the new process to add to.
-    const user = { role: 'user', content: 'hi', timestamp: 0 } as const
-    expect(recordMessageEnd(SESSION, undefined, user)).toBeNull()
-
-    act(() => useChatStore.getState().setMeta(SESSION, { ...META }))
-    expect(chip()?.disabled).toBe(false)
-  })
-
   it('lets the usage popover wrap: only the inline readout keeps to one line', () => {
     stoppedLane(true, 'idle')
     act(() => {
-      useChatStore.getState().setMeta(SESSION, { ...META })
-      useChatStore.getState().setStats(SESSION, { ...STATS })
+      useChatStore.getState().setMeta(SESSION, META)
+      useChatStore.getState().setStats(SESSION, STATS)
     })
     render(platform)
     const trigger = el.querySelector<HTMLButtonElement>('[data-testid=context-meter]')!
@@ -283,7 +229,7 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     const budget = 999_900 // `999.9k`, which formats as `1000k`
     stoppedLane(true, 'idle')
     act(() => {
-      useChatStore.getState().setMeta(SESSION, { ...META })
+      useChatStore.getState().setMeta(SESSION, META)
       useChatStore.getState().setStats(SESSION, {
         ...STATS,
         contextUsage: { tokens: budget, contextWindow: budget, percent: 100 },

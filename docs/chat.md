@@ -950,26 +950,17 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   read from the lane's activity in the Host's lane view (`stopped`, which
   includes a lane that is still starting, or `failed`; `laneWithoutPi`), not
   from what the chat store still holds, so stopping an open lane switches to
-  this state too. The chat store's meta and stats outlive the pi that reported
-  them, so `stores/laneLiveState.ts` keeps a generation per Host lane session,
-  its pi run as this client sees it, which moves when the lane stops or
-  starts. A meta or stats write counts only while the lane runs and was
-  written in the current generation; a read while the lane was stopped, even
-  a fresh copy of the old process's state, does not. A start re-reads the
-  lane (`bootstrapSession`) and a stop resets the usage overlay's baseline
-  (`lib/liveStats.ts`), so the first message after a resume adds to no old
-  measurement. The shared Host client numbers the lane's runs the same way and
-  never answers a resumed lane's `get_state` with a previous run's state
-  (`libs/host-client/src/lane-command.ts`), whichever query fails.
-  `ModelPicker` shows the lane's recorded model
-  (`LaneSummary.model`, named from a model catalogue this client has already
-  read, else its id) as an inert chip with the tooltip "Starts with the lane".
-  The live chip replaces it in the same row once the lane runs and its new pi
-  reports its state. There is no thinking segment, since a lane does not
-  record its thinking level. The strip's context ring stays in place as an
-  empty ring with `—` (`ContextReadout`) until the new pi reports usage. The
-  readout has a fixed slot, sized by an invisible copy of the live meter at its
-  widest: `999% of 1000k` (the largest supported budget, 999.9k, formats as
+  this state too. Once the lane runs again the composer shows what the chat
+  store holds, as for any live lane; until the new pi's replies land that can
+  still be the previous pi's state. `ModelPicker` shows the lane's recorded
+  model (`LaneSummary.model`, named from a model catalogue this client has
+  already read, else its id) as an inert chip with the tooltip "Starts with
+  the lane". The live chip replaces it in the same row once the lane runs and
+  pi has reported its state. There is no thinking segment, since a lane does
+  not record its thinking level. The strip's context ring stays in place as an
+  empty ring with `—` (`ContextReadout`) until the lane runs and pi has
+  reported usage. The readout has a fixed slot, sized by an invisible copy of
+  the live meter at its widest: `999% of 1000k` (the largest supported budget, 999.9k, formats as
   `1000k`) and a `1000k/min` burn rate. Either state sits over it, so
   stopping, starting or usage arriving never moves the readouts after it or
   wraps the strip. Only the inline readouts keep to one line; the usage

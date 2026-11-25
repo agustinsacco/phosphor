@@ -1,5 +1,7 @@
 import { formatTokens } from '@/lib/format'
-import { useLiveStats } from '@/stores/laneLiveState'
+import { useChatStore } from '@/stores/chat'
+import { laneWithoutPi } from '@/stores/hostLaneOf'
+import { useSessionHostLane } from '@/stores/remoteLanes'
 import { ContextMeter } from './ContextMeter'
 
 /**
@@ -23,9 +25,9 @@ function Ring(): React.JSX.Element {
 
 /**
  * The status strip's context readout. A lane with no live pi (stopped, or
- * still starting, on its Host, or resumed but not yet measured by its new pi:
- * `useLiveStats`) has nothing to measure, so an empty ring keeps the meter's
- * place, without its popover. The slot is fixed: an invisible copy of the
+ * still starting, on its Host; or no usage reported yet) has nothing to
+ * measure, so an empty ring keeps the meter's place, without its popover, even
+ * when the chat store still holds an earlier pi's usage. The slot is fixed: an invisible copy of the
  * live meter at its widest sizes it, and whichever state shows sits over it
  * out of flow, so stopping, starting or usage arriving never moves the
  * readouts after it, nor wraps the strip. Only the inline readouts keep to
@@ -33,7 +35,9 @@ function Ring(): React.JSX.Element {
  * wraps as it always has.
  */
 export function ContextReadout({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const live = useLiveStats(sessionId) !== null
+  const measured = useChatStore((s) => !!s.sessions[sessionId]?.stats)
+  const hostLane = useSessionHostLane(sessionId)
+  const live = measured && !laneWithoutPi(hostLane?.lane)
   return (
     <div data-testid="context-readout" className="relative">
       <span data-readout-reserve aria-hidden="true" className={`invisible ${READOUT}`}>

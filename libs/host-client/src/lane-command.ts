@@ -3,7 +3,7 @@ import { HOST_LIMITS, utf8Length } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import type { browserCrypto } from './crypto'
 import { laneOperation, receiptResponse, REMOTE_UNAVAILABLE, sendToLane } from './lane-ops'
-import { flush, isStopped, type Handle, type Connection } from './lane-stream'
+import { flush, type Handle, type Connection } from './lane-stream'
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -26,29 +26,17 @@ async function projectedState(
       if (result.ok && record(result.data)) {
         const { sessionFile: _file, ...state } = result.data
         h.lastState = state
-        h.stateRun = h.run
         return { ...base, success: true, data: { ...state, sessionId: id } }
       }
     } catch {
       // A stopped or unavailable Host keeps the last projected state usable.
     }
   }
-  // A running lane serves only what its current pi run reported; a stopped
-  // one keeps the last state it had.
+  const state = h.hydration
+    ? (h.hydration.view.state ?? h.lastState)
+    : (h.lastState ?? h.projection.view().state)
   const summary = h.hydration?.summary ?? h.summary
-  const ours = (run: number | undefined) =>
-    isStopped(h.summary.activity) || (run ?? 0) === (h.run ?? 0)
-  const last = ours(h.stateRun) ? h.lastState : undefined
-  const projected = ours(h.projectionRun)
-    ? (h.hydration?.view ?? h.projection.view()).state
-    : undefined
-  const state = h.hydration ? (projected ?? last) : (last ?? projected)
-  if (!state)
-    return {
-      ...base,
-      success: false,
-      error: isStopped(summary.activity) ? 'Lane is stopped.' : 'Lane is starting.',
-    }
+  if (!state) return { ...base, success: false, error: 'Lane is stopped.' }
   const { sessionFile: _file, ...safe } = state
   return {
     ...base,
