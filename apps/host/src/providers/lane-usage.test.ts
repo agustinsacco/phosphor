@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest'
 import type {
   ClaudeAccount,
   ClaudeAccountPrefs,
+  ClaudeStatus,
   ClaudeUsageSnapshot,
 } from '@phosphor/shared/models'
 import { createClaudeUsage } from '@phosphor/session-runtime/claude/usage'
@@ -84,9 +85,9 @@ it('passes CLI failures through unchanged', async () => {
   expect(await t.read('lane', false)).toEqual({ ok: false, error: 'no-usage' })
 })
 
-const signedIn = (email: string) => ({
+const signedIn = (email: string): ClaudeStatus => ({
   binary: { found: true },
-  auth: { ok: true as const, loggedIn: true, email, orgId: 'org' },
+  auth: { ok: true, loggedIn: true, email, orgId: 'org' },
 })
 
 function identityHarness() {

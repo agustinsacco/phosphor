@@ -2284,7 +2284,12 @@ of label, kind, percent used and reset time) or
 "contributing" block never leaves the Host. A success is reused for 60 seconds;
 `force` bypasses that unless the account was read in the last 10 seconds.
 Failures are not cached. If the probe fails after a successful reading, the Host
-returns that account’s last snapshot with its original `fetchedAt` and `stale: true`.
+returns that account’s last snapshot with its original `fetchedAt` and `stale: true`,
+but only while `claude auth status` reports the same signed-in email and organization
+as when it was read, unchanged across that probe. A changed, ended or unknown login
+drops the snapshot and returns the error. Each probe runs in its own
+`phosphor-usage-*` temporary directory, removed when it ends or when the Host stops;
+Host start removes such directories older than five minutes.
 A failed CLI run logs the account id, reason and elapsed milliseconds, never the
 environment or command output. An unknown or removed lane is `unknown-lane`. Unlike the
 other machine reads it does not wait in the pi probe queue, since it runs the
