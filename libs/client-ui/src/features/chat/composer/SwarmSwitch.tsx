@@ -55,24 +55,10 @@ export function swarmHint(state: SwarmStatus | null): string {
   }
 }
 
-export function SwarmBadge({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const state = useSwarm(sessionId)
-  if (!state?.enabled) return null
-  return (
-    <span
-      className="bg-accent-soft text-text inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm"
-      data-tooltip="Swarm authorization enabled for this lane"
-    >
-      <SwarmMark className="text-accent" /> Swarm
-    </span>
-  )
-}
-
 /**
  * The Beacon's nucleus and shell with three signals on the orbit. The heads
  * carry the state through `swarm.css`: pulled in when off, on the shell when
- * on. Without a `data-state` ancestor (the title-bar badge) they sit on the
- * shell.
+ * on.
  */
 export function SwarmMark({
   className,

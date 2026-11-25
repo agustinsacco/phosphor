@@ -5,7 +5,7 @@ import { beforeAll, beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { SWARM_COMMAND, SWARM_STATUS_KEY } from '@phosphor/pi-extensions/swarm'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useChatStore } from '@/stores/chat'
-import { SwarmSwitch, SwarmBadge, swarmAction, swarmLook } from './SwarmSwitch'
+import { SwarmSwitch, swarmAction, swarmLook } from './SwarmSwitch'
 
 const piCommand = vi.fn()
 let root: Root
@@ -51,14 +51,7 @@ function status(
   )
 }
 function render() {
-  act(() =>
-    root.render(
-      <>
-        <SwarmSwitch sessionId="one" />
-        <SwarmBadge sessionId="one" />
-      </>,
-    ),
-  )
+  act(() => root.render(<SwarmSwitch sessionId="one" />))
   return container.querySelector('button')!
 }
 const toasts = (): string[] => useExtensionUiStore.getState().toasts.map((t) => t.message)
@@ -152,9 +145,6 @@ it('sends only the host command, keeps the transcript untouched and waits for na
   status(true)
   expect(button.getAttribute('aria-checked')).toBe('true')
   expect(button.dataset.state).toBe('on')
-  expect(
-    container.querySelector('[data-tooltip="Swarm authorization enabled for this lane"]'),
-  ).not.toBeNull()
   expect(button.dataset.tooltip).toBe('Disable Swarm')
   // Applied at once (the agent was idle): nothing to announce.
   expect(toasts()).toEqual([])

@@ -18,9 +18,7 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {} }),
   })
 })
-vi.mock('@/features/workspaces/WorkspaceChip', () => ({ WorkspaceChip: () => null }))
 vi.mock('@/features/worktrees/BranchControl', () => ({ BranchControl: () => null }))
-vi.mock('@/features/chat/composer/SwarmSwitch', () => ({ SwarmBadge: () => null }))
 
 const SESSION = mockRemoteInfo.sessionId
 const piCommand = vi.fn(async () => ({ success: true }))

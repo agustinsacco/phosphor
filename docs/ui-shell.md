@@ -47,17 +47,29 @@ the app document, not to artifact iframe contents.
 ### Top bar
 
 One **full-width bar** (`libs/client-ui/src/app/TopBar.tsx`) above the sidebar, chat and
-pane columns: sidebar toggle, workspace chip, branch control
-([worktrees.md](worktrees.md)), session title, the compact [PR status button and Slack thread links](lanes.md#active-lane-header), the pane switches (terminal,
-files, changes, artifacts, subagents) and the Session options button. Host lanes
-show the same bar without the workspace chip and branch control. The terminal switch carries a
+pane columns. Every lane, in-app or Host, reads left to right: sidebar toggle,
+the machine chip ("This Mac", or "Studio · Connected" for a Host lane), the
+branch slot ([worktrees.md](worktrees.md)), session title, the compact
+[PR status button and Slack thread links](lanes.md#active-lane-header), then
+the pane switches (terminal, files, changes, artifacts, subagents) and the
+Session options button. The title truncates first; the branch name truncates
+at its own cap; the machine chip never wraps. The terminal switch carries a
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
 
-On a Host lane the folder and branch controls give way to a read-only
-`LaneLocation` (`features/machines/LaneLocation.tsx`): the lane's repository,
-`wt` for a worktree and its branch, from the Host's lane summary, which follows
-the lane folder after every run. The browser's lane header shows the same.
+The bar names no project (the sidebar's group does) and shows no Swarm badge
+(the composer's switch is the one place). Changing folder is a new-session
+choice: the home composer's folder chip offers it, "No folder" included, and the
+sidebar's workspace switcher opens a recent or new folder.
+
+The branch slot is the native branch control for an in-app lane and for a lane
+on This Mac's ready local service
+(`features/worktrees/HostLaneBranchControl.tsx`). Any other Host lane, every
+lane in a browser, and a service lane while it reconnects show the same chip
+read-only: `wt` for a worktree and the branch, from the Host's lane summary,
+which follows the lane folder after every run. The wide browser's lane header
+reads the same way after its Back button: machine chip, branch, title, PR
+links.
 
 Everything right of the sidebar toggle is **session-only**, except the Files
 button on Host home. On This Mac's home screen the bar keeps its height and
