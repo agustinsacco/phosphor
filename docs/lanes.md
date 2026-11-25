@@ -11,7 +11,8 @@ Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 ## Control and editing on the service
 
 Opening a stopped Host lane previews the newest messages on its active branch. An oversized
-conversation opens with the notice “This conversation is too large to preview.” A live lane
+conversation opens with the notice “This conversation is too large to preview.” instead of
+the invitation to send a first prompt. A live lane
 can continue delivering new events even when its older messages cannot fit. The notice stays
 visible through new turns until the client loads history again. The usual Resume
 action remains available to the controller while the lane is stopped. When neither the session
