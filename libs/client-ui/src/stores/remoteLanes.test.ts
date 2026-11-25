@@ -707,3 +707,48 @@ it.each([
     resumes ? [['hosts:resumeLane', MOCK_HOST_ID, lane.laneId]] : [],
   )
 })
+
+it.each(['resume', 'paused', 'foreign'] as const)(
+  'checks the freshly opened lane before warming: %s',
+  async (outcome) => {
+    const stale = structuredClone(mockRemoteHosts)
+    const host = stale[MOCK_HOST_ID]!
+    host.warmOnOpen = true
+    const lane = host.lanes[0]!
+    const fresh = structuredClone(stale)
+    const opened = fresh[MOCK_HOST_ID]!.lanes[0]!
+    Object.assign(opened, { activity: 'stopped' })
+    if (outcome === 'paused')
+      Object.assign(opened, { pause: { reason: 'service-update', at: lane.createdAt } })
+    opened.control.controller!.self = outcome !== 'foreign'
+    const noop = () => () => undefined
+    vi.stubGlobal('document', { hasFocus: () => false })
+    vi.stubGlobal('window', {
+      phosphor: {
+        ...window.phosphor,
+        onHostsChanged: noop,
+        onHostAttention: noop,
+        onHostOpenLane: noop,
+      },
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })
+    let hosts = stale
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'hosts:snapshot') return hosts
+      if (channel === 'hosts:openLane') hosts = fresh
+      return channel === 'artifacts:forSession' ? [] : mockRemoteInfo
+    })
+    const detach = attachRemoteLanesListener()
+    try {
+      await vi.waitFor(() => expect(useRemoteLanesStore.getState().hosts).toBe(stale))
+      expect(await openRemoteLane(MOCK_HOST_ID, lane.laneId)).toBe(true)
+      expect(useRemoteLanesStore.getState().hosts).toBe(fresh)
+      expect(invoke.mock.calls.filter(([op]) => op === 'hosts:resumeLane')).toEqual(
+        outcome === 'resume' ? [['hosts:resumeLane', MOCK_HOST_ID, lane.laneId]] : [],
+      )
+    } finally {
+      detach()
+    }
+  },
+)

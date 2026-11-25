@@ -183,6 +183,34 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     },
   )
 
+  it('shows recorded context and thinking without chat stats or a live pi', () => {
+    stoppedLane(true)
+    const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+    const lane = hosts[MOCK_HOST_ID]!.lanes[0]!
+    Object.assign(lane, {
+      stoppedComposer: {
+        model: lane.model,
+        thinkingLevel: 'high',
+        tokens: 72_000,
+        contextWindow: 200_000,
+      },
+    })
+    useRemoteLanesStore.setState({ hosts })
+    render(platform)
+    expect(el.querySelector('[data-testid=context-meter-recorded]')?.textContent).toBe(
+      '36% of 200k',
+    )
+    const thinking = el.querySelector<HTMLButtonElement>('[data-testid=thinking-chip]')
+    expect(thinking?.textContent).toBe('High')
+    expect(thinking?.disabled).toBe(true)
+    act(() => {
+      setActivity('idle')
+      useChatStore.getState().setStats(SESSION, STATS)
+    })
+    expect(el.querySelector('[data-testid=context-meter-recorded]')).toBeNull()
+    expect(el.querySelector('[data-testid=context-meter]')).not.toBeNull()
+  })
+
   it('gives the readout a fixed slot sized for its widest live state', () => {
     stoppedLane(true)
     render(platform)

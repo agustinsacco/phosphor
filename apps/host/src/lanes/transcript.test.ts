@@ -107,6 +107,50 @@ describe('unattached transcripts', () => {
     expect(snapshot(read('lane')).summary.title).toBe('changed')
     expect(log).not.toHaveBeenCalled()
   })
+  it('reports the active branch’s recorded model, thinking, and last good context without pi', () => {
+    const path = file()
+    const assistant = (model: string, totalTokens: number, stopReason = 'stop') => ({
+      role: 'assistant',
+      provider: 'test',
+      model,
+      content: [],
+      stopReason,
+      usage: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4, totalTokens },
+    })
+    const entry = (type: string, id: string, parentId: string | null, fields: object) =>
+      JSON.stringify({ type, id, parentId, ...fields })
+    fs.writeFileSync(
+      path,
+      [
+        header,
+        entry('model_change', 'm', null, { provider: 'test', modelId: 'correct' }),
+        entry('thinking_level_change', 't', 'm', { thinkingLevel: 'high' }),
+        entry('message', 'a', 't', { message: assistant('correct', 72_000) }),
+        entry('message', 'fork', 't', { message: assistant('other', 99_000) }),
+        entry('message', 'error', 'a', { message: assistant('correct', 1, 'error') }),
+      ].join('\n'),
+    )
+    const stopped = snapshot(read('lane'))
+    expect(stopped.state).toBeNull()
+    expect(stopped.stoppedComposer).toEqual({
+      model: { provider: 'test', id: 'correct' },
+      thinkingLevel: 'high',
+      tokens: 72_000,
+    })
+    fs.appendFileSync(
+      path,
+      '\n' +
+        entry('compaction', 'c', 'error', {
+          summary: 'compact',
+          firstKeptEntryId: 'a',
+          tokensBefore: 72_000,
+        }),
+    )
+    expect(snapshot(read('lane')).stoppedComposer).toEqual({
+      model: { provider: 'test', id: 'correct' },
+      thinkingLevel: 'high',
+    })
+  })
   it('returns an empty transcript for a null or absent file, without logging', () => {
     lane('lane', null)
     expect(snapshot(read('lane')).messages).toEqual([])

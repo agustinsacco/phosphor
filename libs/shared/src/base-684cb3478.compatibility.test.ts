@@ -123,6 +123,29 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     expect(baseLanes.parseLaneSummary(replacement)).toStrictEqual(parseLaneSummary(plain))
   })
 
+  it('reads a stopped snapshot with recorded composer data on both releases', () => {
+    const plain = HOST_FRAMES.snapshot.snapshot
+    const stopped = { ...plain, snapshot: { ...plain.snapshot, state: null } }
+    const stoppedComposer = {
+      model: { provider: 'anthropic', id: 'opus' },
+      thinkingLevel: 'high',
+      tokens: 72_000,
+      contextWindow: 200_000,
+    }
+    const frame = { ...stopped, snapshot: { ...stopped.snapshot, stoppedComposer } }
+    expect(baseSnapshot.parseSnapshotFrame(frame)).toStrictEqual(parseSnapshotFrame(stopped))
+    expect(parseSnapshotFrame(frame)?.snapshot.stoppedComposer).toEqual(stoppedComposer)
+    expect(
+      parseSnapshotFrame({
+        ...frame,
+        snapshot: {
+          ...frame.snapshot,
+          stoppedComposer: { tokens: -1, contextWindow: 0, thinkingLevel: 'bad' },
+        },
+      }),
+    ).toEqual(parseSnapshotFrame(stopped))
+  })
+
   it('reads a paused lane summary without its pause', () => {
     // The same summary as the plain `lanes` frame's, plus `pause`.
     const paused = HOST_FRAMES.lanes.paused.lanes[0]
