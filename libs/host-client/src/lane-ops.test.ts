@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { CommandResult } from './connection'
 import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
-import { laneOperation, receiptResponse, sendToLane, UNKNOWN_OUTCOME } from './lane-ops'
+import {
+  laneOperation,
+  receiptResponse,
+  settledReceipt,
+  sendToLane,
+  UNKNOWN_OUTCOME,
+} from './lane-ops'
 
 const LANE = 'f83d7d13-9111-43bf-847b-87b9db21e7d8'
 const stopped: CommandResult = { requestId: 'r1', status: 'rejected', code: 'lane-stopped' }
@@ -130,3 +136,18 @@ describe('laneOperation', () => {
     })
   })
 })
+
+it.each(['lane.resume', 'lane.stop'] as const)(
+  'preserves a definite %s failure across IPC',
+  (type) => {
+    const result: CommandResult = {
+      requestId: 'r',
+      status: 'failed',
+      error: { code: 'internal', message: 'private Host detail' },
+    }
+    expect(() => settledReceipt({ type }, result, 'Host')).toThrow(/^lane-action-failed$/)
+    expect(() => settledReceipt({ type }, { requestId: 'r', status: 'unknown' }, 'Host')).toThrow(
+      UNKNOWN_OUTCOME,
+    )
+  },
+)
