@@ -47,7 +47,14 @@ export async function piCall<T extends RpcCommand['type']>(
     return undefined
   }
   if (!response.success) {
-    useChatStore.getState().setError(sessionId, response.error ?? `${command.type} failed`)
+    const chat = useChatStore.getState()
+    if (
+      command.type === 'get_messages' &&
+      'messagesUnavailable' in response &&
+      response.messagesUnavailable === true
+    )
+      chat.setHistoryNotice(sessionId, response.error)
+    else chat.setError(sessionId, response.error ?? `${command.type} failed`)
     return undefined
   }
   return response.data

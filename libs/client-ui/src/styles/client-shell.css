@@ -122,6 +122,17 @@ html[data-form-factor='compact'] {
   font-size: 13px;
   font-weight: 550;
 }
+/* A wide lane header's title and its PR links: the links follow the title, which truncates first. */
+.browser-lane-heading {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+.browser-lane-heading strong {
+  flex: 0 1 auto;
+}
 .compact-main {
   display: flex;
   flex: 1;

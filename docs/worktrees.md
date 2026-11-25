@@ -87,7 +87,8 @@ your main checkout.
 ## Surfaces
 
 There is **one** branch control visible at a time. It lives in the window's
-top bar (`libs/client-ui/src/app/TopBar.tsx`) on session screens, and directly above the
+top bar (`libs/client-ui/src/app/TopBar.tsx`) on session screens, after the machine
+chip, and directly above the
 composer on the home screen beside the folder chip and the "new branch"
 checkbox. The top bar renders neither when no session is active, so the two are
 never on screen together. Same components, same state; one surface owns them

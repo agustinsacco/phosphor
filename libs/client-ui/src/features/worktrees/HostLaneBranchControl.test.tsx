@@ -2,10 +2,9 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
-import { ServiceLaneBranchControl } from './ServiceLaneBranchControl'
+import { HostLaneBranchControl } from './HostLaneBranchControl'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
-import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteComposer } from '@/features/home/remoteComposer'
 vi.mock('./BranchControl', () => ({
   BranchControl: ({
@@ -16,13 +15,12 @@ vi.mock('./BranchControl', () => ({
     selectPath: (path: string) => void
   }) => <button onClick={() => selectPath('/configured')}>{workspacePath}</button>,
 }))
-it('uses the ready local projection for native Git and selects the configured folder on that Host', () => {
+it('uses the ready local projection for native Git, else the read-only branch chip, and selects the configured folder on that Host', () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue(undefined) })
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
-  const sessionId = mockRemoteInfo.sessionId
   host.repositories = [{ ...host.repositories[0]!, path: '/configured' }]
-  useSessionsStore.setState({ live: { [sessionId]: { ...mockRemoteInfo, phosphorId: sessionId } } })
+  host.lanes[0] = { ...host.lanes[0]!, branch: 'main' }
   const el = document.createElement('div'),
     root = createRoot(el)
   try {
@@ -30,8 +28,13 @@ it('uses the ready local projection for native Git and selects the configured fo
       useRemoteLanesStore.setState({
         hosts: { [MOCK_HOST_ID]: { ...host, ...(local ? { local: true as const } : {}) } },
       })
-      act(() => root.render(<ServiceLaneBranchControl sessionId={sessionId} />))
-      expect(el.textContent).toBe(local ? host.lanes[0]!.cwd : '')
+      act(() =>
+        root.render(
+          <HostLaneBranchControl hostId={MOCK_HOST_ID} laneId={mockRemoteInfo.laneId!} />,
+        ),
+      )
+      expect(el.textContent).toBe(local ? host.lanes[0]!.cwd : 'main')
+      expect(el.querySelector('[data-testid="lane-branch"]') === null).toBe(local)
     }
     act(() => el.querySelector('button')!.click())
     expect(useRemoteComposer.getState().target).toEqual({

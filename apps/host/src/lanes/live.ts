@@ -29,7 +29,7 @@ export function createLiveLanes(options: LiveOptions) {
         if (!summaryFor(state, laneId)) return null
         const live = state.attached.get(laneId)
         // On-disk transcripts supply lanes without a live projection.
-        return live ? live.binding.snapshot() : (options.unattached?.(laneId) ?? null)
+        return live ? live.binding.snapshot('stream') : (options.unattached?.(laneId) ?? null)
       },
     }),
     lanesTopic: createLanesTopic({

@@ -693,7 +693,8 @@ geometry carries the state, so no look depends on colour or motion alone:
   that used to be an 11px suffix beside an unmoved knob, which read as a click
   that did not take.
 - **On**: amber-soft fill, accent hairline and glyph, heads on the orbit; the
-  solid amber composer outline and the title badge. The fan-out animation
+  solid amber composer outline. The switch is the one place Swarm shows; the
+  lane header carries no badge. The fan-out animation
   plays once, when Pi reports the switch going on: never on hover, and not
   when a lane that is already on is reopened.
 

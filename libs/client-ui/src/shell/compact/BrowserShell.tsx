@@ -11,7 +11,8 @@ import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { usePlatform } from '@/platform/Platform'
 import { locationMachine } from '@/navigation/location'
-import { LaneLocation } from '@/features/machines/LaneLocation'
+import { HostMachineChip } from '@/features/machines/RemoteLaneControls'
+import { HostLaneBranchControl } from '@/features/worktrees/HostLaneBranchControl'
 import { RemoteLaneLinks } from '@/features/sessions/LaneLinks'
 import { BrowserNavigation } from './BrowserNavigation'
 import { CompactLane } from './CompactLane'
@@ -57,7 +58,10 @@ export function BrowserShell({ pending }: { pending: boolean }): React.JSX.Eleme
   )
 }
 
-/** A wide browser's top bar; on a phone, the start page's way back to its lanes. */
+/**
+ * A wide browser's top bar; on a phone, the start page's way back to its lanes.
+ * A lane reads as Desktop's top bar does: machine, branch, title, PRs.
+ */
 function BrowserHeader({ machine }: { machine?: string }): React.JSX.Element {
   const { location, navigate } = useNavigation()
   const compact = usePlatform().formFactor === 'compact'
@@ -79,12 +83,17 @@ function BrowserHeader({ machine }: { machine?: string }): React.JSX.Element {
           ←
         </Button>
       )}
-      <strong>{title}</strong>
-      {location.to === 'lane' && 'laneId' in location.lane && (
-        <RemoteLaneLinks hostId={location.lane.hostId} laneId={location.lane.laneId} />
-      )}
-      {location.to === 'lane' && 'laneId' in location.lane && (
-        <LaneLocation hostId={location.lane.hostId} laneId={location.lane.laneId} />
+      {location.to === 'lane' && 'laneId' in location.lane ? (
+        <>
+          <HostMachineChip hostId={location.lane.hostId} />
+          <HostLaneBranchControl hostId={location.lane.hostId} laneId={location.lane.laneId} />
+          <span className="browser-lane-heading">
+            <strong>{title}</strong>
+            <RemoteLaneLinks hostId={location.lane.hostId} laneId={location.lane.laneId} />
+          </span>
+        </>
+      ) : (
+        <strong>{title}</strong>
       )}
       <PaletteButton />
       {!compact && <NewLaneAction />}

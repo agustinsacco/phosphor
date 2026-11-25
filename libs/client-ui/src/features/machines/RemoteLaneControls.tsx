@@ -7,15 +7,22 @@ import { useLaneControl } from './useLaneControl'
 
 export { STOP_NEEDS_PROMPT } from './useLaneControl'
 
+/** Where a session runs: "Studio · Connected" for a Host lane, This Mac's name otherwise. */
 export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Element {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
-  const hosts = useRemoteLanesStore((s) => s.hosts)
+  return <HostMachineChip hostId={target?.kind === 'remote' ? target.hostId : undefined} />
+}
+
+/** A Host's name and connection state; This Mac's name without a Host. */
+export function HostMachineChip({ hostId }: { hostId: string | undefined }): React.JSX.Element {
+  const state = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId]?.state : undefined))
   useMachinesStore((s) => s.machines)
   return (
-    <Chip className="bg-chip text-text-secondary">
-      {target?.kind === 'remote'
-        ? `${machineLabel(target.hostId)} · ${connectionLabel(hosts[target.hostId]?.state)}`
-        : localMachineLabel()}
+    <Chip
+      className="bg-chip text-text-secondary shrink-0 whitespace-nowrap"
+      data-testid="machine-chip"
+    >
+      {hostId ? `${machineLabel(hostId)} · ${connectionLabel(state)}` : localMachineLabel()}
     </Chip>
   )
 }
