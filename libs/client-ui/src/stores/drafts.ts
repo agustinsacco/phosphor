@@ -54,6 +54,39 @@ export interface Draft {
 const EMPTY: Draft = Object.freeze({ text: '', attachments: [] })
 // An owner reset retires both scheduled writes and continuations already awaiting IPC.
 let memoryGeneration = 0
+let submittedFileBytes = 0
+
+function documentBytes(attachments: PendingAttachment[]): number {
+  let bytes = 0
+  for (const a of attachments)
+    if (a.kind === 'file' && a.data !== undefined)
+      bytes += (a.data.length / 4) * 3 - (a.data.endsWith('==') ? 2 : a.data.endsWith('=') ? 1 : 0)
+  return bytes
+}
+
+/** Clear an idle Host draft now, reserving its document budget until its receipt settles. */
+export function takeSubmittedDraft(key: string) {
+  const drafts = useDraftsStore.getState()
+  const draft = drafts.get(key)
+  const generation = memoryGeneration
+  const bytes = documentBytes(draft.attachments)
+  submittedFileBytes += bytes
+  drafts.clear(key)
+  return (accepted: boolean) => {
+    if (generation !== memoryGeneration) return
+    submittedFileBytes -= bytes
+    if (accepted) return
+    // clear() unlinks saved image blobs: persist restored images from their in-memory bytes.
+    const restored = draft.attachments.map((a) =>
+      a.kind === 'image' && a.blobId ? { ...a, blobId: undefined } : a,
+    )
+    const next = drafts.get(key)
+    drafts.patch(key, {
+      text: [draft.text, next.text].filter(Boolean).join('\n'),
+      attachments: [...restored, ...next.attachments],
+    })
+  }
+}
 
 interface DraftsState {
   /** False until prefs have been read; composers must not clobber before it. */
@@ -112,16 +145,12 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
 
   patch: (key, patch) => {
     if (patch.attachments) {
-      let bytes = 0
+      let bytes = submittedFileBytes
       for (const draft of Object.values({
         ...get().drafts,
         [key]: { attachments: patch.attachments },
-      })) {
-        for (const a of draft.attachments)
-          if (a.kind === 'file' && a.data !== undefined)
-            bytes +=
-              (a.data.length / 4) * 3 - (a.data.endsWith('==') ? 2 : a.data.endsWith('=') ? 1 : 0)
-      }
+      }))
+        bytes += documentBytes(draft.attachments)
       if (bytes > 64 * 1024 * 1024)
         throw new Error('Remote attachments are full. Send or remove files first.')
     }
@@ -311,6 +340,7 @@ function newBlobId(): string {
 /** Browser sign-out clears memory and pending writes without touching native saved drafts. */
 export function clearDraftMemory(): void {
   memoryGeneration++
+  submittedFileBytes = 0
   for (const timer of timers.values()) clearTimeout(timer)
   timers.clear()
   useDraftsStore.setState({ drafts: {}, revisions: {}, hydrated: false })

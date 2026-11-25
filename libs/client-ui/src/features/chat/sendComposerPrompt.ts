@@ -1,7 +1,7 @@
 import { ipcErrorText } from '@shared/errors'
 import { piCallAccepted } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
-import { useDraftsStore, type Draft } from '@/stores/drafts'
+import { takeSubmittedDraft, useDraftsStore } from '@/stores/drafts'
 import { useWritingStore } from '@/stores/writing'
 import { composePrompt, toImageContents, type PendingAttachment } from './attachments'
 import { uploadPromptFiles } from './uploadPromptFiles'
@@ -47,15 +47,6 @@ function queuedDraft(
   }
 }
 
-function restoreDraft(key: string, draft: Draft) {
-  const drafts = useDraftsStore.getState()
-  const next = drafts.get(key)
-  drafts.patch(key, {
-    text: [draft.text, next.text].filter(Boolean).join('\n'),
-    attachments: [...draft.attachments, ...next.attachments],
-  })
-}
-
 /** Present the idle prompt before the first await, including before any file upload. */
 export async function sendComposerPrompt(
   opts: Submission,
@@ -84,10 +75,11 @@ export async function sendComposerPrompt(
   const bubble = !behavior
     ? chat.addUserMessage(sessionId, preview, images.length ? images : undefined)
     : undefined
+  const finishDraft = remote && bubble ? takeSubmittedDraft(draftKey) : undefined
   let prompt = preview
   let accepted = false
   try {
-    if (!queue) drafts.clear(draftKey)
+    if (!remote) drafts.clear(draftKey)
     if (remote && submitted.length) {
       if (!opts.remoteAttachments) throw new Error('Attachment upload unavailable.')
       prompt = composePrompt(message, await uploadPromptFiles(sessionId, submitted))
@@ -107,9 +99,7 @@ export async function sendComposerPrompt(
     chat.setError(sessionId, ipcErrorText(error))
   } finally {
     queue?.finish(accepted)
-    if (bubble && !accepted) {
-      chat.promptHandled(sessionId, prompt)
-      if (remote) restoreDraft(draftKey, draft)
-    }
+    if (bubble && !accepted) chat.promptHandled(sessionId, prompt)
+    finishDraft?.(accepted)
   }
 }

@@ -121,12 +121,12 @@ The composer is one small field with several ways in.
   GIF, an image that already fits, or one the browser cannot re-encode smaller is
   sent as it is; local lanes always send the original. Main refuses encoded image
   prompt frames above the Host inbound limit
-  minus a 1 KiB margin without sending or clearing the image draft; documents upload through the Host bridge before the prompt, in Desktop and the browser alike, at most 20 MiB each
+  minus a 1 KiB margin without sending them; documents upload through the Host bridge before the prompt, in Desktop and the browser alike, at most 20 MiB each
   and ten attachments per message. The Host path appears only in the normal
   `<attached-files>` block. Failure or uncertainty sends no prompt and never
   retries chunks. Remote document bytes stay in memory, bounded to 64 MiB across
-  drafts, and disappear on restart, removal, lane close or abandoned upload;
-  attach the file again after an upload failure. Neither these bytes nor local
+  drafts and outstanding sends, and disappear on restart, removal or lane close.
+  A refused composer send returns its attachments for another try. Neither these bytes nor local
   or Host document paths are persisted in remote drafts.
 - **Clicking a pending image opens the annotator** (`features/chat/imageEditor/`),
   not the lightbox, on Desktop and in the browser at every width. The phone
