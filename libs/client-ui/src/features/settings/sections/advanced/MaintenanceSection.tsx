@@ -75,7 +75,11 @@ function useMaintenance() {
       window.phosphor.invoke('app:getPrefs'),
       window.phosphor.invoke('maintenance:scan'),
     ])
-    if (loaded.status === 'fulfilled') setPrefs(loaded.value.maintenance)
+    // A prefs source without the field (the browser harness lacked it) keeps the defaults.
+    if (loaded.status === 'fulfilled')
+      setPrefs(
+        (loaded.value.maintenance as MaintenancePrefs | undefined) ?? DEFAULT_MAINTENANCE_PREFS,
+      )
     if (scanned.status === 'fulfilled') setReports(scanned.value)
     const failed = [loaded, scanned].flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
     if (failed.length) setError(failed.map(ipcErrorText).join(' · '))
