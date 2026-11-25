@@ -13,9 +13,10 @@ Desktop checks for a compatible service release at startup and periodically. It 
 On macOS, a new service uses launchd’s `Standard` process type for the Host and
 its pi children. An existing `Background` service keeps that priority after a
 Host update or Desktop migration. Local setup leaves a loaded service alone.
-To reinstall after updating, finish active work, quit Desktop, and run the
-following in an external terminal with the same PATH, `XDG_CONFIG_HOME` and
-`XDG_STATE_HOME` used for installation:
+To reinstall after updating, finish active work and quit Desktop. In an external
+terminal, signed in as the same macOS user and without `sudo`, set PATH,
+`XDG_CONFIG_HOME` and `XDG_STATE_HOME` to the values in the installed job's
+`EnvironmentVariables` (unset if absent), then run:
 
 ```sh
 ~/.local/lib/phosphor-host/current/bin/phosphor service uninstall &&
@@ -23,7 +24,11 @@ following in an external terminal with the same PATH, `XDG_CONFIG_HOME` and
 ```
 
 `service uninstall` removes the loaded job and plist, not the release, config,
-identity or lane data. Reopen Desktop after install starts the new job.
+identity or lane data. `service install` reports only that launchd accepted the
+job, so reopen Desktop and confirm the service card shows it connected. If it
+does not start, read the service log and run `service install` again with the
+same config and state folders; do not run setup again. `service status` can exit
+nonzero for a healthy local service that is not enrolled.
 
 `local-machine/launch.ts` decides the runtime once, after IPC registration and before pi configuration, windows or sessions. An unpackaged build needs both `PHOSPHOR_TEST_USER_DATA` and `PHOSPHOR_MIGRATE=1` to migrate. Dev over data already committed to the service cannot start in-app lanes if it cannot reach the service.
 

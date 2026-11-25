@@ -1046,8 +1046,9 @@ a crash, with a 10-second throttle. It allows 30 seconds for shutdown. No root o
 linger is needed. The plist pins node, bundle and config paths and uses the same filtered PATH as the systemd unit.
 Strings are XML-escaped; relative paths and control characters are refused.
 
-The LaunchAgent uses `ProcessType: Standard` so the Host and its pi children can
-answer interactive requests without background CPU throttling. Existing installs
+The LaunchAgent uses `ProcessType: Standard`, the same as omitting the key, so the
+Host and its pi children leave the `Background` class and its CPU and I/O limits.
+launchd's default limits still apply; `Interactive` is not used. Existing installs
 keep `Background` until the service is reinstalled: updating the Host or running
 `phosphor service restart` restarts the loaded job without rereading its plist.
 For a headless Host, finish active work, then run `phosphor service install` from
