@@ -1,3 +1,4 @@
+import { EmptyTranscript } from './EmptyTranscript'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { measureElement as measureRowElement, useVirtualizer } from '@tanstack/react-virtual'
@@ -326,21 +327,7 @@ export const MessageList = memo(function MessageList({
     )
   }
 
-  if (items.length === 0 && !error) {
-    return (
-      <div className="transcript-enter flex flex-1 items-center justify-center">
-        <div className="text-center">
-          <div className="text-text-secondary text-2xl font-medium tracking-tight">
-            Describe a task to begin
-          </div>
-          <div className="text-text-tertiary mt-1.5 text-lg">
-            pi runs with full permissions in this workspace — markdown, diffs, diagrams and previews
-            render right here.
-          </div>
-        </div>
-      </div>
-    )
-  }
+  if (items.length === 0 && !error) return <EmptyTranscript sessionId={sessionId} />
 
   const virtualItems = virtualizer.getVirtualItems()
 

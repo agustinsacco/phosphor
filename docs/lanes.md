@@ -11,16 +11,19 @@ Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 ## Control and editing on the service
 
 Opening a stopped Host lane previews the newest messages on its active branch. An oversized
-conversation opens with the notice “This conversation is too large to preview.” A live lane
+conversation opens with the notice “This conversation is too large to preview.” instead of
+the invitation to send a first prompt. A live lane
 can continue delivering new events even when its older messages cannot fit. The notice stays
 visible through new turns until the client loads history again. The usual Resume
-action remains available to the controller while the lane is stopped.
+action remains available to the controller while the lane is stopped. When neither the session
+name nor its first prompt is available, the header uses the Host’s lane title.
 
 This Mac’s service advertises `warmOnOpen`: after navigation, Desktop starts an eligible
 stopped lane in the background, including one with an oversized preview. A PWA connected
 to a Host with that policy follows the same rule. The client only claims an unheld lane
 and never displaces another controller or automatically resumes a paused lane. Other Hosts
-keep explicit handoff and Resume.
+keep explicit handoff and Resume. A failed Resume or Stop says the lane could not start or stop.
+An unconfirmed outcome asks the controller to check the lane before retrying.
 
 When the Host announces `ops` and `laneEditing`, Session tree and Clone run on the execution machine. Labels and jumps require a stopped lane. Fork, clone and rewind read the source under the runtime path lock and write a new stopped lane; the original stays intact. Rewind opens the replacement with the selected message’s text ready to edit. The tree connects children through hidden metadata to the nearest visible ancestor.
 

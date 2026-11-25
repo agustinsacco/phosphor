@@ -2,11 +2,12 @@ import { isLanePiOp, type LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
 import { isLanePrsPrompt } from '@phosphor/shared/lane-prs-command'
+import { LANE_ACTION_FAILED, UNKNOWN_OUTCOME } from '@phosphor/shared/errors'
 import type { CommandResult } from './connection'
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
 const LANE_STOPPED = 'this lane is stopped. Press Resume at the top of the lane, then send again.'
-export const UNKNOWN_OUTCOME = 'The Host could not confirm this. Check the lane before retrying.'
+export { UNKNOWN_OUTCOME }
 const CREATE_UNCONFIRMED = 'Lane creation not confirmed.'
 
 /** A receipt that settled without success. The message is what callers always showed. */
@@ -31,6 +32,11 @@ export function settledReceipt(op: LaneOp, result: CommandResult, machine: strin
     result.code === 'branch-exists'
   )
     throw new FreshBranchExists('branch-exists')
+  if (
+    (op.type === 'lane.resume' || op.type === 'lane.stop') &&
+    (result.status === 'failed' || result.status === 'rejected' || result.status === 'not-sent')
+  )
+    throw new ReceiptFailure(LANE_ACTION_FAILED, result)
   const response = receiptResponse(op.type, result, machine)
   if (!response.success) throw new ReceiptFailure(response.error, result)
   return result

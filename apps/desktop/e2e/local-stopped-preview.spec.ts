@@ -24,6 +24,8 @@ test('keeps an oversized service lane open after warm-on-open starts pi', async 
   await expect(
     page.getByText('This conversation is too large to preview.', { exact: true }),
   ).toBeVisible()
+  await expect(page.getByText('Describe a task to begin')).toHaveCount(0)
+
   await expect(page.getByText('Could not open the remote lane.', { exact: true })).toHaveCount(0)
   await expect(page.getByText('pi crashed', { exact: true })).toHaveCount(0)
 })

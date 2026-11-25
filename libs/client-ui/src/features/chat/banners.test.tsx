@@ -201,3 +201,22 @@ it('keeps the missing-history notice through replay and another run until histor
   })
   expect(el.textContent).not.toContain(notice)
 })
+
+it.each([
+  ['lane-action-failed', "Couldn't start this lane."],
+  [
+    "Error invoking remote method 'hosts:resumeLane': Error: lane-action-failed",
+    "Couldn't start this lane.",
+  ],
+  [
+    'The Host could not confirm this. Check the lane before retrying.',
+    'The Host could not confirm this. Check the lane before retrying.',
+  ],
+])('reports the Resume outcome from the bridge: %s', async (error, expected) => {
+  const el = await renderHostLane('stopped', true)
+  invoke.mockRejectedValueOnce(new Error(error))
+  await act(async () =>
+    [...el.querySelectorAll('button')].find((b) => b.textContent === 'Resume')!.click(),
+  )
+  expect(el.querySelector('[role="alert"]')?.textContent).toBe(expected)
+})
