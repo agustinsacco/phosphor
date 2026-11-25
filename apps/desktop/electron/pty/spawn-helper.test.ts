@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { chmodSync, mkdtempSync, mkdirSync, statSync, writeFileSync, rmSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdtempSync,
+  realpathSync,
+  mkdirSync,
+  statSync,
+  writeFileSync,
+  rmSync,
+} from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import type * as NodeModule from 'node:module'
@@ -16,7 +24,7 @@ import type * as NodeModule from 'node:module'
 const roots: string[] = []
 
 function fakeNodePty(modes: Record<string, number>): string {
-  const root = mkdtempSync(join(tmpdir(), 'node-pty-'))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'node-pty-')))
   roots.push(root)
   writeFileSync(join(root, 'package.json'), '{"name":"node-pty"}')
   for (const [dir, mode] of Object.entries(modes)) {
