@@ -32,7 +32,17 @@ interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
   children?: ReactNode
 }
 
-/** The input card for both new and existing lanes. Only lifecycle controls are slots. */
+/**
+ * The input card for both new and existing lanes. Only lifecycle controls are
+ * slots.
+ *
+ * Its root is `relative` because that is the anchor for the `/` and `@` popups:
+ * both are `absolute bottom-full` with no anchor of their own, so they open over
+ * the nearest positioned ancestor. The chat composer happened to sit in one and
+ * the Host home in none, which sent that home's command menu to the top of the
+ * window, over the title bar. The popups belong to the input, so the input
+ * carries the anchor instead of borrowing one from whatever screen mounts it.
+ */
 export function ComposerInput({
   workspacePath,
   remoteAttachments = false,
@@ -83,7 +93,7 @@ export function ComposerInput({
     return field.onKeyDown?.(event) ?? false
   }
   return (
-    <>
+    <div className="relative">
       {slash.visible && (
         <CommandMenu
           query={slash.query ?? ''}
@@ -171,6 +181,6 @@ export function ComposerInput({
           </div>
         </div>
       </div>
-    </>
+    </div>
   )
 }
