@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { sessionSubtitle } from './sessionSubtitle'
+import { absoluteTime } from '@/lib/time'
 import type { GitInfo, SessionMeta } from '@shared/models'
 
 const meta = (overrides: Partial<SessionMeta> = {}): SessionMeta => ({
@@ -38,6 +39,16 @@ describe('sessionSubtitle', () => {
     const segments = sessionSubtitle(meta(), undefined)
     expect(segments[0]?.key).toBe('time')
     expect(segments).toHaveLength(1)
+  })
+
+  it('keeps the date and clock time one hover away from the short age', () => {
+    const time = sessionSubtitle(meta(), undefined)[0]
+    expect(time?.tooltip).toBe(absoluteTime(meta().mtimeMs!))
+    // Only the age is abbreviated; nothing else earns a tooltip.
+    const others = sessionSubtitle(meta(), git({ branch: 'main', dirtyCount: 2 })).filter(
+      (s) => s.tooltip !== undefined,
+    )
+    expect(others.map((s) => s.key)).toEqual(['time'])
   })
 
   it('adds branch and dirty count when available', () => {

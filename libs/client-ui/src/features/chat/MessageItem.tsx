@@ -1,31 +1,24 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { REMOTE_UNAVAILABLE } from '@/stores/hostRefusals'
 import { machineLabel } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'
-import type { AssistantBlock, AssistantItem, CustomItem, ToolState, UserItem } from './reducer'
+import type { AssistantBlock, AssistantItem, CustomItem, ToolState } from './reducer'
 import { Markdown } from '@/components/markdown/Markdown'
 import { useSmoothedText } from './useSmoothedText'
 import { CopyButton } from '@/components/CopyButton'
-import { absoluteTime, relativeTime } from '@/lib/time'
+import { absoluteTime } from '@/lib/time'
 import { useChatStore } from '@/stores/chat'
-import { useChatUiStore } from './uiState'
-import { formatShortcut } from '@/lib/shortcuts'
-import { useRewindAvailable } from './hostRewind'
-import { branchMessageForItem, useRewindToEntry } from './rewind'
 import { ActivityGroup } from './items/ActivityGroup'
 import { ChatImage } from './ChatImage'
-import { UserText } from './UserText'
-import { USER_BUBBLE_CLASS } from './userBubble'
 import type { TranscriptRow } from './items/transcriptRows'
 import { matchErrorRemedy } from './errorRemedies'
 import { ErrorRemedyActions } from './ErrorRemedyActions'
 import { parseErrorMessage, type ParsedError } from './errorMessage'
 import { useActiveWorkspace } from '@/stores/workspaces'
-import { BranchIcon, RewindIcon } from '@/components/icons'
 import { BashExecution } from './items/BashExecution'
 import { Divider } from './items/Divider'
+import { UserMessage } from './items/UserMessage'
 import { SubagentNoticeItem } from './items/SubagentNotice'
 import { openSubagents } from './subagentView'
 import { isSubagentNotice } from '@phosphor/shared/subagent-evidence'
@@ -176,93 +169,6 @@ function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {
           <Markdown text={item.text} />
         </div>
       )}
-    </div>
-  )
-}
-
-function UserMessage({
-  item,
-  sessionId,
-}: {
-  item: UserItem
-  sessionId: string
-}): React.JSX.Element {
-  const unavailable = !useRewindAvailable(sessionId)
-  const rewindToEntry = useRewindToEntry()
-  const [busy, setBusy] = useState(false)
-
-  const rewind = async (): Promise<void> => {
-    if (unavailable) return
-    setBusy(true)
-    try {
-      // Match pi’s entry on the current branch, never by row position.
-      const target = await branchMessageForItem(sessionId, item)
-      if (!target) {
-        useChatStore.getState().setError(sessionId, 'Could not locate this message to rewind.')
-        return
-      }
-      await rewindToEntry(sessionId, target.entryId, target.images)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="group flex flex-col items-end gap-1">
-      {item.images && item.images.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-2">
-          {item.images.map((img, i) => (
-            <ChatImage key={i} image={img} className="max-h-40 rounded-lg" />
-          ))}
-        </div>
-      )}
-      {item.text && (
-        // Wrapping long tokens is the bubble class's job; see USER_BUBBLE_CLASS.
-        <div
-          data-testid="user-message"
-          data-find-segment={SEGMENT.body}
-          className={USER_BUBBLE_CLASS}
-        >
-          <UserText text={item.text} />
-        </div>
-      )}
-
-      {/* Fixed-height hover actions never move the transcript. */}
-      <div className="flex h-4 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-        {(item.text || item.images?.length) && !item.optimistic && (
-          <TooltipButton
-            onClick={() => void rewind()}
-            disabled={busy || unavailable}
-            title={unavailable ? REMOTE_UNAVAILABLE : 'Rewind to here'}
-            className="text-text-tertiary hover:text-text flex items-center transition-colors disabled:opacity-50"
-          >
-            <RewindIcon size={12} />
-          </TooltipButton>
-        )}
-        <TooltipButton
-          disabled={unavailable}
-          onClick={() => {
-            if (!unavailable) useChatUiStore.getState().openForkPicker(sessionId)
-          }}
-          title={
-            unavailable
-              ? REMOTE_UNAVAILABLE
-              : `Rewind to an earlier message… (${formatShortcut('Esc Esc')})`
-          }
-          className="text-text-tertiary hover:text-text flex items-center transition-colors"
-        >
-          <BranchIcon size={12} />
-        </TooltipButton>
-        {item.text && <CopyButton text={item.text} size="sm" />}
-        {item.timestamp != null && (
-          <span
-            className="text-text-tertiary text-sm leading-none"
-            data-tooltip={absoluteTime(item.timestamp)}
-          >
-            {relativeTime(item.timestamp)}
-          </span>
-        )}
-      </div>
     </div>
   )
 }

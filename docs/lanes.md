@@ -72,6 +72,12 @@ gives way, so nothing runs past the edge.
 not a way to choose a lane. It lives in the row's context menu ("Copy spend"),
 the Home ledger and the context meter's Cost row.
 
+**The age hovers open.** The subtitle's first segment is an age (`2m ago`),
+because an age is what ranks lanes; the date and clock time it was compressed
+out of is that segment's tooltip. Same rule as inside the transcript, where a
+day divider carries the date, the turn carries a quiet clock time, and the
+exact stamp is one hover away ([chat.md](chat.md#message-affordances)).
+
 `LanePrefs.prStatus` (default **on**) decides whether the beads render at all,
 and they render only for a lane that owns a PR. A lane without one shows
 no bead, no placeholder and no "no PR" hint. Settings → Lanes → "PR status on

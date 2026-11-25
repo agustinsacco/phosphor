@@ -36,8 +36,6 @@
     "src/features/chat/Composer.tsx::Composer[1]": 471,
     "src/features/chat/Composer.tsx::Composer[1]/send[1]": 114,
     "src/features/chat/ForkPickerModal.tsx::ForkPickerModal[1]": 95,
-    "src/features/chat/MessageItem.tsx::file": 465,
-    "src/features/chat/MessageItem.tsx::UserMessage[1]": 92,
     "src/features/chat/MessageList.tsx::file": 478,
     "src/features/chat/MessageList.tsx::MessageList[1]": 453,
     "src/features/chat/MessageList.tsx::MessageList[1]/attachScroller[1]": 87,

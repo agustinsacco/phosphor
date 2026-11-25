@@ -315,7 +315,8 @@ turning instead of at rest — so it draws `BeaconGlyph` from
   dots retain their existing meaning. Selection remains the neutral row fill.
 - **Lane recipe:** beacon + straight, inset 2px amber rail + Starting/Working
   chip in the timestamp slot. The chip uses primary text on accent-soft, not
-  tiny amber text. The former timestamp remains in its tooltip. At narrow row
+  tiny amber text. The former timestamp remains in its tooltip, which carries
+  the date and clock time the short age was compressed out of. At narrow row
   widths, dirty count (≤256px) then the worktree chip (≤224px) yield to the
   activity label, branch and PR. Both pending and disk-backed rows use this
   treatment, including unselected/background lanes. The hover checkbox keeps
