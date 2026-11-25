@@ -19,10 +19,8 @@ vi.mock('@/features/files/MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
   MonacoEditor: () => null,
 }))
-vi.mock('@/features/workspaces/WorkspaceChip', () => ({ WorkspaceChip: () => null }))
 vi.mock('@/features/worktrees/BranchControl', () => ({ BranchControl: () => null }))
 vi.mock('@/features/chat/SessionMenu', () => ({ SessionMenu: () => null }))
-vi.mock('@/features/chat/composer/SwarmSwitch', () => ({ SwarmBadge: () => null }))
 vi.mock('@/features/sessions/LaneLinks', () => ({ LaneLinks: () => null }))
 function Home(): React.JSX.Element {
   const files = useMachineHomeFiles()

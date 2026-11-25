@@ -14,10 +14,8 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {} }),
   })
 })
-vi.mock('@/features/workspaces/WorkspaceChip', () => ({ WorkspaceChip: () => null }))
 vi.mock('@/features/worktrees/BranchControl', () => ({ BranchControl: () => null }))
 vi.mock('@/features/chat/SessionMenu', () => ({ SessionMenu: () => null }))
-vi.mock('@/features/chat/composer/SwarmSwitch', () => ({ SwarmBadge: () => null }))
 it.each([
   ['mac', 'bee1-a', 'mac'],
   ['bee1-a', 'bee1-b', 'bee1-a'],
@@ -94,45 +92,6 @@ it.each([
       useRemoteLanesStore.setState({ hosts })
     })
     expect(container.querySelector('[data-tooltip="Artifacts pane"]')).toBeNull()
-  } finally {
-    act(() => root.unmount())
-    container.remove()
-    vi.unstubAllGlobals()
-  }
-})
-
-it("shows a Host lane's repository and branch, and follows the Host's branch", async () => {
-  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal('phosphor', { invoke: vi.fn().mockResolvedValue(undefined) })
-  const lane = (branch: string | null, worktree: boolean) => {
-    const hosts = structuredClone(mockRemoteHosts)
-    hosts[MOCK_HOST_ID]!.lanes[0] = { ...hosts[MOCK_HOST_ID]!.lanes[0]!, branch, worktree }
-    useRemoteLanesStore.setState({ hosts })
-  }
-  useSessionsStore.setState({
-    activeSessionId: 'bee1-a',
-    live: {
-      mac: { phosphorId: 'mac', workspacePath: '/mac' },
-      'bee1-a': { ...mockRemoteInfo, phosphorId: 'bee1-a' },
-    },
-  })
-  lane('main', false)
-  const container = document.createElement('div')
-  document.body.append(container)
-  const root = createRoot(container)
-  const location = () => container.querySelector('[data-testid="lane-location"]')
-  const branch = () => container.querySelector('[data-testid="lane-branch"]')
-  try {
-    await act(async () => root.render(<TopBar workspacePath={mockRemoteInfo.workspacePath} />))
-    expect(location()?.textContent).toBe('Demo repositorymain')
-    expect(branch()?.getAttribute('data-tooltip')).toBe('Branch main')
-    await act(async () => lane('agustin/lane-work', true))
-    expect(branch()?.textContent).toBe('wtagustin/lane-work')
-    expect(branch()?.getAttribute('data-tooltip')).toMatch(/^Worktree of Demo repository on /)
-    await act(async () => lane(null, false))
-    expect(location()?.textContent).toBe('Demo repository')
-    await act(async () => useSessionsStore.setState({ activeSessionId: 'mac' }))
-    expect(location()).toBeNull()
   } finally {
     act(() => root.unmount())
     container.remove()

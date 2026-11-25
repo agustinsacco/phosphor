@@ -212,9 +212,6 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
     await expect(toggle).toBeChecked()
     await expect(toggle).toBeFocused()
     await expect(page.locator('[data-swarm-enabled="true"]')).toBeVisible()
-    await expect(
-      page.locator('[data-tooltip="Swarm authorization enabled for this lane"]'),
-    ).toBeVisible()
     await expect(page.getByTestId('user-message')).toHaveCount(messages)
     await expect(draft).toHaveValue('Keep this draft')
     await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
@@ -292,33 +289,28 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
         'background-color',
         theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(42, 39, 33)',
       )
-      // Measure the actual rendered label/badge colors, not duplicated theme tokens.
-      for (const control of [
-        toggle,
-        page.locator('[data-tooltip="Swarm authorization enabled for this lane"]'),
-      ]) {
-        const contrast = await control.evaluate((el) => {
-          const css = getComputedStyle(el)
-          const luminance = (color: string) => {
-            const channels = color
-              .match(/[\d.]+/g)!
-              .slice(0, 3)
-              .map(Number)
-              .map((n) => {
-                const s = n / 255
-                return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
-              })
-            const [red, green, blue] = channels
-            if (red === undefined || green === undefined || blue === undefined)
-              throw new Error(`Expected an rgb colour, got ${color}`)
-            return red * 0.2126 + green * 0.7152 + blue * 0.0722
-          }
-          const a = luminance(css.color),
-            b = luminance(css.backgroundColor)
-          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
-        })
-        expect(contrast).toBeGreaterThanOrEqual(4.5)
-      }
+      // Measure the actual rendered label colors, not duplicated theme tokens.
+      const contrast = await toggle.evaluate((el) => {
+        const css = getComputedStyle(el)
+        const luminance = (color: string) => {
+          const channels = color
+            .match(/[\d.]+/g)!
+            .slice(0, 3)
+            .map(Number)
+            .map((n) => {
+              const s = n / 255
+              return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+            })
+          const [red, green, blue] = channels
+          if (red === undefined || green === undefined || blue === undefined)
+            throw new Error(`Expected an rgb colour, got ${color}`)
+          return red * 0.2126 + green * 0.7152 + blue * 0.0722
+        }
+        const a = luminance(css.color),
+          b = luminance(css.backgroundColor)
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+      })
+      expect(contrast).toBeGreaterThanOrEqual(4.5)
       await screenshot(`swarm-${theme}-narrow-enabled.png`)
       await toggle.focus()
       await page.keyboard.press('Space')
@@ -359,9 +351,6 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
       await expectFooterFits()
       await screenshot(`swarm-${theme}-narrow-off.png`)
     }
-    await expect(
-      page.locator('[data-tooltip="Swarm authorization enabled for this lane"]'),
-    ).toHaveCount(0)
     await expect(page.getByTestId('user-message')).toHaveCount(messages)
     await expect(draft).toHaveValue('Keep this draft')
     // Authorization is per lane: a new lane starts off even after this one was on.
@@ -2881,14 +2870,14 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // The top bar's branch control marks the worktree.
     await expect(page.locator('[data-tooltip*="Worktree of"]')).toBeVisible({ timeout: 10_000 })
 
-    // ...and the folder chip beside it still names the PROJECT. The reported
-    // bug: with a worktree session open it showed the worktree folder's own
-    // basename — the branch slug — so the top bar read as if the user had
-    // switched to a workspace called "update-hello-ts".
-    const folderChip = page.getByRole('banner').getByTestId('workspace-chip')
-    await expect(folderChip).toContainText(basename(workspace), { timeout: 10_000 })
-    await expect(folderChip).not.toContainText('update-hello-ts')
-    await expect(folderChip).not.toContainText('stub-session-title')
+    // Machine, branch, title; no project chip (the sidebar group names it).
+    const banner = page.getByRole('banner')
+    await expect(banner.getByTestId('workspace-chip')).toHaveCount(0)
+    const machine = await banner.getByTestId('machine-chip').boundingBox()
+    const branch = await banner.getByTestId('branch-chip').boundingBox()
+    const title = await banner.getByText('Stub Session Title').boundingBox()
+    expect(machine!.x).toBeLessThan(branch!.x)
+    expect(branch!.x).toBeLessThan(title!.x)
   } finally {
     await shutdown(harness)
   }

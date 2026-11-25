@@ -1,11 +1,9 @@
-import { useRemoteLanesStore, useActiveMachine } from '@/stores/remoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
-import { SessionLaneLocation } from '@/features/machines/LaneLocation'
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
-import { SwarmBadge } from '@/features/chat/composer/SwarmSwitch'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useLayoutStore, sessionPanes } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
@@ -20,9 +18,8 @@ import {
 } from '@/components/icons'
 import { SessionMenu } from '@/features/chat/SessionMenu'
 import { requestChatFind } from '@/features/chat/useChatFind'
-import { ServiceLaneBranchControl } from '@/features/worktrees/ServiceLaneBranchControl'
+import { HostLaneBranchControl } from '@/features/worktrees/HostLaneBranchControl'
 import { BranchControl } from '@/features/worktrees/BranchControl'
-import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from '@/features/sessions/nameTransition'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -43,7 +40,7 @@ import { NotificationsButton } from '@/features/notifications/NotificationsButto
  * Hoisting the bar above all three columns fixes that structurally rather than
  * by tuning padding per column: one element spans the window, so one inset is
  * both necessary and sufficient, and no future pane can reintroduce the bug.
- * It also gives the workspace and branch controls a fixed home instead of
+ * It also gives the machine and branch controls a fixed home instead of
  * moving between the home composer and the chat header.
  */
 export function TopBar({
@@ -53,7 +50,6 @@ export function TopBar({
   workspacePath: string
   machineFiles?: { hostId: string | null; open: boolean; toggle: () => void }
 }): React.JSX.Element {
-  const remote = useActiveMachine().kind === 'remote'
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
 
@@ -67,28 +63,18 @@ export function TopBar({
         <SidebarToggleIcon />
       </IconButton>
 
-      {/* Folder then branch: the two halves of "where am I working", both
-          clickable, in the order Claude Desktop puts them.
+      {/* Every lane reads the same, Host or in-app: machine, branch, title, PRs,
+          then the panes. The project is the sidebar's to say, and Swarm the
+          composer's.
 
-          Session screens only. The home screen renders the same two controls
-          directly above its composer, where choosing them is the point of the
-          screen rather than window furniture — and rendering them in both
-          places at once would put two identical folder chips on one screen,
-          which is the "two answers to one question" problem the top bar was
-          meant to solve, reintroduced. One surface owns them per screen.
-
-          A Host lane shows its own repository and branch, read-only, from
-          the Host's lane summary: the local chips act on This Mac's disk. */}
+          Session screens only. The home screen renders its folder and branch
+          controls directly above its composer, where choosing them is the
+          point of the screen rather than window furniture. One surface owns
+          them per screen. */}
       {activeSessionId ? (
         <>
-          {!remote && <WorkspaceChip workspacePath={workspacePath} compact />}
-          {remote ? (
-            <ServiceLaneBranchControl sessionId={activeSessionId} />
-          ) : (
-            <BranchControl workspacePath={workspacePath} />
-          )}
-          <SessionLaneLocation sessionId={activeSessionId} />
           <MachineChip sessionId={activeSessionId} />
+          <SessionBranchControl sessionId={activeSessionId} workspacePath={workspacePath} />
           <ActiveSessionControls sessionId={activeSessionId} />
         </>
       ) : (
@@ -106,6 +92,21 @@ export function TopBar({
       <NotificationsButton />
     </header>
   )
+}
+
+/** The lane's one branch slot: a Host lane's from its Host, an in-app lane's on this disk. */
+function SessionBranchControl({
+  sessionId,
+  workspacePath,
+}: {
+  sessionId: string
+  workspacePath: string
+}): React.JSX.Element | null {
+  const entry = useSessionsStore((s) => s.live[sessionId])
+  if (entry?.target?.kind !== 'remote') return <BranchControl workspacePath={workspacePath} />
+  return entry.laneId ? (
+    <HostLaneBranchControl hostId={entry.target.hostId} laneId={entry.laneId} />
+  ) : null
 }
 
 function MachineFilesButton({
@@ -168,7 +169,6 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
           {title ?? 'New session'}
         </span>
         <LaneLinks sessionId={sessionId} />
-        <SwarmBadge sessionId={sessionId} />
       </div>
       {/* Reference order: terminal, files, changes, artifacts, subagents, kebab. */}
       <TerminalButton sessionId={sessionId} active={rightPane === 'terminal'} />
