@@ -102,3 +102,28 @@ describe('withDayDividers', () => {
     vi.useRealTimers()
   })
 })
+
+describe('the rows the transcript renders', () => {
+  it('keeps each divider a row of its own, above the turn it opens', async () => {
+    // `MessageList` builds rows as `buildTranscriptRows(withDayDividers(items))`.
+    // That composition is the feature: folded into a neighbour's row, a divider
+    // would be measured with it and lose its own place in the virtualizer.
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    const { buildTranscriptRows } = await import('./transcriptRows')
+    const rows = buildTranscriptRows(
+      withDayDividers([user('u1', NOW - 30 * HOUR), user('u2', NOW)]),
+    )
+    expect(rows.map((row) => (row.kind === 'item' ? row.item.kind : row.kind))).toEqual([
+      'divider',
+      'user',
+      'divider',
+      'user',
+    ])
+    const first = rows[0]
+    const isDay = first?.kind === 'item' && first.item.kind === 'divider' && first.item.variant
+    expect(isDay).toBe('day')
+    expect(first?.id).toBe('u1-day')
+    vi.useRealTimers()
+  })
+})
