@@ -221,8 +221,9 @@ data, not instructions or raw transcript excerpts.
 **How lanes reach Brain.** With Brain and recall on, lane startup adds `-e brain-ext/brain.mjs`
 and `--skill skills/brain`, never a Brain socket or token. On an op-channel lane
 (`PHOSPHOR_OPS=v1`), `brain_search` and `brain_flag` use the `brain.search` and `brain.flag`
-service ops. The owner supplies the workspace and lane identity and keeps that live lane's
-bracket numbers. If no Brain service answers, the tool says “Brain is unavailable right now.”,
+service ops. The owner supplies the workspace and the lane’s saved pi session id, which stays
+the same after a restart. Bracket numbers belong only to the live lane: search again after
+restarting before flagging. If no Brain service answers, the tool says “Brain is unavailable right now.”,
 which is not a no-match. Only the Brain lane gets `PHOSPHOR_BRAIN_ENDPOINT` and
 `PHOSPHOR_BRAIN_TOKEN`: Brain Agent's curator token for Desktop's private socket. Spawn `env`
 never carries them; only the typed `PiSpawnOptions.brainConnection` adds them, for the exact
@@ -231,6 +232,13 @@ sub-agents do not inherit them. Desktop registers Brain with the local Phosphor 
 owner connection, again when recall changes and on reconnect. Only the recall preference
 survives in `app-services.json`, so new lanes can load the recall skill with Desktop closed and
 answer “unavailable”. The service never opens Brain's database.
+
+When Desktop runs lanes in-app, a lane’s `phosphor` tool can also call catalog ops under the local
+agent-control policy. For a lane agent, `brain.find` searches through the same recall port as
+`brain_search`: both Brain and **Recall in lanes** must be on, and the result is an escaped
+briefing with new bracket numbers. `brain.status` shows indexing progress without model names or usage.
+`brain.queue` can queue a read of a named local lane, not just the asking lane. The usual read
+exclusions still apply. Its reply gives the same limited status.
 
 ### Why a memory comes back
 
@@ -361,8 +369,10 @@ in either version.
   claims per part and 300 per job. The reader can miss a connection or make a wrong guess.
   Neither a short trail nor a high ranking proves a claim. Routes are bounded and skip hubs as
   intermediate steps; no route found does not prove two people have nothing in common.
-- Ordinary lanes can search and flag, not edit. Only one flag can be open per memory, five
-  per lane session and fifty across Brain. The same lane cannot flag the same memory twice.
+- Ordinary lanes can search and flag with recall on, but cannot edit memories. In-app Desktop
+  also lets them use `brain.find` for recall, inspect indexing status and queue local reads
+  under [agent control](agent-control.md). Only one flag can be open per memory, five per lane
+  session and fifty across Brain. The same lane cannot flag the same memory twice.
   Brain limits all lanes together to ten flag requests per minute.
 - The journal keeps the newest 200 changes, changes in the latest run and erasures younger than
   an hour. Brain keeps the newest 20 runs and every automatic run the daily limit still counts.
