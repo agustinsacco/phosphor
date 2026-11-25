@@ -230,4 +230,17 @@ describe('lane projection state transitions', () => {
     expect(after.ui).not.toBe(before.ui)
     expect(after).toEqual(before)
   })
+
+  it('reads session state and transcript without copying the view', () => {
+    const { projection: p, event } = setup()
+    const message: AgentMessage = { role: 'user', content: 'saved' }
+    p.settle([message], session())
+    expect(p.sessionState()).toEqual(p.view().state)
+    expect(p.messages()).toEqual(p.view().messages)
+    expect(p.messages()).toBe(p.messages())
+    const before = p.messages()
+    event({ type: 'message_end', message: { role: 'user', content: 'next' } })
+    expect(before).toEqual([message])
+    expect(p.messages()).toEqual(p.view().messages)
+  })
 })
