@@ -53,7 +53,7 @@ export function launchAgentPlist(
 <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
 <key>ExitTimeOut</key><integer>30</integer>
 <key>ThrottleInterval</key><integer>10</integer>
-<key>ProcessType</key><string>${xml('Background')}</string>
+<key>ProcessType</key><string>Standard</string>
 <key>StandardOutPath</key><string>${xml('/dev/null')}</string>
 <key>StandardErrorPath</key><string>${xml(join(logDir, 'launchd.err.log'))}</string>
 </dict></plist>
