@@ -1,23 +1,29 @@
 import { expect } from '@playwright/test'
-import { truncate } from 'node:fs/promises'
+import { appendFile } from 'node:fs/promises'
 import { laneRow, serviceView, test } from './fixtures/local-parity'
 
-test('opens a stopped service lane even when its transcript exceeds the preview limit', async ({
+test('keeps an oversized service lane open after warm-on-open starts pi', async ({
   parity: { page, daemon, transcript },
 }) => {
-  // A sparse extension of the scratch fixture leaves its header intact but adds
-  // one line larger than the reader can index. Do not start pi to get a preview.
-  await truncate(transcript, 33 * 1024 * 1024)
+  // A real pi entry, too large for either the stopped or the live frame.
+  await appendFile(
+    transcript,
+    JSON.stringify({
+      type: 'message',
+      id: 'large',
+      parentId: 'saved-card',
+      message: { role: 'user', content: 'x'.repeat(17 * 1024 * 1024) },
+    }) + '\n',
+  )
   const [lane] = (await serviceView(page, daemon))!.lanes
+  expect(lane!.activity).toBe('stopped')
   const row = laneRow(page, daemon, lane!.laneId)
   await row.click()
+  await expect.poll(async () => (await serviceView(page, daemon))!.lanes[0]?.activity).toBe('idle')
   await expect(row).toHaveAttribute('aria-current', 'page')
   await expect(
-    page.getByText('This conversation is too large to preview while stopped. Resume to load it.', {
-      exact: true,
-    }),
+    page.getByText('This conversation is too large to preview.', { exact: true }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeEnabled()
   await expect(page.getByText('Could not open the remote lane.', { exact: true })).toHaveCount(0)
-  expect((await serviceView(page, daemon))!.lanes[0]?.activity).toBe('stopped')
+  await expect(page.getByText('pi crashed', { exact: true })).toHaveCount(0)
 })

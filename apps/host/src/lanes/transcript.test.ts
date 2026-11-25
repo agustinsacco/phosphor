@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HOST_LIMITS, type LaneSummary } from '@phosphor/shared/host-protocol'
 import type { AgentMessage } from '@phosphor/shared/rpc'
+import { stoppedQuery } from './calls/query'
 import { createUnattachedSnapshots } from './transcript'
 import { fitSnapshot, type SnapshotResult } from './projection-host'
 import type { StoredLane } from './store'
@@ -345,3 +346,32 @@ describe('unattached transcripts', () => {
     expect(log).not.toHaveBeenCalled()
   })
 })
+
+it.each(['source budget', 'frame budget'])(
+  'never serves the %s suffix as a complete lane.messages call',
+  (budget) => {
+    const size = budget === 'source budget' ? 12 : 9
+    const content = 'x'.repeat(size * 1024 * 1024)
+    if (budget === 'source budget') {
+      const image = {
+        role: 'user' as const,
+        content: [{ type: 'image' as const, mimeType: 'image/png', data: content }],
+      }
+      file('lane', [image, image, image])
+    } else
+      file('lane', [
+        { role: 'user', content },
+        { role: 'user', content },
+      ])
+    // Prime the preview cache before the paged API asks for complete messages.
+    expect(snapshot(read('lane')).messages.length).toBeGreaterThan(0)
+    const response = stoppedQuery({ unattached: read }, 'lane.messages', 'lane', () => {
+      throw new Error('not a receipt')
+    })
+    // Avoid printing multi-MiB payloads if a suffix leaks out as a success.
+    expect(response.ok).toBe(false)
+    expect(response).toMatchObject({
+      error: { code: 'too-large', message: expect.stringMatching(/summary|running/) },
+    })
+  },
+)

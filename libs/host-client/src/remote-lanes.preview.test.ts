@@ -19,19 +19,32 @@ it('opens an oversized stopped preview and reattaches when the lane runs', async
     present: () => true,
     changed: () => {},
   })
-  const opening = lanes.open({ id: 1, destroyed: () => false, send: () => {} }, 'host', 'lane')
+  const send = vi.fn()
+  const opening = lanes.open({ id: 1, destroyed: () => false, send }, 'host', 'lane')
   receive({ type: 'subscribe-failed', id: 'watch', code: 'too-large' })
   const info = await opening
   expect(info.laneId).toBe('lane')
-  expect(await lanes.command(1, info.sessionId, { type: 'get_messages' })).toMatchObject({
-    success: false,
-    error: 'This conversation is too large to preview while stopped. Resume to load it.',
-  })
+  const stopped = await lanes.command(1, info.sessionId, { type: 'get_messages' })
   lanes.reconcile()
   expect(watchLane).toHaveBeenCalledTimes(1)
   lane.activity = 'idle'
   lanes.reconcile()
   lanes.reconcile()
   expect(watchLane).toHaveBeenCalledTimes(2)
+  // An older Host can refuse the live snapshot, too. Do not discard the handle,
+  // report a pi exit, or retry on every subsequent listing change.
+  receive({ type: 'subscribe-failed', id: 'watch', code: 'too-large' })
+  expect(lanes.list(1)).toEqual([info])
+  expect(stopped).toMatchObject({
+    success: false,
+    error: 'This conversation is too large to preview.',
+  })
+  expect(await lanes.command(1, info.sessionId, { type: 'get_messages' })).toEqual(stopped)
+  lanes.reconcile()
+  expect(watchLane).toHaveBeenCalledTimes(2)
+  expect(send).not.toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ kind: 'exit' }),
+  )
   lanes.clear()
 })
