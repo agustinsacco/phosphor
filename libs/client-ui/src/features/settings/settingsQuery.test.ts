@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DESKTOP_PLATFORM, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
+import { desktopPlatform } from '@/platform/Platform'
+
 import {
   EXTENSION_TABS,
   SETTINGS_INDEX,
@@ -272,5 +274,26 @@ it('lands service actions on one persistent This Mac section, never a transient 
     expect(service(term, DESKTOP_PLATFORM, 'host', true)).toContain('Phosphor service')
     expect(service(term, DESKTOP_PLATFORM, 'host')).not.toContain('Phosphor service')
     expect(service(term, WIDE_BROWSER_PLATFORM, 'host', true)).not.toContain('Phosphor service')
+  }
+})
+
+it('omits the Brain section and search rows only when the capability is off', () => {
+  expect(desktopPlatform).toBeTypeOf('function')
+  for (const platform of [desktopPlatform(false, false), WIDE_BROWSER_PLATFORM]) {
+    expect(visibleSections(platform, 'host').map((section) => section.id)).not.toContain('brain')
+    expect(platformIndex(platform, 'host').some((row) => row.tab === 'brain')).toBe(false)
+  }
+  for (const platform of [
+    desktopPlatform(true, false),
+    desktopPlatform(false, true),
+    { ...WIDE_BROWSER_PLATFORM, localBrain: true },
+  ]) {
+    const sections = new Set(visibleSections(platform, 'host').map((section) => section.id))
+    const groups = searchSettings(
+      'reset brain knowledge',
+      sections,
+      platformIndex(platform, 'host'),
+    )
+    expect(groups.map((group) => group.tab)).toEqual(['brain'])
   }
 })

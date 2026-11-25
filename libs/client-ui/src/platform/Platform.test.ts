@@ -1,3 +1,6 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { desktopPlatform, usePlatform } from './Platform'
 import { expect, it } from 'vitest'
 import {
   COMPACT_PLATFORM,
@@ -39,4 +42,19 @@ it('Desktop and the browser differ only in the capabilities each declares', () =
     'splitPanes',
     'writingAssist',
   ])
+})
+
+it('does not grant Brain when there is no platform provider', () => {
+  const Capability = () => String(usePlatform().localBrain)
+  expect(renderToStaticMarkup(createElement(Capability))).toBe('false')
+})
+
+it.each([
+  [false, false, false],
+  [true, false, true],
+  [false, true, true],
+  [true, true, true],
+])('exposes Desktop Brain by enabled (%s) or preview (%s) state', (enabled, preview, visible) => {
+  expect(desktopPlatform).toBeTypeOf('function')
+  expect(desktopPlatform(enabled, preview).localBrain).toBe(visible)
 })

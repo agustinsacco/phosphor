@@ -21,6 +21,11 @@ import {
   type Platform,
 } from './Platform'
 
+import { mockBrainStatus } from '@/features/brain/mockBrainData'
+import { useBrain } from '@/features/brain/useBrain'
+import { PageLinks } from '@/navigation/PageLinks'
+import { desktopPlatform } from './Platform'
+
 /*
  * One Host lane offers the same lane menu and Session options on Desktop, in a
  * wide browser and on a phone, and Settings differs between Desktop and the
@@ -203,4 +208,24 @@ it('Settings differs between clients only by the capabilities each declares', ()
   // This Mac's own sections need localLanes, so the browser lists none of them.
   expect(ids(WIDE_BROWSER_PLATFORM, 'local')).toEqual(ids(WIDE_BROWSER_PLATFORM, null))
   expect(ids(DESKTOP_PLATFORM, 'local')).toContain('agent')
+})
+
+const hasBrainLink = (): boolean =>
+  [...el.querySelectorAll('button')].some((button) => button.textContent === 'Brain')
+
+it('offers Brain navigation by capability, not by browser width or surface', async () => {
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  invoke.mockResolvedValue(status)
+  useBrain.setState({ status })
+  expect(desktopPlatform).toBeTypeOf('function')
+  render(desktopPlatform(false, false), <PageLinks onPage={vi.fn()} />)
+  expect(hasBrainLink()).toBe(false)
+  for (const browser of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {
+    render(browser, <PageLinks onPage={vi.fn()} />)
+    expect(hasBrainLink()).toBe(false)
+    render({ ...browser, localBrain: true }, <PageLinks onPage={vi.fn()} />)
+    await act(async () => {})
+    expect(hasBrainLink()).toBe(true)
+  }
 })
