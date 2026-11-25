@@ -5,7 +5,7 @@ import { takeSubmittedDraft, useDraftsStore } from '@/stores/drafts'
 import { useWritingStore } from '@/stores/writing'
 import { composePrompt, toImageContents, type PendingAttachment } from './attachments'
 import { uploadPromptFiles } from './uploadPromptFiles'
-import { createReceiptGuard, withDraftIds } from './receiptGuard'
+import { type createReceiptGuard, withDraftIds } from './receiptGuard'
 
 type Submission = {
   sessionId: string
