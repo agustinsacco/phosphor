@@ -39,7 +39,11 @@ test('a missing parked transcript fails G6 before commit; in-app keeps its data 
 })
 
 async function stopLanes(page: Page, daemon: LocalDaemon) {
-  await expect.poll(async () => (await serviceView(page, daemon))?.lanes.length).toBeGreaterThan(0)
+  // Opening Desktop warms the open lane (`ready.warmOnOpen`). Stop only after that
+  // start lands: a resume that lands after the check makes the restore refuse.
+  await expect
+    .poll(async () => (await serviceView(page, daemon))?.lanes.some((l) => l.activity === 'idle'))
+    .toBe(true)
   const view = await serviceView(page, daemon)
   for (const lane of view!.lanes.filter((lane) => lane.activity !== 'stopped')) {
     await laneRow(page, daemon, lane.laneId).click({ button: 'right' })
