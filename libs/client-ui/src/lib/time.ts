@@ -31,3 +31,46 @@ export function relativeTimeShort(ms: number): string {
 export function absoluteTime(ms: number): string {
   return new Date(ms).toLocaleString()
 }
+
+/** Clock time for a transcript row: `2:14 PM`, in the reader's 12/24-hour locale. */
+export function clockTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+/** Local midnight — the boundary a day divider sits on. */
+function startOfDay(ms: number): number {
+  const d = new Date(ms)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
+/**
+ * True when the two instants fall on different local calendar days.
+ *
+ * The day, not the minute, is what a reader orients on, and `startOfDay`
+ * makes 23:59 and 00:01 a boundary while a 5-minute gap on one day is not.
+ * `Math.round` absorbs the 23/25-hour days around a DST change.
+ */
+export function isSameLocalDay(a: number, b: number): boolean {
+  return startOfDay(a) === startOfDay(b)
+}
+
+/**
+ * Day-divider label: `Today`, `Yesterday`, `Tue, Mar 3`, or `Mar 3, 2025`.
+ *
+ * Relative for the two days a reader still holds in their head, dated beyond
+ * them, and the year appears only when it differs — a transcript that spans a
+ * new year must not read as if last March were this March.
+ */
+export function dayLabel(ms: number, now: number = Date.now()): string {
+  const days = Math.round((startOfDay(now) - startOfDay(ms)) / 86_400_000)
+  if (days === 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  const date = new Date(ms)
+  const sameYear = date.getFullYear() === new Date(now).getFullYear()
+  return date.toLocaleDateString(
+    [],
+    sameYear
+      ? { weekday: 'short', month: 'short', day: 'numeric' }
+      : { year: 'numeric', month: 'short', day: 'numeric' },
+  )
+}

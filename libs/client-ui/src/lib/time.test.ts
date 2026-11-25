@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { relativeTime, relativeTimeShort, absoluteTime } from './time'
+import {
+  relativeTime,
+  relativeTimeShort,
+  absoluteTime,
+  clockTime,
+  isSameLocalDay,
+  dayLabel,
+} from './time'
 
 /** Fixed "now" so the relative formatters are deterministic. */
 const NOW = new Date('2026-08-03T12:00:00Z').getTime()
@@ -71,5 +78,68 @@ describe('relativeTimeShort', () => {
 describe('absoluteTime', () => {
   it('delegates to toLocaleString', () => {
     expect(absoluteTime(NOW)).toBe(new Date(NOW).toLocaleString())
+  })
+})
+
+describe('clockTime', () => {
+  it("shows the hour and minutes in the reader's own format", () => {
+    expect(clockTime(NOW)).toBe(
+      new Date(NOW).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    )
+  })
+
+  it('never carries the seconds or the date a tooltip already gives', () => {
+    expect(clockTime(NOW).split(':')).toHaveLength(2)
+    expect(clockTime(NOW)).not.toMatch(/\d{4}/)
+  })
+})
+
+describe('isSameLocalDay', () => {
+  it('holds across a day of minutes', () => {
+    expect(isSameLocalDay(NOW, NOW + 6 * HOUR)).toBe(true)
+  })
+
+  it('breaks at local midnight, not at 24 hours', () => {
+    const justBeforeMidnight = new Date('2026-08-03T23:59:00').getTime()
+    const justAfter = new Date('2026-08-04T00:01:00').getTime()
+    expect(isSameLocalDay(justBeforeMidnight, justAfter)).toBe(false)
+    // Nearly 24 hours apart and the SAME calendar day: no boundary, no divider.
+    expect(
+      isSameLocalDay(
+        new Date('2026-08-04T00:05:00').getTime(),
+        new Date('2026-08-04T23:55:00').getTime(),
+      ),
+    ).toBe(true)
+  })
+})
+
+describe('dayLabel', () => {
+  it('names today and yesterday relatively', () => {
+    expect(dayLabel(NOW, NOW)).toBe('Today')
+    expect(dayLabel(NOW - 3 * HOUR, NOW)).toBe('Today')
+    expect(dayLabel(NOW - 25 * HOUR, NOW)).toBe('Yesterday')
+  })
+
+  it('dates anything older with the weekday', () => {
+    const threeDaysAgo = NOW - 3 * DAY
+    expect(dayLabel(threeDaysAgo, NOW)).toBe(
+      new Date(threeDaysAgo).toLocaleDateString([], {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      }),
+    )
+  })
+
+  it('adds the year across one, so last March cannot read as this March', () => {
+    const lastYear = new Date('2025-03-03T12:00:00').getTime()
+    expect(dayLabel(lastYear, NOW)).toBe(
+      new Date(lastYear).toLocaleDateString([], {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }),
+    )
+    expect(dayLabel(lastYear, NOW)).toContain('2025')
   })
 })

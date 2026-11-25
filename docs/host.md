@@ -1046,6 +1046,15 @@ a crash, with a 10-second throttle. It allows 30 seconds for shutdown. No root o
 linger is needed. The plist pins node, bundle and config paths and uses the same filtered PATH as the systemd unit.
 Strings are XML-escaped; relative paths and control characters are refused.
 
+The LaunchAgent uses `ProcessType: Standard`, the same as omitting the key, so the
+Host and its pi children leave the `Background` class and its CPU and I/O limits.
+launchd's default limits still apply; `Interactive` is not used. Existing installs
+keep `Background` until the service is reinstalled: updating the Host or running
+`phosphor service restart` restarts the loaded job without rereading its plist.
+For a headless Host, finish active work, then run `phosphor service install` from
+an external terminal after updating (pass the same `--config FILE` if nondefault).
+For a Desktop-managed service, use the [local reinstall steps](local-service.md#installation-and-launch).
+
 The LaunchAgent runs `run --supervisor launchd`. Only this supervisor value is
 accepted. Under this flag, permanent exits 64, 69, 77 and 78 log `service.stopped`
 and write `{ code, at }` to
@@ -1966,7 +1975,14 @@ The builder discards Desktop's rebuilt addon, uses the shipped macOS prebuild or
 rebuilds for the pinned Node, and proves spawn, resize, output and exit with that Node.
 Pass the resulting directory to `build-bundle.mjs --native DIR`. Its target marker
 must match `--target`. Native resources and the license are included in BUILD-INFO
-and signed archive hashes. The macOS spawn helper has mode 0755 in the archive.
+and signed archive hashes. The release writer and Node extractor give the macOS
+spawn helper mode 0755. The shell installer extracts with umask 077; the owner
+execute bit is what the Host needs. When loading node-pty, the Host also repairs
+a missing execute bit after an older updater extracts the bundle. It only changes
+an owned, singly linked regular file at the expected path in the bundled
+package, with no symlinks along that path. Desktop and the PWA use the same Host terminals.
+A native spawn failure logs `terminal.spawn_failed` with a clipped error message,
+not the shell environment.
 Linux uses node-pty's fork path and does not need the macOS helper.
 
 `terminal.list {laneId}` returns identities and status, never paths; `terminal.list {}`

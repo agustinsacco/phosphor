@@ -15,7 +15,8 @@
  * and for packaged builds.
  */
 import { URL } from 'node:url'
-import { chmodSync, existsSync, statSync } from 'node:fs'
+// A standalone Desktop install has no workspace package links. Node 22 reads this TS source directly.
+import { repairSpawnHelper, spawnHelperDirs } from '../../libs/session-runtime/src/spawn-helper.ts'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 
@@ -32,20 +33,7 @@ try {
   process.exit(0)
 }
 
-const candidates = [
-  'build/Release',
-  'build/Debug',
-  `prebuilds/${process.platform}-${process.arch}`,
-].map((dir) => join(packageDir, dir, 'spawn-helper'))
-
-for (const helper of candidates) {
-  try {
-    if (!existsSync(helper)) continue
-    const mode = statSync(helper).mode & 0o777
-    if (mode & 0o111) continue
-    chmodSync(helper, mode | 0o755)
-    console.log(`fix-node-pty: chmod +x ${helper}`)
-  } catch (error) {
-    console.warn(`fix-node-pty: could not chmod ${helper}: ${error.message}`)
-  }
+for (const dir of spawnHelperDirs) {
+  if (repairSpawnHelper(packageDir, dir))
+    console.log(`fix-node-pty: chmod +x ${join(packageDir, dir, 'spawn-helper')}`)
 }

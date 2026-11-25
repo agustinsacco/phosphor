@@ -68,10 +68,17 @@ export interface BashItem {
 export interface DividerItem {
   id: string
   kind: 'divider'
-  variant: 'compaction' | 'branchSummary' | 'error'
+  /**
+   * `day` is view-model furniture, not a pi event: the transcript's own
+   * calendar-day boundaries, inserted by `withDayDividers` when rows are
+   * built. It never enters the chat store or pi's context.
+   */
+  variant: 'day' | 'compaction' | 'branchSummary' | 'error'
   summary?: string
   tokensBefore?: number
   reason?: CompactionReason
+  /** Local ms the divider sits at; a day divider's tooltip spells the date out. */
+  at?: number
 }
 
 /**

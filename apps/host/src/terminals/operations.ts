@@ -1,3 +1,4 @@
+import { spawnTerminal } from './spawn'
 import { randomUUID } from 'node:crypto'
 import { userInfo } from 'node:os'
 import { isAbsolute } from 'node:path'
@@ -65,7 +66,7 @@ function createTerminal(
   // Record identity before spawn. A crash can only restore an interrupted terminal.
   try {
     persist(state)
-    entry.pty = options.native.spawn(shell, ['-l'], {
+    entry.pty = spawnTerminal(options, shell, ['-l'], {
       cwd,
       cols: op.cols,
       rows: op.rows,
