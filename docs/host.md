@@ -1496,7 +1496,8 @@ API serves its snapshots over authenticated subscriptions. Its idempotent
 Pending events and UI keys are bounded.
 Snapshots reserve 64 KiB for the wire envelope. Oversized snapshots replace
 image data, oldest first, with `[image omitted: <n> KB]`; if they still do not
-fit, the binding returns `too-large` rather than truncating text.
+fit, a live stream can omit the settled messages and report `messagesUnavailable`,
+keeping its state, pending events and UI. If those still cannot fit, it returns `too-large`.
 A viewer attaching after a tool call settles sees arguments as pi recorded them,
 the same as reopening a session; original streamed text formatting is not kept.
 After compaction, an attaching viewer sees the compacted transcript, the same as
@@ -1510,11 +1511,13 @@ creates the file when the first message is sent. The same snapshot size and imag
 rule applies; if necessary a stopped preview drops older whole messages after eliding
 images. Synchronous reads scan LF-framed entries on the checked descriptor, index their
 branch and edit metadata, then load the active context's newest messages by byte offset.
-The scan is limited to 2 GiB per file, 32 MiB per line and 200,000 entries with at most
+The scan is limited to 2 GiB per file, 32 MiB per record (excluding a trailing CR) and 200,000 entries with at most
 32 MiB of serialized index fields. The preview selects up to 100,000 messages and
 32 MiB of source lines (a newest entry and its edit are always considered together).
-The four-lane stamp cache stores only the selected messages;
-invalid or inaccessible files refuse a stream subscription as `unknown-lane`,
+The four-lane stamp cache remembers whether it omitted older messages. `lane.messages`
+refuses `too-large` if it cannot return every message; it never returns the preview suffix
+as complete history. Image elision alone does not drop a message.
+Invalid or inaccessible files refuse a stream subscription as `unknown-lane`,
 while a `lane.messages` call maps reader failure to `internal` (or `too-large` for
 size failures). On refusal the Host logs `lane.transcript_unreadable` with the lane id
 and a reason, never the entry contents: `limit` for the file bound or growth during

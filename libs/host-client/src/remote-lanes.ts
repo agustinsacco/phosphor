@@ -334,12 +334,13 @@ class RemoteLaneClient {
       const c = this.ports.connection(h.hostId)
       // A refused subscription sends no lane events. Watch the machine listing for Resume,
       // including when another device resumes a lane this window is only observing.
-      const lane = h.previewUnavailable && c?.snapshot().lanes.find((l) => l.laneId === h.laneId)
-      if (
-        c &&
-        (c !== h.connection || (h.previewUnavailable && lane && !isStopped(lane.activity)))
-      ) {
-        h.previewUnavailable = false
+      const refused =
+        h.previewUnavailable === 'refused-stopped' || h.previewUnavailable === 'refused-live'
+      const lane = refused && c?.snapshot().lanes.find((l) => l.laneId === h.laneId)
+      const retry =
+        lane && (h.previewUnavailable === 'refused-stopped') !== isStopped(lane.activity)
+      if (c && (c !== h.connection || retry)) {
+        if (h.previewUnavailable) h.previewUnavailable = 'reattaching'
         h.unwatch()
         h.connection = c
         h.unwatch = c.watchLane(h.laneId, (frame) => receive(h, frame))

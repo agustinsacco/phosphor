@@ -16,7 +16,7 @@ export type Handle = {
   summary: LaneSummary
   projection: ReturnType<typeof createLaneProjection>
   connection: Connection
-  previewUnavailable?: boolean
+  previewUnavailable?: 'refused-stopped' | 'refused-live' | 'reattaching' | 'streaming'
   changed: () => void
   close: () => void
   unwatch: () => void
@@ -101,18 +101,17 @@ function applyFrame(h: Handle, frame: LaneFrame) {
     const activity = h.connection
       .snapshot()
       .lanes.find((lane) => lane.laneId === h.laneId)?.activity
-    if (frame.code !== 'too-large' || !isStopped(activity))
-      throw new Error('Lane stream unavailable.')
+    if (frame.code !== 'too-large' || !activity) throw new Error('Lane stream unavailable.')
     // Opening still returns a window-owned handle. Both shells surface the get_messages
     // refusal in chat during normal adoption, without inventing transcript messages.
-    h.previewUnavailable = true
+    h.previewUnavailable = isStopped(activity) ? 'refused-stopped' : 'refused-live'
     h.projection = projection(h)
     h.resolve()
     resync(h)
     return
   }
   if (frame.type === 'snapshot') {
-    h.previewUnavailable = false
+    h.previewUnavailable = frame.snapshot.messagesUnavailable ? 'streaming' : undefined
     h.summary = frame.snapshot.summary
     if (frame.snapshot.state)
       h.lastState = frame.snapshot.state as unknown as Record<string, unknown>

@@ -70,12 +70,6 @@ export async function laneCommand(
     const c = connection(h.hostId, typeof op !== 'string')
     if (command.type === 'get_state') return await projectedState(h, c, id, base)
     if (command.type === 'get_messages') {
-      if (h.previewUnavailable)
-        return {
-          ...base,
-          success: false,
-          error: 'This conversation is too large to preview while stopped. Resume to load it.',
-        }
       // IPC replies hydrate first, then replay the unfinished turn and UI.
       const hydration = h.hydration
       if (hydration) {
@@ -84,6 +78,12 @@ export async function laneCommand(
           if (ports.current() && h.hydration === hydration) flush(h)
         }, 0)
       }
+      if (h.previewUnavailable)
+        return {
+          ...base,
+          success: false,
+          error: 'This conversation is too large to preview.',
+        }
       return {
         ...base,
         success: true,

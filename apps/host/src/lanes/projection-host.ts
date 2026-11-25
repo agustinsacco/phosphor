@@ -56,12 +56,18 @@ export function createHostLaneProjection(
     stateChanged: () => host.refresh.refresh(false),
     deliver: (push: SessionPush) => deliver(host, push),
     resolveDialog: host.dialogs.resolve,
-    snapshot(): SnapshotResult {
-      return fitSnapshot({
+    snapshot(mode: 'complete' | 'stream' = 'complete'): SnapshotResult {
+      const view = {
         ...options.projection.view(),
         summary: options.summary(),
         cursor: options.cursor(),
-      })
+      }
+      const fitted = fitSnapshot(view)
+      // A stream can still deliver the turn in flight and all subsequent events.
+      // Refuse if even the non-history portion exceeds the frame budget.
+      return !fitted.ok && mode === 'stream' && view.messages.length
+        ? fitSnapshot({ ...view, messages: [], messagesUnavailable: true })
+        : fitted
     },
   }
 }
