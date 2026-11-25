@@ -4,10 +4,13 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { mockBrainStatus } from '@/features/brain/mockBrainData'
+import { useBrain } from '@/features/brain/useBrain'
 import { SessionMenu } from '@/features/chat/SessionMenu'
 import { RemoteLanes } from '@/features/sessions/RemoteLanes'
 import { visibleSections } from '@/features/settings/settingsIndex'
 import { NavigationProvider } from '@/navigation/Navigation'
+import { PageLinks } from '@/navigation/PageLinks'
 import { CompactLanes } from '@/shell/compact/CompactLanes'
 import { useChatStore } from '@/stores/chat'
 import { useMachinesStore } from '@/stores/machines'
@@ -20,10 +23,6 @@ import {
   WIDE_BROWSER_PLATFORM,
   type Platform,
 } from './Platform'
-
-import { mockBrainStatus } from '@/features/brain/mockBrainData'
-import { useBrain } from '@/features/brain/useBrain'
-import { PageLinks } from '@/navigation/PageLinks'
 import { desktopPlatform } from './Platform'
 
 /*
@@ -219,7 +218,6 @@ it('offers Brain navigation by capability, not by browser width or surface', asy
   status.prefs.enabled = true
   invoke.mockResolvedValue(status)
   useBrain.setState({ status })
-  expect(desktopPlatform).toBeTypeOf('function')
   render(desktopPlatform(false, false), <PageLinks onPage={vi.fn()} />)
   expect(hasBrainLink()).toBe(false)
   for (const browser of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {

@@ -62,6 +62,5 @@ it.each([
   [false, true, true],
   [true, true, true],
 ])('exposes Desktop Brain by enabled (%s) or preview (%s) state', (enabled, preview, visible) => {
-  expect(desktopPlatform).toBeTypeOf('function')
   expect(desktopPlatform(enabled, preview).localBrain).toBe(visible)
 })

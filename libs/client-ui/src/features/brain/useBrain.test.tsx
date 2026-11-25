@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
+import { desktopPlatform, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { brainInFlight, useBrain } from './useBrain'
 import { useBrainSync } from './useBrainSync'
@@ -14,6 +14,10 @@ function Consumer(): React.JSX.Element {
   useBrainSync()
   return <></>
 }
+/** Desktop with Brain on at launch: `useBrainSync` polls only where Brain is shown. */
+const withBrain = (children: React.JSX.Element): React.JSX.Element => (
+  <PlatformProvider value={desktopPlatform(true, false)}>{children}</PlatformProvider>
+)
 beforeEach(() => {
   vi.useFakeTimers()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -33,10 +37,12 @@ afterEach(() => {
 it('loads once for multiple consumers and does not poll idle or finished reads', async () => {
   await act(async () =>
     root.render(
-      <>
-        <Consumer />
-        <Consumer />
-      </>,
+      withBrain(
+        <>
+          <Consumer />
+          <Consumer />
+        </>,
+      ),
     ),
   )
   expect(invoke).toHaveBeenCalledTimes(1)
@@ -50,7 +56,7 @@ it('loads once for multiple consumers and does not poll idle or finished reads',
 it('polls in-flight work every two seconds, stops while hidden and on completion', async () => {
   const busy = { ...mockBrainStatus(), jobs: [mockBrainJob({ state: 'running' })] }
   invoke.mockResolvedValue(busy)
-  await act(async () => root.render(<Consumer />))
+  await act(async () => root.render(withBrain(<Consumer />)))
   await act(async () => vi.advanceTimersByTimeAsync(1999))
   expect(invoke).toHaveBeenCalledTimes(1)
   await act(async () => vi.advanceTimersByTimeAsync(1))
@@ -82,7 +88,7 @@ it('classifies download, verification, testing and all queued job states as in f
 
 it('cleans up polling on unmount and never calls IPC on unsupported platforms', async () => {
   invoke.mockResolvedValue({ ...mockBrainStatus(), jobs: [mockBrainJob({ state: 'waiting' })] })
-  await act(async () => root.render(<Consumer />))
+  await act(async () => root.render(withBrain(<Consumer />)))
   await act(async () =>
     root.render(
       <PlatformProvider value={WIDE_BROWSER_PLATFORM}>

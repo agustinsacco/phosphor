@@ -41,3 +41,32 @@ it('renders the app before brain:status resolves', async () => {
   await import('./main')
   await vi.waitFor(() => expect(appText()).toBe('localBrain=false'))
 })
+
+const brainStatus = (enabled: boolean) => ({ supported: true, prefs: { enabled } })
+
+it('shows Brain once its first status reports it enabled, and keeps it for the launch', async () => {
+  let answer: (status: unknown) => void = () => {}
+  invoke.mockImplementation((channel: string) =>
+    channel === 'brain:status'
+      ? new Promise((resolve) => (answer = resolve))
+      : Promise.resolve(undefined),
+  )
+  await import('./main')
+  await vi.waitFor(() => expect(appText()).toBe('localBrain=false'))
+  answer(brainStatus(true))
+  await vi.waitFor(() => expect(appText()).toBe('localBrain=true'))
+  const { useBrain } = await import('@/features/brain/useBrain')
+  useBrain.setState({ status: brainStatus(false) as never })
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(appText()).toBe('localBrain=true')
+})
+
+it('keeps Brain hidden without blocking when its status fails', async () => {
+  invoke.mockImplementation((channel: string) =>
+    channel === 'brain:status' ? Promise.reject(new Error('stalled')) : Promise.resolve(undefined),
+  )
+  await import('./main')
+  await vi.waitFor(() => expect(appText()).toBe('localBrain=false'))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  expect(appText()).toBe('localBrain=false')
+})

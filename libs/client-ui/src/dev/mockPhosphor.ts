@@ -1042,6 +1042,8 @@ export function installMockPhosphor(): void {
             contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
             contextFiles: mockContextFiles(),
             maintenance: mockMaintenancePrefs(),
+            // Brain starts off here, so the harness and site captures reach it through the preview.
+            brainPreview: true,
           })
         case 'app:setContextFile':
           localStorage.setItem(

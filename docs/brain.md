@@ -13,6 +13,8 @@ Host or another Desktop. The PWA has no local Brain.
 ## Turn it on
 
 **Settings › Brain** is hidden unless Brain is already on at launch or you opt into the preview.
+Desktop does not wait for Brain to start: when Brain is on, the section and its links appear
+once Brain first reports its status, and a failed status leaves them hidden.
 To preview it, quit Desktop, set `"brainPreview": true` in Phosphor's `<userData>/config.json`,
 and relaunch. The preview only shows the section; it does not turn Brain on. Read the embedding
 model's terms in **Settings › Brain**, then turn Brain on to download it.
