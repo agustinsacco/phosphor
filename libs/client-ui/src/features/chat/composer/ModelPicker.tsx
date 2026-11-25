@@ -69,7 +69,7 @@ function RecordedModelChip({
   )
 }
 
-function RecordedPicker({
+function RecordedChips({
   hostId,
   lane,
 }: {
@@ -78,7 +78,7 @@ function RecordedPicker({
 }) {
   const saved = laneWithoutPi(lane) ? lane?.stoppedComposer : undefined
   return (
-    <div className={PICKER_ROW}>
+    <>
       <RecordedModelChip
         hostId={hostId}
         model={saved?.model ?? lane?.model ?? null}
@@ -93,7 +93,7 @@ function RecordedPicker({
           label={thinkingLabel(saved.thinkingLevel)}
         />
       )}
-    </div>
+    </>
   )
 }
 
@@ -121,7 +121,11 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   const failed = useChatStore((s) => s.sessions[sessionId]?.modelsFailed ?? false)
 
   if (!meta || laneWithoutPi(hostLane?.lane))
-    return <RecordedPicker hostId={hostId} lane={hostLane?.lane} />
+    return (
+      <div className={PICKER_ROW}>
+        <RecordedChips hostId={hostId} lane={hostLane?.lane} />
+      </div>
+    )
 
   const levelsToRender: ThinkingLevel[] =
     thinkingLevels ?? (currentModel ? supportedThinkingLevels(currentModel) : [])
