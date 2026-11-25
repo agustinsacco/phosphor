@@ -132,8 +132,9 @@ pi exit and does not establish a lane event subscription.
 A stopped `lane.messages` call, including one backing `lane.read --part messages`,
 returns all messages in the active session context or refuses `too-large`. The chat preview's
 source-byte, message-count and frame budgets never silently move the first page forward.
-Images can still be elided in place; a caller needing a refused read can try the running
-lane or request a narrower part such as `summary`.
+Images can still be elided in place. The Host call keeps its generic refusal text,
+`the lane query could not complete`. The `lane.read` op advises trying the running
+lane or requesting a narrower part such as `summary`.
 
 | Close code | Meaning                                                                               |
 | ---------- | ------------------------------------------------------------------------------------- |

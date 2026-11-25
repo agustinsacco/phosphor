@@ -50,7 +50,9 @@ export async function laneCall(
       code === 'unknown-lane' || code === 'lane-stopped' || code === 'internal'
         ? 'unavailable'
         : code,
-      message,
+      method === 'lane.messages' && code === 'too-large'
+        ? 'History exceeds the read limit. If the lane is stopped, try reading while running, or request a narrower part such as summary.'
+        : message,
     )
   }
   return result.data

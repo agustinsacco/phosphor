@@ -101,16 +101,7 @@ export function stoppedQuery(
     if (snapshot.ok && method === 'lane.receipt') return receipt(snapshot.snapshot.messages)
     return snapshot.ok
       ? { ok: true, data: { messages: snapshot.snapshot.messages } }
-      : method === 'lane.messages'
-        ? {
-            ok: false,
-            error: {
-              code: 'too-large',
-              message:
-                'Complete stopped history exceeds the read limit. Read the lane while running, or request a narrower part such as summary.',
-            },
-          }
-        : failure('too-large')
+      : failure('too-large')
   } catch {
     return failure('internal')
   }
