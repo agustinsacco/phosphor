@@ -1,3 +1,5 @@
+import { machineCatalogues } from './machine-catalogue'
+import { probeDeadline, probeQueue, type ProbeSlot } from './probe-queue'
 import { isUtf8 } from 'node:buffer'
 import { constants } from 'node:fs'
 import { open, realpath, stat } from 'node:fs/promises'
@@ -48,11 +50,20 @@ export async function resolveSkills(
   ports: MachinePorts,
   laneId?: string,
   admittedProject?: string,
+  slot?: ProbeSlot,
 ): Promise<LocatedSkill[]> {
   const cwd = admittedProject ?? (await laneCwd(context, laneId))
-  const inspection = await featureInspection(context, ports)
-  if (!inspection.pi) throw new FeatureFailure('internal')
-  const commands = await queryMachine(inspection.pi, cwd, 'get_commands')
+  const pi = ports.pi ?? (await featureInspection(context, ports)).pi
+  if (!pi) throw new FeatureFailure('internal')
+  return locateSkills(pi, cwd, !!(laneId || admittedProject), slot)
+}
+async function locateSkills(
+  pi: NonNullable<MachinePorts['pi']>,
+  cwd: string,
+  project: boolean,
+  slot?: ProbeSlot,
+) {
+  const commands = await queryMachine(pi, cwd, 'get_commands', undefined, slot)
   if (!Array.isArray(commands) || commands.length > 2000) throw new FeatureFailure('too-large')
   const skills = new Map<string, LocatedSkill>()
   let count = 0
@@ -64,7 +75,7 @@ export async function resolveSkills(
     if (!machineRecord(source) || typeof source.path !== 'string' || !isAbsolute(source.path))
       throw new FeatureFailure('internal')
     if (source.scope !== 'user' && source.scope !== 'project') throw new FeatureFailure('internal')
-    if (source.scope === 'project' && !laneId && !admittedProject) continue
+    if (source.scope === 'project' && !project) continue
     if (source.scope === 'project' && !within(cwd, await realpath(source.path)))
       throw new FeatureFailure('bad-request')
     const parsed = parseMachineSkills([
@@ -134,11 +145,8 @@ export function createSkillsFeature(
   context: FeatureContext,
   ports: MachinePorts = {},
 ): HostFeature {
-  // One probe at a time, in arrival order. Concurrent reads (a page's models and providers)
-  // wait instead of failing; the queue is bounded so no unbounded set of pi children builds up.
-  let tail: Promise<unknown> = Promise.resolve()
-  let waiting = 0
-  const MAX_WAITING = 8
+  const cache = machineCatalogues(context, ports)
+  const readiness = probeQueue()
   const methods = [
     'machine.models',
     'machine.commands',
@@ -156,18 +164,7 @@ export function createSkillsFeature(
       if (!methods.includes(method)) return featureError(new FeatureFailure('unsupported'))
       const parsed = parseMachineParams(method, params)
       if (!parsed) return featureError(new FeatureFailure('bad-request'))
-      // Runs the Claude CLI, not pi, and shares one run per account (`createClaudeUsage`),
-      // so its up-to-20s probe must not hold the model picker behind it.
-      if (method === 'machine.claudeUsage') return run(method, parsed)
-      if (waiting >= MAX_WAITING) return featureError(new FeatureFailure('internal'))
-      waiting++
-      const turn = tail.then(() => run(method, parsed))
-      tail = turn.catch(() => undefined)
-      try {
-        return await turn
-      } finally {
-        waiting--
-      }
+      return run(method, parsed)
     },
   }
   async function run(
@@ -175,10 +172,25 @@ export function createSkillsFeature(
     parsed: NonNullable<ReturnType<typeof parseMachineParams>>,
   ): Promise<Awaited<ReturnType<HostFeature['call']>>> {
     try {
-      if (method.startsWith('machine.')) return await machineCall(method, context, ports, parsed)
-      const skills = await resolveSkills(context, ports, parsed.laneId)
-      if (method === 'skills.list')
-        return { ok: true, data: { skills: skills.map((s) => s.skill) } }
+      if (method === 'machine.models')
+        return { ok: true, data: await cache.models(parsed.partial === true) }
+      if (method === 'machine.commands')
+        return { ok: true, data: await cache.commands(parsed.repositoryId) }
+      if (method === 'machine.claudeUsage') return await machineCall(method, context, ports, parsed)
+      if (method.startsWith('machine.'))
+        return await readiness(() => machineCall(method, context, ports, parsed))
+      if (method === 'skills.list') {
+        const deadline = probeDeadline()
+        const cwd = await laneCwd(context, parsed.laneId)
+        const project = !!parsed.laneId
+        const data = await cache.skills(cwd, project, deadline, async (pi, slot) => ({
+          skills: (await locateSkills(pi, cwd, project, slot)).map((s) => s.skill),
+        }))
+        return { ok: true, data }
+      }
+      const skills = await cache.resourceQueue((slot) =>
+        resolveSkills(context, ports, parsed.laneId, undefined, slot),
+      )
       const entry = skills.find((s) => s.skill.name === parsed.name)
       if (!entry) throw new FeatureFailure('bad-request')
       if (method === 'skills.export') return { ok: true, data: await exportSkill(entry) }

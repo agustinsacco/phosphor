@@ -1,4 +1,5 @@
 import {
+  HOST_CALL_TIMEOUT_MS,
   HOST_LIMITS,
   type ClientFrame,
   type HostFrame,
@@ -138,7 +139,7 @@ export function createRequests(ports: {
             ok: false,
             error: { code: 'internal', message: 'Query timed out.' },
           })
-        }, 30000)
+        }, HOST_CALL_TIMEOUT_MS)
         calls.set(id, { resolve, timer })
         if (!ports.write({ type: 'call', id, method, params, trace })) ports.transportFailed()
       })

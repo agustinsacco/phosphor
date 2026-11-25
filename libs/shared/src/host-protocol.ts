@@ -14,6 +14,7 @@
  */
 export type { LaneReceipt } from './lane-receipt'
 export {
+  HOST_CALL_TIMEOUT_MS,
   HOST_API_PORT,
   HOST_API_ROUTES,
   HOST_CLOSE,

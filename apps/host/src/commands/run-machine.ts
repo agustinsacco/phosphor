@@ -24,7 +24,7 @@ import { createHostRuntime, type HostMachine } from '../session/runtime'
 import type { AppServices } from '../session/app-services'
 import { serviceRunner } from '../machine/systemd'
 import { retireUpdateJobAtStart } from '../update/launchd-job'
-import { inspectHost } from './doctor'
+import { inspectHost, type HostInspection } from './doctor'
 import type { RunContext } from './run'
 import {
   createRunAccounts,
@@ -192,6 +192,7 @@ export function createMachineCommands(
   machine: Omit<HostMachine, 'log'>,
   log: HostLog,
   started: StartedRuntime,
+  cataloguePi?: HostInspection['pi'],
 ) {
   const { config, store } = ports
   const { runtime, live, routines, nameLane } = started
@@ -209,6 +210,7 @@ export function createMachineCommands(
     configPath: config.path,
     env: machine.env,
     pi: machine.pi,
+    cataloguePi,
     store,
     runtime,
     accounts: started.accounts,
@@ -315,7 +317,7 @@ export async function startRunMachine(
     commands,
     terminals,
     ...opsCommands
-  } = createMachineCommands(context, parts, ports, machine, log, started)
+  } = createMachineCommands(context, parts, ports, machine, log, started, inspection.pi)
   parts.webPush = await ports.webPush({
     lanesTopic: live.lanesTopic,
     receipt: (laneId) => calls.call('lane.receipt', { laneId }),

@@ -4,11 +4,7 @@ import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { MachinePicker } from '@/features/machines/MachinePicker'
 import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
-import {
-  useMachineCataloguesStore,
-  machineCatalogueKey,
-  EMPTY_MACHINE_CATALOGUE,
-} from '@/stores/machineCatalogues'
+import { useMachineCatalogue } from '@/stores/machineCatalogues'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
@@ -51,9 +47,6 @@ export const SkillsPage = memo(function SkillsPage({
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const machine = serviceScope(pageMachine(filter, choice), hosts)
   const generation = useRemoteLanesStore(() => machineReadGeneration(machine))
-  const catalogue = useMachineCataloguesStore(
-    (s) => s.catalogues[machineCatalogueKey(machine, generation)] ?? EMPTY_MACHINE_CATALOGUE,
-  )
   const selectedWorkspace =
     machine === 'local'
       ? workspacePath.startsWith('host:')
@@ -61,10 +54,9 @@ export const SkillsPage = memo(function SkillsPage({
         : workspacePath
       : `host:${machine}/machine`
   useEffect(() => {
-    void useMachineCataloguesStore
-      .getState()
-      .load(machine === 'local' ? null : machine, selectedWorkspace)
+    if (machine !== 'local') void useSkillsStore.getState().refresh(selectedWorkspace)
   }, [machine, generation, selectedWorkspace])
+  const catalogue = useMachineCatalogue(machine === 'local' ? null : machine)
   return (
     <SkillsInventory
       key={selectedWorkspace}

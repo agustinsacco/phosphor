@@ -33,7 +33,7 @@ export function useRoutineModels(machineId?: string) {
         (remote.status === 'error'
           ? MODELS_READ_FAILED
           : `No signed-in model on ${machineLabel(hostId)}.`),
-      refresh: () => void useMachineCataloguesStore.getState().load(hostId, undefined, true),
+      refresh: () => void useMachineCataloguesStore.getState().load(hostId, 'retry'),
     }
   }
   return {

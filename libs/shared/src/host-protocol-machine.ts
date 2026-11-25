@@ -56,6 +56,7 @@ export function parseMachineParams(
   method: string,
   v: unknown,
 ): {
+  partial?: true
   laneId?: string
   name?: string
   file?: string
@@ -64,17 +65,19 @@ export function parseMachineParams(
 } | null {
   if (!machineRecord(v)) return null
   const keys =
-    method === 'machine.commands'
-      ? ['repositoryId']
-      : method === 'skills.read'
-        ? ['laneId', 'name', 'file']
-        : method === 'skills.export'
-          ? ['name']
-          : method === 'skills.list'
-            ? ['laneId']
-            : method === 'machine.claudeUsage'
-              ? ['laneId', 'force']
-              : []
+    method === 'machine.models'
+      ? ['partial']
+      : method === 'machine.commands'
+        ? ['repositoryId']
+        : method === 'skills.read'
+          ? ['laneId', 'name', 'file']
+          : method === 'skills.export'
+            ? ['name']
+            : method === 'skills.list'
+              ? ['laneId']
+              : method === 'machine.claudeUsage'
+                ? ['laneId', 'force']
+                : []
   if (
     ![
       'machine.models',
@@ -101,9 +104,11 @@ export function parseMachineParams(
   )
     return null
   if (v.file !== undefined && !isSkillFile(v.file)) return null
+  if (v.partial !== undefined && typeof v.partial !== 'boolean') return null
   if (v.force !== undefined && typeof v.force !== 'boolean') return null
   if (v.repositoryId !== undefined && !isRepositoryId(v.repositoryId)) return null
   return {
+    ...(v.partial === true ? { partial: true as const } : {}),
     ...(v.force === true ? { force: true } : {}),
     ...(typeof v.repositoryId === 'string' ? { repositoryId: v.repositoryId } : {}),
     ...(typeof v.laneId === 'string' ? { laneId: v.laneId } : {}),
@@ -160,6 +165,7 @@ export function parseMachineModels(v: unknown): MachineModel[] | null {
 }
 /** A Host's `machine.models` answer as clients keep it: the catalogue and the Host pi's defaults. */
 export interface MachineModelList {
+  source?: 'config'
   models: MachineModel[]
   defaults?: MachineModelDefaults
 }
@@ -169,7 +175,11 @@ export function parseMachineModelList(v: unknown): MachineModelList | null {
   const models = parseMachineModels(v.models)
   if (!models) return null
   const defaults = v.defaults === undefined ? null : parseMachineModelDefaults(v.defaults)
-  return { models, ...(defaults ? { defaults } : {}) }
+  return {
+    models,
+    ...(v.source === 'config' ? { source: 'config' as const } : {}),
+    ...(defaults ? { defaults } : {}),
+  }
 }
 export function parseMachineProviders(v: unknown): MachineProvider[] | null {
   if (!Array.isArray(v) || v.length > 64) return null

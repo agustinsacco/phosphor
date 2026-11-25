@@ -125,6 +125,31 @@ describe('skills.install', () => {
     expect(logs).toContain('skills.install {"name":"demo","status":"installed"}')
   })
 
+  it('immediately lists a copied skill after installation without expiring the cache', async () => {
+    let generation = 0
+    const read = createSkillsFeature(context, { ...ports, generation: () => generation })
+    const installPorts = {
+      ...ports,
+      skillsRoot,
+      invalidateCatalogue: () => {
+        generation++
+      },
+    }
+    const install = createSkillInstallFeature(context, installPorts)
+    expect(await read.call('skills.list', {})).toEqual({ ok: true, data: { skills: [] } })
+    expect(await install.call('skills.install', { bundle: bundle() }, allowed)).toMatchObject({
+      data: { status: 'installed' },
+    })
+    commands.push(skill(join(skillsRoot, 'demo', 'SKILL.md')))
+    expect(await read.call('skills.list', {})).toMatchObject({
+      data: { skills: [{ name: 'demo' }] },
+    })
+    expect(await install.call('skills.install', { bundle: bundle() }, allowed)).toMatchObject({
+      data: { status: 'conflict' },
+    })
+    expect(generation).toBe(1)
+  })
+
   it('never overwrites a same-named skill that resolves from outside the folder', async () => {
     const elsewhere = join(root, 'package', 'demo')
     await mkdir(elsewhere, { recursive: true })

@@ -63,6 +63,7 @@ export function readyFrame(options: {
     settings: hello.capabilities.includes('machine.configure'),
     machineShell: hello.capabilities.includes('terminal'),
     laneMarks: true,
+    partialModels: true,
     ...(options.warmOnOpen ? { warmOnOpen: true } : {}),
     laneArchive: true,
     laneTransfer: true,

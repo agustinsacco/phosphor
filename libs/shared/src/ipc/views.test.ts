@@ -79,6 +79,7 @@ export interface BaselineHostConnectionView {
   configurationSupported?: boolean
   machineShell?: boolean
   laneMarks?: boolean
+  partialModels?: boolean
   warmOnOpen?: boolean
   laneArchive?: boolean
   laneTransfer?: boolean

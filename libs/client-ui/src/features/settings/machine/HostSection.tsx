@@ -1,3 +1,4 @@
+import { recheckMachineCatalogue } from '@/stores/machineCatalogues'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { MachineView } from '@shared/control-api'
 import { errorText } from '@shared/errors'
@@ -104,9 +105,13 @@ export function HostSectionProvider({
           {...program}
           onClose={() => {
             setProgram(null)
+            recheckMachineCatalogue(machine.id)
             void refresh()
           }}
-          onSettled={() => void refresh()}
+          onSettled={() => {
+            recheckMachineCatalogue(machine.id)
+            void refresh()
+          }}
         />
       )}
     </HostSectionContext.Provider>
