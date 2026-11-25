@@ -1,8 +1,13 @@
-import { afterEach, beforeEach, expect, it } from 'vitest'
-import { mkdtemp, readFile, rm, symlink, truncate, writeFile } from 'node:fs/promises'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { mkdtemp, open, readFile, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { RESUME_PROVIDER_MAX_BYTES, resumeProvider } from './resume-provider'
+import { resumeProvider } from './resume-provider'
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...actual, open: vi.fn(actual.open) }
+})
 
 let root: string
 beforeEach(async () => {
@@ -74,15 +79,41 @@ it('refuses cycles and malformed files instead of guessing a billing provider', 
     { type: 'custom', id: 'b', parentId: 'a' },
   ])
   await expect(resumeProvider(path)).rejects.toThrow('Cannot verify')
+  await expect(resumeProvider(path)).rejects.toMatchObject({ code: 'resume-provider-unverified' })
   await writeFile(path, '{ broken')
   await expect(resumeProvider(path)).rejects.toThrow('Cannot verify')
+  await expect(resumeProvider(path)).rejects.toMatchObject({ code: 'resume-provider-unverified' })
 })
 
-it('bounds inspection and refuses substituted symlinks', async () => {
+it('refuses a session that changed while its provider was read', async () => {
+  const path = await transcript([
+    { type: 'model_change', id: 'a', parentId: null, provider: 'native', modelId: 'm' },
+  ])
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+  vi.mocked(open).mockImplementationOnce(async (...args: Parameters<typeof open>) => {
+    const handle = await actual.open(...args)
+    const stat = handle.stat.bind(handle)
+    let calls = 0
+    handle.stat = (async () => {
+      const result = await stat()
+      return ++calls > 1 ? Object.assign(result, { mtimeMs: result.mtimeMs + 1 }) : result
+    }) as typeof handle.stat
+    return handle
+  })
+  await expect(resumeProvider(path)).rejects.toMatchObject({
+    message: 'The session changed while verifying its provider.',
+    code: 'resume-provider-changed',
+  })
+})
+
+it('refuses more than the 2 GiB transcript bound, and substituted symlinks', async () => {
   const path = await transcript([])
   const link = join(root, 'link.jsonl')
   await symlink(path, link)
   await expect(resumeProvider(link)).rejects.toThrow()
-  await truncate(path, RESUME_PROVIDER_MAX_BYTES + 1)
-  await expect(resumeProvider(path)).rejects.toThrow('Cannot verify')
+  await truncate(path, 2 * 1024 ** 3 + 1)
+  await expect(resumeProvider(path)).rejects.toMatchObject({
+    message: 'Cannot verify the resumed session provider.',
+    code: 'transcript-too-large',
+  })
 })
