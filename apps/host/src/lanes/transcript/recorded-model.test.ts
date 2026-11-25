@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   assistantMessage,
   CLAUDE_LANE,
@@ -94,5 +94,31 @@ describe('readRecordedModel', () => {
   it('refuses a model the lane store could not hold', () => {
     writeFileSync(path, piTranscript([modelChange('m1', 'p', 'm'.repeat(129))]))
     expect(read()).toMatchObject({ kind: 'none' })
+  })
+
+  it('refuses a model the lane store’s validators refuse, such as one with a control character', () => {
+    writeFileSync(path, piTranscript([modelChange('m1', 'anthropic', 'claude\nopus')]))
+    expect(read()).toMatchObject({ kind: 'none' })
+    writeFileSync(path, piTranscript([assistantMessage('a1', 'open\u2028ai', 'gpt-5')]))
+    expect(read()).toMatchObject({ kind: 'none' })
+  })
+
+  it('reads a tail that is one long record without copying it chunk after chunk', () => {
+    const long = 'x'.repeat(3 * 1024 * 1024)
+    writeFileSync(
+      path,
+      piTranscript([modelChange('m1', 'anthropic', 'early'), userMessage('u1', long)]),
+    )
+    const concat = vi.spyOn(Buffer, 'concat')
+    try {
+      expect(read()).toMatchObject({ model: { provider: 'anthropic', id: 'early' } })
+      const copied = concat.mock.results.reduce(
+        (sum, result) => sum + (result.value as Buffer).length,
+        0,
+      )
+      expect(copied).toBeLessThanOrEqual(long.length)
+    } finally {
+      concat.mockRestore()
+    }
   })
 })

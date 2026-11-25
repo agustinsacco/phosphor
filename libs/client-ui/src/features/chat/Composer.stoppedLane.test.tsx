@@ -53,8 +53,8 @@ const SHELLS = [
 let root: Root | null = null
 let el: HTMLDivElement
 
-function stoppedLane(local: boolean): void {
-  const { hosts, live } = hostLaneSession({ activity: 'stopped', self: true })
+function stoppedLane(local: boolean, activity: 'stopped' | 'idle' = 'stopped'): void {
+  const { hosts, live } = hostLaneSession({ activity, self: true })
   const host = hosts[MOCK_HOST_ID]!
   if (local) host.local = true
   host.lanes[0] = { ...host.lanes[0]!, model: { provider: OPUS.provider, id: OPUS.id } }
@@ -74,6 +74,36 @@ function render(platform: (typeof SHELLS)[number][1]): void {
   )
 }
 const chip = () => el.querySelector<HTMLButtonElement>('[data-testid=model-chip]')
+const readout = () => el.querySelector('[data-testid=context-readout]')
+const META = {
+  model: OPUS,
+  thinkingLevel: 'off',
+  isStreaming: false,
+  isCompacting: false,
+  steeringMode: 'all',
+  followUpMode: 'all',
+  sessionId: SESSION,
+  autoCompactionEnabled: true,
+  messageCount: 0,
+  pendingMessageCount: 0,
+} as const
+const STATS = {
+  sessionId: SESSION,
+  userMessages: 1,
+  assistantMessages: 1,
+  toolCalls: 0,
+  toolResults: 0,
+  totalMessages: 2,
+  tokens: { input: 10, output: 20, cacheRead: 0, cacheWrite: 0, total: 30 },
+  cost: 0,
+  contextUsage: { tokens: 72_000, contextWindow: 200_000, percent: 36 },
+}
+function setActivity(activity: 'stopped' | 'idle'): void {
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  const host = hosts[MOCK_HOST_ID]!
+  host.lanes[0] = { ...host.lanes[0]!, activity }
+  useRemoteLanesStore.setState({ hosts })
+}
 
 beforeEach(() => {
   el = document.createElement('div')
@@ -101,22 +131,52 @@ describe.each(SHELLS)('a stopped Host lane’s composer on %s', (_shell, platfor
     const picker = recorded?.parentElement
 
     act(() => {
+      setActivity('idle')
       useChatStore.getState().setModels(SESSION, [OPUS])
-      useChatStore.getState().setMeta(SESSION, {
-        model: OPUS,
-        thinkingLevel: 'off',
-        isStreaming: false,
-        isCompacting: false,
-        steeringMode: 'all',
-        followUpMode: 'all',
-        sessionId: SESSION,
-        autoCompactionEnabled: true,
-        messageCount: 0,
-        pendingMessageCount: 0,
-      })
+      useChatStore.getState().setMeta(SESSION, META)
     })
     expect(chip()?.textContent).toBe(OPUS.name)
     expect(chip()?.disabled).toBe(false)
     expect(chip()?.parentElement).toBe(picker)
+  })
+
+  it.each([
+    ['This Mac’s service', true],
+    ['a remote Host', false],
+  ])('on %s, stopping an open lane shows the idle chips over its last state', (_m, local) => {
+    stoppedLane(local, 'idle')
+    act(() => {
+      useChatStore.getState().setModels(SESSION, [OPUS])
+      useChatStore.getState().setMeta(SESSION, META)
+      useChatStore.getState().setStats(SESSION, STATS)
+    })
+    render(platform)
+    expect(chip()?.disabled).toBe(false)
+    expect(el.querySelector('[data-testid=context-meter]')).not.toBeNull()
+
+    act(() => setActivity('stopped'))
+    expect(chip()?.disabled).toBe(true)
+    expect(chip()?.getAttribute('data-tooltip')).toBe('Starts with the lane')
+    expect(el.querySelector('[data-testid=context-meter]')).toBeNull()
+    expect(el.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
+  })
+
+  it('reserves the live readout’s width in the idle ring, so stats arriving move nothing', () => {
+    stoppedLane(true)
+    render(platform)
+    const slot = readout()
+    const reserve = slot?.querySelector('[data-readout-reserve]')
+    expect(reserve?.textContent).toBe('100% of 200k')
+    expect(reserve?.getAttribute('aria-hidden')).toBe('true')
+    expect(slot?.querySelector('[data-testid=context-meter-idle]')).not.toBeNull()
+
+    act(() => {
+      setActivity('idle')
+      useChatStore.getState().setMeta(SESSION, META)
+      useChatStore.getState().setStats(SESSION, STATS)
+    })
+    expect(readout()).toBe(slot)
+    expect(slot?.querySelector('[data-readout-reserve]')).toBe(reserve)
+    expect(slot?.querySelector('[data-testid=context-meter]')).not.toBeNull()
   })
 })
