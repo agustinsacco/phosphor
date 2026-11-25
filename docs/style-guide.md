@@ -322,7 +322,7 @@ turning instead of at rest — so it draws `BeaconGlyph` from
   treatment, including unselected/background lanes. The hover checkbox keeps
   the same 20px gutter; label and rail remain visible when it replaces the icon.
 - **One beacon per turn.** The strip above the composer reports the PROCESS
-  (beacon, elapsed timer, token count, `tok/s`, `Esc to stop`); the transcript only
+  (beacon, elapsed timer, token count, `Esc to stop`); the transcript only
   holds a SEAT for the content — the same blinking `.streaming-cursor` the
   streaming tail paints, so prose grows from where the caret sat. An empty
   streaming turn must never render a second beacon in the message list: two
@@ -330,12 +330,6 @@ turning instead of at rest — so it draws `BeaconGlyph` from
   strip also yields its beacon while the parent is starting or working, retaining
   its readable activity and inspection action. Same rule as a running tool,
   whose label shimmers instead of adding a circle.
-- **The `tok/s` figure is throughput, not progress.** It is output tokens per
-  second over the last few seconds of the stream (`features/chat/genRate.ts`),
-  and it disappears while pi runs a tool rather than reporting a 40-second
-  `npm test` as a slow model. Averaging the whole run is the other wrong
-  choice: it always reads low mid-run. The strip's order is fixed — time,
-  tokens, rate — because the e2e harness matches the first two.
 - **Accessibility:** pair the mark with readable status text; set `decorative`
   when that text already names the state. Standalone marks receive a label.
   No fake percentage or per-lane live-announcement loop. Reduced motion stops

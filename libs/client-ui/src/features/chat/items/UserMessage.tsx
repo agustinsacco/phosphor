@@ -10,8 +10,7 @@
  * turn carries the DATE (`items/dayDividers.ts`), this row carries a quiet
  * CLOCK time, and the exact stamp is one hover away. A timestamp on every
  * message is noise a reader stops seeing; a day boundary is the one moment
- * they need orienting. `tok/s` for the running turn lives in the composer
- * strip (`WorkingIndicator.tsx`), where the process is reported.
+ * they need orienting.
  */
 import { useState } from 'react'
 import { TooltipButton } from '@/components/Tooltip'
