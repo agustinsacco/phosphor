@@ -37,16 +37,7 @@ export function createProviderLogins(
         (id) => {
           terminalId = id
           started = true
-          if (configuration) {
-            deadline = setTimeout(() => {
-              try {
-                terminals.machineOp(owner, { type: 'terminal.kill', terminalId: id })
-              } catch {
-                /* Already finished or cancelled. */
-              }
-            }, 15 * 60_000)
-            deadline.unref()
-          }
+          if (configuration) deadline = configurationDeadline(terminals, owner, id)
           resolve({ terminalId: id })
         },
         configuration,
@@ -90,3 +81,16 @@ export function createProviderLogins(
   return { execute, active: () => active.size > 0 }
 }
 export type ProviderLogins = ReturnType<typeof createProviderLogins>
+
+/** A configuration login that is left open ends after 15 minutes. */
+function configurationDeadline(terminals: HostTerminals, owner: string, terminalId: string) {
+  const deadline = setTimeout(() => {
+    try {
+      terminals.machineOp(owner, { type: 'terminal.kill', terminalId })
+    } catch {
+      /* Already finished or cancelled. */
+    }
+  }, 15 * 60_000)
+  deadline.unref()
+  return deadline
+}
