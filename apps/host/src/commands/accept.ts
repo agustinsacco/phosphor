@@ -130,6 +130,7 @@ export async function runAccept(context: AcceptContext): Promise<AcceptOutcome> 
         directory: hostStateDirectory(context.env, context.home),
         home: context.home,
         env: machine.env,
+        log: log.write,
       }),
     },
   )

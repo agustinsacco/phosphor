@@ -1,4 +1,13 @@
 export const HOST_RELEASE_NAMESPACE = 'phosphor-host-release'
+// The extractor derives modes from these paths, not from archive headers.
+const executablePaths = new Set([
+  'bin/phosphor',
+  'node/bin/node',
+  'lib/native/node-pty/build/Release/spawn-helper',
+])
+export function hostReleaseFileMode(path: string): number {
+  return executablePaths.has(path) ? 0o755 : 0o644
+}
 export const HOST_RELEASE_TARGETS = ['linux-x64', 'linux-arm64', 'darwin-arm64'] as const
 export type HostReleaseTarget = (typeof HOST_RELEASE_TARGETS)[number]
 export interface HostReleaseKey {

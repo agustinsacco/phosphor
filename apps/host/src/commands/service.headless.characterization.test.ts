@@ -10,7 +10,7 @@ it('keeps both headless service descriptions byte-identical', () => {
     .toMatchInlineSnapshot(`
     [
       "b1640b789927ab731626ec74447b94bc33f9692b518912a8d70a9e72fcd043d5",
-      "7d7edb477ecf18266c01fb542d3a078ae81e3d11793e5ce2d53a82bbab0fd766",
+      "b9b6e50f2751af9d58e70bfa4e264ea7883a448470d30529601a8781b8d42383",
     ]
   `)
 })
