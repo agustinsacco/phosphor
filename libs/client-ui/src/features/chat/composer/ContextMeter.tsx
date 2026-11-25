@@ -35,17 +35,15 @@ import type {
 } from '@shared/models'
 import { useSessionClaudeAccount } from './useSessionAccount'
 import { HostPlanUsage, PlanUsageView, SectionLabel, UsageDial } from './PlanUsageView'
+import { useUsageMachineLabel } from './useUsageMachineLabel'
 import { useSessionsStore } from '@/stores/sessions'
 import { useContextBudgetStore } from '@/stores/contextBudgetPref'
-import { useMachinesStore } from '@/stores/machines'
 import { sessionContextBudget } from '@shared/context-budget'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
   const remote = target?.kind === 'remote'
-  const machine = useMachinesStore((s) =>
-    target?.kind === 'remote' ? s.machines.find((m) => m.id === target.hostId)?.label : undefined,
-  )
+  const machine = useUsageMachineLabel(remote ? target.hostId : undefined)
   const openSettings = useOpenSettings()
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
@@ -104,7 +102,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const rawPercent =
     window > 0 && usage?.tokens != null ? (usage.tokens / window) * 100 : usage?.percent
   const percent = rawPercent == null ? null : Math.round(rawPercent)
-  const of = remote ? ` budget on ${machine ?? 'remote machine'}` : budget !== null ? ' budget' : ''
+  const of = remote ? ` budget on ${machine}` : budget !== null ? ' budget' : ''
   const ringPercent = Math.min(100, percent ?? 0)
   const warn = percent !== null && percent >= 75
   const critical = percent !== null && percent >= 90

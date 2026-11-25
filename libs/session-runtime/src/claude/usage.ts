@@ -17,6 +17,7 @@
  * that nothing parses, the caller gets `no-usage` and hides the section —
  * never a wrong number.
  */
+import type { runPrintMode } from '../pi/print-mode'
 import type {
   ClaudeUsageSnapshot,
   ClaudeUsageSnapshotResult,
@@ -161,8 +162,26 @@ export function parseUsageOutput(
 // Fetching — spawns the CLI; the parser above stays pure for tests.
 // ---------------------------------------------------------------------------
 
+/** No session persistence: polling quota must not save a transcript per run. */
+export function runUsageCommand(
+  print: typeof runPrintMode,
+  binary: string,
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+) {
+  return print(binary, ['-p', '/usage', '--output-format', 'json', '--no-session-persistence'], {
+    cwd,
+    env,
+    timeoutMs: 20_000,
+  })
+}
+
 /** Runner seam for tests: returns one run's stdout, or null when it failed. */
-export type UsageRunner = (binaryPath: string, env: NodeJS.ProcessEnv) => Promise<string | null>
+export type UsageRunner = (
+  binaryPath: string,
+  env: NodeJS.ProcessEnv,
+  cacheKey: string,
+) => Promise<string | null>
 
 export interface ClaudeUsagePorts {
   binary(): Promise<string | null>
@@ -202,7 +221,7 @@ async function runUsageProbe(
   const binaryPath = options?.claudeOverride ?? (await ports.binary())
   if (!binaryPath) return { ok: false, error: 'claude-not-found' }
   const env = { ...(await ports.environment()), ...options?.extraEnv }
-  const stdout = await (options?.runner ?? ports.run)(binaryPath, env)
+  const stdout = await (options?.runner ?? ports.run)(binaryPath, env, key)
   if (stdout === null) return { ok: false, error: 'run-failed' }
   const snapshot = parseUsageOutput(stdout, nowMs)
   if (!snapshot) return { ok: false, error: 'no-usage' }
@@ -270,5 +289,10 @@ export function createClaudeUsage(ports: ClaudeUsagePorts) {
     else cached.delete(cacheKey)
   }
 
-  return { cachedUsageSnapshot, fetchUsageSnapshot, clearUsageCache }
+  return {
+    cachedUsageSnapshot,
+    fetchUsageSnapshot,
+    clearUsageCache,
+    lastUsageSnapshot: (key: string) => cached.get(key)?.snapshot ?? null,
+  }
 }

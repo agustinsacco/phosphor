@@ -28,7 +28,8 @@ export function createLaneUsage(options: {
     const account =
       prefs.accounts.find((a) => a.id === bound) ?? pinned ?? prefs.accounts[0] ?? null
     const { usage } = options.accounts
-    const recent = usage.cachedUsageSnapshot(account?.id ?? 'default', nowMs)
+    const key = account?.id ?? 'default'
+    const recent = usage.cachedUsageSnapshot(key, nowMs)
     const result = await usage.fetchUsageSnapshot({
       ...(account
         ? { cacheKey: account.id, extraEnv: options.accounts.accountUsageEnv(account) }
@@ -36,6 +37,8 @@ export function createLaneUsage(options: {
       force: force && !(recent && nowMs - recent.fetchedAt < USAGE_FORCE_FLOOR_MS),
       nowMs,
     })
-    return result.ok ? { ok: true, snapshot: { ...result.snapshot, contributing: null } } : result
+    if (result.ok) return { ok: true, snapshot: { ...result.snapshot, contributing: null } }
+    const last = usage.lastUsageSnapshot(key)
+    return last ? { ok: true, snapshot: { ...last, contributing: null, stale: true } } : result
   }
 }

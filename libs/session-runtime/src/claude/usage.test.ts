@@ -47,11 +47,15 @@ it('keeps cache keys and execution machines isolated, merges probe env and expir
     extraEnv: { MACHINE: 'account', CLAUDE_SECURESTORAGE_CONFIG_DIR: '/private/a' },
   })
   expect(first.ok).toBe(true)
-  expect(a.run).toHaveBeenCalledExactlyOnceWith('/trusted/claude', {
-    PATH: '/trusted',
-    MACHINE: 'account',
-    CLAUDE_SECURESTORAGE_CONFIG_DIR: '/private/a',
-  })
+  expect(a.run).toHaveBeenCalledExactlyOnceWith(
+    '/trusted/claude',
+    {
+      PATH: '/trusted',
+      MACHINE: 'account',
+      CLAUDE_SECURESTORAGE_CONFIG_DIR: '/private/a',
+    },
+    'a',
+  )
   expect(a.service.cachedUsageSnapshot('a', 60_999)).not.toBeNull()
   expect(a.service.cachedUsageSnapshot('a', 61_000)).toBeNull()
   expect(a.service.cachedUsageSnapshot('b', 1000)).toBeNull()

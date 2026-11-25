@@ -20,7 +20,7 @@
     "same-machine": 0
   },
   "features/chat/composer/ContextMeter.tsx": {
-    "protocol": 2,
+    "protocol": 1,
     "same-machine": 0
   },
   "features/chat/composer/ContextSourcesMenu.tsx": {

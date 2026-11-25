@@ -89,7 +89,7 @@ async function startRuntime(
   const { config, store } = ports
   const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
   await trash.sweep().catch(() => {})
-  const accounts = createRunAccounts(context, ports.stateDirectory, machine.env)
+  const accounts = createRunAccounts(context, ports.stateDirectory, machine.env, log.write)
   const leases = runLeases(context, parts)
   const opsLanes = {
     service: () => parts.ops ?? null,

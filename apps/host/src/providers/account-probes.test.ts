@@ -20,7 +20,7 @@ it('projects only named identity fields using the Host-owned binary and private 
     stdout: '{"loggedIn":true,"email":"a@example.test","accessToken":"PRIVATE_TOKEN"}',
     stderr: '',
   })
-  const probes = createAccountProbes({ home: '/host', env: { PATH: '/host/bin' } })
+  const probes = createAccountProbes({ env: { PATH: '/host/bin' } })
   const result = await probes.status('/ignored', { CLAUDE_SECURESTORAGE_CONFIG_DIR: '/private' })
   expect(result).toMatchObject({
     binary: { found: true },
@@ -36,7 +36,7 @@ it('projects only named identity fields using the Host-owned binary and private 
 })
 
 it('reports absent binaries and logout failure without projecting raw diagnostics', async () => {
-  const probes = createAccountProbes({ home: '/host', env: {} })
+  const probes = createAccountProbes({ env: {} })
   h.which.mockResolvedValue(null)
   expect((await probes.status()).binary).toEqual({ found: false })
   await expect(probes.logout()).rejects.toThrow('not installed')
@@ -56,7 +56,7 @@ it('probes from a private temporary cwd with the selected account environment', 
     expect(statSync(directory).mode & 0o777).toBe(0o700)
     return { stdout: '{"result":"Current session: 3% used"}' }
   })
-  const probes = createAccountProbes({ home: env.HOME, env })
+  const probes = createAccountProbes({ env })
   expect((await probes.usage.fetchUsageSnapshot({ cacheKey: 'b', extraEnv })).ok).toBe(true)
   expect(h.print).toHaveBeenCalledExactlyOnceWith(
     '/trusted/claude',
@@ -68,7 +68,7 @@ it('probes from a private temporary cwd with the selected account environment', 
 
 it('logs one bounded diagnostic per failed run, not the environment or output', async () => {
   const log = vi.fn()
-  const options = { home: '/host', env: { HOME: '/host', PATH: '/secret/path' }, log }
+  const options = { env: { HOME: '/host', PATH: '/secret/path' }, log }
   const { usage } = createAccountProbes(options)
   h.print.mockResolvedValue({ stdout: 'secret output', error: 'secret error', reason: 'timeout' })
   const read = () => usage.fetchUsageSnapshot({ cacheKey: 'b' })

@@ -525,14 +525,26 @@ describe('remote context budget', () => {
   ])(
     'names the $connection in the open meter and its last-known reading',
     async ({ local, name }) => {
-      usageResult = { ok: true, snapshot: { stale: true, windows: [] } }
+      usageResult = {
+        ok: true,
+        snapshot: {
+          fetchedAt: 1,
+          contributing: null,
+          stale: true,
+          windows: [
+            { label: 'Current session', kind: 'five_hour', percentUsed: 41, resetsAt: null },
+          ],
+        },
+      }
       seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 })
       render()
       click('25%')
       await act(async () => {})
       act(() => {
         useRemoteLanesStore.setState({
-          hosts: { [MOCK_HOST_ID]: { ...mockRemoteHosts[MOCK_HOST_ID]!, local } },
+          hosts: {
+            [MOCK_HOST_ID]: { ...mockRemoteHosts[MOCK_HOST_ID]!, local: local || undefined },
+          },
         })
         if (!local)
           useMachinesStore.setState({ machines: [{ id: MOCK_HOST_ID, label: name } as never] })

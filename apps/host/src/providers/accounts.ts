@@ -1,3 +1,4 @@
+import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
@@ -13,6 +14,7 @@ export function createHostClaudeAccounts(options: {
   directory: string
   home: string
   env: Record<string, string>
+  log?: RuntimeLog
   readOnly?: boolean
   uid?: number
 }) {

@@ -33,7 +33,7 @@ function setup(stored: ClaudeAccountPrefs, bound?: string) {
     accounts: {
       loadAccounts: async () => stored,
       accountUsageEnv,
-      usage: { fetchUsageSnapshot, cachedUsageSnapshot } as never,
+      usage: { fetchUsageSnapshot, cachedUsageSnapshot, lastUsageSnapshot: () => null } as never,
     },
     accountForLane,
   })
