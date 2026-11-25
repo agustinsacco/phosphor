@@ -18,15 +18,6 @@ import {
 
 /** Inline banners: pi crashed, no models configured, and an old version of a rewound chat. */
 
-export function HistoryNotice({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const notice = useChatStore((s) => s.sessions[sessionId]?.historyNotice)
-  return notice ? (
-    <p role="status" className="text-text-secondary mx-auto w-full max-w-3xl px-6 py-2 text-sm">
-      {notice}
-    </p>
-  ) : null
-}
-
 /** A crashed lane: what pi said, how to bring it back, and why this window may not. */
 interface Crash {
   message: string

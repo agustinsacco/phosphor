@@ -7,7 +7,8 @@ import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/StatusStrip'
-import { CrashBanner, HistoryNotice, NoModelsBanner, RewoundBanner } from './banners'
+import { CrashBanner, NoModelsBanner, RewoundBanner } from './banners'
+import { HistoryNotice } from './HistoryNotice'
 
 /**
  * The chat column: banners, transcript, composer.
