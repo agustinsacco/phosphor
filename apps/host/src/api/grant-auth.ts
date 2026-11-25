@@ -51,6 +51,7 @@ export interface GrantAuthPorts {
   hello: HostHello
   key: KeyObject
   /** Announced in ready when the Host sends Web Push. */
+  warmOnOpen?: boolean
   webPushKey?: string
   /** Announced in ready; none until the Host serves agent control. */
   readyFlags?: ReadonlySet<ReadyOpFlag>
@@ -148,6 +149,7 @@ export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator 
             grantExpiresAt,
             caps,
             webPushKey: ports.webPushKey,
+            warmOnOpen: ports.warmOnOpen,
             flags: ports.readyFlags,
           }),
       })

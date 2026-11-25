@@ -42,15 +42,7 @@ export function Composer({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
-  /*
-   * Draft state lives in the store, not in `useState`.
-   *
-   * `App` renders `<ChatView key={activeSessionId}>`, so switching session
-   * unmounts this whole subtree — a local draft went with it, silently, along
-   * with any pasted image. Keyed by the session's FILE path once we know it,
-   * because that is the only identity that survives a restart; `rekey` below
-   * moves the draft across when pi finally tells us the path.
-   */
+  // Key drafts by the lane so a switch does not discard them.
   const entry = useSessionsStore((s) => s.live[sessionId])
   const remote = entry?.target?.kind === 'remote'
   const host = useRemoteLanesStore((s) =>

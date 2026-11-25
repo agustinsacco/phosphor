@@ -66,6 +66,7 @@ export function startRunApi(
   parts: RunParts,
   sink: ReceiptSink,
   options: {
+    local: boolean
     control: EnrolledControl
     config: RunConfig
     epoch: string
@@ -77,6 +78,7 @@ export function startRunApi(
 ) {
   const { control, config } = options
   parts.api = startApi({
+    warmOnOpen: options.local,
     runtimeEpoch: options.epoch,
     lanes: options.lanes,
     laneAdapter: options.laneAdapter,
@@ -205,6 +207,7 @@ export function createRunLink(
         parts.ops?.bindMachineOps(control.authority.setMachineOps)
         startRunApi(context, parts, sink, {
           control,
+          local: options.local,
           config,
           epoch: options.epoch,
           lanes: options.lanes,

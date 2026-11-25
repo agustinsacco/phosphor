@@ -198,7 +198,8 @@ it.each([
     }))
     const original = useDraftsStore.getState().get(key)
     const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
-    hosts[MOCK_HOST_ID]!.lanes[0]!.activity = 'stopped'
+    const lanes = hosts[MOCK_HOST_ID]!.lanes
+    lanes[0] = { ...lanes[0]!, activity: 'stopped' }
     useRemoteLanesStore.setState({ hosts })
     await draw()
     await send()

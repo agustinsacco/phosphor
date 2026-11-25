@@ -2,6 +2,10 @@
 
 Packaged Desktop automatically moves This Mac’s lanes to the service **once**, when a compatible signed release is available. It installs the service in standby while still running in-app, then migrates at the next eligible launch. Both the signed v2 manifest and the staged program must advertise `local-mode` and `owner-socket`. An older bundle does not trigger the move. **Settings → Advanced** shows its state and offers recovery actions.
 
+Opening a stopped service lane starts pi in the background while you type. The service
+advertises this policy on both the owner socket and its enrolled connection. Only the opened
+lane warms; a paused lane or one held by another controller stays stopped.
+
 ## Installation and launch
 
 Desktop checks for a compatible service release at startup and periodically. It pairs using `setup --local --standby`, without enrolling the machine. The public owner key goes to the service; the private key on disk requires protected storage. Desktop leaves a foreign launcher alone. If an installed release was never set up (no config and no launcher), Desktop installs a newer release over it before trying setup again, so a fixed release reaches a Mac whose first setup failed. A release that was set up updates only through `phosphor update`. While in-app, **Settings → Advanced** shows the install (checking, downloading, setting up, installed, or the failed check and its reason), and `phosphor.log` records each change as `service install`. Standby exposes the [owner socket](remote-protocol.md#the-local-socket) but runs no lanes, scheduler, heartbeat or TCP API.

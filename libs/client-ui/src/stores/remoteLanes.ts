@@ -1,4 +1,8 @@
-import { bindServiceLaneViews, laneControlPolicy } from '@/platform/serviceLaneControl'
+import {
+  bindServiceLaneViews,
+  laneControlPolicy,
+  warmOpenedLane,
+} from '@/platform/serviceLaneControl'
 import { serviceScope } from './localServiceScope'
 import {
   bindRemoteHostView,
@@ -222,18 +226,14 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     stopWatching()
     alignLaneMachineFilter(remote?.hostId ?? 'local')
     useSessionsStore.getState().activate(sessionId)
-    const lane = remote
-      ? useRemoteLanesStore
-          .getState()
-          .hosts[remote.hostId]?.lanes.find((lane) => lane.laneId === remote.laneId)
-      : undefined
+    const lane = sessionHostLane(sessionId)?.lane
     requestReveal(
       remote && lane
         ? remoteLaneGroupKey(remote.hostId, lane.repositoryId)
         : localLaneGroupKey(localRevealGroup(entry.workspacePath)),
     )
     useRemoteLanesStore.setState({ error: null })
-    if (remote) await refreshRemoteArtifacts(sessionId)
+    if (remote) await prepareOpenedLane(sessionId)
     return (
       useSessionsStore.getState().activeSessionId === sessionId &&
       useLayoutStore.getState().page === null
@@ -256,6 +256,15 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
   } finally {
     stopWatching()
   }
+}
+
+async function prepareOpenedLane(sessionId: string) {
+  warmOpenedLane(
+    sessionId,
+    () => useSessionsStore.getState().activeSessionId === sessionId,
+    (message) => useExtensionUiStore.getState().pushToast(message, 'error'),
+  )
+  await refreshRemoteArtifacts(sessionId)
 }
 
 export async function openRemoteLane(hostId: string, laneId: string): Promise<boolean> {
@@ -314,17 +323,12 @@ export function attachRemoteLanesListener(): () => void {
             )
               void forgetRemoteSession(entry.phosphorId)
           }
-          const { activeSessionId, live } = useSessionsStore.getState()
-          const entry = activeSessionId ? live[activeSessionId] : undefined
-          if (entry?.target?.kind === 'remote' && entry.laneId) {
-            const lane = hosts[entry.target.hostId]?.lanes.find(
-              (lane) => lane.laneId === entry.laneId,
-            )
-            if (lane && lane.attention > lane.read && document.hasFocus())
-              void window.phosphor
-                .invoke('hosts:markRead', entry.target.hostId, entry.laneId)
-                .catch(() => undefined)
-          }
+          const active = useSessionsStore.getState().activeSessionId
+          const remote = active ? sessionHostLane(active) : null
+          if (remote?.lane && remote.lane.attention > remote.lane.read && document.hasFocus())
+            void window.phosphor
+              .invoke('hosts:markRead', remote.hostId, remote.lane.laneId)
+              .catch(() => undefined)
         }
       }
     } catch {
