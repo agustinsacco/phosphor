@@ -250,9 +250,15 @@ global organization setting.
 
 Resumes derive the provider from the selected transcript branch, including the
 last assistant's model, before selecting credentials. Today's global defaults
-cannot redirect an older Claude lane to the CLI default. Inspection is read-only
-and bounded to 64 MiB/200,000 entries; an unreadable, oversized or cyclic session
-fails closed rather than guessing its billing provider. A Host also checks pi's
+cannot redirect an older Claude lane to the CLI default. Inspection is read-only:
+it reads the transcript backward from its end only as far as the branch's walk
+needs (`pi/backward-lines.ts`), on files up to the stopped-lane reader's 2 GiB
+bound, 200,000 entries read and 64 MiB per entry. An unreadable, oversized,
+changing or cyclic session fails closed rather than guessing its billing
+provider. Each refusal keeps its fixed message and carries a token `code`
+(`resume-provider-unverified`, `resume-provider-changed`, `transcript-too-large`,
+`transcript-line-too-large` or `transcript-index-too-large`), which a Host logs
+with a failed resume's `lane.command_error`. A Host also checks pi's
 resolved model before its first prompt: fallback to Claude without provisioned
 account credentials stops startup instead of using the CLI default. Only the
 seeded default account may have no private credential directory. Project defaults

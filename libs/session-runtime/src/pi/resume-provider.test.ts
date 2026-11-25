@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { mkdtemp, open, readFile, rm, symlink, truncate, writeFile } from 'node:fs/promises'
+import type * as FsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resumeProvider } from './resume-provider'
+import { SESSION_ENTRIES_MAX } from './session-context'
 
 vi.mock('node:fs/promises', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  const actual = await importOriginal<typeof FsPromises>()
   return { ...actual, open: vi.fn(actual.open) }
 })
 
@@ -85,11 +87,23 @@ it('refuses cycles and malformed files instead of guessing a billing provider', 
   await expect(resumeProvider(path)).rejects.toMatchObject({ code: 'resume-provider-unverified' })
 })
 
+it('refuses a walk past the entry bound with its own token code', async () => {
+  const entries = Array.from({ length: SESSION_ENTRIES_MAX + 1 }, (_, index) => ({
+    type: 'custom',
+    id: `e${index}`,
+    parentId: index ? `e${index - 1}` : null,
+  }))
+  await expect(resumeProvider(await transcript(entries))).rejects.toMatchObject({
+    message: 'Cannot verify the resumed session provider.',
+    code: 'transcript-index-too-large',
+  })
+}, 30_000)
+
 it('refuses a session that changed while its provider was read', async () => {
   const path = await transcript([
     { type: 'model_change', id: 'a', parentId: null, provider: 'native', modelId: 'm' },
   ])
-  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
+  const actual = await vi.importActual<typeof FsPromises>('node:fs/promises')
   vi.mocked(open).mockImplementationOnce(async (...args: Parameters<typeof open>) => {
     const handle = await actual.open(...args)
     const stat = handle.stat.bind(handle)

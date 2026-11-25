@@ -23,6 +23,8 @@ export function parseSessionLine(line: string): SessionEntryLike | null | undefi
 }
 
 export const SESSION_ENTRIES_MAX = 200_000
+/** The largest session file a reader opens: the stopped preview and resume's provider check. */
+export const TRANSCRIPT_FILE_MAX_BYTES = 2 * 1024 ** 3
 export function parseSessionEntries(
   text: string,
   maxEntries = SESSION_ENTRIES_MAX,

@@ -10,9 +10,9 @@ import {
 import { PreviewRefused } from './lines'
 import { readPreview, type TranscriptPreview } from './preview'
 import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
+import { TRANSCRIPT_FILE_MAX_BYTES } from '@phosphor/session-runtime/pi/session-context'
 import type { TranscriptCache } from './cache'
 
-const FILE_BYTES = 2 * 1024 ** 3
 export type TranscriptUnreadableReason = 'open' | 'type' | 'outside' | 'parse'
 export type TranscriptFailureReason = TranscriptUnreadableReason | PreviewRefused['reason']
 export type TranscriptReadResult =
@@ -68,7 +68,7 @@ export function readTranscript(options: {
   try {
     const stat = verifyTranscriptFile(fd, options.sessionFile, options.sessionsRoot)
     if (typeof stat === 'string') return failed(stat)
-    if (stat.size > FILE_BYTES) return failed('limit')
+    if (stat.size > TRANSCRIPT_FILE_MAX_BYTES) return failed('limit')
     const stamp = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`
     const cached = options.cache.get(options.laneId, stamp)
     const preview = cached ?? readPreview(fd, stat.size)
