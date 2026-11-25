@@ -361,10 +361,13 @@ it.each([HOST_SETTINGS_PLATFORM, WIDE_BROWSER_PLATFORM])(
     invoke.mockImplementation(async (channel, ...args) =>
       channel === 'hosts:providers'
         ? [{ ...provider, status: 'ready' }]
-        : original(channel, ...args),
+        : channel === 'hosts:models'
+          ? { models: [{ id: 'unlocked', provider: 'p', name: 'Unlocked', reasoning: false }] }
+          : original(channel, ...args),
     )
     try {
       await act(async () => exit(0))
+      expect(useMachineCataloguesStore.getState().catalogues[key]?.models[0]?.id).toBe('unlocked')
       expect(useMachineCataloguesStore.getState().catalogues[key]?.providers[0]?.status).toBe(
         'ready',
       )

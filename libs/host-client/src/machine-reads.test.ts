@@ -35,7 +35,7 @@ it('uses the machine allowlist and parsed models, never a local fallback', async
   expect(await reads.models('host')).toEqual({
     models: [{ id: 'm', name: 'Model', provider: 'p', reasoning: false }],
   })
-  expect(call).toHaveBeenCalledWith('machine.models', {})
+  expect(call).toHaveBeenCalledWith('machine.models', { partial: true })
   connected = undefined
   await expect(reads.models('missing')).rejects.toThrow('Not available')
 })
@@ -222,4 +222,18 @@ it('reads the lane plan usage, forwards a refresh, and falls back for old Hosts'
   expect(call).not.toHaveBeenCalled()
   view.capabilities = []
   expect(await reads.claudeUsage('host')).toBeNull()
+})
+
+it('retries once without the opt-in when an older Host rejects the new parameter', async () => {
+  call.mockResolvedValueOnce({
+    type: 'result',
+    id: 'catalogue',
+    ok: false,
+    error: { code: 'bad-request', message: 'Invalid request' },
+  })
+  expect(await reads.models('host')).toMatchObject({ models: [{ id: 'm' }] })
+  expect(call.mock.calls).toEqual([
+    ['machine.models', { partial: true }],
+    ['machine.models', {}],
+  ])
 })

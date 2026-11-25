@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { CatalogueCache } from './catalogue-cache'
+import { CatalogueCache, probeQueue } from './catalogue-cache'
 
 afterEach(() => vi.useRealTimers())
 it('serves the last good answer during a single stale refresh and after its failure', async () => {
@@ -30,4 +30,23 @@ it('serves the last good answer during a single stale refresh and after its fail
   await vi.advanceTimersByTimeAsync(1)
   expect(await cache.get('key', read)).toBe('cached')
   expect(read).toHaveBeenCalledTimes(2)
+})
+
+it('expires a queued probe at the wire deadline rather than running it late', async () => {
+  vi.useFakeTimers()
+  const queue = probeQueue()
+  let finish!: () => void
+  const first = queue(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }),
+  )
+  const late = vi.fn(async () => 'too late')
+  const outcome = queue(late).catch(() => 'expired')
+  await vi.advanceTimersByTimeAsync(30_001)
+  finish()
+  await first
+  expect(await outcome).toBe('expired')
+  expect(late).not.toHaveBeenCalled()
 })
