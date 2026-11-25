@@ -87,17 +87,76 @@ describe('lane projection byte bound', () => {
     expect(h.overflow).toHaveBeenCalledOnce()
   })
 
-  it('over-counts a surrogate pair split across deltas by at most 8 bytes, never under', () => {
+  it('counts split surrogate pairs exactly at the limit', () => {
     const h = setup()
     h.event({ type: 'agent_start' })
     h.event(assistantStart)
     h.fillTo(limit - 12)
     h.event(delta('\ud83d'))
+    h.event(delta(''))
     h.event(delta('\ude00'))
     expect(h.pendingBytes()).toBe(limit - 8)
+    h.event(delta('a'))
+    expect(h.pendingBytes()).toBe(limit - 7)
+    h.event(delta('a'.repeat(7)))
+    expect(h.pendingBytes()).toBe(limit)
     expect(h.overflow).not.toHaveBeenCalled()
-    h.event(delta('a'.repeat(9)))
+    h.event(delta('a'))
     expect(h.overflow).toHaveBeenCalledOnce()
+  })
+
+  it('sizes a merge that inserts a missing delta field from an unchecked wire event', () => {
+    const h = setup()
+    h.fillTo(limit - 'undefined'.length)
+    h.event({
+      type: 'message_update',
+      assistantMessageEvent: { type: 'text_delta', contentIndex: 0 },
+    } as PiEvent)
+    expect(h.pendingBytes()).toBe(limit)
+    expect(h.overflow).not.toHaveBeenCalled()
+    h.event(delta('a'))
+    expect(h.overflow).toHaveBeenCalledOnce()
+  })
+
+  it('isolates cached queue bytes from mutations to the pending view', () => {
+    const h = setup()
+    h.event({ type: 'queue_update', steering: [], followUp: [] })
+    const [queue] = h.projection.view().pending
+    if (queue?.type !== 'queue_update') throw new Error('expected a pending queue update')
+    queue.steering.push('q'.repeat(limit))
+    h.event({ type: 'turn_start' })
+    expect(h.overflow).not.toHaveBeenCalled()
+    expect(h.projection.view().pending[0]).toMatchObject({ steering: [] })
+  })
+
+  it('isolates cached bytes from mutations to a retained apply input', () => {
+    const h = setup()
+    const partialResult = { content: [{ type: 'text' as const, text: 'original' }] }
+    h.event({
+      type: 'tool_execution_update',
+      toolCallId: 'a',
+      toolName: 'read',
+      args: {},
+      partialResult,
+    })
+    partialResult.content[0]!.text = 'r'.repeat(limit)
+    h.event({ type: 'turn_start' })
+    expect(h.overflow).not.toHaveBeenCalled()
+    expect(h.projection.view().pending[0]).toMatchObject({
+      partialResult: { content: [{ type: 'text', text: 'original' }] },
+    })
+  })
+
+  it('isolates the pending view array while a barrier holds', () => {
+    const h = setup()
+    h.event({ type: 'compaction_start', reason: 'manual' })
+    h.event({ type: 'turn_start' })
+    h.projection.view().pending.length = 0
+    expect(h.projection.view().pending.map((e) => e.type)).toEqual([
+      'compaction_start',
+      'turn_start',
+    ])
+    h.expectTripsOnePastLimit()
   })
 
   it('keeps merges of different blocks and kinds as separate entries', () => {

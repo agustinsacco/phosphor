@@ -231,6 +231,13 @@ describe('lane projection state transitions', () => {
     expect(after).toEqual(before)
   })
 
+  it('does not expose mutable session state through the summary read', () => {
+    const { projection: p } = setup()
+    p.setState({ ...session(), sessionName: 'saved' })
+    Reflect.set(p.sessionState()!, 'sessionName', 'changed')
+    expect(p.sessionState()?.sessionName).toBe('saved')
+  })
+
   it('reads session state and transcript without copying the view', () => {
     const { projection: p, event } = setup()
     const message: AgentMessage = { role: 'user', content: 'saved' }
