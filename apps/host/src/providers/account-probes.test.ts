@@ -1,8 +1,16 @@
 import { tmpdir } from 'node:os'
-import { dirname } from 'node:path'
-import { existsSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  utimesSync,
+} from 'node:fs'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { createAccountProbes } from './account-probes'
+import { createAccountProbes, stopUsageProbes, sweepUsageProbeDirectories } from './account-probes'
 
 const h = vi.hoisted(() => ({ which: vi.fn(), probe: vi.fn(), print: vi.fn() }))
 vi.mock('../machine/executables', () => ({ which: h.which }))
@@ -80,4 +88,49 @@ it('logs one bounded diagnostic per failed run, not the environment or output', 
     reason: 'timeout',
     ms: expect.any(Number),
   })
+})
+
+it('stopping the Host aborts a pending probe and removes its directory before exit', async () => {
+  let directory = ''
+  let signal: AbortSignal | undefined
+  h.print.mockImplementation((_file, _argv, options: { cwd: string; signal?: AbortSignal }) => {
+    directory = options.cwd
+    signal = options.signal
+    return new Promise((resolve) => {
+      options.signal?.addEventListener('abort', () =>
+        resolve({ stdout: '', error: 'aborted', reason: 'aborted' }),
+      )
+    })
+  })
+  const { usage } = createAccountProbes({ env: {} })
+  const pending = usage.fetchUsageSnapshot({ cacheKey: 'a' })
+  await vi.waitFor(() => expect(directory).not.toBe(''))
+  expect(existsSync(directory)).toBe(true)
+  stopUsageProbes()
+  expect(signal?.aborted).toBe(true)
+  expect(existsSync(directory)).toBe(false)
+  expect(await pending).toEqual({ ok: false, error: 'run-failed' })
+})
+
+it('sweeps only old probe directories this code created, never links or other names', () => {
+  const root = mkdtempSync(join(tmpdir(), 'sweep-test-'))
+  try {
+    const made = (name: string) => {
+      mkdirSync(join(root, name))
+      return join(root, name)
+    }
+    const old = made('phosphor-usage-Ab3xYz')
+    const recent = made('phosphor-usage-Recent')
+    const longer = made('phosphor-usage-Ab3xYz9')
+    const other = made('phosphor-other-Ab3xYz')
+    symlinkSync(other, join(root, 'phosphor-usage-Link01'))
+    const past = new Date(Date.now() - 10 * 60_000)
+    for (const path of [old, longer, other]) utimesSync(path, past, past)
+    sweepUsageProbeDirectories(root)
+    expect(existsSync(old)).toBe(false)
+    for (const path of [recent, longer, other, join(root, 'phosphor-usage-Link01')])
+      expect(existsSync(path)).toBe(true)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

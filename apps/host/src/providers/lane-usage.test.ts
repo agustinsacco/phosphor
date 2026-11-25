@@ -33,7 +33,8 @@ function setup(stored: ClaudeAccountPrefs, bound?: string) {
     accounts: {
       loadAccounts: async () => stored,
       accountUsageEnv,
-      usage: { fetchUsageSnapshot, cachedUsageSnapshot, lastUsageSnapshot: () => null } as never,
+      usage: { fetchUsageSnapshot, cachedUsageSnapshot } as never,
+      status: async () => signedIn('a@example.test'),
     },
     accountForLane,
   })
@@ -83,21 +84,34 @@ it('passes CLI failures through unchanged', async () => {
   expect(await t.read('lane', false)).toEqual({ ok: false, error: 'no-usage' })
 })
 
-it('serves only the failed account’s last known windows without renewing their age', async () => {
+const signedIn = (email: string) => ({
+  binary: { found: true },
+  auth: { ok: true as const, loggedIn: true, email, orgId: 'org' },
+})
+
+function identityHarness() {
   const run = vi.fn<() => Promise<string | null>>().mockResolvedValue(null)
-  const output = (percent: number) =>
-    JSON.stringify({
-      result: `Current session: ${percent}% used\nWhat's contributing to your limits usage?\nprivate`,
-    })
+  const status = vi.fn(async (_override?: string, _env?: Record<string, string>) =>
+    signedIn('a@example.test'),
+  )
   const usage = createClaudeUsage({
     binary: async () => '/stub',
     environment: async () => ({}),
     run,
   })
   const read = createLaneUsage({
-    accounts: { loadAccounts: async () => prefs(), accountUsageEnv: () => ({}), usage },
+    accounts: { loadAccounts: async () => prefs(), accountUsageEnv: () => ({}), usage, status },
     accountForLane: (laneId) => laneId,
   })
+  const output = (percent: number) =>
+    JSON.stringify({
+      result: `Current session: ${percent}% used\nWhat's contributing to your limits usage?\nprivate`,
+    })
+  return { run, status, read, output }
+}
+
+it('serves only the failed account’s last known windows without renewing their age', async () => {
+  const { run, read, output } = identityHarness()
   run.mockResolvedValueOnce(output(3))
   expect(await read('a', false, 1)).toEqual({
     ok: true,
@@ -113,4 +127,59 @@ it('serves only the failed account’s last known windows without renewing their
     ok: true,
     snapshot: { fetchedAt: 61_001, stale: false, windows: [{ percentUsed: 5 }] },
   })
+})
+
+it('never serves a last known reading once the slot’s login changed, ended or is unknown', async () => {
+  const { run, status, read, output } = identityHarness()
+  const failed = { ok: false, error: 'run-failed' }
+  run.mockResolvedValueOnce(output(3))
+  await read('a', false, 1)
+  status.mockResolvedValueOnce(signedIn('b@example.test'))
+  expect(await read('a', false, 61_000)).toEqual(failed)
+  // A mismatch forgets the reading: the old login coming back does not revive it.
+  expect(await read('a', false, 61_000)).toEqual(failed)
+
+  run.mockResolvedValueOnce(output(3))
+  await read('a', false, 200_000)
+  status.mockResolvedValueOnce({ binary: { found: true }, auth: { ok: true, loggedIn: false } })
+  expect(await read('a', false, 261_000)).toEqual(failed)
+
+  run.mockResolvedValueOnce(output(3))
+  await read('a', false, 400_000)
+  status.mockRejectedValueOnce(new Error('auth status hung'))
+  expect(await read('a', false, 461_000)).toEqual(failed)
+})
+
+it('does not keep a reading whose login changed while its probe ran', async () => {
+  const { run, status, read, output } = identityHarness()
+  status.mockResolvedValueOnce(signedIn('a@example.test'))
+  status.mockResolvedValueOnce(signedIn('b@example.test'))
+  run.mockResolvedValueOnce(output(3))
+  expect((await read('a', false, 1)).ok).toBe(true)
+  expect(await read('a', false, 61_000)).toEqual({ ok: false, error: 'run-failed' })
+})
+
+it('forgets the reading of an account removed from the roster', async () => {
+  const run = vi.fn<() => Promise<string | null>>().mockResolvedValue(null)
+  let stored = prefs()
+  const usage = createClaudeUsage({
+    binary: async () => '/stub',
+    environment: async () => ({}),
+    run,
+  })
+  const read = createLaneUsage({
+    accounts: {
+      loadAccounts: async () => stored,
+      accountUsageEnv: () => ({}),
+      usage,
+      status: async () => signedIn('a@example.test'),
+    },
+    accountForLane: (laneId) => laneId,
+  })
+  run.mockResolvedValueOnce(JSON.stringify({ result: 'Current session: 3% used' }))
+  await read('b', false, 1)
+  stored = prefs({ accounts: [account('a')] })
+  await read('a', false, 61_000)
+  stored = prefs()
+  expect(await read('b', false, 61_000)).toEqual({ ok: false, error: 'run-failed' })
 })
