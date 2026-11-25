@@ -44,10 +44,15 @@ it('expires a queued probe at the wire deadline rather than running it late', as
       }),
   )
   const late = vi.fn(async () => 'too late')
-  const outcome = queue(late).catch(() => 'expired')
-  await vi.advanceTimersByTimeAsync(30_001)
+  const expired = vi.fn()
+  const waiting = Array.from({ length: 7 }, () => queue(late).catch(expired))
+  await vi.advanceTimersByTimeAsync(29_000)
+  expect(expired).toHaveBeenCalledTimes(7)
+  expect(late).not.toHaveBeenCalled()
+  // All expired waiters have left the queue even though the blocker still owns its slot.
+  const next = queue(async () => 'next')
   finish()
-  await first
-  expect(await outcome).toBe('expired')
+  await Promise.all([first, ...waiting])
+  expect(await next).toBe('next')
   expect(late).not.toHaveBeenCalled()
 })

@@ -37,3 +37,9 @@ it.each([true, false])('warm policy is shared on local=%s', (local) => {
   expect(readyView({ ...ready, warmOnOpen: true }, local).warmOnOpen).toBe(true)
   expect(readyView(ready, local).warmOnOpen).toBe(false)
 })
+
+it('forgets partial catalogue support on reconnect to an older Host', () => {
+  const newer = readyView({ ...ready, partialModels: true })
+  expect(newer.partialModels).toBe(true)
+  expect({ ...newer, ...readyView(ready) }).toMatchObject({ partialModels: false })
+})

@@ -6,6 +6,7 @@ import {
   recheckMachineCatalogue,
   EMPTY_MACHINE_CATALOGUE,
 } from './machineCatalogues'
+import { patchHostSettings } from '@/features/settings/machine/patchHostSettings'
 import { useSkillsStore } from './skills'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
@@ -64,6 +65,40 @@ it('a save refreshes a ready list and preserves acknowledged defaults when the H
   await state.load(MOCK_HOST_ID, 'recheck', null)
   expect(catalogue().defaults).toBeUndefined()
   expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:models')).toHaveLength(3)
+})
+it('keeps acknowledged defaults on an ordinary refresh until the Host sends new defaults', async () => {
+  const { load } = useMachineCataloguesStore.getState()
+  await load(MOCK_HOST_ID)
+  invoke.mockResolvedValueOnce({ agent: { defaultThinkingLevel: 'high' } })
+  await patchHostSettings(MOCK_HOST_ID, {
+    section: 'agent',
+    revision: 'current',
+    change: { type: 'agent.patch', patch: { defaultThinkingLevel: 'high' } },
+  })
+  await vi.waitFor(() => expect(catalogue().refreshing).toBe(false))
+  expect(catalogue().defaults).toEqual({ thinkingLevel: 'high' })
+  await load(MOCK_HOST_ID, 'recheck')
+  expect(catalogue().defaults).toEqual({ thinkingLevel: 'high' })
+  invoke.mockResolvedValueOnce({ models, defaults: {} })
+  await load(MOCK_HOST_ID, 'recheck')
+  expect(catalogue().defaults).toEqual({})
+})
+it('keeps the last complete list through partial refreshes, even when it is empty', async () => {
+  const { load } = useMachineCataloguesStore.getState()
+  await load(MOCK_HOST_ID)
+  invoke.mockResolvedValueOnce({ models: [], source: 'config' })
+  const refresh = load(MOCK_HOST_ID, 'recheck')
+  expect(catalogue()).toMatchObject({ models, status: 'ready', refreshing: true })
+  await refresh
+  expect(catalogue()).toMatchObject({ models, status: 'ready', failures: 1 })
+  expect(catalogue().source).toBeUndefined()
+  invoke.mockResolvedValueOnce({ models: [] })
+  await load(MOCK_HOST_ID, 'recheck')
+  expect(catalogue()).toMatchObject({ models: [], failures: 0 })
+  invoke.mockResolvedValueOnce({ models, source: 'config' })
+  await load(MOCK_HOST_ID, 'retry')
+  expect(catalogue()).toMatchObject({ models: [], status: 'ready', failures: 1 })
+  expect(catalogue().source).toBeUndefined()
 })
 it('does not issue a read for a down or capability-less machine', async () => {
   const hosts = structuredClone(mockRemoteHosts)

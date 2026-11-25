@@ -139,12 +139,15 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     })
   })
 
-  it('admits the optional partial catalogue request as the same call frame', () => {
-    const frame = {
-      ...CLIENT_FRAMES.call.state,
-      method: 'machine.models',
-      params: { partial: true },
+  it('negotiates partial catalogue reads without changing the legacy call', () => {
+    const ready = HOST_FRAMES.ready.ready
+    for (const partialModels of [true, false]) {
+      const advertised = { ...ready, partialModels }
+      expect(base.parseReadyFrame(advertised)).toStrictEqual(parseReadyFrame(ready))
+      expect(parseReadyFrame(advertised)).toMatchObject({ partialModels })
     }
+    expect(parseReadyFrame({ ...ready, partialModels: 1 })).toBeNull()
+    const frame = { ...CLIENT_FRAMES.call.state, method: 'machine.models', params: {} }
     expect(parseCallFrame(frame)).toStrictEqual({ ok: true, frame })
     expect(baseCommands.parseCallFrame(frame)).toStrictEqual({ ok: true, frame })
   })
