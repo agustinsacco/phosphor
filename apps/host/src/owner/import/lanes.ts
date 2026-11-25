@@ -2,10 +2,12 @@
  * The `lanes` section: one daemon lane per session file Desktop's sidebar
  * shows, under the lane id Desktop minted, with its title, branch, model and
  * times. `ensureLane` is keyed by session file, so a replay or a merge with a
- * lane the daemon already knows keeps that lane.
+ * lane the daemon already knows keeps that lane. Desktop sends no model, so
+ * each lane's comes from its transcript, as the start-up repair reads it.
  */
 import type { MigrationLaneItem } from '@phosphor/shared/host-protocol-owner'
 import type { HostStore } from '../../lanes/store'
+import { MODEL_REPAIR_BUDGET_BYTES, recordedModelReader } from '../../lanes/reconcile/models'
 import type { MigrationImporter } from '../migrate'
 import { withStateDatabase } from '../staging'
 import { refuseImport, type ImportPorts } from './ports'
@@ -48,9 +50,15 @@ export function laneImporter(ports: ImportPorts): MigrationImporter<'lanes'> {
       requireRoom(store, section.items)
       const times: [laneId: string, createdAt: number, updatedAt: number][] = []
       let models = 0
+      const recorded = recordedModelReader(ports.sessionsRoot, MODEL_REPAIR_BUDGET_BYTES)
       section.items.forEach((item, i) => {
-        const model = fitsModel(item.model) ? item.model : null
+        const model = item.model
+          ? fitsModel(item.model)
+            ? item.model
+            : null
+          : recorded.read(item.sessionFile).model
         if (item.model && !model) models++
+        if (!item.model && model) recorded.counts.repaired++
         const lane = store.ensureLane(
           {
             repositoryId: repositories[i]!,
@@ -69,6 +77,8 @@ export function laneImporter(ports: ImportPorts): MigrationImporter<'lanes'> {
         else times.push([lane.laneId, Date.parse(item.createdAt), Date.parse(item.updatedAt)])
       })
       if (models) ports.log('owner.migrate.lane_models_dropped', { count: models })
+      if (!section.items.every((item) => item.model))
+        ports.log('owner.migrate.lane_models_read', { ...recorded.counts })
       // ensureLane stamps both times now; Desktop's order and recency come from the files.
       await withStateDatabase(ports.stateDirectory, ports.uid, (db) => {
         const update = db.prepare('UPDATE lanes SET created_at=?,updated_at=? WHERE lane_id=?')

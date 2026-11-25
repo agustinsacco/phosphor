@@ -35,7 +35,10 @@ The composer is one small field with several ways in.
   has the same shape, with only the rules and connectors in its strip. It is
   one component for This Mac and every Host (`features/home/StartComposer.tsx`,
   [remote creation](remote-desktop.md#machine-context-and-lane-creation)); a
-  target offers only what it has before a lane exists.
+  target offers only what it has before a lane exists. A lane's composer reads
+  `Describe a task…` and the home composer `Describe a task or ask a question`:
+  the lane composer's placeholder is short because its hints live in the status
+  strip.
 - **Continue:** a compact play icon immediately left of Send, behind a
   hairline so the two never read as one slot, sends the literal message
   `continue`, without sending or clearing the draft or attachments. It is the
@@ -943,6 +946,26 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   the thinking level (with a caret) as the right. The provider is not on the
   chip: it is in the chip's tooltip and, in a session, in the strip, named only
   when pi does not ship it (`namedProvider`).
+- **A lane with no live pi** keeps the bar's shape. On a Host lane this is
+  read from the lane's activity in the Host's lane view (`stopped`, which
+  includes a lane that is still starting, or `failed`; `laneWithoutPi`), not
+  from what the chat store still holds, so stopping an open lane switches to
+  this state too. Once the lane runs again the composer shows what the chat
+  store holds, as for any live lane; until the new pi's replies land that can
+  still be the previous pi's state. `ModelPicker` shows the lane's recorded
+  model (`LaneSummary.model`, named from a model catalogue this client has
+  already read, else its id) as an inert chip with the tooltip "Starts with
+  the lane". The live chip replaces it in the same row once the lane runs and
+  pi has reported its state. There is no thinking segment, since a lane does
+  not record its thinking level. The strip's context ring stays in place as an
+  empty ring with `—` (`ContextReadout`) until the lane runs and pi has
+  reported usage. The readout has a fixed slot, sized by an invisible copy of
+  the live meter at its widest: `999% of 1000k` (the largest supported budget, 999.9k, formats as
+  `1000k`) and a `1000k/min` burn rate. Either state sits over it, so
+  stopping, starting or usage arriving never moves the readouts after it or
+  wraps the strip. Only the inline readouts keep to one line; the usage
+  popover that opens from the meter wraps. The Rules · MCP readout is always
+  there. Desktop and the browser render the same thing.
 - **Context meter**: % of window from `get_session_stats` (polled after each
   `agent_end` and on demand), shown in the strip as `36% of 200k` with the
   ring, warn state near the compaction threshold, and the popover below. The denominator is pi's context window, or the

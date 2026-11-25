@@ -1,13 +1,14 @@
 import { useAgentHints } from '@/features/agent-control/useAgentHints'
 import { rememberRemoteThinking } from '@/stores/remoteModelPicks'
 import { useSessionHostLane } from '@/stores/remoteLanes'
+import { laneWithoutPi } from '@/stores/hostLaneOf'
 import { useState } from 'react'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
 import { useSessionsStore } from '@/stores/sessions'
-import { MODELS_READ_FAILED } from '@/stores/machineCatalogues'
+import { MODELS_READ_FAILED, useMachineCatalogue } from '@/stores/machineCatalogues'
 import { ModelActionButtons } from './ModelActionButtons'
 import { useSessionModelActions } from './useSessionModelActions'
 import { useSessionModelSwitch } from './useSessionModelSwitch'
@@ -33,6 +34,37 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   return <SessionModelPicker key={sessionId} sessionId={sessionId} />
 }
 
+/** One row for the live picker and a lane's recorded model, so pi coming up reuses it. */
+const PICKER_ROW = 'relative flex min-w-0 max-w-full flex-1 items-center'
+
+/**
+ * A stopped or starting lane has no pi to ask, even when the chat store still
+ * holds the last pi's state: the lane's recorded model holds the live chip's
+ * place, so the bar keeps its shape when pi comes up. It is named from a
+ * catalogue this client already read, and never reads one.
+ */
+function RecordedModelChip({
+  hostId,
+  model,
+}: {
+  hostId: string | null
+  model: { provider: string; id: string } | null
+}): React.JSX.Element | null {
+  const catalogue = useMachineCatalogue(hostId, false)
+  const known = catalogue.models.find((m) => m.provider === model?.provider && m.id === model.id)
+  if (!model) return null
+  return (
+    <ModelChip
+      testId="model-chip"
+      name={known?.name ?? model.id}
+      title="Starts with the lane"
+      active={false}
+      onClick={() => {}}
+      disabled
+    />
+  )
+}
+
 function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const hints = useAgentHints(sessionId)
   const hostLane = useSessionHostLane(sessionId)
@@ -56,17 +88,12 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   const { actions } = useSessionModelActions(sessionId)
   const failed = useChatStore((s) => s.sessions[sessionId]?.modelsFailed ?? false)
 
-  if (!meta) {
-    return summaryModel ? (
-      <ModelChip
-        testId="model-chip"
-        name={summaryModel.id}
-        active={false}
-        onClick={() => {}}
-        disabled
-      />
-    ) : null
-  }
+  if (!meta || laneWithoutPi(hostLane?.lane))
+    return (
+      <div className={PICKER_ROW}>
+        <RecordedModelChip hostId={hostId} model={summaryModel ?? null} />
+      </div>
+    )
 
   const levelsToRender: ThinkingLevel[] =
     thinkingLevels ?? (currentModel ? supportedThinkingLevels(currentModel) : [])
@@ -83,7 +110,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   }
 
   return (
-    <div className="relative flex min-w-0 max-w-full flex-1 items-center">
+    <div className={PICKER_ROW}>
       <ModelChip
         testId="model-chip"
         agentHint={hints.model}

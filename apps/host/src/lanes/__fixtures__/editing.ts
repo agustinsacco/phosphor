@@ -22,6 +22,8 @@ export interface EditingFixture {
   /** Files a pi owns: label and jump refuse them, as the runtime's registry does. */
   readonly open: Set<string>
   readonly announced: string[]
+  /** What editing logged, by message. */
+  readonly logged: string[]
   /** A stopped lane over a session file written from `lines`. */
   lane(name: string, lines: readonly string[]): StoredLane
   prefs(laneId: string): Record<string, string>
@@ -43,11 +45,14 @@ export async function editingFixture(storePorts: StorePorts = {}): Promise<Editi
   const paths = createSessionPathRuntime()
   const open = new Set<string>()
   const announced: string[] = []
+  const logged: string[] = []
   const repository = store.syncRepositories([repo])[0]!
   const ports: LaneEditingPorts = {
     store,
     db,
     announce: (laneId) => announced.push(laneId),
+    sessionsRoot: sessions,
+    log: (_scope, message) => logged.push(message),
     runtime: {
       mutateStoppedSession: (path, change) =>
         paths.withSessionPath(path, async () => {
@@ -67,6 +72,7 @@ export async function editingFixture(storePorts: StorePorts = {}): Promise<Editi
     ports,
     open,
     announced,
+    logged,
     lane(name, lines) {
       const file = join(sessions, `${name}.jsonl`)
       writeFileSync(file, lines.join(''))

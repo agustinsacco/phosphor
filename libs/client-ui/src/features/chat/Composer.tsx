@@ -7,7 +7,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { ModelPicker } from './composer/ModelPicker'
-import { ContextMeter } from './composer/ContextMeter'
+import { ContextReadout } from './composer/ContextReadout'
 import { ContinueButton } from './composer/ContinueButton'
 import { ContextSourcesMenu } from './composer/ContextSourcesMenu'
 import { namedProvider } from './composer/ModelChip'
@@ -232,7 +232,7 @@ export function Composer({
   const readouts = useMemo(
     () => (
       <>
-        <ContextMeter sessionId={sessionId} />
+        <ContextReadout sessionId={sessionId} />
         <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
       </>
     ),

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS lane_pauses (
 ) STRICT;
 `
 
-/** Per-lane owner facts: `created_by`, `lineage`, `rewound_from`, `context_files`, `unread_seed`. */
+/** Per-lane owner facts: `created_by`, `lineage`, `rewound_from`, `context_files`, `unread_seed`, `model_scan`. */
 const LANE_PREFS = `
 CREATE TABLE IF NOT EXISTS lane_prefs (
   lane_id TEXT NOT NULL REFERENCES lanes(lane_id) ON DELETE CASCADE,

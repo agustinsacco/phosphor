@@ -9,6 +9,8 @@ import type { RunContext } from '../../commands/run'
 import { prepareStateDirectory, prepareStateFile } from '../state-dir'
 import type { HostStore } from '../store'
 import { reconcile } from '../reconcile'
+import { readModelScans, writeModelScans } from './model-scans'
+import { repairLaneModels } from './models'
 
 function routinePaths(directory: string, uid: number | undefined) {
   const dir = join(directory, 'routines')
@@ -42,13 +44,38 @@ export async function reconcileRunFolders(
         routinePaths: routinePaths(hostStateDirectory(context.env, context.home), context.uid),
       }
     : undefined
+  const sessionsRoot = piSessionsRoot(context.env, context.home)
   const counts = await (context.reconcile ?? reconcile)(
     store,
-    piSessionsRoot(context.env, context.home),
+    sessionsRoot,
     (skipped) => context.log?.('host', 'lanes.skipped', { skipped }),
     signal,
     owner,
   )
   signal.throwIfAborted()
   context.log?.('host', 'lanes.reconciled', counts)
+  await repairModels(context, store, sessionsRoot, signal)
+}
+
+const sameScans = (a: ReadonlyMap<string, string>, b: ReadonlyMap<string, string>) =>
+  a.size === b.size && [...a].every(([laneId, value]) => b.get(laneId) === value)
+
+/** The start-up model repair, remembering across starts the lanes it read without a result. */
+async function repairModels(
+  context: RunContext,
+  store: HostStore,
+  sessionsRoot: string,
+  signal: AbortSignal,
+) {
+  const state = hostStateDirectory(context.env, context.home)
+  // Only saves work: a memo that cannot be read or saved means reading those lanes again.
+  const scanned = await readModelScans(state, context.uid).catch(() => new Map<string, string>())
+  const models = repairLaneModels(store, sessionsRoot, { signal, scanned })
+  const { counts } = models
+  if (counts.repaired + counts.skipped + counts.unreadable + counts.unchanged)
+    context.log?.('host', 'lanes.models_repaired', counts)
+  if (sameScans(models.scanned, scanned)) return
+  await writeModelScans(state, context.uid, models.scanned).catch(() =>
+    context.log?.('host', 'lanes.model_scans_unsaved'),
+  )
 }
