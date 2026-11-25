@@ -1516,7 +1516,10 @@ The scan is limited to 2 GiB per file, 32 MiB per line and 200,000 entries with 
 The four-lane stamp cache stores only the selected messages;
 invalid or inaccessible files refuse a stream subscription as `unknown-lane`,
 while a `lane.messages` call maps reader failure to `internal` (or `too-large` for
-size failures). The running Host serves this reader for stopped lanes.
+size failures). On refusal the Host logs `lane.transcript_unreadable` with the lane id
+and a reason, never the entry contents: `limit` for the file bound or growth during
+the scan, `line-limit` for a single oversized entry, `index-limit` for the index bounds.
+The running Host serves this reader for stopped lanes.
 The reader trusts the owner's pi sessions folder; a process that can write it
 can race the containment check.
 
