@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 
 export type PiEntry = Record<string, unknown> & { id: string }
 
-export const header = (id = randomUUID()) =>
+export const header = (id: string = randomUUID()) =>
   ({ type: 'session', version: 3, id, cwd: '/', timestamp: '2026-01-01T00:00:00.000Z' }) as const
 
 export const modelChange = (id: string, provider: string, modelId: string): PiEntry => ({
