@@ -11,9 +11,9 @@ export function createUnattachedSnapshots(options: {
   cursor: (laneId: string) => StreamCursor
   sessionsRoot: string
   log: (message: string, data: { laneId: string; reason: TranscriptFailureReason }) => void
-}): (laneId: string) => SnapshotResult | null {
+}): (laneId: string, mode?: 'complete') => SnapshotResult | null {
   const cache = createTranscriptCache()
-  return (laneId) => {
+  return (laneId, mode) => {
     const lane = options.store.getLane(laneId)
     if (!lane || lane.removedAt !== null) {
       cache.delete(laneId)
@@ -28,15 +28,18 @@ export function createUnattachedSnapshots(options: {
       return null
     }
     const snapshot = (): SnapshotResult =>
-      fitSnapshot({
-        cursor: options.cursor(laneId),
-        summary,
-        state: null,
-        messages,
-        pending: [],
-        dialogs: [],
-        ui: [],
-      })
+      fitSnapshot(
+        {
+          cursor: options.cursor(laneId),
+          summary,
+          state: null,
+          messages,
+          pending: [],
+          dialogs: [],
+          ui: [],
+        },
+        mode !== 'complete',
+      )
     if (lane.sessionFile !== null) {
       const result = readTranscript({
         sessionFile: lane.sessionFile,
@@ -51,6 +54,7 @@ export function createUnattachedSnapshots(options: {
         cache.delete(laneId)
         return snapshot()
       }
+      if (mode === 'complete' && result.omitted) return { ok: false, reason: 'too-large' }
       messages = result.messages
     } else cache.delete(laneId)
     try {

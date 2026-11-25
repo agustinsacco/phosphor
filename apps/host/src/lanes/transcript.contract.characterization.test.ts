@@ -126,17 +126,13 @@ describe('stopped transcript contract', () => {
     expect(read('lane')).toBeNull()
     logged('outside')
   })
-  it('accepts exactly 64 MiB and rejects one byte past it before reading', () => {
+  it('accepts exactly 64 MiB', () => {
     const path = file()
     const buffer = Buffer.alloc(fileBytes, ' ')
+    for (let i = 1024 * 1024 - 1; i < buffer.length; i += 1024 * 1024) buffer[i] = 10
     buffer.write(header)
     fs.writeFileSync(path, buffer)
     expect(snapshot(read('lane')).messages).toEqual([])
-    const spy = vi.spyOn(fs, 'readSync').mockClear()
-    fs.appendFileSync(path, ' ')
-    expect(read('lane')).toEqual({ ok: false, reason: 'too-large' })
-    expect(spy).not.toHaveBeenCalled()
-    logged('limit')
   })
   it('bounds reads if the file grows after fstat', async () => {
     file()
@@ -241,7 +237,7 @@ describe('stopped transcript failure ordering', () => {
       if (failure === 'fstat') throw new Error('fstat failed')
       const stat = actual.fstatSync(fd)
       if (failure === 'type') stat.isFile = () => false
-      if (failure === 'limit') stat.size = fileBytes + 1
+      if (failure === 'limit') stat.size = 2 * 1024 ** 3 + 1
       if (failure === 'read') stat.mtimeMs++
       return stat
     })
@@ -274,4 +270,22 @@ describe('stopped transcript failure ordering', () => {
     expect(snapshot(read('lane')).messages).toEqual([{ role: 'user', content: 'hello' }])
     expect(afterFailure).toHaveBeenCalled()
   })
+})
+
+it('reads beyond 64 MiB and refuses more than 2 GiB before reading', async () => {
+  const path = file()
+  // Padding in bounded lines leaves the active branch and its message unchanged.
+  const line = Buffer.alloc(1024 * 1024, ' ')
+  line[line.length - 1] = 10
+  fs.appendFileSync(path, '\n')
+  for (let i = 0; i < 64; i++) fs.appendFileSync(path, line)
+  expect(snapshot(read('lane')).messages).toEqual([{ role: 'user', content: 'hello' }])
+  const actual = await vi.importActual<typeof fs>('node:fs')
+  vi.spyOn(fs, 'fstatSync').mockImplementation((fd) =>
+    Object.assign(actual.fstatSync(fd), { size: 2 * 1024 ** 3 + 1 }),
+  )
+  const spy = vi.spyOn(fs, 'readSync').mockClear()
+  expect(read('lane')).toEqual({ ok: false, reason: 'too-large' })
+  expect(spy).not.toHaveBeenCalled()
+  logged('limit')
 })

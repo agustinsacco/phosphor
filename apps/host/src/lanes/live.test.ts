@@ -610,3 +610,27 @@ describe('live lane binding', () => {
     live.close()
   })
 })
+
+it('keeps a live subscription and its cursor when only settled history is oversized', async () => {
+  const s = await setup()
+  const messages = [{ role: 'user', content: 'x'.repeat(17 * 1024 * 1024) }]
+  s.command.mockImplementation(async (_, command) => ({
+    type: 'response',
+    command: command.type,
+    success: true,
+    data: command.type === 'get_messages' ? { messages } : state,
+  }))
+  await s.live.attach(s.laneId, 'pi').ready
+  s.subscribe()
+  await tick()
+  expect(s.frames.at(-1)).toMatchObject({
+    type: 'snapshot',
+    snapshot: { messagesUnavailable: true, messages: [], state },
+  })
+  s.push({ type: 'message_start', message: { role: 'assistant', content: [] } })
+  await tick()
+  expect(s.frames.at(-1)).toMatchObject({
+    type: 'event',
+    event: { kind: 'pi', push: { kind: 'event', event: { type: 'message_start' } } },
+  })
+})

@@ -28,6 +28,7 @@ export async function seedWorld(agent: string, cwd: string, data: string, servic
   await mkdir(routines, { recursive: true, mode: 0o700 })
   const dbPath = join(routines, service ? 'state.sqlite' : 'routines.sqlite')
   await seedRoutine(dbPath, cwd, `${prefix} routine`)
+  return lane.transcript
 }
 
 export async function seedArtifact(

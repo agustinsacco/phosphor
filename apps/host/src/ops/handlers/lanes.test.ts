@@ -194,3 +194,19 @@ it.each([
   ).toMatchObject({ code: 'forbidden' })
   expect(read).not.toHaveBeenCalled()
 })
+
+it('offers recovery advice on an oversized lane.read messages refusal', async () => {
+  read.mockResolvedValueOnce({
+    ok: false,
+    error: { code: 'too-large', message: 'the lane query could not complete' },
+  })
+  const result = await service.dispatcher.run(cli, {
+    op: 'lane.read',
+    args: { ref: f.lane.laneId, part: 'messages' },
+  })
+  expect(result).toMatchObject({
+    status: 'denied',
+    code: 'too-large',
+    text: expect.stringMatching(/summary/),
+  })
+})

@@ -20,13 +20,16 @@ export const serviceView = (page: Page, daemon: LocalDaemon) =>
     daemon.machineId,
   )
 
-export const test = base.extend<{ parity: { page: Page; daemon: LocalDaemon } }>({
+export const test = base.extend<{
+  parity: { page: Page; daemon: LocalDaemon; transcript: string }
+}>({
   parity: async ({ browserName: _browserName }, use) => {
+    let transcript = ''
     const daemon = await localDaemonFixture({
       repositories: async ({ home, agentDir, stateDir }) => {
         const repo = join(home, folderName)
         await mkdir(repo)
-        await seedWorld(agentDir, repo, stateDir, true)
+        transcript = await seedWorld(agentDir, repo, stateDir, true)
         return [repo]
       },
     })
@@ -72,7 +75,7 @@ export const test = base.extend<{ parity: { page: Page; daemon: LocalDaemon } }>
           state: 'ready',
           lanes: [expect.objectContaining({ activity: 'stopped' })],
         })
-      await use({ page, daemon })
+      await use({ page, daemon, transcript })
     } finally {
       try {
         if (harness) await shutdown(harness)

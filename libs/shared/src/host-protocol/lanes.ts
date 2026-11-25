@@ -91,6 +91,8 @@ export interface LaneSnapshot {
   readonly state: RpcSessionState | null
   /** pi's settled messages, as `get_messages` returns them. */
   readonly messages: readonly AgentMessage[]
+  /** Settled history did not fit this snapshot. Live events continue from its cursor. */
+  readonly messagesUnavailable?: boolean
   /** Raw pi events after the last settled message: the turn in flight. */
   readonly pending: readonly PiEvent[]
   /** Extension dialogs still open. Only the controller's answer is admitted. */

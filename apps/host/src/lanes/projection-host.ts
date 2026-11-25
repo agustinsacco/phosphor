@@ -56,17 +56,23 @@ export function createHostLaneProjection(
     stateChanged: () => host.refresh.refresh(false),
     deliver: (push: SessionPush) => deliver(host, push),
     resolveDialog: host.dialogs.resolve,
-    snapshot(): SnapshotResult {
-      return fitSnapshot({
+    snapshot(mode: 'complete' | 'stream' = 'complete'): SnapshotResult {
+      const view = {
         ...options.projection.view(),
         summary: options.summary(),
         cursor: options.cursor(),
-      })
+      }
+      const fitted = fitSnapshot(view)
+      // A stream can still deliver the turn in flight and all subsequent events.
+      // Refuse if even the non-history portion exceeds the frame budget.
+      return !fitted.ok && mode === 'stream' && view.messages.length
+        ? fitSnapshot({ ...view, messages: [], messagesUnavailable: true })
+        : fitted
     },
   }
 }
 
-export function fitSnapshot(input: LaneSnapshot): SnapshotResult {
+export function fitSnapshot(input: LaneSnapshot, preview = false): SnapshotResult {
   let snapshot = input
   let bytes = Buffer.byteLength(JSON.stringify(snapshot))
   if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
@@ -84,6 +90,15 @@ export function fitSnapshot(input: LaneSnapshot): SnapshotResult {
       bytes += Buffer.byteLength(JSON.stringify(omitted)) - Buffer.byteLength(JSON.stringify(block))
       message.content[index] = omitted
       if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
+    }
+  }
+  if (preview) {
+    // Stopped snapshots are previews: after eliding images, keep a whole-message suffix.
+    // Do not claim an empty conversation when the newest message alone cannot fit.
+    for (let i = 0; i + 1 < messages.length; i++) {
+      bytes -= Buffer.byteLength(JSON.stringify(messages[i])) + 1
+      if (bytes <= SNAPSHOT_BYTES)
+        return { ok: true, snapshot: { ...snapshot, messages: messages.slice(i + 1) } }
     }
   }
   return { ok: false, reason: 'too-large' }

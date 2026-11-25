@@ -8,6 +8,7 @@ import { Composer } from './Composer'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/StatusStrip'
 import { CrashBanner, NoModelsBanner, RewoundBanner } from './banners'
+import { HistoryNotice } from './HistoryNotice'
 
 /**
  * The chat column: banners, transcript, composer.
@@ -46,6 +47,7 @@ export function ChatView({
         {!header && <RemoteLaneControls sessionId={sessionId} />}
         <NoModelsBanner sessionId={sessionId} />
         <RewoundBanner sessionId={sessionId} />
+        <HistoryNotice sessionId={sessionId} />
         <MessageList sessionId={sessionId} />
         {readOnly && header && remote ? (
           <ReadOnlyLaneBar sessionId={sessionId} />

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HOST_LIMITS, type LaneSummary } from '@phosphor/shared/host-protocol'
 import type { AgentMessage } from '@phosphor/shared/rpc'
+import { stoppedQuery } from './calls/query'
 import { createUnattachedSnapshots } from './transcript'
 import { fitSnapshot, type SnapshotResult } from './projection-host'
 import type { StoredLane } from './store'
@@ -27,7 +28,6 @@ const summary: LaneSummary = {
   control: { fence: 1, controller: null },
 }
 const cursor = { epoch: 'epoch', seq: 0 }
-const fileBytes = 64 * 1024 * 1024
 const header = JSON.stringify({ type: 'session', version: 3, id: 'fixture' })
 function transcript(messages: AgentMessage[]) {
   return [
@@ -188,17 +188,11 @@ describe('unattached transcripts', () => {
     expect(read('lane')).toBeNull()
     logged('parse')
   })
-  it('accepts exactly 64 MiB and rejects one byte past it before reading', () => {
+  it('refuses an entry over 32 MiB without guessing its parent or edit target', () => {
     const path = file()
-    const buffer = Buffer.alloc(fileBytes, ' ')
-    buffer.write(header)
-    fs.writeFileSync(path, buffer)
-    expect(snapshot(read('lane')).messages).toEqual([])
-    const spy = vi.spyOn(fs, 'readSync').mockClear()
-    fs.appendFileSync(path, ' ')
+    fs.truncateSync(path, 33 * 1024 * 1024)
     expect(read('lane')).toEqual({ ok: false, reason: 'too-large' })
-    expect(spy).not.toHaveBeenCalled()
-    logged('limit')
+    logged('line-limit')
   })
   it('bounds reads if the file grows after fstat', async () => {
     file()
@@ -313,6 +307,16 @@ describe('unattached transcripts', () => {
     lane('lane', null)
     expect(snapshot(read('lane')).messages).toEqual([])
   })
+  it('drops older whole text messages when a stopped preview still exceeds a frame', () => {
+    const content = 'x'.repeat(HOST_LIMITS.outboundFrameBytes / 2)
+    file('lane', [
+      { role: 'user', content },
+      { role: 'user', content: 'newer' + content },
+    ])
+    const messages = snapshot(read('lane')).messages
+    expect(messages).toHaveLength(1)
+    expect(messages[0]?.role === 'user' && messages[0].content === 'newer' + content).toBe(true)
+  })
   it('uses the shared snapshot size rule and elides images oldest first', () => {
     const images: AgentMessage[] = ['a', 'b'].map((data) => ({
       role: 'user',
@@ -342,3 +346,32 @@ describe('unattached transcripts', () => {
     expect(log).not.toHaveBeenCalled()
   })
 })
+
+it.each(['source budget', 'frame budget'])(
+  'never serves the %s suffix as a complete lane.messages call',
+  (budget) => {
+    const size = budget === 'source budget' ? 12 : 9
+    const content = 'x'.repeat(size * 1024 * 1024)
+    if (budget === 'source budget') {
+      const image = {
+        role: 'user' as const,
+        content: [{ type: 'image' as const, mimeType: 'image/png', data: content }],
+      }
+      file('lane', [image, image, image])
+    } else
+      file('lane', [
+        { role: 'user', content },
+        { role: 'user', content },
+      ])
+    // Prime the preview cache before the paged API asks for complete messages.
+    expect(snapshot(read('lane')).messages.length).toBeGreaterThan(0)
+    const response = stoppedQuery({ unattached: read }, 'lane.messages', 'lane', () => {
+      throw new Error('not a receipt')
+    })
+    // Avoid printing multi-MiB payloads if a suffix leaks out as a success.
+    expect(response.ok).toBe(false)
+    expect(response).toMatchObject({
+      error: { code: 'too-large', message: 'the lane query could not complete' },
+    })
+  },
+)
