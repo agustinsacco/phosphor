@@ -10,11 +10,39 @@ export interface ProbeSlot {
 
 /** Return the answer immediately, but admit the next probe only after the worker and its child exit. */
 export function probeQueue() {
-  let tail: Promise<unknown> = Promise.resolve()
-  let count = 0
-  return <T>(probe: (slot: ProbeSlot) => Promise<T>, deadline = probeDeadline()): Promise<T> => {
-    if (count >= 8) return Promise.reject(new FeatureFailure('internal'))
-    count++
+  const waiting = new Set<() => void>()
+  let busy = false
+  async function enter(deadline: number) {
+    const remaining = deadline - performance.now()
+    if (remaining <= 0 || waiting.size >= 7) throw new FeatureFailure('internal')
+    if (!busy) {
+      busy = true
+      return
+    }
+    await new Promise<void>((resolve, reject) => {
+      const admit = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+      const timer = setTimeout(() => {
+        waiting.delete(admit)
+        reject(new FeatureFailure('internal'))
+      }, remaining)
+      waiting.add(admit)
+    })
+  }
+  function release() {
+    const next = waiting.values().next().value
+    if (next) {
+      waiting.delete(next)
+      next()
+    } else busy = false
+  }
+  return async <T>(
+    probe: (slot: ProbeSlot) => Promise<T>,
+    deadline = probeDeadline(),
+  ): Promise<T> => {
+    await enter(deadline)
     let exited: Promise<void> | undefined
     const slot: ProbeSlot = {
       budget(limit) {
@@ -26,18 +54,12 @@ export function probeQueue() {
         exited = child
       },
     }
-    const answer = tail.then(() => {
+    try {
       slot.budget(Infinity)
-      return probe(slot)
-    })
-    tail = answer
-      .then(
-        () => exited,
-        () => exited,
-      )
-      .finally(() => {
-        count--
-      })
-    return answer
+      return await probe(slot)
+    } finally {
+      if (exited) void exited.then(release, release)
+      else release()
+    }
   }
 }

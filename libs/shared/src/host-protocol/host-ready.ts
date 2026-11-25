@@ -80,6 +80,7 @@ export function parseReadyFrame(
     (v.settings !== undefined && typeof v.settings !== 'boolean') ||
     (v.machineShell !== undefined && typeof v.machineShell !== 'boolean') ||
     (v.laneMarks !== undefined && typeof v.laneMarks !== 'boolean') ||
+    (v.partialModels !== undefined && typeof v.partialModels !== 'boolean') ||
     (v.warmOnOpen !== undefined && typeof v.warmOnOpen !== 'boolean') ||
     (v.laneArchive !== undefined && typeof v.laneArchive !== 'boolean') ||
     (v.laneTransfer !== undefined && typeof v.laneTransfer !== 'boolean') ||
@@ -102,6 +103,7 @@ export function parseReadyFrame(
     ...(v.settings !== undefined ? { settings: v.settings as boolean } : {}),
     ...(v.machineShell !== undefined ? { machineShell: v.machineShell as boolean } : {}),
     ...(v.laneMarks !== undefined ? { laneMarks: v.laneMarks as boolean } : {}),
+    ...(v.partialModels !== undefined ? { partialModels: v.partialModels } : {}),
     ...(v.warmOnOpen !== undefined ? { warmOnOpen: v.warmOnOpen as boolean } : {}),
     ...(v.laneArchive !== undefined ? { laneArchive: v.laneArchive as boolean } : {}),
     ...(v.laneTransfer !== undefined ? { laneTransfer: v.laneTransfer as boolean } : {}),

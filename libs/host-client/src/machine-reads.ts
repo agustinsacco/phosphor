@@ -57,11 +57,10 @@ export function machineReads(connection: Connection) {
         const parsed = parseMachineParams(method, params)
         if (!parsed || !available()) throw new Error(REMOTE_UNAVAILABLE)
         try {
-          let result = await c.call(method, parsed)
-          // Pre-opt-in Hosts have a strict empty allowlist for machine.models. Only
-          // that exact refusal warrants a second read, on the same connection.
-          if (available() && parsed.partial && !result.ok && result.error.code === 'bad-request')
-            result = await c.call(method, {})
+          const result = await c.call(
+            method,
+            parsed.partial && !c.snapshot().partialModels ? {} : parsed,
+          )
           if (!available() || !result.ok) throw new Error(REMOTE_UNAVAILABLE)
           return result.data
         } catch {

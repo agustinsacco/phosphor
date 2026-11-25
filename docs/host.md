@@ -1794,12 +1794,12 @@ The Host caches successful model, repository command and lane-scoped skill lists
 launch identity/version and agent config/auth file metadata. It forgets them after
 its own settings, package, skill install and sign-in changes. After a minute a read returns the
 cached value and starts one bounded refresh. Models and providers have dedicated
-probe capacity; listing skills does not block the composer. A client that understands partial lists opts in
+probe capacity; listing skills does not block the composer. When the Host advertises `ready.partialModels`, a client can opt in
 with `machine.models {partial: true}`: after 1.5 s of cold loading it receives
 configured models and settings defaults with `source: config`. The background
 model probe continues for up to 90 s. A legacy read waits for the complete list
 (or fails). Resource probes have at most 15 s, shortened by time spent waiting;
-an expired queue entry does not launch pi after its caller's deadline. A query
+a waiting call expires at its deadline without waiting for an earlier child to exit. A query
 answers as soon as pi replies, but retains its queue slot until pi exits.
 The Host closes its stdin (pi's orderly shutdown),
 then sends SIGTERM 2 s later and SIGKILL 2 s after that; a probe that times out

@@ -54,11 +54,11 @@ export const useMachineCataloguesStore = create<{
     const key = machineCatalogueKey(hostId, generation)
     const existing = get().catalogues[key]
     if (!mode && (existing?.status === 'loading' || existing?.status === 'ready')) return
-    const previous = existing?.status === 'ready' && mode === 'recheck' ? existing : null
+    const previous = existing?.status === 'ready' ? existing : null
     const entry: MachineCatalogue = {
       ...(previous ?? EMPTY_MACHINE_CATALOGUE),
       status: previous ? 'ready' : 'loading',
-      ...(savedDefaults !== undefined ? { defaults: savedDefaults ?? undefined } : {}),
+      defaults: savedDefaults === undefined ? existing?.defaults : (savedDefaults ?? undefined),
       refreshing: true,
       checkedAt: Date.now(),
     }
@@ -78,17 +78,21 @@ export const useMachineCataloguesStore = create<{
       return
     }
     try {
-      const list = parseMachineModelList(await window.phosphor.invoke('hosts:models', hostId))
+      const reply = await window.phosphor.invoke('hosts:models', hostId)
+      const list = parseMachineModelList(reply)
       if (!current()) return
       const providers = parseMachineProviders(
         await window.phosphor.invoke('hosts:providers', hostId),
       )
       if (!current()) return
       if (!list || !providers) throw new Error(MODELS_READ_FAILED)
+      // A config fallback can populate a cold picker, never demote a complete list (even []).
+      const visible = list.source === 'config' && previous && !previous.source ? previous : list
       finish({
-        ...list,
-        source: list.source,
-        defaults: savedDefaults === undefined ? list.defaults : (savedDefaults ?? undefined),
+        models: visible.models,
+        source: visible.source,
+        defaults:
+          savedDefaults === undefined && 'defaults' in reply ? list.defaults : entry.defaults,
         error: null,
         providers,
         checkedAt: Date.now(),
@@ -99,7 +103,7 @@ export const useMachineCataloguesStore = create<{
       finish({
         error: MODELS_READ_FAILED,
         failures: (existing?.failures ?? 0) + 1,
-        status: 'error',
+        status: previous ? 'ready' : 'error',
       })
     }
   },
