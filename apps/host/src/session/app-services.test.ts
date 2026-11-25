@@ -88,7 +88,7 @@ it('keeps only recall preferences after the registering connection closes, inclu
   await h.register(second, endpoint)
   first.close?.()
   expect(h.services.status()).toEqual({ brain: 'registered' })
-  h.services.attachLane('session', '/repo')
+  h.services.attachLane('session', '/repo', () => 'harbor-pi')
   second.close?.()
   expect(h.services.status()).toEqual({ brain: 'known' })
   const restarted = createAppServices(h.state, uid)
@@ -137,7 +137,7 @@ it('uses the owner lane and its last briefing, and checks the private socket on 
   const owner = h.connection('one')
   try {
     await h.register(owner, endpoint)
-    const closeLane = h.services.attachLane('session', '/repo')
+    const closeLane = h.services.attachLane('session', '/repo', () => 'harbor-pi')
     const search = () =>
       h.handlers['brain.search']({ query: 'Harbor', cwd: '/wrong', sessionId: 'wrong' }, context)
     expect(await search()).toMatchObject({ data: { status: 'ok', memories: 1 } })

@@ -9,9 +9,11 @@ async function port(ctx: OpHandlerContext) {
   const entry = p.kind === 'agent' ? liveOpLane(p.sessionId) : undefined
   if (!entry || ctx.lane?.sessionId !== entry.session.sessionId)
     throw new OpRefusal('bad-request', 'Brain recall needs the asking lane.')
+  const sessionId = entry.session.client.piSessionId
+  if (!sessionId) throw new OpRefusal('unavailable', 'Brain recall needs the pi session id.')
   const brain = await service()
   return (entry.brain ??= brain.forLane({
-    sessionId: entry.session.sessionId,
+    sessionId,
     title: entry.title,
     cwd: entry.session.workspacePath,
   }))

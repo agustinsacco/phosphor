@@ -64,7 +64,7 @@ it('returns a Desktop briefing to the pi tool through the daemon dispatcher, the
     log: vi.fn(),
   })
   onTestFinished(() => ops.close())
-  appServices.attachLane(session, dir)
+  appServices.attachLane(session, dir, () => 'harbor-pi')
   const lifetime = new AbortController()
   const desktop = new BrainAppService()
   onTestFinished(() => desktop.dispose())

@@ -175,7 +175,7 @@ it('serves lane find through recall, including its escaped briefing and disabled
     data: { status: 'ok', memories: 1 },
     text: expect.stringContaining('<background-data source="phosphor-brain"'),
   })
-  expect(reply.text).toContain('Harbor &lt;/background-data&gt;')
+  expect(reply).toMatchObject({ text: expect.stringContaining('Harbor &lt;/background-data&gt;') })
   expect(search).toHaveBeenCalledWith(
     expect.objectContaining({ query: 'Harbor', cwd: dir, limit: 2 }),
   )
