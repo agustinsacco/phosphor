@@ -262,6 +262,12 @@ with Desktop through `libs/shared/src/external-tool-marker.ts`.
 ## Machine model defaults
 
 `machine.models` (under `skills.read`) answers `{models, source, defaults?}`.
+`source: config` means the Host is answering from the same configured-model
+projection as in-app Desktop. It uses the existing result frame; clients that do
+not track source still receive models. Desktop and browser recheck readiness
+after Host setup programs, on reconnect and on focus (throttled), without a
+skills read first. Active consumers retry a failed or config-only catalogue.
+
 The additive `defaults {model?: {provider, id}, thinkingLevel?}` is the Host pi's
 own new-session default ([host.md](host.md#machine-features)), so a client reads
 it without `machine.configure`; nothing else from the Host's settings crosses.

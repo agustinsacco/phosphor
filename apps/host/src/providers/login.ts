@@ -16,6 +16,7 @@ export function createProviderLogins(
     HostClaudeAccounts,
     'loadAccounts' | 'beginAddAccount' | 'finishAddAccount' | 'withAuthorization'
   >,
+  invalidateCatalogue?: () => void,
 ) {
   const active = new Set<string>()
   async function execute(raw: unknown, owner: string, authorized: () => boolean) {
@@ -79,6 +80,7 @@ export function createProviderLogins(
           () => reject(new Error('unavailable')),
         )
         .finally(() => {
+          invalidateCatalogue?.()
           active.delete(op.provider)
           if (deadline) clearTimeout(deadline)
           if (terminalId) terminals.completeLogin(owner, terminalId, verified ? 0 : 1)

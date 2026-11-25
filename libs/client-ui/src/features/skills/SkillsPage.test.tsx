@@ -13,7 +13,10 @@ import { usePromptStore } from '@/stores/prompt'
 vi.mock('@/components/markdown/Markdown', () => ({ Markdown: () => null }))
 const container = document.createElement('div')
 const root = createRoot(container)
+const refreshSkills = useSkillsStore.getState().refresh
 beforeEach(() => {
+  useSkillsStore.setState({ refresh: refreshSkills })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   useMachineCataloguesStore.setState({ catalogues: {} })
   usePromptStore.setState({ requests: [] })
 })
@@ -94,7 +97,6 @@ function hostSkillFixture() {
         : { content: 'skill text', binary: false, size: 10 },
     )
   vi.stubGlobal('phosphor', { invoke })
-  vi.spyOn(useSkillsStore.getState(), 'refresh').mockResolvedValue(undefined)
   useSkillsStore.setState({
     tab: 'discover',
     selectedDir: null,
@@ -198,7 +200,6 @@ it('switches to machine-wide skills and shows that machines models/providers wit
   useRemoteLanesStore.setState({
     hosts: { [MOCK_HOST_ID]: { ...host, capabilities: ['skills.read'] } },
   })
-  vi.spyOn(useSkillsStore.getState(), 'refresh').mockResolvedValue(undefined)
   const invoke = vi.fn(async (method: string) =>
     method === 'hosts:skills'
       ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
@@ -218,11 +219,9 @@ it('switches to machine-wide skills and shows that machines models/providers wit
   await act(async () => hostOption?.click())
   expect(container.textContent).toContain('Host model')
   expect(container.textContent).toContain('Host provider: Signed in')
-  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual([
-    'hosts:skills',
-    'hosts:models',
-    'hosts:providers',
-  ])
+  expect(
+    invoke.mock.calls.map(([channel]) => channel).filter((c) => c.startsWith('hosts:')),
+  ).toEqual(['hosts:skills', 'hosts:models', 'hosts:providers'])
   expect(container.textContent).not.toContain('Upload')
   useMachinePagesStore.setState({ skillsMachine: null })
 })
@@ -295,7 +294,7 @@ it('reloads after a coalesced ready-to-ready reconnect and ignores the old failu
     fail(new Error('Connection closed.'))
   })
   expect(container.textContent).toContain('Reconnected model')
-  expect(invoke).toHaveBeenCalledTimes(4)
+  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:skills')).toHaveLength(2)
   expect(Object.values(useMachineCataloguesStore.getState().catalogues).some((c) => c.error)).toBe(
     false,
   )

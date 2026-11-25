@@ -1,3 +1,4 @@
+import type { HostInspection } from './doctor'
 import type { WorkspaceLeases } from '../owner/lease'
 import { join } from 'node:path'
 import { HostArchives } from '../lanes/archive'
@@ -43,6 +44,7 @@ interface AdministrationOptions {
   context: RunContext
   configPath: string
   env: Record<string, string>
+  cataloguePi?: HostInspection['pi']
   pi: HostMachine['pi']
   store: HostStore
   runtime: HostRuntime
@@ -70,6 +72,7 @@ function features(
   context: FeatureContext,
   settings: ReturnType<typeof createMachineSettings>,
   archives: HostArchives,
+  generation: () => number,
 ) {
   return [
     settings.feature,
@@ -81,6 +84,8 @@ function features(
     createGitFeature(context),
     // Inspect this Host's effective config and selected private account.
     createSkillsFeature(context, {
+      pi: options.cataloguePi ?? undefined,
+      generation,
       configPath: options.configPath,
       claudeAuthentication: options.accounts.authenticationReady,
       claudeUsage: createLaneUsage({
@@ -133,30 +138,9 @@ function runTaskPorts(
   return { machineTasks, task }
 }
 
-/** Bind administration to this run's existing runtime, path locks and terminal owner. */
-export function createRunAdministration(options: AdministrationOptions) {
-  const { context, terminals, accounts } = options
-  const featureContext: FeatureContext = {
-    store: options.store,
-    env: context.env,
-    home: context.home,
-    log: (event, fields) => options.log('host', event, fields),
-  }
-  const providerLogins = terminals
-    ? createProviderLogins(context, terminals, undefined, accounts)
-    : undefined
-  const settings = createMachineSettings({
-    context: featureContext,
-    configPath: options.configPath,
-    env: options.env,
-    store: options.store,
-    runtime: options.runtime,
-    accounts,
-    pi: options.pi,
-    authenticating: () => providerLogins?.active() ?? false,
-    sessionFor: options.live.sessionFor,
-  })
-  const archives = new HostArchives({
+function runArchives(options: AdministrationOptions) {
+  const { context, terminals } = options
+  return new HostArchives({
     leases: options.leases,
     directory: hostStateDirectory(context.env, context.home),
     sessionsRoot: piSessionsRoot(context.env, context.home),
@@ -172,6 +156,37 @@ export function createRunAdministration(options: AdministrationOptions) {
       if (summary) options.live.lanesTopic.delta([summary])
     },
   })
+}
+
+/** Bind administration to this run's existing runtime, path locks and terminal owner. */
+export function createRunAdministration(options: AdministrationOptions) {
+  const { context, terminals, accounts } = options
+  const featureContext: FeatureContext = {
+    store: options.store,
+    env: context.env,
+    home: context.home,
+    log: (event, fields) => options.log('host', event, fields),
+  }
+  let catalogueGeneration = 0
+  const invalidateCatalogue = () => {
+    catalogueGeneration++
+  }
+  const providerLogins = terminals
+    ? createProviderLogins(context, terminals, undefined, accounts, invalidateCatalogue)
+    : undefined
+  const settings = createMachineSettings({
+    context: featureContext,
+    invalidateCatalogue,
+    configPath: options.configPath,
+    env: options.env,
+    store: options.store,
+    runtime: options.runtime,
+    accounts,
+    pi: options.pi,
+    authenticating: () => providerLogins?.active() ?? false,
+    sessionFor: options.live.sessionFor,
+  })
+  const archives = runArchives(options)
   const moveClaudeAccount = createAccountMoves({
     accounts,
     runtime: options.runtime,
@@ -206,7 +221,8 @@ export function createRunAdministration(options: AdministrationOptions) {
       // The merged-PR proof asks gh with the same environment as the PR reads.
       github: githubRunner(context.env),
     }),
-    features: () => features(options, featureContext, settings, archives),
+    features: () =>
+      features(options, featureContext, settings, archives, () => catalogueGeneration),
   }
 }
 

@@ -68,3 +68,16 @@ it('lets the user retry a failed initial catalogue read without leaving the comp
   expect(el.textContent).toContain('Recovered model')
   expect(attempts).toBe(2)
 })
+
+it('retries a transient error automatically while the picker is mounted', async () => {
+  vi.useFakeTimers()
+  try {
+    await act(async () => root.render(<Picker />))
+    expect(el.textContent).toContain('Retry models')
+    await act(async () => vi.advanceTimersByTimeAsync(5_000))
+    expect(el.textContent).toContain('Recovered model')
+    expect(attempts).toBe(2)
+  } finally {
+    vi.useRealTimers()
+  }
+})

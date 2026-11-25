@@ -32,17 +32,22 @@ it('serves config while a cold pi exceeds the foreground deadline, then serves p
   await mkdir(dir, { recursive: true })
   await writeFile(join(dir, 'models.json'), '{"providers":{"p":{"models":[{"id":"custom"}]}}}')
   expect(await feature.call('machine.models', {})).toMatchObject({
-    ok: true, data: { source: 'config', models: [{ id: 'custom' }] },
+    ok: true,
+    data: { source: 'config', models: [{ id: 'custom' }] },
   })
   await new Promise((resolve) => setTimeout(resolve, 3100))
-  expect(await feature.call('machine.models', {})).toMatchObject({ data: { source: 'pi', models: [model] } })
+  expect(await feature.call('machine.models', {})).toMatchObject({
+    data: { source: 'pi', models: [model] },
+  })
 }, 10_000)
 it('answers models before an earlier slow skills probe completes', async () => {
   const feature = catalogue('get_commands')
   const order: string[] = []
-  await Promise.all(['skills.list', 'machine.models'].map(async method => {
-    expect((await feature.call(method, {})).ok).toBe(true)
-    order.push(method)
-  }))
+  await Promise.all(
+    ['skills.list', 'machine.models'].map(async (method) => {
+      expect((await feature.call(method, {})).ok).toBe(true)
+      order.push(method)
+    }),
+  )
   expect(order).toEqual(['machine.models', 'skills.list'])
 })

@@ -29,14 +29,24 @@ function hostStartModel(
     models: selection.models,
     current: model,
     chip: model
-      ? { text: model.name, tone: 'normal', title: `${model.name} · ${selection.explanation}` }
+      ? {
+          text: model.name,
+          tone: selection.degraded ? 'warning' : 'normal',
+          title: `${model.name} · ${selection.explanation}`,
+        }
       : { text: selection.hint, tone: 'muted', title: selection.hint },
     loading: false,
     levels: model ? supportedThinkingLevels(model) : [],
     thinking: selection.thinking,
     choose: selection.choose,
     setThinking: selection.setThinking,
-    menu: { emptyText: selection.hint, unavailable: selection.unavailable },
+    menu: {
+      emptyText: selection.hint,
+      unavailable: selection.unavailable,
+      notice: selection.degraded
+        ? 'Showing configured models while pi’s full catalogue is unavailable. Retrying…'
+        : undefined,
+    },
     actions,
   }
 }

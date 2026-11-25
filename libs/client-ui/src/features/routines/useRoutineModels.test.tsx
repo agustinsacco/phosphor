@@ -36,11 +36,7 @@ it('uses only Host models for a Host routine, refusing a down Host instead of lo
     await act(async () => root.render(<Harness />))
     expect(container.textContent).toBe('Host model')
     expect(hydrate).not.toHaveBeenCalled()
-    expect(invoke.mock.calls.map(([c]) => c)).toEqual([
-      'hosts:skills',
-      'hosts:models',
-      'hosts:providers',
-    ])
+    expect(invoke.mock.calls.map(([c]) => c)).toEqual(['hosts:models', 'hosts:providers'])
     await act(async () =>
       useRemoteLanesStore.setState({
         hosts: { [MOCK_HOST_ID]: { ...hosts[MOCK_HOST_ID]!, state: 'down' } },

@@ -180,6 +180,10 @@
       "types": "./src/pi/packages.ts",
       "default": "./src/pi/packages.ts"
     },
+    "./pi/config-models": {
+      "types": "./src/pi/config-models.ts",
+      "default": "./src/pi/config-models.ts"
+    },
     "./pi/pi-paths": {
       "types": "./src/pi/pi-paths.ts",
       "default": "./src/pi/pi-paths.ts"

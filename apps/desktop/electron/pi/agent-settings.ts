@@ -1,3 +1,4 @@
+import { configModels } from '@phosphor/session-runtime/pi/config-models'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { piAgentDir, webSearchConfigPath } from './pi-paths'
@@ -176,37 +177,7 @@ export type { CatalogueModel } from './model-catalogue'
 export async function listCatalogueModels(): Promise<CatalogueModel[]> {
   const read = await readJson(join(piAgentDir(), 'models.json'))
   const providers = read.value.providers
-  if (!providers || typeof providers !== 'object') return []
-
-  const models: CatalogueModel[] = []
-  for (const [provider, config] of Object.entries(providers as Record<string, unknown>)) {
-    if (!config || typeof config !== 'object') continue
-    const { models: list, compat } = config as {
-      models?: unknown
-      compat?: { supportsReasoningEffort?: boolean }
-    }
-    if (!Array.isArray(list)) continue
-    const reasoning = compat?.supportsReasoningEffort !== false
-    for (const entry of list) {
-      if (!entry || typeof entry !== 'object') continue
-      const { id, name, thinkingLevelMap } = entry as {
-        id?: unknown
-        name?: unknown
-        thinkingLevelMap?: CatalogueModel['thinkingLevelMap']
-      }
-      if (typeof id !== 'string' || id.length === 0) continue
-      models.push({
-        id,
-        name: typeof name === 'string' && name ? name : id,
-        provider,
-        reasoning,
-        // Passed through when the user declared it in models.json, so the
-        // home picker's level derivation stays per-model even on fallback.
-        thinkingLevelMap: typeof thinkingLevelMap === 'object' ? thinkingLevelMap : undefined,
-      })
-    }
-  }
-  return models
+  return configModels(providers)
 }
 
 /**

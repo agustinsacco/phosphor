@@ -90,7 +90,7 @@ function useHostCatalogue(hostId: string): Pick<AgentSource, 'models' | 'catalog
   const { models, status } = useMachineCatalogue(hostId)
   const choices = useMemo(() => modelChoices(models), [models])
   if (status !== 'error') return { models: status === 'ready' ? choices : null }
-  const retry = () => void useMachineCataloguesStore.getState().load(hostId, undefined, true)
+  const retry = () => void useMachineCataloguesStore.getState().load(hostId, 'retry')
   return { models: [], catalogue: { failed: true, retry } }
 }
 

@@ -30,11 +30,7 @@ beforeEach(() => {
 })
 it('loads sequential machine reads and never invokes local catalogues', async () => {
   await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
-  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual([
-    'hosts:skills',
-    'hosts:models',
-    'hosts:providers',
-  ])
+  expect(invoke.mock.calls.map(([channel]) => channel)).toEqual(['hosts:models', 'hosts:providers'])
   expect(catalogue().models).toEqual(models)
   expect(catalogue().defaults).toBeUndefined()
 })
@@ -52,7 +48,7 @@ it('keeps the Host pi’s defaults with its catalogue and drops a malformed one'
   await useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
   expect(catalogue()).toMatchObject({ status: 'ready', models, defaults })
   reply({ ...defaults, theme: 'dark' })
-  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID, undefined, true)
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID, 'retry')
   expect(catalogue()).toMatchObject({ status: 'ready', models })
   expect(catalogue().defaults).toBeUndefined()
 })
@@ -75,13 +71,13 @@ it('adopts saved defaults into a ready catalogue and reads again under a load in
         first = done
       }),
   )
-  const stale = useMachineCataloguesStore.getState().load(MOCK_HOST_ID, undefined, true)
+  const stale = useMachineCataloguesStore.getState().load(MOCK_HOST_ID, 'retry')
   await vi.waitFor(() => expect(first).toBeDefined())
   useMachineCataloguesStore.getState().adoptDefaults(MOCK_HOST_ID, defaults)
   first?.({ skills: [], probe: 'rpc', userRoot: 'opaque' })
   await stale
   await vi.waitFor(() => expect(catalogue().status).toBe('ready'))
-  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:skills')).toHaveLength(2)
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:models')).toHaveLength(2)
 })
 it('does not issue a read for a down or capability-less machine', async () => {
   const hosts = structuredClone(mockRemoteHosts)
@@ -166,7 +162,7 @@ it.each(['hosts:models', 'hosts:providers'] as const)(
     await pending
     expect(catalogue().models).toEqual(models)
     expect(catalogue().providers).toEqual([{ id: 'p', name: 'Provider', status: 'ready' }])
-    expect(invoke).toHaveBeenCalledTimes(3)
+    expect(invoke).toHaveBeenCalledTimes(2)
   },
 )
 
@@ -181,10 +177,10 @@ it('accepts a delayed catalogue across unchanged periodic snapshots', async () =
   const pending = useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
   for (let tick = 0; tick < 3; tick++)
     useRemoteLanesStore.setState({ hosts: structuredClone(useRemoteLanesStore.getState().hosts) })
-  finish({ skills: [], probe: 'rpc', userRoot: 'opaque' })
+  finish({ models })
   await pending
   expect(catalogue().models).toEqual(models)
-  expect(useSkillsStore.getState().byWorkspace[`host:${MOCK_HOST_ID}/machine`]).toBeDefined()
+  expect(useSkillsStore.getState().byWorkspace[`host:${MOCK_HOST_ID}/machine`]).toBeUndefined()
 })
 
 it.each(['reply', 'failure'] as const)(
@@ -206,7 +202,7 @@ it.each(['reply', 'failure'] as const)(
         [MOCK_HOST_ID]: { ...s.hosts[MOCK_HOST_ID]!, connectionToken: 'reconnected' },
       },
     }))
-    if (outcome === 'reply') finish({ skills: [], probe: 'rpc', userRoot: 'opaque' })
+    if (outcome === 'reply') finish({ models })
     else fail(new Error('Connection closed.'))
     await pending
     expect(invoke).toHaveBeenCalledTimes(1)
@@ -225,7 +221,7 @@ it('names what failed when a model read fails or replies with something unreadab
   invoke.mockImplementation(async (method) =>
     method === 'hosts:skills' ? { skills: [], probe: 'rpc', userRoot: 'opaque' } : 'unreadable',
   )
-  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID, undefined, true)
+  await useMachineCataloguesStore.getState().load(MOCK_HOST_ID, 'retry')
   expect(catalogue().error).toBe('Could not read models.')
 })
 

@@ -11,8 +11,7 @@ import type { MachineModel } from '@shared/host-protocol-machine'
 import { piStartDefaults } from '@/features/home/useLocalStartModel'
 import {
   useMachineCataloguesStore,
-  machineCatalogueKey,
-  EMPTY_MACHINE_CATALOGUE,
+  useMachineCatalogue,
   MODELS_READ_FAILED,
 } from '@/stores/machineCatalogues'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
@@ -32,9 +31,7 @@ const NO_MODELS: MachineModel[] = []
 export function useRemoteModel(hostId: string) {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
-  const catalogue = useMachineCataloguesStore(
-    (s) => s.catalogues[machineCatalogueKey(hostId, generation)] ?? EMPTY_MACHINE_CATALOGUE,
-  )
+  const catalogue = useMachineCatalogue(hostId)
   const last = useRemoteModelPicks((s) => s.last[hostId])
   const rememberedThinking = useRemoteModelPicks((s) => s.thinking[hostId])
   const desktop = useDesktopDefaults(hostId, generation)
@@ -43,9 +40,6 @@ export function useRemoteModel(hostId: string) {
     host: { model: catalogue.defaults?.model, thinking: catalogue.defaults?.thinkingLevel },
     desktop,
   }
-  useEffect(() => {
-    if (hostId) void useMachineCataloguesStore.getState().load(hostId)
-  }, [hostId, generation])
   const models = host?.capabilities.includes('skills.read') ? catalogue.models : NO_MODELS
   const providers = catalogue.providers
   const unavailable = useMemo(
@@ -54,7 +48,9 @@ export function useRemoteModel(hostId: string) {
   )
   const model =
     host?.state === 'ready' ? defaultRemoteModel(models, providers, preferences) : undefined
-  const missingModel = host?.state === 'ready' && catalogue.status === 'ready' && !model
+  const degraded = catalogue.source === 'config'
+  const missingModel =
+    host?.state === 'ready' && catalogue.status === 'ready' && !model && !degraded
   const hint = hostReconnecting(host?.state)
     ? 'Connecting…'
     : (hostFeatureRefusal(host, 'skills.read', 'models') ??
@@ -62,21 +58,29 @@ export function useRemoteModel(hostId: string) {
         ? `No signed-in model on ${machineLabel(hostId)}.`
         : catalogue.status === 'idle' || catalogue.status === 'loading'
           ? 'Loading models…'
-          : MODELS_READ_FAILED))
+          : degraded
+            ? 'Waiting for pi’s full model list…'
+            : MODELS_READ_FAILED))
   return {
     hostId,
     missingModel,
+    degraded,
     hint,
     model,
     models,
     unavailable,
-    explanation: model ? remoteModelExplanation(model, preferences) : hint,
+    explanation:
+      catalogue.source === 'config'
+        ? 'Showing configured models while pi is unavailable.'
+        : model
+          ? remoteModelExplanation(model, preferences)
+          : hint,
     canRetry:
       host?.state === 'ready' &&
       host.capabilities.includes('skills.read') &&
       catalogue.status !== 'loading' &&
       !model,
-    retry: () => useMachineCataloguesStore.getState().load(hostId, undefined, true),
+    retry: () => useMachineCataloguesStore.getState().load(hostId, 'retry'),
     thinking: model ? remoteStartThinking(model, preferences) : ('off' as const),
     setThinking: (level: ThinkingLevel) => rememberRemoteThinking(hostId, level),
     choose: (choice: ModelChoice) => rememberRemoteModel(hostId, choice),

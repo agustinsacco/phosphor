@@ -32,6 +32,7 @@ let removed = false
 let active = true
 let cwd: string
 let payload: string | undefined
+let generation = 0
 let piEnv: Record<string, string>
 const laneId = randomUUID()
 const model = { id: 'model', name: 'Model', provider: 'provider', reasoning: true }
@@ -88,6 +89,7 @@ beforeEach(async () => {
     },
   }
   feature = createSkillsFeature(context, {
+    generation: () => generation,
     inspect: async (): Promise<HostInspection> => {
       if (payload) await writeFile(join(root, 'payload'), payload)
       return {
@@ -246,6 +248,7 @@ describe('createSkillsFeature', () => {
     )
     for (const params of [{ repositoryId: repo }, { cwd: repo }, { laneId }])
       expect(await feature.call('machine.commands', params)).toEqual(error('bad-request'))
+    generation++
     commands = [{ name: 'x', source: 'native' }]
     expect(await feature.call('machine.commands', {})).toEqual(error('internal'))
     commands = Array(2001).fill({ name: 'x', source: 'prompt' })
@@ -385,22 +388,26 @@ describe('createSkillsFeature', () => {
   it('caps models at 1000 and skills at 500, without silent truncation', async () => {
     models = Array.from({ length: 1000 }, () => model)
     expect((await feature.call('machine.models', {})).ok).toBe(true)
+    generation++
     models.push(model)
     expect(await feature.call('machine.models', {})).toEqual(error('too-large'))
     commands = Array.from({ length: 500 }, () => command(join(bundle, 'SKILL.md')))
     expect((await feature.call('skills.list', {})).ok).toBe(true)
+    generation++
     commands.push(command(join(bundle, 'SKILL.md')))
     expect(await feature.call('skills.list', {})).toEqual(error('too-large'))
+    generation++
     commands = Array.from({ length: 2001 }, () => ({ source: 'extension' }))
     expect(await feature.call('skills.list', {})).toEqual(error('too-large'))
   })
   it('rejects oversize child output and malformed or failed responses with fixed errors', async () => {
     payload = 'x'.repeat(2 * 1024 * 1024 + 1)
     expect(await feature.call('machine.models', {})).toEqual(error('too-large'))
+    const config = { ok: true, data: { models: [], source: 'config' } }
     payload = 'private invalid output'
-    expect(await feature.call('machine.models', {})).toEqual(error('internal'))
+    expect(await feature.call('machine.models', {})).toEqual(config)
     payload = JSON.stringify({ id: 'feature', type: 'response', success: false, error: 'private' })
-    expect(await feature.call('machine.models', {})).toEqual(error('internal'))
+    expect(await feature.call('machine.models', {})).toEqual(config)
   })
   it('releases the queue when an inspection never settles', async () => {
     vi.useFakeTimers()
@@ -424,10 +431,10 @@ describe('createSkillsFeature', () => {
     const second = stalled.call('machine.models', {})
     await vi.advanceTimersByTimeAsync(INSPECTION_DEADLINE_MS)
     expect(await first).toEqual(error('internal'))
-    expect(await second).toEqual(error('internal'))
+    expect(await second).toEqual({ ok: true, data: { models: [], source: 'config' } })
     expect(calls).toBe(2)
   })
-  it('never runs two probes at once', async () => {
+  it('serializes provider probes', async () => {
     let inFlight = 0
     let peak = 0
     const serial = createSkillsFeature(
@@ -446,7 +453,7 @@ describe('createSkillsFeature', () => {
         },
       },
     )
-    await Promise.all([serial.call('machine.models', {}), serial.call('machine.providers', {})])
+    await Promise.all([serial.call('machine.providers', {}), serial.call('machine.providers', {})])
     expect(peak).toBe(1)
   })
   it('queues concurrent probes instead of failing them, with a bounded queue', async () => {
@@ -456,7 +463,7 @@ describe('createSkillsFeature', () => {
     ])
     expect(both.map((r) => r.ok)).toEqual([true, true])
     const burst = await Promise.all(
-      Array.from({ length: 9 }, () => feature.call('machine.models', {})),
+      Array.from({ length: 9 }, () => feature.call('machine.providers', {})),
     )
     expect(burst.filter((r) => r.ok)).toHaveLength(8)
     expect(burst.filter((r) => !r.ok)).toEqual([error('internal')])

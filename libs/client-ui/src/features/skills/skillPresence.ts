@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { create } from 'zustand'
 import type { HostConnectionView } from '@shared/ipc'
 import { usePlatform } from '@/platform/Platform'
@@ -108,7 +108,12 @@ export function useSkillPresence(name: string, machines: ShareMachine[]): Record
   const readable = useMemo(() => machines.filter((m) => m.readable).map((m) => m.id), [machines])
   // Each readable machine with its connection generation: a reconnect reads again.
   const keys = readable.map(presenceKey).join(' ')
+  const loaded = useRef<string | undefined>(undefined)
   useEffect(() => {
+    // Periodic Host snapshots replace the machines array even when the connection is
+    // unchanged. A failed presence read must not boot pi again on each snapshot.
+    if (loaded.current === keys) return
+    loaded.current = keys
     for (const id of readable) void loadSkillNames(id)
   }, [keys, readable])
   const presence: Record<string, Presence> = {}
