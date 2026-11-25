@@ -1,4 +1,4 @@
-import type { LanePause, LaneSummary } from '@phosphor/shared/host-protocol'
+import type { LanePause, LaneSummary, StoppedComposer } from '@phosphor/shared/host-protocol'
 import type { RpcSessionState } from '@phosphor/shared/rpc'
 import type { LaneProjection } from '@phosphor/session-runtime/lanes/projection'
 import type { createHostLaneProjection, SnapshotResult } from '../projection-host'
@@ -36,7 +36,8 @@ export type LiveOptions = {
   ): void
   limits?: Partial<StreamLimits>
   unattached?(laneId: string): SnapshotResult | null
-  resetOnDetach?: true
+  /** Null means the transcript is unreadable; undefined means no saved reading. */
+  readStoppedComposer?(laneId: string): StoppedComposer | null | undefined
   rememberComposer?(laneId: string, state: RpcSessionState): void
   /** Asks git whether each repository is a checkout. Absent: the field stays out. */
   gitTracking?: GitProbe

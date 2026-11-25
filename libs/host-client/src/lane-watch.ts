@@ -49,12 +49,11 @@ export function acceptLaneFrame(
     }
     watch.cursor = cursor
     if (event.kind === 'summary' || event.kind === 'control') {
-      if (
-        event.kind === 'summary' &&
-        event.summary.activity !== 'stopped' &&
-        event.summary.activity !== 'failed'
-      )
-        watch.stoppedComposer = undefined
+      if (event.kind === 'summary') {
+        const { activity } = event.summary
+        if (activity !== 'stopped' && activity !== 'failed') watch.stoppedComposer = undefined
+        else if (event.stoppedComposer) watch.stoppedComposer = event.stoppedComposer
+      }
       update({
         lanes: view.lanes.map((lane) =>
           lane.laneId !== frame.laneId

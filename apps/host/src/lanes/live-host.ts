@@ -30,7 +30,10 @@ export function createHostLiveLanes(
     ...rest,
     log,
     gitTracking,
-    resetOnDetach: true,
+    readStoppedComposer: (laneId) => {
+      const result = unattached(laneId, 'composer')
+      return result === null ? null : result.ok ? result.snapshot.stoppedComposer : undefined
+    },
     rememberComposer: (laneId, session) => {
       try {
         composerWindows?.remember(laneId, session)

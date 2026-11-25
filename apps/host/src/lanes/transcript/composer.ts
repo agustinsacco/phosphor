@@ -47,7 +47,7 @@ export function indexComposer(entry: SessionEntryLike): StoppedComposer | undefi
   }
 }
 
-/** Model and thinking survive compaction; context usage does not. */
+/** A saved reading belongs to one model and one uncompacted context. */
 export function branchComposer(
   path: readonly (SessionEntryLike & { composer?: StoppedComposer })[],
 ) {
@@ -55,7 +55,11 @@ export function branchComposer(
   let thinkingLevel: StoppedComposer['thinkingLevel']
   let tokens: StoppedComposer['tokens']
   for (const entry of path) {
-    model = entry.composer?.model ?? model
+    const selected = entry.composer?.model
+    if (selected) {
+      if (selected.provider !== model?.provider || selected.id !== model.id) tokens = undefined
+      model = selected
+    }
     thinkingLevel = entry.composer?.thinkingLevel ?? thinkingLevel
     tokens = entry.type === 'compaction' ? undefined : (entry.composer?.tokens ?? tokens)
   }

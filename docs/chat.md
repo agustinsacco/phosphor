@@ -985,10 +985,13 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   the lane". The live chip replaces it in the same row once the lane runs and
   pi has reported its state. A stopped snapshot keeps pi state null, but carries
   the saved branch’s model, thinking level and latest context usage when known.
-  The Host uses the matching cached model’s window capped by the Host budget,
-  or the last observed effective window for that model. No pi starts for these
-  reads. The thinking chip is read-only and the ring labels the saved reading;
-  `—` means nothing is known. The readout has a fixed slot, sized by an invisible copy of
+  Usage is cleared on compaction or a change of model or provider. Stopping an
+  open chat sends the saved readings in a replayable summary update without
+  replacing the loaded turns. The Host uses the matching cached or configured
+  model’s window capped by the Host budget, or the last observed effective
+  window for that model. No pi starts for these reads. The thinking chip is
+  read-only and the ring labels the saved reading; `—` means nothing is known.
+  The readout has a fixed slot, sized by an invisible copy of
   the live meter at its widest: `999% of 1000k` (the largest supported budget, 999.9k, formats as
   `1000k`) and a `1000k/min` burn rate. Either state sits over it, so
   stopping, starting or usage arriving never moves the readouts after it or

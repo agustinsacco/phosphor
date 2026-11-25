@@ -96,7 +96,12 @@ export function parseLaneEvent(v: unknown): LaneEvent | null {
   }
   if (v.kind === 'summary') {
     const s = parseLaneSummary(v.summary)
-    return s ? { kind: v.kind, summary: s } : null
+    if (!s) return null
+    const stoppedComposer =
+      s.activity === 'stopped' || s.activity === 'failed'
+        ? parseStoppedComposer(v.stoppedComposer)
+        : undefined
+    return { kind: v.kind, summary: s, ...(stoppedComposer ? { stoppedComposer } : {}) }
   }
   if (v.kind === 'dialog-resolved' && frameId(v.dialogId))
     return { kind: v.kind, dialogId: v.dialogId }

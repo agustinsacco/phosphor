@@ -12,7 +12,7 @@ export function createUnattachedSnapshots(options: {
   sessionsRoot: string
   window?: (laneId: string, model: NonNullable<LaneSummary['model']>) => number | undefined
   log: (message: string, data: { laneId: string; reason: TranscriptFailureReason }) => void
-}): (laneId: string, mode?: 'complete') => SnapshotResult | null {
+}): (laneId: string, mode?: 'complete' | 'composer') => SnapshotResult | null {
   const cache = createTranscriptCache()
   return (laneId, mode) => {
     const lane = options.store.getLane(laneId)
@@ -58,7 +58,8 @@ export function createUnattachedSnapshots(options: {
         return snapshot()
       }
       if (mode === 'complete' && result.omitted) return { ok: false, reason: 'too-large' }
-      messages = result.messages
+      // Detach publishes only the metadata; don't fit or serialize a history preview.
+      if (mode !== 'composer') messages = result.messages
       const model = result.composer.model ?? summary.model
       const contextWindow = model ? options.window?.(laneId, model) : undefined
       const composer = {

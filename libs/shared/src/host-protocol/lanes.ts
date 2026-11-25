@@ -123,7 +123,12 @@ export type LanePiPush = Exclude<SessionPush, { kind: 'stderr' | 'resync' }>
 export type LaneEvent =
   | { readonly kind: 'pi'; readonly push: LanePiPush }
   | { readonly kind: 'control'; readonly control: LaneControl }
-  | { readonly kind: 'summary'; readonly summary: LaneSummary }
+  | {
+      readonly kind: 'summary'
+      readonly summary: LaneSummary
+      /** Saved composer facts on detach, without replacing the open transcript. */
+      readonly stoppedComposer?: StoppedComposer
+    }
   | { readonly kind: 'dialog-resolved'; readonly dialogId: string }
 
 export type AttentionKind =

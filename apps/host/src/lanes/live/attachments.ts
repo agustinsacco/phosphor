@@ -100,8 +100,15 @@ export function detach(state: LiveState, laneId: string) {
   attached?.binding.dispose()
   state.attached.delete(laneId)
   const summary = summaryFor(state, laneId)
-  if (summary && JSON.stringify(before) !== JSON.stringify(summary))
-    publish(state, laneId, { kind: 'summary', summary })
-  if (attached && summary && !state.attached.has(laneId) && state.options.resetOnDetach)
-    state.streams.reset(laneId)
+  if (!summary) return
+  const stoppedComposer = attached ? state.options.readStoppedComposer?.(laneId) : undefined
+  // Replay the composer update even if exit already published the stopped summary.
+  // A snapshot would replace the chat with the shorter on-disk context.
+  if (stoppedComposer || JSON.stringify(before) !== JSON.stringify(summary))
+    publish(state, laneId, {
+      kind: 'summary',
+      summary,
+      ...(stoppedComposer ? { stoppedComposer } : {}),
+    })
+  if (stoppedComposer === null && !state.attached.has(laneId)) state.streams.reset(laneId)
 }
