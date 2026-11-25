@@ -7,6 +7,7 @@ import { useChatStore } from '@/stores/chat'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
 import type { HostLaneView } from '@phosphor/shared/ipc'
+import { rehydrateTranscript } from '@/lib/rpc'
 import { ChatView } from './ChatView'
 
 vi.mock('./MessageList', () => ({ MessageList: () => null }))
@@ -170,4 +171,33 @@ it('says a failed model read failed, with Retry models, instead of "No models co
   expect(el.textContent).toContain('Could not read models.')
   expect(el.textContent).not.toContain('No models configured')
   expect(buttonTexts(el)).toContain('Retry models')
+})
+
+it('keeps the missing-history notice through replay and another run until history is restored', async () => {
+  const id = mockRemoteInfo.sessionId
+  const notice = 'This conversation is too large to preview.'
+  const piCommand = vi
+    .fn()
+    .mockResolvedValue({ success: false, messagesUnavailable: true, error: notice })
+  vi.stubGlobal('phosphor', { invoke, piCommand })
+  const chat = useChatStore.getState()
+  chat.ensure(id)
+  const el = await renderHostLane('idle', true)
+  await act(async () => {
+    await rehydrateTranscript(id)
+    chat.applyEvent(id, { type: 'agent_start' }) // replayed pending turn
+  })
+  expect(el.textContent).toContain(notice)
+  act(() => {
+    chat.applyEvent(id, { type: 'agent_end', messages: [] })
+    chat.addUserMessage(id, 'next prompt')
+    chat.applyEvent(id, { type: 'agent_start' })
+    chat.setError(id, 'another error')
+  })
+  expect(el.textContent).toContain(notice)
+  piCommand.mockResolvedValue({ success: true, data: { messages: [] } })
+  await act(async () => {
+    await rehydrateTranscript(id)
+  })
+  expect(el.textContent).not.toContain(notice)
 })

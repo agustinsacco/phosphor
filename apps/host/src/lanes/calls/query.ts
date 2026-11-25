@@ -71,7 +71,7 @@ export interface LaneQueryOptions {
     command(...args: Parameters<HostRuntime['command']>): Promise<RpcResponse>
     exportHtml?: HostRuntime['exportHtml']
   }
-  unattached(laneId: string): SnapshotResult | null
+  unattached(laneId: string, mode?: 'complete'): SnapshotResult | null
   now(): number
   log: RuntimeLog
 }
@@ -96,7 +96,7 @@ export function stoppedQuery(
   try {
     if (method === 'lane.state') return { ok: true, data: null }
     if (method !== 'lane.messages' && method !== 'lane.receipt') return failure('lane-stopped')
-    const snapshot = options.unattached(laneId)
+    const snapshot = options.unattached(laneId, method === 'lane.messages' ? 'complete' : undefined)
     if (snapshot === null) return failure('internal')
     if (snapshot.ok && method === 'lane.receipt') return receipt(snapshot.snapshot.messages)
     return snapshot.ok

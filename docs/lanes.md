@@ -10,7 +10,17 @@ Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 
 ## Control and editing on the service
 
-Opening a lane on This Mac’s service does **not** take control. After creation or before a controller-only action, Desktop uses its owner-socket identity: if it already holds control it proceeds; if nobody holds it, it asks to claim the lane only while still unheld. If another client holds it or wins the race, Desktop offers **Take control** rather than displacing it. A refused action shows the service’s reason. Other Hosts keep explicit handoff.
+Opening a stopped Host lane previews the newest messages on its active branch. An oversized
+conversation opens with the notice “This conversation is too large to preview.” A live lane
+can continue delivering new events even when its older messages cannot fit. The notice stays
+visible through new turns until the client loads history again. The usual Resume
+action remains available to the controller while the lane is stopped.
+
+This Mac’s service advertises `warmOnOpen`: after navigation, Desktop starts an eligible
+stopped lane in the background, including one with an oversized preview. A PWA connected
+to a Host with that policy follows the same rule. The client only claims an unheld lane
+and never displaces another controller or automatically resumes a paused lane. Other Hosts
+keep explicit handoff and Resume.
 
 When the Host announces `ops` and `laneEditing`, Session tree and Clone run on the execution machine. Labels and jumps require a stopped lane. Fork, clone and rewind read the source under the runtime path lock and write a new stopped lane; the original stays intact. Rewind opens the replacement with the selected message’s text ready to edit. The tree connects children through hidden metadata to the nearest visible ancestor.
 

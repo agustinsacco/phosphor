@@ -122,6 +122,20 @@ end with `too-large`, not a closed socket; oversize call results answer
 subscription fails; older events never follow the reset. A slow subscription
 resumes with one reset snapshot.
 
+If only the settled history cannot fit a live lane snapshot after image elision, the Host
+sends `messages: []` and `messagesUnavailable: true`. This optional boolean is absent on
+ordinary snapshots; true means “history not delivered”, not “no messages”. The cursor,
+state, pending turn and UI remain valid; events continue at the next sequence number.
+Readers that predate the flag ignore it. A `too-large` refusal from an older Host is not a
+pi exit and does not establish a lane event subscription.
+
+A stopped `lane.messages` call, including one backing `lane.read --part messages`,
+returns all messages in the active session context or refuses `too-large`. The chat preview's
+source-byte, message-count and frame budgets never silently move the first page forward.
+Images can still be elided in place. The Host call keeps its generic refusal text,
+`the lane query could not complete`. The `lane.read` op advises trying the running
+lane or requesting a narrower part such as `summary`.
+
 | Close code | Meaning                                                                               |
 | ---------- | ------------------------------------------------------------------------------------- |
 | 1001       | Host stopping                                                                         |

@@ -10,6 +10,8 @@ import { parseReadyFrame } from './host-protocol/host-ready'
 import { parseCallFrame, parseCommandFrame } from './host-protocol/client-commands'
 import { HOST_FRAMES, CLIENT_FRAMES } from '../test/__fixtures__/protocol-freeze'
 import * as base from './__fixtures__/base-684cb3478/host-ready'
+import { parseSnapshotFrame } from './host-protocol/host-snapshot'
+import * as baseSnapshot from './__fixtures__/base-684cb3478/host-snapshot'
 import * as baseLanes from './__fixtures__/base-684cb3478/host-lanes'
 import * as baseCommands from './__fixtures__/base-684cb3478/client-commands'
 import * as baseGrant from './__fixtures__/base-684cb3478/host-grant'
@@ -179,4 +181,17 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     expect(baseMachines.parseMachinesResponse(list(100)).ok).toBe(true)
     expect(baseMachines.parseMachinesResponse(list(101)).ok).toBe(false)
   })
+})
+
+it('older clients accept a stream without its oversized messages; current clients retain the flag', () => {
+  const plain = HOST_FRAMES.snapshot.snapshot
+  const snapshot = { ...plain.snapshot, messages: [] }
+  for (const messagesUnavailable of [true, false]) {
+    const frame = { ...plain, snapshot: { ...snapshot, messagesUnavailable } }
+    expect(baseSnapshot.parseSnapshotFrame(frame)).toStrictEqual({ ...plain, snapshot })
+    expect(parseSnapshotFrame(frame)).toStrictEqual(frame)
+  }
+  expect(
+    parseSnapshotFrame({ ...plain, snapshot: { ...snapshot, messagesUnavailable: 1 } }),
+  ).toBeNull()
 })

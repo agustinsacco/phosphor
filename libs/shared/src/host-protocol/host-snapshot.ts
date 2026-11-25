@@ -36,6 +36,7 @@ export function parseLaneSnapshot(v: unknown): LaneSnapshot | null {
   const c = cursor(v.cursor),
     s = parseLaneSummary(v.summary)
   if (!c || !s || (v.state !== null && !piState(v.state))) return null
+  if (v.messagesUnavailable !== undefined && typeof v.messagesUnavailable !== 'boolean') return null
   const messages = boundedList(v.messages, HOST_LIMITS.outboundFrameBytes, (x) =>
     piMessage(x) ? x : null,
   )
@@ -54,7 +55,18 @@ export function parseLaneSnapshot(v: unknown): LaneSnapshot | null {
   )
     return null
   return messages && pending && dialogs
-    ? { cursor: c, summary: s, state: v.state, messages, pending, dialogs, ui }
+    ? {
+        cursor: c,
+        summary: s,
+        state: v.state,
+        messages,
+        ...(v.messagesUnavailable !== undefined
+          ? { messagesUnavailable: v.messagesUnavailable }
+          : {}),
+        pending,
+        dialogs,
+        ui,
+      }
     : null
 }
 

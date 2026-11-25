@@ -11,27 +11,40 @@ const record = (value: unknown): value is SessionEntryLike =>
 const message = (value: unknown): value is AgentMessage & SessionEntryLike =>
   record(value) && typeof value.role === 'string'
 
-export function parseSessionEntries(text: string, maxEntries = 200_000): SessionEntryLike[] | null {
+export function parseSessionLine(line: string): SessionEntryLike | null | undefined {
+  if (!line.trim()) return undefined
+  let value: unknown
+  try {
+    value = JSON.parse(line)
+  } catch {
+    return undefined
+  }
+  return !value ? undefined : record(value) ? value : null
+}
+
+export const SESSION_ENTRIES_MAX = 200_000
+export function parseSessionEntries(
+  text: string,
+  maxEntries = SESSION_ENTRIES_MAX,
+): SessionEntryLike[] | null {
   const entries: SessionEntryLike[] = []
   for (const line of text.split('\n')) {
-    if (!line.trim()) continue
-    let value: unknown
-    try {
-      value = JSON.parse(line)
-    } catch {
-      continue
-    }
-    if (!value) continue
-    if (!record(value)) return null
-    entries.push(value)
-    if (entries.length > maxEntries) return null
+    const entry = parseSessionLine(line)
+    if (entry === undefined) continue
+    if (!entry || entries.length >= maxEntries) return null
+    entries.push(entry)
   }
+  return migrateSessionEntries(entries)
+}
+
+export function migrateSessionEntries<T extends SessionEntryLike>(entries: T[]): T[] | null {
   const header = entries[0]
   if (!header || header.type !== 'session' || typeof header.id !== 'string') return null
   const version = Number(header.version ?? 1)
   if (version < 2) {
     let previous: symbol | null = null
-    for (const entry of entries) {
+    for (const item of entries) {
+      const entry: SessionEntryLike = item
       if (entry.type === 'session') continue
       // Internal symbols keep fresh migration ids distinct from all references in the file.
       const id = Symbol()
@@ -46,13 +59,15 @@ export function parseSessionEntries(text: string, maxEntries = 200_000): Session
     }
   }
   if (version < 3) {
-    for (const entry of entries) {
-      if (entry.type === 'session') entry.version = 3
-      if (entry.type === 'message' && record(entry.message) && entry.message.role === 'hookMessage')
-        entry.message.role = 'custom'
-    }
+    for (const entry of entries) migrateLegacyRole(entry)
   }
   return entries
+}
+
+export function migrateLegacyRole(entry: SessionEntryLike) {
+  if (entry.type === 'session') entry.version = 3
+  if (entry.type === 'message' && record(entry.message) && entry.message.role === 'hookMessage')
+    entry.message.role = 'custom'
 }
 
 function contextMessages(entry: SessionEntryLike): unknown[] | null {
@@ -101,18 +116,15 @@ function contextMessages(entry: SessionEntryLike): unknown[] | null {
   return []
 }
 
-export function sessionContext(
-  entries: SessionEntryLike[],
-  maxMessages = 100_000,
-): { messages: AgentMessage[] } | null {
-  const index = new Map<unknown, SessionEntryLike>()
-  let leaf: SessionEntryLike | undefined
+export function sessionContextPlan<T extends SessionEntryLike>(entries: T[]) {
+  const index = new Map<unknown, T>()
+  let leaf: T | undefined
   for (const entry of entries) {
     if (entry.type === 'session') continue
     index.set(entry.id, entry)
     leaf = entry
   }
-  const path: SessionEntryLike[] = []
+  const path: T[] = []
   const seen = new Set<unknown>()
   while (leaf) {
     if (seen.has(leaf.id)) return null
@@ -138,37 +150,51 @@ export function sessionContext(
     }
     for (const entry of path.slice(compactionIndex + 1)) context.push(entry)
   }
-  const edits = new Map<unknown, SessionEntryLike>()
+  const edits = new Map<unknown, T>()
   for (const entry of context) if (entry.type === 'context_edit') edits.set(entry.targetId, entry)
+  return context.flatMap((entry, i) =>
+    entry.type === 'compaction' && i > 0 ? [] : [{ entry, edit: edits.get(entry.id) }],
+  )
+}
+
+export function projectSessionEntry(
+  entry: SessionEntryLike,
+  edit?: SessionEntryLike,
+): AgentMessage[] | null {
+  let projected = contextMessages(entry)
+  if (!projected) return null
+  if (edit) {
+    if (edit.replacement === null) return []
+    if (!record(edit.replacement)) return null
+    const replacement = edit.replacement
+    projected = projected.map((value) => {
+      if (
+        !record(value) ||
+        !['user', 'assistant', 'toolResult', 'custom'].includes(String(value.role))
+      )
+        return value
+      const content =
+        (value.role === 'assistant' || value.role === 'toolResult') &&
+        typeof replacement.content === 'string'
+          ? [{ type: 'text', text: replacement.content }]
+          : replacement.content
+      return { ...value, content }
+    })
+  }
+  return projected.every(message) ? projected : null
+}
+
+export function sessionContext(
+  entries: SessionEntryLike[],
+  maxMessages = 100_000,
+): { messages: AgentMessage[] } | null {
+  const plan = sessionContextPlan(entries)
+  if (!plan) return null
   const messages: AgentMessage[] = []
-  for (const [i, entry] of context.entries()) {
-    if (entry.type === 'compaction' && i > 0) continue
-    let projected = contextMessages(entry)
-    if (!projected) return null
-    const edit = edits.get(entry.id)
-    if (edit) {
-      if (edit.replacement === null) continue
-      if (!record(edit.replacement)) return null
-      const replacement = edit.replacement
-      projected = projected.map((value) => {
-        if (
-          !record(value) ||
-          !['user', 'assistant', 'toolResult', 'custom'].includes(String(value.role))
-        )
-          return value
-        const content =
-          (value.role === 'assistant' || value.role === 'toolResult') &&
-          typeof replacement.content === 'string'
-            ? [{ type: 'text', text: replacement.content }]
-            : replacement.content
-        return { ...value, content }
-      })
-    }
-    for (const value of projected) {
-      if (!message(value)) return null
-      messages.push(value)
-      if (messages.length > maxMessages) return null
-    }
+  for (const { entry, edit } of plan) {
+    const projected = projectSessionEntry(entry, edit)
+    if (!projected || messages.length + projected.length > maxMessages) return null
+    messages.push(...projected)
   }
   return { messages }
 }

@@ -36,3 +36,10 @@ export function errorText(error: unknown): string {
 export function ipcErrorText(error: unknown): string {
   return errorText(error).replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '')
 }
+
+/** A Host-client get_messages refusal across the renderer bridge, not a pi wire error. */
+export const missingHistoryResponse = {
+  success: false,
+  messagesUnavailable: true,
+  error: 'This conversation is too large to preview.',
+} as const
