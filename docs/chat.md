@@ -43,7 +43,7 @@ The composer is one small field with several ways in.
   hairline so the two never read as one slot, sends the literal message
   `continue`, without sending or clearing the draft or attachments. It is the
   recovery control (after a restart, a transient error or an unfinished turn):
-  disabled while resuming, awaiting a reply, streaming or compacting, and
+  disabled while resuming or while the lane is busy (below), and
   available again in a reopened session after an app restart. It uses normal
   prompt delivery; if pi's process crashed, use **Resume session** first. That
   is the "pi crashed" banner above the transcript, on This Mac and on a Host
@@ -83,15 +83,25 @@ The composer is one small field with several ways in.
   WYSIWYG editor.
 - Sent user messages render list runs as real lists. Deliberately not a full
   markdown renderer; the bubble also carries the `<attached-files>` block.
-- **While streaming**: Enter queues a **steering** message (delivered after the
-  current tool calls), Alt/Cmd/Ctrl+Enter queues a **follow-up** (after the
+- **While the lane is busy**: Enter and Send queue a **steering** message (delivered
+  after the current tool calls), Alt/Cmd/Ctrl+Enter queues a **follow-up** (after the
   agent finishes). Same semantics as pi's TUI; the two queues look different.
-  Escape and Stop abort and hand queued messages back to the composer. pi's abort
+  Busy is one derivation, `features/chat/laneBusy.ts`, read at the moment of sending:
+  a run, compaction, an auto-retry, a prompt pi has not answered, queued messages,
+  a pending question, background agents still running, or a Host lane whose Host
+  reports it `working` or `needs-input`. pi refuses a plain prompt while it
+  processes and starts a steer or follow-up as an ordinary prompt when it is idle,
+  so a busy lane never sends a plain prompt. If pi still refuses one ("Agent is
+  already processing"), because it started work a moment before the prompt
+  arrived, the composer sends it once more as a follow-up, and shows no error;
+  a queued message enters the transcript when delivered. pi's text for that
+  refusal is never shown; any other failed send reads "Message not sent: …".
+  Escape and Stop abort a running turn and hand queued messages back to the composer. pi's abort
   keeps its queues, so they first drain them with `clear_queue`; otherwise the
   messages would also go out with the next one. On a pi without `clear_queue`
   they come back from the chips and pi keeps its own. Once the draft
   has text, **Steer now** and **Queue follow-up** buttons expose both without
-  a keyboard.
+  a keyboard, whenever the lane is busy.
 - A queued message is a chip above the composer, not a bubble. Its bubble
   appears in the transcript only when pi delivers it (the user `message_end`),
   so it sits after the work the agent finished first. Each chip has a ✕ that
@@ -1273,7 +1283,8 @@ owns repository, thinking and branch choices.
 Slash commands come from the lane; file mentions search its Host file list.
 On Enter in an idle Host lane the bubble appears and the composer clears before uploads,
 control claims or receipts. The booting strip says “Starting lane…” while the lane is stopped.
-A refusal removes the pending bubble, restores the text and attachments and shows the error.
+A refusal removes the pending bubble, restores the text and attachments and shows the error;
+pi's busy refusal goes once more as a follow-up instead ([Composer](#composer)).
 Steers and follow-ups enter the transcript only when delivered.
 
 Thinking levels derive from its model. Continue waits for the receipt and echo

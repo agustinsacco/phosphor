@@ -1,5 +1,6 @@
 import { useComposerSlash } from './useComposerSlash'
 import { sendComposerPrompt } from './sendComposerPrompt'
+import { useLaneBusy } from './laneBusy'
 import { offersLaneEditing } from './hostLaneEditing'
 import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
@@ -90,6 +91,7 @@ export function Composer({
   /** Timestamp of the last bare Escape, for Claude Code's Esc-Esc rewind. */
   const lastEscapeRef = useRef(0)
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
+  const busy = useLaneBusy(sessionId)
   const booting = useSessionBooting(sessionId)
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
   // Named in the status strip only when pi does not ship the provider: the
@@ -138,7 +140,7 @@ export function Composer({
           draftKey,
           remote,
           remoteAttachments,
-          behavior: isStreaming ? (behavior ?? 'steer') : undefined,
+          busyBehavior: behavior,
         },
         awaiting.current,
       )
@@ -239,14 +241,14 @@ export function Composer({
     [sessionId, workspacePath],
   )
 
-  // A soft keyboard has no Alt or Esc and its Return adds a line: name only what it can do.
-  const placeholder = isStreaming
-    ? softKeyboard()
-      ? 'Steer or queue a follow-up…'
-      : `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')} · Esc to stop`
-    : booting
-      ? 'Starting pi…'
-      : 'Describe a task…'
+  // A soft keyboard has no Alt or Esc and its Return adds a line; Esc stops only a running turn.
+  const placeholder = booting
+    ? 'Starting pi…'
+    : !busy
+      ? 'Describe a task…'
+      : softKeyboard()
+        ? 'Steer or queue a follow-up…'
+        : `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')}${isStreaming ? ' · Esc to stop' : ''}`
 
   return (
     <div className="composer shrink-0 px-3 pb-4 pt-1 sm:px-5">
@@ -306,10 +308,10 @@ export function Composer({
             </div>
           }
         >
-          {/* Only while a turn is running AND there is something to send: an
+          {/* Only while the lane is busy AND there is something to send: an
               always-present disabled row cost every reader a line of chrome
               for a control they could not use. */}
-          {isStreaming && (text.trim() !== '' || images.length > 0) && (
+          {busy && (text.trim() !== '' || images.length > 0) && (
             <div
               className="flex flex-wrap justify-end gap-1 px-2.5 pb-1"
               role="group"
@@ -367,7 +369,7 @@ export function Composer({
               )}
               {/* Yields before it wraps: it fills what the readouts leave and
                   truncates, and a strip narrower than 36rem drops it. */}
-              {text === '' && !isStreaming && (
+              {text === '' && !busy && (
                 <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
                   <span className="font-mono">/</span> commands ·{' '}
                   <span className="font-mono">@</span> files · <span className="font-mono">!</span>{' '}

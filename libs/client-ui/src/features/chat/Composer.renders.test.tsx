@@ -269,7 +269,7 @@ it.each(['prompt', 'abort'] as const)(
       await act(async () => click())
       expect(command).toHaveBeenCalledWith(sessionId, expect.objectContaining({ type: action }))
       expect(report.mock.calls.filter(([, error]) => error !== null)).toEqual([
-        [sessionId, message],
+        [sessionId, action === 'prompt' ? `Message not sent: ${message}` : message],
       ])
       expect(useDraftsStore.getState().get(draftKey)).toMatchObject({
         text: 'keep this prompt',

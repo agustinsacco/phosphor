@@ -7,16 +7,9 @@ import { TooltipButton } from '@/components/Tooltip'
 import { iconButtonClass } from '@/components/ComposerButtons'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore, type ChatSession } from '@/stores/chat'
+import { laneBusyNow, useLaneBusy } from '../laneBusy'
 
-function busy(session: ChatSession | undefined): boolean {
-  return (
-    !session ||
-    session.resuming ||
-    session.isStreaming ||
-    session.isCompacting ||
-    session.promptSentAt != null
-  )
-}
+const unready = (session: ChatSession | undefined): boolean => !session || session.resuming
 
 /**
  * A plain prompt, independent of the composer's unsent draft and attachments.
@@ -30,15 +23,17 @@ export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.
   const controlling = useCanControlSession(sessionId)
   const sending = useRef(false)
   const [pending, setPending] = useState(false)
-  const chatBusy = useChatStore((s) => busy(s.sessions[sessionId]))
+  const notReady = useChatStore((s) => unready(s.sessions[sessionId]))
+  const busy = useLaneBusy(sessionId)
 
-  const disabled = chatBusy || pending || !controlling
+  const disabled = notReady || busy || pending || !controlling
   const send = async (): Promise<void> => {
     const chat = useChatStore.getState()
     // Read again at click time: the optimistic bubble locks out a second click
     // synchronously, before React renders or pi acknowledges the first prompt.
     if (
-      busy(chat.sessions[sessionId]) ||
+      unready(chat.sessions[sessionId]) ||
+      laneBusyNow(sessionId) ||
       sessionTransitionPending(sessionId) ||
       sending.current ||
       (remote && !canControlSession(sessionId))
