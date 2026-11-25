@@ -689,3 +689,21 @@ it("names This Mac for 'local', a Host by its directory label, else by its raw i
   expect(machineLabel('h1')).toBe('Studio')
   expect(machineLabel('h2')).toBe('h2')
 })
+
+it.each([
+  [true, true, true],
+  [true, false, false],
+  [false, true, false],
+])('warm on open: policy=%s, held by me=%s, resumes=%s', async (policy, self, resumes) => {
+  const hosts = structuredClone(mockRemoteHosts)
+  const host = hosts[MOCK_HOST_ID]!
+  Object.assign(host, { warmOnOpen: policy })
+  const lane = host.lanes[0]!
+  Object.assign(lane, { activity: 'stopped' })
+  lane.control.controller!.self = self
+  useRemoteLanesStore.setState({ hosts })
+  expect(await openRemoteLane(MOCK_HOST_ID, lane.laneId)).toBe(true)
+  expect(invoke.mock.calls.filter(([op]) => op === 'hosts:resumeLane')).toEqual(
+    resumes ? [['hosts:resumeLane', MOCK_HOST_ID, lane.laneId]] : [],
+  )
+})
