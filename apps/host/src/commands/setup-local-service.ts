@@ -2,6 +2,7 @@ import { open } from 'node:fs/promises'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { userInfo } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { stablePathDirs } from '../machine/environment'
 import { serviceProgram } from '@phosphor/session-runtime/host-install/layout'
 import { HOST_SIDECARS, parseLocalRunFile, hostStateDirectory } from '@phosphor/shared/host-local'
 import { readSidecar } from '../config/sidecar'
@@ -104,10 +105,7 @@ function localProgram(context: ServiceContext) {
     context.service?.bundle ?? resolve(process.argv[1] ?? ''),
     context.home,
   )
-  const path = [
-    dirname(node),
-    ...(context.env.PATH ?? '').split(':').filter((d) => d && d !== dirname(node)),
-  ].join(':')
+  const path = stablePathDirs([dirname(node), ...(context.env.PATH ?? '').split(':')]).join(':')
   return { node, bundle, path }
 }
 

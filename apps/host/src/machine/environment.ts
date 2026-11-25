@@ -54,6 +54,15 @@ export const AMBIENT_NAMES = new Set([
 
 const UNIX_PATH = ['/usr/local/bin', '/usr/bin', '/bin', '/usr/local/sbin', '/usr/sbin', '/sbin']
 
+/** fnm's per-shell directories disappear at logout; only keep persistent PATH candidates. */
+export function stablePathDirs(dirs: readonly string[]): string[] {
+  return [
+    ...new Set(
+      dirs.filter((dir) => isAbsolute(dir) && !dir.split('/').includes('fnm_multishells')),
+    ),
+  ]
+}
+
 export function platformPath(platform: NodeJS.Platform): string[] {
   return platform === 'darwin' ? ['/opt/homebrew/bin', ...UNIX_PATH] : UNIX_PATH
 }
@@ -150,15 +159,11 @@ export function buildPiEnvironment(input: {
     )
       env[name] = value
   }
-  const shellPath =
-    input.shell?.path.filter(
-      (dir) => isAbsolute(dir) && !dir.split('/').includes('fnm_multishells'),
-    ) ?? []
   // Built last, so an inherited or passed PATH never survives.
   const node = input.nodePath ? [dirname(input.nodePath)] : []
   env.PATH = [
     ...new Set([
-      ...[...new Set(shellPath)].slice(0, 256),
+      ...stablePathDirs(input.shell?.path ?? []).slice(0, 256),
       ...node,
       ...(input.path ?? []),
       ...(env.HOME ? [join(env.HOME, '.local/bin')] : []),
