@@ -297,6 +297,7 @@ export interface RunOpsPorts extends Pick<
   | 'ownerFolders'
   | 'sandboxes'
   | 'stateDirectory'
+  | 'sessionsRoot'
   | 'uid'
   | 'store'
   | 'lanes'
