@@ -297,3 +297,49 @@ it('restages after an agent-requested reload that reached pi, not one pi cannot 
   expect(await reloadLaneNow(h.sessionId, h.client, vi.fn())).toBe('failed')
   expect(await h.send()).toEqual([stateRead, cap(), prompt])
 })
+
+it.each(['applied', 'failed'] as const)(
+  'reads fresh provider and compaction settings after a reload reported as %s',
+  async (outcome) => {
+    const h = await promptFixture()
+    await h.send()
+    h.runtime.laneReload = { beforePrompt: async () => outcome }
+    h.runtime.packages = vi.fn(async () => [
+      { name: '@saccolabs/pi-claude-cli', version: '0.10.0', installed: true },
+    ])
+    h.client.request
+      .mockResolvedValueOnce({
+        success: true,
+        data: { model: { provider: 'native' }, autoCompactionEnabled: false },
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: { model: { provider: 'pi-claude-cli' }, autoCompactionEnabled: true },
+      })
+    expect(await h.send()).toEqual([stateRead, stateRead, cap(), prompt])
+    expect(h.runtime.packages).toHaveBeenCalledWith('/repo')
+  },
+)
+
+it('stages a lowered budget before a prompt can start after a streaming snapshot', async () => {
+  const h = await promptFixture()
+  await h.send()
+  vi.mocked(h.runtime.readBudget).mockReturnValue('100k')
+  h.client.request.mockResolvedValueOnce({
+    success: true,
+    data: { isStreaming: true, model: { provider: 'native' }, autoCompactionEnabled: true },
+  })
+  expect(await h.send()).toEqual([stateRead, cap('100000'), prompt])
+})
+
+it('restages when an extension restores the uncapped model with the same identity', async () => {
+  const h = await promptFixture()
+  const uncapped = { provider: 'native', id: 'big', contextWindow: 1_000_000 }
+  h.client.request.mockResolvedValue({
+    success: true,
+    data: { model: uncapped, autoCompactionEnabled: true },
+  })
+  // Both snapshots see the catalogue window: the first stage capped it in between.
+  await h.send()
+  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+})
