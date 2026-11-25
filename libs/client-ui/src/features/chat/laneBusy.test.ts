@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { HostLaneView } from '@shared/ipc'
 import { hostLaneSession, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import { useChatStore, type ChatSession } from '@/stores/chat'
@@ -100,4 +100,25 @@ it('a question waiting for an answer keeps the lane busy', () => {
     ],
   })
   expect(laneBusyNow(id)).toBe(true)
+})
+
+it('a timed-out extension question no longer makes an idle Host lane busy', () => {
+  vi.useFakeTimers()
+  try {
+    hostLane('idle')
+    useExtensionUiStore.getState().handleRequest(id, {
+      type: 'extension_ui_request',
+      id: 'q',
+      method: 'confirm',
+      title: 'Go?',
+      message: '',
+      timeout: 100,
+    })
+    expect(laneBusyNow(id)).toBe(true)
+    vi.advanceTimersByTime(100)
+    expect(laneBusyNow(id)).toBe(false)
+    expect(useExtensionUiStore.getState().dialogs).toHaveLength(0)
+  } finally {
+    vi.useRealTimers()
+  }
 })

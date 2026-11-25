@@ -1206,10 +1206,13 @@ test('a large-window session over the context budget compacts, holding the next 
     await expect(page.getByText('compacting…')).toBeVisible()
     await expect.poll(sent).toEqual(['prompt', 'compact'])
 
-    // Sent mid-compaction: held, not rejected.
-    const chat = page.getByRole('textbox', { name: 'Chat message' })
-    await chat.fill('and again')
-    await chat.press('Enter')
+    // Send directly to pin the runtime's budget-compaction hold even when the
+    // composer won't offer sending during compaction.
+    const response = await page.evaluate(async () => {
+      const [lane] = await window.phosphor.invoke('pi:listLiveSessions')
+      return window.phosphor.piCommand(lane!.sessionId, { type: 'prompt', message: 'and again' })
+    })
+    expect(response.success).toBe(true)
     await expect(page.getByText(/Context compacted — 250k tokens summarized/).first()).toBeVisible()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toHaveCount(2, {
       timeout: 30_000,
@@ -4875,7 +4878,8 @@ test('recorded workflow completions and attention stay visible, attributable and
     const sidebarWorking = page.getByTestId('session-row').getByText('Working', { exact: true })
     await expect(sidebarWorking).toBeVisible()
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
-    await page.getByPlaceholder('Describe a task…', { exact: false }).fill('Draft for the parent')
+    const chat = page.getByRole('textbox', { name: 'Chat message', exact: true })
+    await chat.fill('Draft for the parent')
     await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeEnabled()
 
     // Real captured notices and an extension-projected three-child tree, not
@@ -4975,9 +4979,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(panel).toBeVisible()
     await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
     await expect(notices.nth(1)).toContainText('validation · worker needs parent attention')
-    await expect(page.getByPlaceholder('Describe a task…', { exact: false })).toHaveValue(
-      'Draft for the parent',
-    )
+    await expect(chat).toHaveValue('Draft for the parent')
     await page.reload()
     await expect(background).toHaveCount(0)
     await expect(page.getByTestId('subagent-notice')).toHaveCount(2)

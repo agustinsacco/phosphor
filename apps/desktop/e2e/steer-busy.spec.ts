@@ -36,7 +36,7 @@ async function expectNoSessionError(page: Page) {
   await expect(page.getByText(/already processing|streamingBehavior/)).toBeHidden()
 }
 
-test('a prompt pi refuses between its run and its settle goes out as a follow-up', async () => {
+test('a prompt between run end and settle queues on the first attempt', async () => {
   const { harness, prompts } = await start('post-run-hold')
   const { page } = harness
   try {
@@ -46,10 +46,9 @@ test('a prompt pi refuses between its run and its settle goes out as a follow-up
     await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible()
     await chat.fill('PHX-gap')
     await chat.press('Enter')
-    await expect.poll(prompts).toEqual([
-      { type: 'prompt', message: 'PHX-gap', streamingBehavior: undefined },
-      { type: 'prompt', message: 'PHX-gap', streamingBehavior: 'followUp' },
-    ])
+    await expect
+      .poll(prompts)
+      .toEqual([{ type: 'prompt', message: 'PHX-gap', streamingBehavior: 'followUp' }])
     await expect(chat).toHaveValue('')
     // Queued, so it enters the transcript only when pi delivers it.
     await expect(page.getByTestId('user-message')).toHaveText(['post-run-hold'])

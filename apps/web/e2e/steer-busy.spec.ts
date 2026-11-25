@@ -1,12 +1,11 @@
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Page } from '@playwright/test'
 import type { HostFrame } from '@phosphor/shared/host-protocol'
 import { test, expect } from './fixture'
 
-/** pi's own words when a plain prompt reaches it while it processes. */
-const PI_BUSY =
-  "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message."
-
 type Sent = { message: string; streamingBehavior?: string }
+type Captured = Sent & { requestId: string }
 const parse = (raw: string | Buffer): unknown => {
   try {
     return JSON.parse(raw.toString())
@@ -16,40 +15,25 @@ const parse = (raw: string | Buffer): unknown => {
 }
 type CommandFrame = { type: string; requestId: string; op?: { type: string } & Partial<Sent> }
 
-/**
- * Keep the real Host, grant and fake pi; vary only the wire. `working` makes the
- * Host report the lane working while its chat reads idle, as background agents do.
- * `refuse` answers that plain prompt with pi's busy refusal, as when pi starts work
- * a moment before the prompt arrives. Returns every prompt the PWA sent.
- */
-async function wire(page: Page, laneId: string, rules: { working?: boolean; refuse?: string }) {
-  const sent: Sent[] = []
+/** Observe real Host commands; only the first test overrides the lane's activity. */
+async function wire(page: Page, laneId: string, working = false) {
+  const sent: Captured[] = []
   await page.routeWebSocket('**/fixture-host', (route) => {
     const server = route.connectToServer()
     route.onMessage((raw) => {
       const frame = parse(raw) as CommandFrame | undefined
       const op = frame?.type === 'command' ? frame.op : undefined
-      if (frame && op?.type === 'prompt') {
-        sent.push({ message: op.message!, streamingBehavior: op.streamingBehavior })
-        if (op.message === rules.refuse && !op.streamingBehavior) {
-          route.send(
-            JSON.stringify({
-              type: 'receipt',
-              receipt: {
-                requestId: frame.requestId,
-                status: 'failed',
-                error: { code: 'pi-error', message: PI_BUSY },
-              },
-            }),
-          )
-          return
-        }
-      }
+      if (frame && op?.type === 'prompt')
+        sent.push({
+          requestId: frame.requestId,
+          message: op.message!,
+          streamingBehavior: op.streamingBehavior,
+        })
       server.send(raw)
     })
     server.onMessage((raw) => {
       const frame = parse(raw) as HostFrame | undefined
-      if (!rules.working || (frame?.type !== 'lanes' && frame?.type !== 'lanes-delta'))
+      if (!working || (frame?.type !== 'lanes' && frame?.type !== 'lanes-delta'))
         return route.send(raw)
       const key = frame.type === 'lanes' ? 'lanes' : 'upsert'
       const lanes = frame.type === 'lanes' ? frame.lanes : frame.upsert
@@ -85,33 +69,53 @@ test('a Host lane its Host reports working offers Steer now and Queue follow-up,
   stack,
   page,
 }) => {
-  const sent = await wire(page, stack.laneId, { working: true })
+  const sent = await wire(page, stack.laneId, true)
   const chat = await openLane(page, stack.origin, stack.hostId, stack.laneId)
   await chat.fill('PHX-websteer')
   await expect(page.getByRole('button', { name: 'Steer now', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Queue follow-up', exact: true })).toBeVisible()
   await chat.press('Enter')
-  await expect.poll(() => sent).toEqual([{ message: 'PHX-websteer', streamingBehavior: 'steer' }])
+  await expect
+    .poll(() => sent)
+    .toMatchObject([{ message: 'PHX-websteer', streamingBehavior: 'steer' }])
   // pi was idle, so the steer started a run and pi's echo is the bubble.
   await expect(page.getByTestId('user-message').filter({ hasText: 'PHX-websteer' })).toHaveCount(1)
   await expectNoSessionError(page)
 })
 
-test('a prompt pi refuses because it is processing goes once more as a follow-up', async ({
+test('a follow-up has one Host request, then a queue chip and a single transcript echo', async ({
   stack,
   page,
 }) => {
-  const sent = await wire(page, stack.laneId, { refuse: 'PHX-webgap' })
+  const sent = await wire(page, stack.laneId)
   const chat = await openLane(page, stack.origin, stack.hostId, stack.laneId)
-  await chat.fill('PHX-webgap')
+  const release = join(stack.repository, 'release-steer-busy')
+  const first = `slow-until ${release}`
+  await chat.fill(first)
   await chat.press('Enter')
-  await expect
-    .poll(() => sent)
-    .toEqual([
-      { message: 'PHX-webgap', streamingBehavior: undefined },
-      { message: 'PHX-webgap', streamingBehavior: 'followUp' },
-    ])
-  await expect(page.getByTestId('user-message').filter({ hasText: 'PHX-webgap' })).toHaveCount(1)
+  const stop = page.getByRole('button', { name: 'Stop', exact: true })
+  await expect(stop).toBeVisible()
+  const message = 'PHX-webfollowup'
+  await chat.fill(message)
+  await page.getByRole('button', { name: 'Queue follow-up', exact: true }).click()
+  const chip = page.getByTestId('queue-chips').getByText(message, { exact: true })
+  const echo = page.getByTestId('user-message').filter({ hasText: message })
+  await expect(chip).toHaveCount(1)
+  await expect(echo).toHaveCount(0)
   await expect(chat).toHaveValue('')
+  await writeFile(release, '')
+  await expect(chip).toHaveCount(0)
+  await expect(echo).toHaveCount(1)
+  await expect(stop).toBeHidden()
+  await expect(chat).toHaveAttribute('placeholder', 'Describe a task…')
+  await chat.fill('PHX-webidle')
+  await chat.press('Enter')
+  await expect(page.getByTestId('user-message').filter({ hasText: 'PHX-webidle' })).toHaveCount(1)
+  expect(sent).toMatchObject([
+    { message: first, streamingBehavior: 'followUp' },
+    { message, streamingBehavior: 'followUp' },
+    { message: 'PHX-webidle', streamingBehavior: 'followUp' },
+  ])
+  expect(new Set(sent.map((prompt) => prompt.requestId)).size).toBe(3)
   await expectNoSessionError(page)
 })

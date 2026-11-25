@@ -135,12 +135,78 @@ it('the Send button steers and a modified Enter queues while the Host reports th
   ])
 })
 
-it('an idle Host lane offers neither and sends Enter as a plain prompt', async () => {
+it('an idle Host lane offers neither and sends Enter with a follow-up fallback', async () => {
   hostLane('idle')
   const pi = vi.spyOn(window.phosphor, 'piCommand')
   await draw()
   expect(button('Steer now')).toBeUndefined()
   expect(button('Queue follow-up')).toBeUndefined()
   await enter()
-  expect(prompts(pi)).toEqual([{ type: 'prompt', message: 'PHX-busy' }])
+  expect(prompts(pi)).toEqual([
+    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'followUp' },
+  ])
+})
+
+it.each(['idle', 'working'] as const)(
+  'keeps the draft editable but cannot send during compaction (%s)',
+  async (activity) => {
+    hostLane(activity)
+    const pi = vi.spyOn(window.phosphor, 'piCommand').mockResolvedValue({
+      type: 'response',
+      command: 'prompt',
+      success: false,
+      error:
+        'Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.',
+    })
+    act(() =>
+      useChatStore.getState().applyEvent(id, { type: 'compaction_start', reason: 'manual' }),
+    )
+    await draw()
+    expect(container.querySelector('textarea')?.matches(':disabled')).toBe(false)
+    expect(container.querySelector('textarea')?.placeholder).toMatch(/compaction.*send/i)
+    expect(button('Steer now')).toBeUndefined()
+    expect(button('Queue follow-up')).toBeUndefined()
+    expect(button('Send message')?.disabled).toBe(true)
+    await enter()
+    await enter({ altKey: true })
+    expect(prompts(pi)).toEqual([])
+    expect(useDraftsStore.getState().get(hostKey).text).toBe('PHX-busy')
+  },
+)
+
+it('accepts a follow-up draft on a live Host before the first prompt is acknowledged', async () => {
+  hostLane('idle')
+  let acceptFirst!: () => void
+  const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        acceptFirst = () => resolve({ type: 'response', command: 'prompt', success: true })
+      }),
+  )
+  await draw()
+  await enter()
+  expect(container.querySelector('textarea')?.matches(':disabled')).toBe(false)
+  act(() => useDraftsStore.getState().setText(hostKey, 'PHX-second'))
+  expect(button('Queue follow-up')?.matches(':disabled')).toBe(false)
+  await act(async () => button('Queue follow-up')?.click())
+  expect(prompts(pi)).toEqual([
+    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'followUp' },
+  ])
+  await act(async () => acceptFirst())
+  expect(prompts(pi)).toEqual([
+    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'followUp' },
+    { type: 'prompt', message: 'PHX-second', streamingBehavior: 'followUp' },
+  ])
+})
+
+it('Queue follow-up treats a shell-looking draft as a message, not an immediate bash command', async () => {
+  delegatedLane()
+  act(() => useDraftsStore.getState().setText(sessionDraftKey(undefined, id), '!pwd'))
+  const pi = vi.spyOn(window.phosphor, 'piCommand')
+  await draw()
+  await act(async () => button('Queue follow-up')?.click())
+  expect(pi.mock.calls.map(([, command]) => command)).not.toContainEqual(
+    expect.objectContaining({ type: 'bash' }),
+  )
+  expect(prompts(pi)).toEqual([{ type: 'prompt', message: '!pwd', streamingBehavior: 'followUp' }])
 })

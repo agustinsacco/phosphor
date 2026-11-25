@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { UNKNOWN_OUTCOME } from '@shared/errors'
 import type { RpcCommand, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
 import { installMockPhosphor } from '@/dev/mockPhosphor'
 import { hostLaneSession, mockRemoteInfo } from '@/dev/mockRemoteLanes'
@@ -66,10 +67,12 @@ afterEach(() => {
 })
 
 describe('the busy behaviour', () => {
-  it('an idle lane sends Enter as a plain prompt with its pending bubble', async () => {
+  it('an idle lane sends Enter once with a follow-up fallback and its pending bubble', async () => {
     const prompts = answers(accepted('started'))
     await send(false, 'steer')
-    expect(prompts()).toEqual([{ type: 'prompt', message: 'PHX-message' }])
+    expect(prompts()).toEqual([
+      { type: 'prompt', message: 'PHX-message', streamingBehavior: 'followUp' },
+    ])
     expect(session().items).toMatchObject([{ kind: 'user', text: 'PHX-message', optimistic: true }])
   })
 
@@ -106,37 +109,50 @@ describe('the busy behaviour', () => {
 describe.each([
   ['This Mac', false],
   ['a Host lane', true],
-])('pi refusing a plain prompt because it is processing, on %s', (_, remote) => {
+])('when composer activity lags on %s', (_, remote) => {
   beforeEach(() => {
     if (remote) hostLane('idle')
   })
 
-  it('goes again once as a follow-up, shows no error and keeps nothing pending', async () => {
-    const prompts = answers(refused(PI_BUSY), accepted('queued'))
+  it('queues on the first try if pi became busy, without replaying its input hooks', async () => {
+    const pi = vi
+      .spyOn(window.phosphor, 'piCommand')
+      .mockImplementation(async (_id, command) =>
+        command.type === 'prompt' && command.streamingBehavior
+          ? accepted('queued')
+          : refused(PI_BUSY),
+      )
     await send(remote)
-    expect(prompts()).toEqual([
-      { type: 'prompt', message: 'PHX-message' },
+    expect(pi.mock.calls.map(([, command]) => command)).toEqual([
       { type: 'prompt', message: 'PHX-message', streamingBehavior: 'followUp' },
     ])
     expect(session()).toMatchObject({ error: null, items: [], promptSentAt: null })
     expect(useDraftsStore.getState().get(KEY).text).toBe('')
   })
 
-  it('never shows pi’s text when the follow-up is refused too', async () => {
-    answers(refused(PI_BUSY), refused(PI_BUSY))
+  it('keeps the draft if pi started compacting before it received the prompt', async () => {
+    const prompts = answers(
+      refused(
+        'Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.',
+      ),
+    )
     await send(remote)
-    expect(session().error).toBe('The agent is busy and did not take your message.')
+    expect(prompts()).toHaveLength(1)
+    expect(session().error).toMatch(/compaction.*draft/i)
     expect(session().items).toEqual([])
-    if (remote) expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
+    expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
   })
 })
 
-it('another refusal reads as a message not sent and returns a Host draft', async () => {
-  hostLane('idle')
-  const prompts = answers(refused('No API key found for anthropic.'))
-  await send(true)
-  expect(prompts()).toHaveLength(1)
-  expect(session().error).toBe('Message not sent: No API key found for anthropic.')
-  expect(session().items).toEqual([])
-  expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
-})
+it.each([UNKNOWN_OUTCOME, `Studio: controlled by ${PI_BUSY}`, 'No API key found for anthropic.'])(
+  'reports %s without claiming non-delivery or issuing a new command',
+  async (error) => {
+    hostLane('idle')
+    const prompts = answers(refused(error))
+    await send(true)
+    expect(prompts()).toHaveLength(1)
+    expect(session().error).toBe(error)
+    expect(session().items).toEqual([])
+    expect(useDraftsStore.getState().get(KEY).text).toBe('PHX-message')
+  },
+)
