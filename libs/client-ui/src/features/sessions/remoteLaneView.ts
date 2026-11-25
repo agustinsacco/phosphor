@@ -1,7 +1,7 @@
 import type { HostLaneView } from '@shared/ipc'
 import { laneMarker } from '@/lib/laneMarker'
 import { sessionTitle } from '@/lib/sessionTitle'
-import { relativeTimeShort } from '@/lib/time'
+import { relativeTimeShort, absoluteTime } from '@/lib/time'
 import type { SubtitleSegment } from './sessionSubtitle'
 
 export function remoteLaneTitle(
@@ -33,8 +33,15 @@ export function remoteLanePresentation(lane: HostLaneView, ready: boolean) {
       : ready && running
         ? 'live'
         : 'disk'
+  const updatedAt = Date.parse(lane.updatedAt)
   const segments: SubtitleSegment[] = [
-    { key: 'time', text: relativeTimeShort(Date.parse(lane.updatedAt)) },
+    {
+      key: 'time',
+      text: relativeTimeShort(updatedAt),
+      // Same deal as a local lane's subtitle: the row shows the age, the hover
+      // gives back the date and clock time it was compressed out of.
+      tooltip: Number.isFinite(updatedAt) ? absoluteTime(updatedAt) : undefined,
+    },
     ...(lane.worktree ? [{ key: 'worktree' as const, text: 'wt' }] : []),
     ...(lane.branch ? [{ key: 'branch' as const, text: lane.branch, truncate: true }] : []),
   ]

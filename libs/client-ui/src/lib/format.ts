@@ -34,6 +34,21 @@ export function formatDuration(ms: number): string {
 }
 
 /**
+ * Generation throughput for a one-line readout: `62`, `8.4`, `0.42`.
+ *
+ * One figure with two significant digits at every scale, because the strip
+ * carries it next to an elapsed timer and a token count and has no room to
+ * widen: a hosted model at 60 tok/s and a local one at 2 tok/s should not
+ * differ in how much attention the number asks for.
+ */
+export function formatRate(tokensPerSecond: number): string {
+  if (!Number.isFinite(tokensPerSecond) || tokensPerSecond <= 0) return '0'
+  if (tokensPerSecond >= 10) return String(Math.round(tokensPerSecond))
+  if (tokensPerSecond >= 1) return tokensPerSecond.toFixed(1)
+  return tokensPerSecond.toFixed(2)
+}
+
+/**
  * Size label for streamed payloads: `812 B`, `12.4 KB`, `1.2 MB`.
  *
  * Callers feed it `string.length` — UTF-16 code units, a LOWER BOUND on the

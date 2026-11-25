@@ -18,6 +18,7 @@ import {
 } from './items/autoscroll'
 import { attachRow } from './items/measureRow'
 import { spacingFor } from './items/spacing'
+import { withDayDividers } from './items/dayDividers'
 import { activeActivityId, buildTranscriptRows } from './items/transcriptRows'
 import { FindBar } from '@/components/search/FindBar'
 import { useChatFind } from './useChatFind'
@@ -78,7 +79,7 @@ export const MessageList = memo(function MessageList({
    * Activity is grouped ACROSS assistant messages (pi emits one message per
    * tool call), so the virtualizer measures rows, not raw items.
    */
-  const rows = useMemo(() => buildTranscriptRows(items), [items])
+  const rows = useMemo(() => buildTranscriptRows(withDayDividers(items)), [items])
   const activeActivity = activeActivityId(rows, isStreaming)
 
   const setPinnedNow = useCallback((next: boolean): void => {
