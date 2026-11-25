@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sessionFixture } from './__fixtures__/session-runtime'
 import { createSessionService, type SessionServiceRuntime } from './session-service'
+import { syncContextBudget } from './context-budget'
+import { reloadLaneNow } from './lane-reload'
+import { LANE_RELOAD_COMMAND } from '@phosphor/pi-extensions/lane-reload'
 import { createSessionPathRuntime } from './session-path-lock'
 
 const cleanups: (() => Promise<unknown>)[] = []
@@ -212,6 +215,10 @@ it('restages a cached cap only when beforePrompt can have reloaded extensions', 
 it.each([
   { type: 'set_model', provider: 'native', modelId: 'other' },
   { type: 'cycle_model' },
+  { type: 'new_session' },
+  { type: 'switch_session', sessionPath: '/other.jsonl' },
+  { type: 'fork', entryId: 'e1' },
+  { type: 'clone' },
 ] as const)(
   'restages after $type even if the selected model has the same identity',
   async (change) => {
@@ -231,4 +238,62 @@ it('stages immediately after the auto-compaction toggle and remembers the new st
   await h.service.command(h.sessionId, change)
   expect(h.client.request.mock.calls.flat()).toEqual([change, stateRead, cap('off')])
   expect(await h.send()).toEqual([stateRead, prompt])
+})
+
+it('restages after a slash command, which can change extension state itself', async () => {
+  const h = await promptFixture()
+  await h.send()
+  await h.service.command(h.sessionId, { type: 'prompt', message: '/skill:review' })
+  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+})
+
+it('leaves nothing remembered when the budget command fails, so the next prompt retries', async () => {
+  const h = await promptFixture()
+  h.client.request
+    .mockResolvedValueOnce({
+      success: true,
+      data: { model: { provider: 'native' }, autoCompactionEnabled: true },
+    })
+    .mockResolvedValueOnce({ success: false, error: 'busy' } as never)
+  await expect(h.service.command(h.sessionId, prompt)).rejects.toThrow('busy')
+  expect(await h.send()).toEqual([stateRead, cap(), prompt])
+  expect(await h.send()).toEqual([stateRead, prompt])
+})
+
+it('stages once for concurrent prompts, which the command gate runs in order', async () => {
+  const h = await promptFixture()
+  h.client.request.mockClear()
+  await Promise.all([
+    h.service.command(h.sessionId, prompt),
+    h.service.command(h.sessionId, prompt),
+  ])
+  expect(h.client.request.mock.calls.flat()).toEqual([stateRead, cap(), prompt, stateRead, prompt])
+})
+
+it('keeps an explicit restage remembered and forgets one that fails', async () => {
+  const h = await promptFixture()
+  await h.send()
+  vi.mocked(h.runtime.readBudget).mockReturnValue('400k')
+  await syncContextBudget(h.client, '400k')
+  expect(await h.send()).toEqual([stateRead, prompt])
+  h.client.request
+    .mockResolvedValueOnce({
+      success: true,
+      data: { model: { provider: 'native' }, autoCompactionEnabled: true },
+    })
+    .mockResolvedValueOnce({ success: false, error: 'busy' } as never)
+  await expect(syncContextBudget(h.client, '400k')).rejects.toThrow('busy')
+  expect(await h.send()).toEqual([stateRead, cap('400000'), prompt])
+})
+
+it('restages after an agent-requested reload that reached pi, not one pi cannot run', async () => {
+  const h = await promptFixture()
+  await h.send()
+  h.client.request.mockResolvedValueOnce({ success: true, data: { commands: [] } } as never)
+  expect(await reloadLaneNow(h.sessionId, h.client, vi.fn())).toBe('unsupported')
+  expect(await h.send()).toEqual([stateRead, prompt])
+  const commands = { commands: [{ name: LANE_RELOAD_COMMAND }] }
+  h.client.request.mockResolvedValueOnce({ success: true, data: commands } as never)
+  expect(await reloadLaneNow(h.sessionId, h.client, vi.fn())).toBe('failed')
+  expect(await h.send()).toEqual([stateRead, cap(), prompt])
 })
