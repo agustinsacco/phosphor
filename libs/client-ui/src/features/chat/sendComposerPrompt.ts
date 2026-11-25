@@ -94,7 +94,15 @@ export async function sendComposerPrompt(
     if (!response) return
     accepted = true
     useWritingStore.getState().recordPrompt(message)
-    if (bubble && response.data?.disposition === 'handled') chat.promptHandled(sessionId, prompt)
+    // Older pi versions acknowledge extension commands without a disposition or any run events.
+    const legacyCommand =
+      remote &&
+      !response.data?.disposition &&
+      chat.sessions[sessionId]?.commands.some(
+        (c) => c.source === 'extension' && `/${c.name}` === message.split(/\s/, 1)[0],
+      )
+    if (bubble && (response.data?.disposition === 'handled' || legacyCommand))
+      chat.promptHandled(sessionId, prompt)
   } catch (error) {
     chat.setError(sessionId, ipcErrorText(error))
   } finally {
