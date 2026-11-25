@@ -230,4 +230,46 @@ describe('lane projection state transitions', () => {
     expect(after.ui).not.toBe(before.ui)
     expect(after).toEqual(before)
   })
+
+  it('does not expose mutable session state through the summary read', () => {
+    const { projection: p } = setup()
+    p.setState({ ...session(), sessionName: 'saved' })
+    Reflect.set(p.sessionState()!, 'sessionName', 'changed')
+    expect(p.sessionState()?.sessionName).toBe('saved')
+  })
+
+  it('reads only the display model, session name and first user text for summaries', () => {
+    const { projection: p, event } = setup()
+    const message: AgentMessage = {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'first' },
+        { type: 'image', data: 'image', mimeType: 'image/png' },
+        { type: 'text', text: 'second' },
+      ],
+    }
+    p.settle([message], {
+      ...session(),
+      sessionName: 'saved',
+      model: {
+        provider: 'pi',
+        id: 'example',
+        name: 'Example',
+        api: 'test',
+        reasoning: false,
+        input: ['text'],
+        contextWindow: 1000,
+        maxTokens: 100,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      },
+    })
+    expect(p.sessionState()).toEqual({
+      sessionName: 'saved',
+      model: { provider: 'pi', id: 'example' },
+    })
+    Reflect.set(p.sessionState()!.model!, 'id', 'changed')
+    expect(p.sessionState()?.model?.id).toBe('example')
+    event({ type: 'message_end', message: { role: 'user', content: 'next' } })
+    expect(p.firstUserText()).toBe('first\nsecond')
+  })
 })

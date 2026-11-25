@@ -18,6 +18,9 @@ import {
   type OperationIdentity,
 } from './state'
 
+// Creation includes both the worktree checkout and booting pi.
+export const LANE_CREATE_ANSWER_MS = 120_000
+
 export type QueuePorts = ReceiptPorts & {
   store: Pick<HostStore, 'getReceipt' | 'beginRequest'>
 }
@@ -135,7 +138,9 @@ export function dispatch<T>(
     { laneId: job.frame.laneId ?? '', requestId: job.frame.requestId, opType: job.frame.op.type },
     queue,
     promise,
-    answerWait(job.client.ownerExemption, job.frame.op.type),
+    job.frame.op.type === 'lane.create'
+      ? LANE_CREATE_ANSWER_MS
+      : answerWait(job.client.ownerExemption, job.frame.op.type),
   )
 }
 
