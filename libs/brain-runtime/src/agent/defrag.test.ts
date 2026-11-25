@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import { emptyBrainTidyCoverage } from '@phosphor/shared/brain-tidy'
-import type { Proposal } from '@phosphor/memory-engine/types'
 import type { BrainAgentHost, BrainAgentTurn } from '../types'
 import { ExtractionQueue } from '../queue'
 import { FakeAgentStore } from '../__fixtures__/fake-agent-store'
@@ -18,7 +17,7 @@ const finished: BrainAgentTurn = {
 function setup(turn?: BrainAgentHost['turn']) {
   const store = new FakeAgentStore()
   store.prefs.enabled = true
-  store.counts = { reads: 1, entities: 0, repeats: 2, conflicts: 0, flags: 0 }
+  store.counts = { groups: 1, unlinked: 0, entities: 0, repeats: 2, conflicts: 0, flags: 0 }
   const search = new FakeBrainSearch()
   const runs: { id: string; finish(): void }[] = []
   const queue = new ExtractionQueue({
@@ -40,6 +39,7 @@ function setup(turn?: BrainAgentHost['turn']) {
   })
   const host: BrainAgentHost = {
     folder: '/brain/Brain',
+    tell: vi.fn(),
     turn: vi.fn(
       turn ??
         (async (_message, _signal, hooks) => {
@@ -50,24 +50,34 @@ function setup(turn?: BrainAgentHost['turn']) {
     ),
   }
   const changed = vi.fn()
+  const runEnded = vi.fn()
   const defrag = createDefrag({
+    runEnded,
     store,
     search,
     options: { agent: host, now: () => 500 },
     queue,
     changed,
   })
-  return { store, search, queue, host, defrag, changed, runs }
+  return { store, search, queue, host, defrag, changed, runs, runEnded }
 }
 
 describe('defragMessage', () => {
   it('counts each kind in the header order, leaving out zero kinds', () => {
     expect(
-      defragMessage({ reads: 6, entities: 10, repeats: 13, conflicts: 1, flags: 1 }, false),
+      defragMessage(
+        { groups: 2, unlinked: 4, entities: 10, repeats: 13, conflicts: 1, flags: 1 },
+        false,
+      ),
     ).toBe(
-      'Defrag. 31 waiting: 6 reads, 10 people and things, 13 repeats, 1 disagreement, 1 flag. Start with brain_waiting.',
+      'Defrag. 31 waiting: 10 people and things, 2 groups, 4 unlinked pairs, 13 repeats, 1 disagreement, 1 flag. Start with brain_waiting.',
     )
-    expect(defragMessage({ reads: 0, entities: 1, repeats: 0, conflicts: 2, flags: 0 }, true)).toBe(
+    expect(
+      defragMessage(
+        { groups: 0, unlinked: 0, entities: 1, repeats: 0, conflicts: 2, flags: 0 },
+        true,
+      ),
+    ).toBe(
       'Defrag. 3 waiting: 1 person or thing, 2 disagreements, and up to 40 possible repeats. Start with brain_waiting.',
     )
   })
@@ -81,7 +91,7 @@ describe('createDefrag', () => {
     s.store.prefs.enabled = true
     const desktopless = createDefrag({ ...s, options: {} })
     expect(() => desktopless.start()).toThrow('Defrag runs on Desktop.')
-    s.store.counts = { reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
+    s.store.counts = { groups: 0, unlinked: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
     // Unchecked pairs alone never start a run.
     s.store.waitingSuggestions = () => ({
       items: [
@@ -115,6 +125,7 @@ describe('createDefrag', () => {
       coverage: { ...emptyBrainTidyCoverage(), phase: 'done' },
       suggestions: 1,
       folded: 2,
+      unlinked: 0,
       operationIds: [],
     })
     const refresh = vi.spyOn(s.search, 'refresh')
@@ -125,7 +136,7 @@ describe('createDefrag', () => {
     expect(refresh).toHaveBeenCalled()
     expect(s.host.turn).toHaveBeenCalledOnce()
     expect(vi.mocked(s.host.turn).mock.calls[0]![0]).toBe(
-      'Defrag. 3 waiting: 1 read, 2 repeats. Start with brain_waiting.',
+      'Defrag. 3 waiting: 1 group, 2 repeats. Start with brain_waiting.',
     )
     expect(s.store.latestRun()).toMatchObject({
       state: 'done',
@@ -143,11 +154,12 @@ describe('createDefrag', () => {
   it('finishes at once when the local pass leaves nothing waiting', async () => {
     const s = setup()
     vi.spyOn(s.store, 'sweep').mockImplementation(() => {
-      s.store.counts = { reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
+      s.store.counts = { groups: 0, unlinked: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
       return {
         coverage: { ...emptyBrainTidyCoverage(), phase: 'done' },
         suggestions: 0,
         folded: 2,
+        unlinked: 0,
         operationIds: [],
       }
     })
@@ -217,27 +229,6 @@ describe('createDefrag', () => {
     await s.queue.dispose()
   })
 
-  it('starts without refreshing stale reviews first: they wait in review for Brain Agent', async () => {
-    const s = setup()
-    const reviews = ['rina', 'tom'].map((sessionId) => {
-      const job = s.store.enqueue({ ...HARBOR_JOB, sessionId }, 'queued')
-      s.store.updateJob(job.id, { state: 'review' })
-      s.store.proposals.set(job.id, { jobId: job.id, computedRevision: 0 } as Proposal)
-      return job.id
-    })
-    // Brain changed since both were read.
-    s.store.rev++
-    s.defrag.start()
-    await vi.waitFor(() => expect(s.store.latestRun()?.state).toBe('done'))
-    expect(s.host.turn).toHaveBeenCalledOnce()
-    expect(s.runs).toEqual([])
-    for (const id of reviews) expect(s.store.job(id)?.state).toBe('review')
-    s.queue.kick()
-    await flush()
-    expect(s.runs).toEqual([])
-    await s.queue.dispose()
-  })
-
   it('Stop on a queued run means it never starts', async () => {
     const s = setup()
     s.store.enqueue(HARBOR_JOB, 'queued')
@@ -250,6 +241,9 @@ describe('createDefrag', () => {
     await flush()
     await flush()
     expect(s.host.turn).not.toHaveBeenCalled()
+    expect(s.runEnded).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ state: 'stopped' }),
+    )
     expect(s.store.latestRun()?.state).toBe('stopped')
     await s.queue.dispose()
   })

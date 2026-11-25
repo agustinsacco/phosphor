@@ -26,7 +26,9 @@ export function seed(db: DatabaseSync, count = 4, same = false): void {
     db.prepare('INSERT INTO entity_grams(rowid,name) VALUES (?,?)').run(n, 'Rina Okafor')
     db.prepare('INSERT INTO entity_vectors VALUES (?,?)').run(n, encodeVector(vector(1, n / 10)))
     db.prepare('INSERT INTO entity_bits VALUES (?,?)').run(n, encodeBits(vector(1, n / 10)))
-    db.prepare('INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run(
+    db.prepare(
+      'INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    ).run(
       n,
       `memory-${n}`,
       summary,
@@ -103,7 +105,9 @@ export function spread(n: number): Float32Array {
 /** Entities 1 and 2 are two "Rina Okafor" records; the hub's memories all mention entity 1. */
 export function hub(db: DatabaseSync, size: number): void {
   seed(db, 2)
-  const memory = db.prepare('INSERT INTO memories VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+  const memory = db.prepare(
+    'INSERT INTO memories(n,id,summary,type,epistemic,scope,branch,valid_from,valid_to,observed_at,recorded_at,state,origin_session,origin_title,job_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+  )
   const mention = db.prepare('INSERT INTO mentions VALUES (?,?)')
   const vectors = db.prepare('INSERT INTO memory_vectors VALUES (?,?)')
   const bits = db.prepare('INSERT INTO memory_bits VALUES (?,?)')

@@ -242,6 +242,15 @@ async function open(deps: BrainLaneDeps, opened: BrainAgentTurnHooks['opened']):
 export function createBrainAgentLane(deps: BrainLaneDeps): BrainAgentHost {
   return {
     folder: deps.folder,
+    async tell(message) {
+      await ensureBrainLane(deps.folder)
+      const lane = await open(deps, () => {})
+      await settled(lane, new AbortController().signal)
+      const response = await deps.command(lane.sessionId, { type: 'prompt', message })
+      if (!response.success)
+        throw new Error(response.error || 'Brain Agent could not receive the message.')
+      return { sessionPath: lane.client.sessionFile ?? null }
+    },
     async turn(message, signal, hooks) {
       let before: string | null = null
       let lane: OpenLane | undefined

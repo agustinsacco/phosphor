@@ -1,5 +1,5 @@
-import type { BrainEntity, BrainJob, BrainMemory } from '@phosphor/shared/brain'
-import type { BrainReadReview, BrainWaiting } from '@phosphor/shared/brain-agent'
+import type { BrainEntity, BrainMemory } from '@phosphor/shared/brain'
+import type { BrainWaiting } from '@phosphor/shared/brain-agent'
 import type { BrainEntityView, BrainMemoryDetail } from '@phosphor/shared/brain-explore'
 import type { BrainTidySuggestionDetail } from '@phosphor/shared/brain-tidy'
 import { HARBOR_RECALL } from './recall'
@@ -21,41 +21,9 @@ export const RINA_SLACK: BrainEntity = {
 }
 export const OWNERSHIP: BrainMemory = HARBOR_RECALL.hits[0]!.memory
 
-export const LEDGER_JOB: BrainJob = {
-  id: 'job-ledger',
-  replaces: null,
-  sessionId: 'ledger-lane',
-  sessionPath: '/projects/ledger/.pi/ledger-lane.jsonl',
-  title: 'Ledger invoices',
-  scope: '/projects/ledger',
-  branch: null,
-  model: 'anthropic/claude-sonnet',
-  state: 'review',
-  memories: 2,
-  leafId: 'leaf-9',
-  error: null,
-  queuedAt: Date.parse('2026-11-10'),
-  startedAt: Date.parse('2026-11-10'),
-  runStartedAt: null,
-  fromLeafId: null,
-  finishedAt: Date.parse('2026-11-10'),
-  usage: null,
-  progress: null,
-}
-
 export const WAITING: BrainWaiting = {
-  counts: { reads: 1, entities: 1, repeats: 0, conflicts: 0, flags: 1 },
+  counts: { groups: 0, unlinked: 0, entities: 1, repeats: 0, conflicts: 0, flags: 1 },
   items: [
-    {
-      kind: 'read',
-      jobId: 'job-ledger',
-      title: 'Ledger invoices',
-      state: 'review',
-      memories: 2,
-      questions: 1,
-      neverRead: false,
-      finishedAt: Date.parse('2026-11-10'),
-    },
     {
       kind: 'same_entity',
       suggestionId: 'sugg-rina',
@@ -77,82 +45,6 @@ export const WAITING: BrainWaiting = {
     },
   ],
   more: 0,
-}
-
-export const LEDGER_REVIEW: BrainReadReview = {
-  neverRead: false,
-  proposal: {
-    job: LEDGER_JOB,
-    revision: 41,
-    replacingMemories: 0,
-    identities: [
-      {
-        ref: 'e1',
-        label: 'Rina',
-        kind: 'person',
-        aliases: [],
-        description: 'Approves Ledger invoices',
-        decision: 'uncertain',
-        entityId: null,
-        candidates: [RINA],
-        reason: 'Same first name as Rina Okafor.',
-        auto: true,
-        required: true,
-      },
-      {
-        ref: 'e2',
-        label: 'Ledger',
-        kind: 'project',
-        aliases: [],
-        description: 'Invoice service',
-        decision: 'new',
-        entityId: null,
-        candidates: [],
-        reason: 'No stored project has this name.',
-        auto: false,
-        required: false,
-      },
-    ],
-    groups: [],
-    memories: [
-      {
-        index: 0,
-        summary: 'Rina approves Ledger invoices over 10,000 USD.',
-        type: 'procedure',
-        kind: 'reported',
-        entities: ['e1', 'e2'],
-        links: [],
-        branch: false,
-        validFrom: null,
-        validTo: null,
-        action: 'add',
-        target: null,
-        reason: 'New procedure.',
-        quotes: [
-          { quote: 'Rina signs off anything over 10k', before: '', after: '', label: 'user' },
-        ],
-        hold: null,
-      },
-      {
-        index: 1,
-        summary: 'Rina is out next week.',
-        type: 'fact',
-        kind: 'reported',
-        entities: ['e1'],
-        links: [],
-        branch: false,
-        validFrom: null,
-        validTo: null,
-        action: 'add',
-        target: null,
-        reason: 'Near-term status.',
-        quotes: [{ quote: 'Rina is out next week', before: '', after: '', label: 'user' }],
-        hold: 'temporary',
-      },
-    ],
-    confirmations: [],
-    held: 0,
-  },
 }
 
 export const RINA_VIEW: BrainEntityView = {
@@ -183,10 +75,14 @@ export const RINA_VIEW: BrainEntityView = {
     },
   ],
   memoryCounts: { decision: 0, open: 0, risk: 0, procedure: 1, preference: 0, fact: 2 },
+  ended: [],
+  together: [],
+  togetherMore: 0,
   merged: [],
 }
 
 export const OWNERSHIP_DETAIL: BrainMemoryDetail = {
+  use: { recalled: 4, flagged: 1, lastRecalledAt: null },
   memory: OWNERSHIP,
   quotes: [{ quote: 'Rina owns Harbor billing', before: 'As agreed, ', after: '.', label: 'user' }],
   linkQuotes: {},
@@ -207,6 +103,7 @@ export const RINA_SUGGESTION: BrainTidySuggestionDetail = {
       { type: 'entity', id: 'rina-2', label: 'Rina' },
     ],
     reason: 'Same first name and both work on Harbor.',
+    detail: null,
     verdict: null,
     model: null,
     flag: null,

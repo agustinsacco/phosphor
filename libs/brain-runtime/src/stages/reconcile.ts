@@ -10,7 +10,6 @@ import type { BrainSearchPort } from '../types'
 import { validDecisions, object, text } from '../stage-parse'
 import { reconcilePrompt, SUPERSEDE_CORRECTION } from '../stage-prompts/reconcile'
 import type { FoldedJob } from './fold'
-import { strongerHold } from '../stage-hold'
 import { type Card, type Row, candidateRows, same } from './reconcile-candidates'
 
 const uniqueCitations = (items: Citation[]): Citation[] => [
@@ -76,8 +75,9 @@ export async function reconcile(
   vectors: Float32Array[],
   ask: StageAsk,
   excluded: string[] = [],
+  now = Date.now(),
 ): Promise<Proposal['confirmations']> {
-  const rows = await candidateRows(job, entities, store, search, vectors, excluded)
+  const rows = await candidateRows(job, entities, store, search, vectors, excluded, now)
   const confirmations: Proposal['confirmations'] = [],
     removed = new Set<string>(),
     pending: Row[] = []
@@ -237,9 +237,9 @@ function applyDecision(
   } else if (target?.local) {
     const previous = job.claims.find((c) => c.ref === target.id)
     if (!previous || removed.has(previous.ref)) return
+    if ((previous.memory.hold ?? null) !== (m.hold ?? null)) return
     if (action === 'confirm' || action === 'enrich') {
       previous.memory.citations = uniqueCitations([...previous.memory.citations, ...m.citations])
-      previous.memory.hold = strongerHold(previous.memory.hold ?? null, m.hold ?? null)
       if (action === 'enrich') {
         previous.memory.links.push(...m.links)
         previous.memory.entities = [...new Set([...previous.memory.entities, ...m.entities])]

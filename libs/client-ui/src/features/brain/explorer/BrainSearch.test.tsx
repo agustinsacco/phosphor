@@ -83,7 +83,7 @@ it('supports arrows/Enter and alias matches, and leaves / to the page', async ()
   await key('ArrowUp')
   await key('ArrowDown')
   await key('Enter')
-  expect(select).toHaveBeenCalledWith({ kind: 'entity', id: 'ledger', label: 'Harbor Ledger' })
+  expect(select).toHaveBeenCalledWith({ kind: 'entity', id: 'ledger', label: 'Ledger' })
 })
 it('recovers a failed find without changing the query', async () => {
   find.mockRejectedValueOnce(new Error('Harbor search unavailable'))

@@ -1,23 +1,25 @@
-import type { BrainTidyAction, BrainTidyKind } from '@phosphor/shared/brain-tidy'
+import type { BrainTidyKind, BrainTidySuggestion } from '@phosphor/shared/brain-tidy'
 import type { BrainStore } from '../types'
-import type { Context } from '../database'
-import { page, detail } from './reads'
-import { apply } from './apply'
-import { dismiss } from './suggestions'
-import { afterOperation } from './hooks'
+import { all, type Context } from '../database'
+import { detail } from './reads'
+import { COUNTED } from './suggestions'
+import { publicCoverage } from './sweep'
 
-/** Tests exercise the same internal entry points after the manual Tidy UI is removed. */
+/** Test reads of what Brain Agent would see: open suggestions, newest first, and coverage. */
 export function suggestionTestStore(store: BrainStore, ctx: Context) {
   return Object.assign(store, {
-    suggestions: (kind: BrainTidyKind | null, cursor: string | null, limit: number) =>
-      page(ctx, kind, cursor, limit),
-    suggestion: (id: string) => detail(ctx, id),
-    applySuggestion: (id: string, action: BrainTidyAction, revision: number) => {
-      const operation = apply(ctx, id, action, revision)
-      afterOperation(ctx, operation)
-      return operation
-    },
-    dismissSuggestion: (id: string, revision: number) => dismiss(ctx, id, revision),
+    suggestions: (kind: BrainTidyKind | null): { items: BrainTidySuggestion[] } => ({
+      items: all<{ id: string }>(
+        ctx,
+        `SELECT id FROM tidy_suggestions WHERE state='open' AND ${kind ? 'kind=?' : `kind IN (${COUNTED})`}
+        ORDER BY created_at DESC,id DESC`,
+        ...(kind ? [kind] : []),
+      ).flatMap((row) => {
+        const item = detail(ctx, row.id)?.suggestion
+        return item?.state === 'open' ? [item] : []
+      }),
+    }),
+    coverage: () => publicCoverage(ctx),
   })
 }
 export type SuggestionTestStore = ReturnType<typeof suggestionTestStore>

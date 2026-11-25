@@ -11,7 +11,7 @@ export interface PreparedRead extends LaneMeta {
 }
 
 /**
- * Freeze both the lane and incremental context once: Retry and refresh never re-read new input.
+ * Freeze both the lane and incremental context once: Resumed reads never re-read new input.
  * The transcript comes from the start check when it read one; otherwise it is read here, once,
  * after the saved checkpoint is looked up.
  */

@@ -5,8 +5,8 @@
     {
       "id": "phosphor-overview",
       "video": {
-        "bytes": 3201152,
-        "sha256": "f0ea94fcf28e7d6d48bf4c3cc83fa06add422e1d512605e8167d9dd5b5c7dcfa"
+        "bytes": 3051122,
+        "sha256": "c823c19ac7449ecc8eb8910abcfb312304c31bd95f08203aedd2b6a51267613e"
       },
       "poster": {
         "bytes": 26056,
@@ -26,12 +26,12 @@
     {
       "id": "brain-walkthrough",
       "video": {
-        "bytes": 4191883,
-        "sha256": "acecbe3081948934bfe94ace2dbb2b64fe85d06852ccdb4b28c93cfceff12331"
+        "bytes": 3258038,
+        "sha256": "2906d1cc737d4a931dd97183d93d454aa01a12ea599fba98553b24408aa0828f"
       },
       "poster": {
-        "bytes": 28294,
-        "sha256": "cb2f37501997dec63713775fe7443243a02e452761bf891cbab2130786c2cc00"
+        "bytes": 28646,
+        "sha256": "9861980a42c4543ad8dcae1d507910cde825ee65c61884c65604f0ec4002ff25"
       },
       "codec": "h264",
       "pixelFormat": "yuv420p",
@@ -68,13 +68,13 @@
   ],
   "plates": {
     "artifacts.png": "a5316250b8f0619bb0dfb03839e344fbfe320c2fe0bef88752e8f0db0f835e80",
-    "brain-graph.png": "0460b3a1eeabe81a6a834a2d9a404427ebd1615caeaf7b1dc875733c29a74a40",
-    "brain-memory.png": "7704d965290ea68b9a8b87a0df0ea2ceee3c356713e3d9db8c4fe8bb88f3df8b",
-    "brain-queue.png": "c878cc53804b102217851cc49f95d5dddfda54beb1e707f21771b290835daade",
-    "brain-ready.png": "d68871b5b56a300c4f34d39d60bbeacc8a704c1d0dc009e9a53ff27871ebc8e4",
-    "brain-recall.png": "5ef96117329accdb0429f4a5c8f9ccc37863ecf96d5de4e161fa9f8fab16cbba",
-    "brain-review.png": "44eb8553e695b8ca421c0057ab1a04c7714f2ce3dfb2f8456049064d55cf4c67",
-    "brain-setup.png": "34cb2f927db5d22278dd304ededd4c5bec6f6c1276131524096167c3db31dff4",
+    "brain-changes.png": "f67c942d6b992faf610d2f5ce0ea8da0da35361631f6aae73b525884b9f5d2f4",
+    "brain-graph.png": "db32ba3d2f421f3dad32aa33904c4b6b6e8be404dc4f43af0012f58421fcbd28",
+    "brain-memory.png": "da87ee31ef19cb389673e15c320f56db2dbcb46b7ebd136aba7371328be8afe5",
+    "brain-queue.png": "79a7b0752d69d865c08c6bedbc3fdc4251fc2d232c9e35a9c63fca5556a3bfbd",
+    "brain-ready.png": "a51f07fa7874b161efa4a43ca9a5a18c3295ac5ef00adf58a08fd6787368a9e1",
+    "brain-recall.png": "e6dbe9c7db0ef9b978f1734776518662648afff4696b0b0b5470fe7396ec855c",
+    "brain-setup.png": "922df968cfa1b4ea01488c7754107728f657354b29f0b0d798cfe774dccc9b16",
     "changes.png": "d943c95c5659af07bbd64c50a44b903686212c1767b9749f81156ecc63256a42",
     "chat.png": "f848c2ff98191e4084605e0f53ea33e1852bce5de72bc9582b88f0913478bda4",
     "home.png": "c8aa511f7648dc8ac091d84db96d02aca8146f1974246add4d149d627c4c2a89",

@@ -1,6 +1,7 @@
 import {
   BRAIN_POSSIBLE_REPEATS_PER_RUN,
   type BrainWaitingCounts,
+  type BrainAgentRun,
 } from '@phosphor/shared/brain-agent'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { ExtractionQueue } from '../queue'
@@ -17,11 +18,12 @@ export interface DefragContext {
   search: Pick<BrainSearchPort, 'refresh'>
   options: Pick<BrainServiceOptions, 'agent' | 'now' | 'log'>
   queue: Pick<ExtractionQueue, 'accepting' | 'enqueueTask'>
+  runEnded?(run: BrainAgentRun): void
   changed(): void
 }
 export interface Defrag {
   /** Queues a run behind reads already queued; throws a plain sentence when it cannot. */
-  start(): void
+  start(options?: { automatic?: boolean }): void
   /** A queued run never starts; a running one stops its turn. Changes so far stay. */
   stop(): void
   /** App shutdown: a run left unfinished is reported as interrupted at the next start. */
@@ -37,19 +39,22 @@ export interface Defrag {
 
 /** What Defrag decides: the header count. Unchecked pairs alone never start a run. */
 export const waitingTotal = (counts: BrainWaitingCounts): number =>
-  counts.reads + counts.entities + counts.repeats + counts.conflicts + counts.flags
+  counts.groups +
+  counts.unlinked +
+  counts.entities +
+  counts.repeats +
+  counts.conflicts +
+  counts.flags
 
 const plural = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`
 
-/**
- * The ordinary message Brain Agent receives, such as "Defrag. 31 waiting: 6 reads, 10 people and
- * things, 13 repeats, 1 disagreement, 1 flag. Start with brain_waiting."
- */
+/** What the Brain lane sees when a check starts. */
 export function defragMessage(counts: BrainWaitingCounts, possibleRepeats: boolean): string {
   const kinds = [
-    counts.reads && plural(counts.reads, 'read', 'reads'),
     counts.entities && plural(counts.entities, 'person or thing', 'people and things'),
+    counts.groups && plural(counts.groups, 'group', 'groups'),
+    counts.unlinked && plural(counts.unlinked, 'unlinked pair', 'unlinked pairs'),
     counts.repeats && plural(counts.repeats, 'repeat', 'repeats'),
     counts.conflicts && plural(counts.conflicts, 'disagreement', 'disagreements'),
     counts.flags && plural(counts.flags, 'flag', 'flags'),
@@ -62,7 +67,7 @@ export function defragMessage(counts: BrainWaitingCounts, possibleRepeats: boole
 
 /** Whether the local pass left unchecked pairs beside the open suggestions. */
 function hasPossibleRepeats(store: BrainStore, counts: BrainWaitingCounts): boolean {
-  const open = counts.entities + counts.repeats + counts.conflicts + counts.flags
+  const open = waitingTotal(counts)
   const page = store.waitingSuggestions(1, BRAIN_POSSIBLE_REPEATS_PER_RUN)
   return (
     page.items.some((item) => item.kind === 'possible_repeat') ||
@@ -96,6 +101,16 @@ function turnPatch(turn: BrainAgentTurn): BrainRunPatch {
   }
 }
 
+function saveRun(context: DefragContext, id: string, patch: BrainRunPatch) {
+  try {
+    const run = context.store.updateRun(id, patch)
+    if (patch.finishedAt !== undefined) context.runEnded?.(run)
+  } catch (error) {
+    context.options.log?.('Brain Defrag run could not be saved', { error: plainRefusal(error) })
+  }
+  context.changed()
+}
+
 export function createDefrag(context: DefragContext): Defrag {
   const { store, queue, options } = context
   const now = options.now ?? Date.now
@@ -103,14 +118,8 @@ export function createDefrag(context: DefragContext): Defrag {
   let turnRun: { runId: string; signal: AbortSignal } | null = null
   let disposed = false
 
-  const update = (id: string, patch: BrainRunPatch): void => {
-    if (disposed) return
-    try {
-      store.updateRun(id, patch)
-    } catch (error) {
-      options.log?.('Brain Defrag run could not be saved', { error: plainRefusal(error) })
-    }
-    context.changed()
+  const update = (id: string, patch: BrainRunPatch) => {
+    if (!disposed) saveRun(context, id, patch)
   }
   const finish = (id: string, patch: BrainRunPatch): void =>
     update(id, { error: null, ...patch, finishedAt: now() })
@@ -143,9 +152,9 @@ export function createDefrag(context: DefragContext): Defrag {
   }
 
   return {
-    start() {
+    start({ automatic = false } = {}) {
       const host = defragHost(context)
-      const run = store.createRun()
+      const run = store.createRun(automatic)
       const task = queue.enqueueTask((signal) => execute(run.id, host, signal))
       const handle = { runId: run.id, cancel: task.cancel }
       active = handle

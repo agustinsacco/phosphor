@@ -10,7 +10,7 @@ import type { HostReleaseFeature } from '@phosphor/shared/host-release'
 import { readSidecar, writeSidecar } from '../config/sidecar'
 import type { OwnerHandlers } from '../owner/adapter'
 
-type Lane = { sessionId: string; cwd: string }
+type Lane = { piSessionId: () => string | undefined; cwd: string }
 const sidecar = HOST_SIDECARS.appServices
 
 /** Authenticate the socket before *each* connection: the path may have been replaced since registration. */
@@ -51,10 +51,11 @@ function registration(reg: AppServiceRegistration, uid: number | undefined) {
   return {
     lifetime,
     port(lane: Lane, title: string) {
-      if (!reg.recall) return undefined
+      const sessionId = lane.piSessionId()
+      if (!reg.recall || !sessionId) return undefined
       let port = ports.get(lane)
       if (!port) {
-        port = createLaneBrain(client, { ...lane, title })
+        port = createLaneBrain(client, { sessionId, cwd: lane.cwd, title })
         ports.set(lane, port)
       }
       return port
@@ -111,15 +112,15 @@ export function createAppServices(directory: string, uid: number | undefined) {
         }
       return undefined
     },
-    attachLane(sessionId: string, cwd: string) {
-      const lane = { sessionId, cwd }
-      lanes.set(sessionId, lane)
+    attachLane(handle: string, cwd: string, piSessionId: Lane['piSessionId']) {
+      const lane = { piSessionId, cwd }
+      lanes.set(handle, lane)
       return () => {
-        if (lanes.get(sessionId) === lane) lanes.delete(sessionId)
+        if (lanes.get(handle) === lane) lanes.delete(handle)
       }
     },
-    forLane(sessionId: string, title: string) {
-      const lane = lanes.get(sessionId)
+    forLane(handle: string, title: string) {
+      const lane = lanes.get(handle)
       return lane && active?.port(lane, title)
     },
   }

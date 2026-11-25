@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { afterEach } from 'vitest'
 import { openBrainStore } from './store'
 import { suggestionTestStore, type SuggestionTestStore } from './tidy/test-store'
-import type { BrainStore, NewJob, Proposal } from './types'
+import type { BrainStore, NewJob, Proposal, SavedRead } from './types'
 
 const stores: BrainStore[] = []
 afterEach(() => {
@@ -70,6 +70,7 @@ export function extraction(jobId: string, patch: Partial<Proposal> = {}): Propos
             predicate: 'owns',
             object: 'harbor',
             citation: { evidence: 0, quote: 'Rina owns Harbor.' },
+            label: 'owns',
           },
         ],
         branch: false,
@@ -91,6 +92,7 @@ export function extraction(jobId: string, patch: Partial<Proposal> = {}): Propos
             predicate: 'works_on',
             object: 'harbor',
             citation: { evidence: 1, quote: 'Tom maintains the archive.' },
+            label: 'maintains the archive of',
           },
         ],
         branch: true,
@@ -128,26 +130,29 @@ export function extraction(jobId: string, patch: Partial<Proposal> = {}): Propos
     ...patch,
   }
 }
-export function approve(store: BrainStore, input: Partial<Proposal> = {}): string[] {
-  const job = store.enqueue(
-    lane({ sessionId: input.origin?.sessionId ?? 'harbor-lane', leafId: input.jobId ?? 'leaf-1' }),
-    'queued',
-  )
-  const data = extraction(job.id, { computedRevision: store.knowledgeRevision(), ...input })
-  data.jobId = job.id
-  store.propose(data)
-  const proposal = store.proposal(job.id)
-  store.review(
-    job.id,
-    {
-      memories: data.memories.map((_, index) => index),
-      identities: {},
-      groups: [],
-      descriptions: [],
-      confirmations: [],
-    },
-    proposal.revision,
-  )
+/** A queued read of the lane, moved to running as the reader does before it saves. */
+export function running(store: BrainStore, patch: Partial<NewJob> = {}): string {
+  const job = store.enqueue(lane(patch), 'queued')
+  store.updateJob(job.id, { state: 'running', startedAt: job.queuedAt })
+  return job.id
+}
+let reads = 0
+/** Saves a read built from `extraction`, as the reader does when it finishes. */
+export function save(
+  store: BrainStore,
+  input: Partial<Proposal> = {},
+): SavedRead & { jobId: string } {
+  const jobId = running(store, {
+    sessionId: input.origin?.sessionId ?? 'harbor-lane',
+    leafId: `leaf-${input.jobId ?? 'read'}-${++reads}`,
+  })
+  const data = extraction(jobId, { computedRevision: store.knowledgeRevision(), ...input })
+  data.jobId = jobId
+  return { ...store.saveRead(data), jobId }
+}
+/** Saves a read and returns the ids of every memory the overview reaches. */
+export function saveAndListMemories(store: BrainStore, input: Partial<Proposal> = {}): string[] {
+  save(store, input)
   return store
     .overview(300)
     .nodes.flatMap((node) =>

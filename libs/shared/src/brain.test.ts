@@ -5,38 +5,50 @@ import {
   BRAIN_MEMORY_TYPES,
   BRAIN_PREDICATES,
   BRAIN_PROTOCOL,
+  BRAIN_TEMPORARY_DAYS,
   DEFAULT_BRAIN_PREFS,
   type BrainAgentMethod,
+  type BrainJobState,
+  type BrainMemory,
+  type BrainPredicate,
+  type BrainSnapshot,
 } from './brain'
 import {
+  BRAIN_AUTO_RUNS_PER_DAY,
   BRAIN_CURATOR_METHODS,
   BRAIN_LANE_METHODS,
+  BRAIN_RELATE_PER_RUN,
   type BrainAgentMap,
   type BrainAgentWrite,
+  type BrainLinkInput,
+  type BrainWaitingCounts,
 } from './brain-agent'
+import type { BrainQuery, BrainSearchResult } from './brain-recall'
 
-it('starts off, with recall and review on for when it is enabled', () => {
+it('starts off, with recall and Brain Agent’s automatic check on for when it is enabled', () => {
   expect(DEFAULT_BRAIN_PREFS).toEqual({
     enabled: false,
     recall: true,
-    review: true,
+    agentAuto: true,
     model: null,
     neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
   })
+  expect(BRAIN_TEMPORARY_DAYS).toBe(14)
+  expect(BRAIN_RELATE_PER_RUN).toBe(60)
+  expect(BRAIN_AUTO_RUNS_PER_DAY).toBe(6)
 })
 
-it('gives lane agents search and flags; only the Brain lane decides, edits and erases', () => {
-  expect(BRAIN_PROTOCOL).toBe(6)
+it('gives lane agents search and flags; only the Brain lane relates, edits and erases', () => {
+  expect(BRAIN_PROTOCOL).toBe(7)
   expect(BRAIN_LANE_METHODS).toEqual(['search', 'flag'])
   expect([...BRAIN_CURATOR_METHODS].sort()).toEqual(
     [
       'correct',
-      'decideRead',
       'edit',
       'entity',
       'erase',
       'memory',
-      'readReview',
+      'relate',
       'resolve',
       'search',
       'suggestion',
@@ -49,12 +61,11 @@ it('gives lane agents search and flags; only the Brain lane decides, edits and e
     | 'search'
     | 'flag'
     | 'waiting'
-    | 'readReview'
     | 'suggestion'
     | 'entity'
     | 'memory'
-    | 'decideRead'
     | 'resolve'
+    | 'relate'
     | 'edit'
     | 'correct'
     | 'erase'
@@ -62,25 +73,66 @@ it('gives lane agents search and flags; only the Brain lane decides, edits and e
   >()
 })
 
-it('pages a read and takes Brain Agent’s own decision, so no answer carries a whole read', () => {
-  expectTypeOf<BrainAgentMap['readReview']>().toEqualTypeOf<{
-    request: { jobId: string; offset?: number }
-    result: { text: string }
+it('takes one of three search moves and answers with the matching result', () => {
+  expectTypeOf<BrainAgentMap['search']>().toEqualTypeOf<{
+    request: BrainQuery
+    result: BrainSearchResult
   }>()
-  expectTypeOf<BrainAgentMap['decideRead']>().toEqualTypeOf<{
+  expectTypeOf<BrainSearchResult['mode']>().toEqualTypeOf<'search' | 'expand' | 'route'>()
+  expectTypeOf<BrainQuery>().toEqualTypeOf<{
+    query?: string
+    from?: string
+    to?: string
+    context?: string[]
+    limit?: number
+    sessionId?: string
+    cwd?: string
+  }>()
+})
+
+it('states a link with its wording, dates and the memories behind it', () => {
+  expectTypeOf<BrainAgentMap['relate']>().toEqualTypeOf<{
     request: {
-      jobId: string
-      revision: number
-      approve: boolean
-      memories?: number[]
-      identities?: { ref: string; answer: string }[]
-      groups?: number[]
-      descriptions?: string[]
-      confirmations?: number[]
+      subjectId: string
+      predicate: BrainPredicate
+      objectId: string
+      label: string
+      since?: string | null
+      until?: string | null
+      memoryIds: string[]
+      suggestionId?: string
       reason: string
     }
     result: BrainAgentWrite
   }>()
+  expectTypeOf<BrainAgentMap['correct']['request']>().toEqualTypeOf<{
+    memoryId: string
+    summary: string
+    source: string
+    quote: string
+    links?: BrainLinkInput[]
+    ends?: string[]
+    reason: string
+  }>()
+  expectTypeOf<BrainAgentWrite['status']>().toEqualTypeOf<'done' | 'refused' | 'limit'>()
+  expectTypeOf<BrainWaitingCounts>().toEqualTypeOf<{
+    entities: number
+    groups: number
+    unlinked: number
+    repeats: number
+    conflicts: number
+    flags: number
+  }>()
+})
+
+it('describes a memory in plain words and centres the map on the owner', () => {
+  expectTypeOf<BrainMemory['importance']>().toEqualTypeOf<0 | 1 | 2>()
+  expectTypeOf<BrainMemory['saidBy']>().toEqualTypeOf<'you' | 'agent'>()
+  expectTypeOf<BrainMemory['lanes']>().toEqualTypeOf<number>()
+  expectTypeOf<BrainSnapshot['ownerId']>().toEqualTypeOf<string | null>()
+  expectTypeOf<BrainJobState>().toEqualTypeOf<
+    'waiting' | 'queued' | 'running' | 'empty' | 'failed' | 'done' | 'rejected'
+  >()
 })
 
 it('pins the graph schema the extractor, engine and UI share', () => {
@@ -106,6 +158,9 @@ it('pins the graph schema the extractor, engine and UI share', () => {
     'decided',
     'prefers',
     'leads',
+    'reports_to',
+    'works_with',
+    'took_over_from',
   ])
   expect(BRAIN_MEMORY_TYPES).toEqual([
     'decision',

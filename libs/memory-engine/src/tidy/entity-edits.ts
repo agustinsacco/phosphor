@@ -1,5 +1,6 @@
 import type { JournalNote } from '../agent/notes'
 import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@phosphor/shared/brain'
+import { BRAIN_SYMMETRIC_PREDICATES } from '@phosphor/shared/brain-links'
 import { all, one, run, transaction, type Context } from '../database'
 import { createEntity, entityNumber, recountEntities, refreshEntityWords } from '../entities'
 import { bumpKnowledgeRevision } from '../prefs'
@@ -248,6 +249,16 @@ function moveMemories(ctx: Context, from: number, to: number, memories: number[]
     json,
     from,
     from,
+  )
+  // The new record has the highest number, so a moved symmetric link may now face the wrong way.
+  run(
+    ctx,
+    `UPDATE relations SET subject=object,object=subject
+      WHERE memory IN (SELECT value FROM json_each(?)) AND subject=? AND subject>object
+      AND predicate IN (SELECT value FROM json_each(?))`,
+    json,
+    to,
+    JSON.stringify(BRAIN_SYMMETRIC_PREDICATES),
   )
   recountEntities(ctx, touched)
   fingerprintMemories(ctx, memories)

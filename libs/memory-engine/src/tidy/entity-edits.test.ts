@@ -1,11 +1,13 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from '../test-support'
+import { saveAndListMemories, extraction, fixture, vector } from '../test-support'
 import { dump } from './test-support'
+
+const note = { runId: null, reason: 'The memories show the answer.' }
 
 /** Harbor, Rina Okafor (also "Rina") and Tom Lee, from one approved read. */
 function brain() {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const nodes = store.overview(300).nodes
   const id = (label: string) => nodes.find((node) => node.label === label)!.id
   return { store, db, harbor: id('Harbor'), rina: id('Rina Okafor'), tom: id('Tom Lee') }
@@ -67,11 +69,19 @@ function twoToms() {
     summary,
     entities: [result.tom, result.harbor],
     links: links
-      ? [{ subject: result.tom, predicate: 'uses' as const, object: result.harbor, citation }]
+      ? [
+          {
+            subject: result.tom,
+            predicate: 'uses' as const,
+            object: result.harbor,
+            label: 'uses',
+            citation,
+          },
+        ]
       : [],
     citations: [citation],
   })
-  approve(result.store, {
+  saveAndListMemories(result.store, {
     jobId: 'vendor',
     origin: { sessionId: 'northwind-lane', title: 'Northwind renewal' },
     entities: [],
@@ -115,7 +125,7 @@ it('splits memories, their mentions and links onto a new record and undoes it ex
   expect(store.entity(tom).groups.map((g) => g.predicate)).toEqual(['works_on'])
   expect(store.memory(vendor[0]!).memory.entityIds).toContain(node.id)
   // The pair the owner just separated is never offered as "Same person or thing?".
-  expect(store.suggestions('same_entity', null, 50).items).toEqual([])
+  expect(store.suggestions('same_entity').items).toEqual([])
   store.tidyUndo(op, store.revision())
   expect(dump(db)).toEqual(before)
   expect(() => store.entity(node.id)).toThrow('not found')
@@ -139,7 +149,7 @@ it('leaves an unchosen superseded memory on the original, moves a chosen one, an
   db.prepare(
     "INSERT INTO tidy_suggestions(id,pair_key,kind,source,state,subject_type,first_id,second_id,reason,created_at,updated_at) VALUES ('pair','memory:pair','conflict','sweep','open','memory',?,?,'These disagree.',1,1)",
   ).run(rep, renewal)
-  store.applySuggestion('pair', { kind: 'replace', newerId: rep }, store.revision())
+  store.resolve('pair', { kind: 'replace', newerId: rep }, note)
   expect(store.memory(renewal).memory.state).toBe('superseded')
   const before = dump(db)
   const names = (id: string) => store.memory(id).memory.entityIds
@@ -188,18 +198,18 @@ it('takes the shared name off one record from a Tidy pair and closes the pair', 
   db.prepare(
     "INSERT INTO tidy_suggestions(id,pair_key,kind,source,state,subject_type,first_id,second_id,reason,created_at,updated_at) VALUES ('pair','entity:pair','same_entity','sweep','open','entity',?,?,'Both use the name \"Harbor\".',1,1)",
   ).run(harbor, kestrel)
-  expect(store.suggestion('pair')!.allowed).toEqual(['merge', 'unname'])
+  expect(store.agentSuggestion('pair')!.allowed).toEqual(['merge', 'unname', 'keep'])
   const apply = (entityId: string, name: string) =>
-    store.applySuggestion('pair', { kind: 'unname', entityId, name }, store.revision())
+    store.resolve('pair', { kind: 'unname', entityId, name }, note)
   expect(() => apply(harbor, 'Harbor')).toThrow('not a name these records share')
   expect(() => apply(kestrel, 'Ledger')).toThrow('not a name these records share')
   const op = apply(kestrel, 'harbor')!
   expect(store.entity(kestrel).entity.aliases).not.toContain('Harbor')
-  expect(store.suggestion('pair')!.suggestion.state).toBe('dismissed')
+  expect(store.agentSuggestion('pair')!.suggestion.state).toBe('dismissed')
   expect(store.tidyChanges(20).items[0]).toMatchObject({ kind: 'unname', suggestionId: 'pair' })
   store.tidyUndo(op, store.revision())
   expect(store.entity(kestrel).entity.aliases).toContain('Harbor')
-  expect(store.suggestion('pair')!.suggestion.state).toBe('dismissed')
+  expect(store.agentSuggestion('pair')!.suggestion.state).toBe('dismissed')
 })
 
 it('Forget erases an edit before-image that quotes the forgotten memory', () => {

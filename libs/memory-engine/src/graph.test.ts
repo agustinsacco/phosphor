@@ -2,7 +2,6 @@ import { expect, it, vi } from 'vitest'
 import { BRAIN_PREDICATES } from '@phosphor/shared/brain'
 import { edges, GRAPH_LINKS } from './graph'
 import { fixture } from './test-support'
-import { walk } from './walk'
 
 function graphFixture(hub = false) {
   const { db } = fixture()
@@ -92,7 +91,6 @@ it('gives each neighbour one slot, so a pair said many times hides no other neig
   for (const hub of [false, true]) {
     const ctx = repeatedPair(hub)
     expect(edges(ctx, 'harbor').map((link) => link.objectId)).toContain('kestrel')
-    expect(walk(ctx, ['harbor'], new Set(['harbor'])).entities).toContain('kestrel')
   }
 })
 
@@ -114,7 +112,7 @@ it('reads ordinary entities in only two indexed relation queries', () => {
   edges(ctx, 'harbor')
   expect(queries).toHaveLength(2)
   for (const sql of queries) {
-    const plans = prepare(`EXPLAIN QUERY PLAN ${sql}`).all(1)
+    const plans = prepare(`EXPLAIN QUERY PLAN ${sql}`).all(1, 1)
     expect(plans.some((row) => String(row.detail).includes('USING INDEX relations_'))).toBe(true)
     expect(plans.some((row) => String(row.detail).includes('SCAN r'))).toBe(false)
   }

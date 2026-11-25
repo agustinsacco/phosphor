@@ -1,9 +1,9 @@
 import {
-  BRAIN_ENTITY_KINDS,
+  BRAIN_ASK_MAX,
+  BRAIN_TELL_MAX,
   setBrainLaneNeverRead,
   DEFAULT_BRAIN_PREFS,
 } from '@phosphor/shared/brain'
-import { BRAIN_ENTITY_SORTS } from '@phosphor/shared/brain-explore'
 import type { BrainApi, BrainService } from '@phosphor/brain-runtime/types'
 import { handle } from './handle'
 import {
@@ -13,13 +13,12 @@ import {
   checkPrefs,
   cursorOf,
   descriptionOf,
-  directionOf,
   hopsOf,
   id,
   limitOf,
-  predicateOf,
   revisionOf,
   text,
+  messageOf,
 } from './brain-checks'
 
 export { checkLane, checkPrefs } from './brain-checks'
@@ -28,21 +27,16 @@ export { checkLane, checkPrefs } from './brain-checks'
 export function registerBrainHandlers(service: () => Promise<BrainService>): void {
   const api = async (): Promise<BrainApi> => (await service()).api
   registerTidyHandlers(api)
-  handle('brain:entities', async (_event, kind, offset, limit, sort) => {
-    if (kind !== null && !BRAIN_ENTITY_KINDS.includes(kind))
-      throw new Error('Invalid Brain entity kind.')
-    if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid Brain entity offset.')
-    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
-      throw new Error('Invalid Brain entity limit.')
-    if (!BRAIN_ENTITY_SORTS.includes(sort)) throw new Error('Invalid Brain entity sort.')
-    return (await api()).entities(kind, offset, limit, sort)
-  })
-  handle('brain:recent', async (_event, limit) => (await api()).recent(limitOf(limit)))
-  handle('brain:history', async (_event, limit) => {
-    if (!Number.isInteger(limit) || limit < 1 || limit > 200)
-      throw new Error('Invalid Brain history limit.')
-    return (await api()).history(limit)
-  })
+  handle('brain:ask', async (_event, question) =>
+    (await api()).ask(messageOf(question, BRAIN_ASK_MAX)),
+  )
+  handle('brain:tell', async (_event, message) =>
+    (await api()).tell(messageOf(message, BRAIN_TELL_MAX)),
+  )
+  handle('brain:laneRead', async (_event, lane) => (await api()).laneRead(id(lane)))
+  handle('brain:setOwner', async (_event, entity) =>
+    (await api()).setOwner(entity === null ? null : id(entity)),
+  )
   handle('brain:reread', async (_event, job) => (await api()).reread(id(job)))
   handle('brain:status', async () => (await api()).status())
   handle('brain:neverRead', async (_event, sessionId, never) => {
@@ -56,7 +50,6 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
   handle('brain:cancel', async (_event, job) => (await api()).cancel(id(job)))
   handle('brain:retry', async (_event, job) => (await api()).retry(id(job)))
   handle('brain:extraction', async (_event, job) => (await api()).extraction(id(job)))
-  handle('brain:proposal', async (_event, job) => (await api()).proposal(id(job)))
   handle('brain:reset', async () => (await api()).reset())
   handle('brain:merge', async (_event, source, target, revision) => {
     const from = id(source)
@@ -82,14 +75,6 @@ export function registerBrainHandlers(service: () => Promise<BrainService>): voi
     (await api()).neighbourhood(id(entity), hopsOf(hops)),
   )
   handle('brain:entity', async (_event, entity) => (await api()).entity(id(entity)))
-  handle('brain:connections', async (_event, entity, predicate, direction, cursor) =>
-    (await api()).connections(
-      id(entity),
-      predicateOf(predicate),
-      directionOf(direction),
-      cursorOf(cursor),
-    ),
-  )
   handle('brain:entityMemories', async (_event, entity, filter, cursor) =>
     (await api()).entityMemories(id(entity), checkFilter(filter), cursorOf(cursor)),
   )

@@ -12,7 +12,13 @@ function harness(pending: string[][]) {
         if (touched === 'all') throw new Error('Maintenance never runs a whole-Brain pass.')
         batches.push(touched.memoryIds.length)
         events.push('sweep')
-        return { coverage: emptyBrainTidyCoverage(), suggestions: 0, folded: 0, operationIds: [] }
+        return {
+          coverage: emptyBrainTidyCoverage(),
+          suggestions: 0,
+          unlinked: 0,
+          folded: 0,
+          operationIds: [],
+        }
       },
     },
     search: {
@@ -78,7 +84,7 @@ it('stops between batches when Brain is disposed or reset', async () => {
   expect(reset.batches).toEqual([128, 3])
 })
 
-it('stops quietly on a failed sweep and leaves the rest to "Tidy now"', async () => {
+it('stops quietly on a failed sweep and leaves the rest to Defrag', async () => {
   const logged: string[] = []
   const maintenance = createTidyMaintenance({
     store: {

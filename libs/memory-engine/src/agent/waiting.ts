@@ -3,41 +3,74 @@ import {
   type BrainWaitingCounts,
   type BrainWaitingItem,
 } from '@phosphor/shared/brain-agent'
+import type { BrainTidyKind } from '@phosphor/shared/brain-tidy'
 import { all, one, run, type Context } from '../database'
-import { suggestion, type SuggestionRow } from '../tidy/suggestions'
+import {
+  COUNTED,
+  closeMissing as closeMissingRows,
+  suggestion,
+  type SuggestionRow,
+} from '../tidy/suggestions'
 import { scrubExcerpt } from '../secrets'
+import { clearExplainedPairs } from '../tidy/sweep-links'
 
-/** Counts and the agent's queue agree, including suggestions whose subjects disappeared. */
+/**
+ * Counts and the agent's queue agree, including suggestions whose subjects disappeared and
+ * unlinked pairs a link now explains. A group question's members resolve through merges.
+ */
 function closeMissing(ctx: Context): void {
   run(
     ctx,
-    `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE state='open' AND
+    `UPDATE tidy_suggestions SET state='cleared',updated_at=? WHERE state='open' AND kind<>'group' AND
     ((subject_type='entity' AND (NOT EXISTS(SELECT 1 FROM entities WHERE id=first_id) OR
       (second_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM entities WHERE id=second_id)))) OR
     (subject_type='memory' AND (NOT EXISTS(SELECT 1 FROM memories WHERE id=first_id) OR
       (second_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM memories WHERE id=second_id)))))`,
     ctx.now(),
   )
+  closeMissingRows(
+    ctx,
+    all<SuggestionRow>(ctx, "SELECT * FROM tidy_suggestions WHERE state='open' AND kind='group'"),
+  )
+  clearExplainedPairs(ctx)
 }
+const COUNT_KEY: Record<BrainTidyKind, keyof BrainWaitingCounts> = {
+  same_entity: 'entities',
+  group: 'groups',
+  unlinked: 'unlinked',
+  same_memory: 'repeats',
+  conflict: 'conflicts',
+  flagged: 'flags',
+}
+/** The order Brain Agent decides in: people and things, groups, unlinked pairs, repeats... */
+const ORDER = `CASE kind WHEN 'same_entity' THEN 0 WHEN 'group' THEN 1 WHEN 'unlinked' THEN 2
+  WHEN 'same_memory' THEN 3 WHEN 'conflict' THEN 4 ELSE 5 END`
+
 export function waitingCounts(ctx: Context): BrainWaitingCounts {
   closeMissing(ctx)
-  const reads = one<{ count: number }>(
+  const counts: BrainWaitingCounts = {
+    entities: 0,
+    groups: 0,
+    unlinked: 0,
+    repeats: 0,
+    conflicts: 0,
+    flags: 0,
+  }
+  for (const row of all<{ kind: BrainTidyKind; count: number }>(
     ctx,
-    "SELECT COUNT(*) AS count FROM jobs WHERE state IN ('review','refreshing')",
-  )!.count
-  const counts: BrainWaitingCounts = { reads, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
-  const key = {
-    same_entity: 'entities',
-    same_memory: 'repeats',
-    conflict: 'conflicts',
-    flagged: 'flags',
-  } as const
-  for (const row of all<{ kind: string; count: number }>(
-    ctx,
-    "SELECT kind,COUNT(*) AS count FROM tidy_suggestions WHERE state='open' GROUP BY kind",
+    `SELECT kind,COUNT(*) AS count FROM tidy_suggestions WHERE state='open' AND kind IN (${COUNTED}) GROUP BY kind`,
   ))
-    if (Object.hasOwn(key, row.kind)) counts[key[row.kind as keyof typeof key]] = row.count
+    counts[COUNT_KEY[row.kind]] = row.count
   return counts
+}
+/** Changes whenever a counted item opens or the count moves; an automatic run compares it. */
+export function waitingSignature(ctx: Context): string {
+  closeMissing(ctx)
+  const row = one<{ count: number; newest: number | null }>(
+    ctx,
+    `SELECT COUNT(*) AS count,MAX(created_at) AS newest FROM tidy_suggestions WHERE state='open' AND kind IN (${COUNTED})`,
+  )!
+  return `${row.count}:${row.newest ?? 0}`
 }
 export function waitingSuggestions(
   ctx: Context,
@@ -55,8 +88,8 @@ export function waitingSuggestions(
   closeMissing(ctx)
   const visible = all<SuggestionRow>(
     ctx,
-    `SELECT * FROM tidy_suggestions WHERE state='open' AND kind IN ('same_entity','same_memory','conflict','flagged')
-    ORDER BY CASE kind WHEN 'same_entity' THEN 0 WHEN 'same_memory' THEN 1 WHEN 'conflict' THEN 2 ELSE 3 END,created_at,id LIMIT ?`,
+    `SELECT * FROM tidy_suggestions WHERE state='open' AND kind IN (${COUNTED})
+    ORDER BY ${ORDER},created_at,id LIMIT ?`,
     limit,
   )
   const unchecked = all<SuggestionRow>(
@@ -66,10 +99,10 @@ export function waitingSuggestions(
   )
   const count = one<{ n: number }>(
     ctx,
-    "SELECT COUNT(*) AS n FROM tidy_suggestions WHERE state='open' AND kind IN ('same_entity','same_memory','conflict','flagged')",
+    `SELECT COUNT(*) AS n FROM tidy_suggestions WHERE state='open' AND kind IN (${COUNTED})`,
   )!.n
   const items = [...visible, ...unchecked].slice(0, limit).flatMap((row): BrainWaitingItem[] => {
-    const item = suggestion(ctx, row, true)
+    const item = suggestion(ctx, row)
     if (!item) return []
     return [
       {

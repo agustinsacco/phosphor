@@ -37,6 +37,12 @@ function scrubMemory(item: ProposalMemory): ProposalMemory {
     summary: scrubExcerpt(item.summary),
     reason: scrubExcerpt(item.reason),
     citations: item.citations.map(citation),
-    links: item.links.map((link) => ({ ...link, citation: citation(link.citation) })),
+    links: item.links.map((link) => ({
+      ...link,
+      label: scrubExcerpt(link.label ?? '')
+        .replace(/\s+/gu, ' ')
+        .trim(),
+      citation: citation(link.citation),
+    })),
   }
 }

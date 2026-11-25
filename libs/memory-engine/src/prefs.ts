@@ -13,12 +13,12 @@ export function prefs(ctx: Context): BrainPrefs {
   if (!stored || typeof stored !== 'object' || Array.isArray(stored))
     return { ...DEFAULT_BRAIN_PREFS }
   const value = stored as Record<string, unknown>
-  const flag = (key: 'enabled' | 'recall' | 'review'): boolean =>
+  const flag = (key: 'enabled' | 'recall' | 'agentAuto'): boolean =>
     typeof value[key] === 'boolean' ? value[key] : DEFAULT_BRAIN_PREFS[key]
   return {
     enabled: flag('enabled'),
     recall: flag('recall'),
-    review: flag('review'),
+    agentAuto: flag('agentAuto'),
     model: storedModel(value.model),
     neverRead: storedNeverRead(value.neverRead),
   }
@@ -40,7 +40,7 @@ export function setPrefs(ctx: Context, value: BrainPrefs): BrainPrefs {
 export function revision(ctx: Context): number {
   return Number(one<{ value: string }>(ctx, "SELECT value FROM meta WHERE key='revision'")!.value)
 }
-/** Only stored knowledge changes invalidate lane reviews; Tidy bookkeeping uses revision alone.
+/** Only stored knowledge changes make a read compare again; Tidy bookkeeping uses revision alone.
  * Seed lazily from the old counter so proposals made before this upgrade retain their meaning. */
 export function knowledgeRevision(ctx: Context): number {
   const stored = one<{ value: string }>(

@@ -41,14 +41,11 @@ export async function extractionView(
       return UNAVAILABLE
     }
   })
-  const memories = store.laneMemories(record.sessionId)
   return {
     ...record,
     prompts,
     source,
     job: store.job(jobId) ?? null,
-    replaceable: memories.replaceable.length,
-    laneMemories: memories.ids.length,
   }
 }
 function promptFor(

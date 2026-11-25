@@ -9,6 +9,8 @@ import {
 } from '../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { ExplorerGraph } from './ExplorerGraph'
 import { MockExplorer } from '../mockExplorer'
+import { mockRoutes } from '../mockRecall'
+import { graphLink } from '../__fixtures__/graph3D'
 const mounts = vi.hoisted(() => vi.fn())
 const projected = vi.hoisted(() => vi.fn())
 vi.mock('../BrainGraph3D', () => ({
@@ -79,7 +81,9 @@ it('keeps the scene mounted while a new neighbourhood read is pending', async ()
 it('includes missing route nodes beyond the neighbourhood and passes the route to the scene', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const explorer = new MockExplorer()
-  const route = explorer.path('rina', 'harbor').paths[0]!
+  const route = mockRoutes(explorer, 'rina', 'harbor').routes[0]!.flatMap((step) =>
+    step.kind === 'relation' ? [step.link] : [],
+  )
   const read = vi.fn((id: string) => explorer.entity(id))
   const fake = createFakePhosphor({
     'brain:overview': () => explorer.graph('rina'),
@@ -155,10 +159,10 @@ it('makes neighbours-only opt-in, supports two steps, and resets scope on clear'
     expect(near).not.toHaveBeenCalled()
     await click('Neighbours only')
     expect(near).toHaveBeenCalledWith('rina', 1)
-    expect(container.textContent).not.toContain('harbor')
+    expect(container.textContent).not.toContain('northwind')
     await click('2 steps')
     expect(near).toHaveBeenCalledWith('rina', 2)
-    expect(container.textContent).toContain('harbor')
+    expect(container.textContent).toContain('northwind')
     await click('Whole graph')
     expect(container.textContent).toContain('harbor')
     await click('Neighbours only')
@@ -254,19 +258,33 @@ it('prioritizes the outside selection, route and direct neighbours through the r
   const overview: BrainGraph = {
     nodes: Array.from({ length: 300 }, (_, i) => node(`Harbor-${i}`)),
     links: [],
+    ended: [],
     centerId: null,
     truncated: true,
   }
   const near: BrainGraph = {
     nodes: [node('Ledger'), node('Kestrel')],
     links: [
-      { id: 'near', subjectId: 'Ledger', objectId: 'Kestrel', predicate: 'uses', memoryId: 'm' },
+      graphLink({
+        id: 'near',
+        subjectId: 'Ledger',
+        objectId: 'Kestrel',
+        predicate: 'uses',
+        memoryId: 'm',
+      }),
     ],
+    ended: [],
     centerId: 'Ledger',
     truncated: false,
   }
   const path: BrainLink[] = [
-    { id: 'route', subjectId: 'Ledger', objectId: 'Rina', predicate: 'uses', memoryId: 'm' },
+    graphLink({
+      id: 'route',
+      subjectId: 'Ledger',
+      objectId: 'Rina',
+      predicate: 'uses',
+      memoryId: 'm',
+    }),
   ]
   const fake = createFakePhosphor({
     'brain:overview': () => overview,

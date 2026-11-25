@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
 import { openBrainStore } from './store'
-import { approve, fixture } from './test-support'
+import { saveAndListMemories, fixture } from './test-support'
 
 describe('Brain v4 SQLite schema and preferences', () => {
   it.each([0, 1, 2, 3])(
@@ -28,7 +28,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
         old.close()
         const store = openBrainStore({ path, Database: DatabaseSync })
         expect(store.snapshot()).toMatchObject({
-          prefs: { enabled: true, recall: false, review: true },
+          prefs: { enabled: true, recall: false, agentAuto: true },
           revision: 0,
           counts: { memories: 0, entities: 0 },
           jobs: [],
@@ -36,7 +36,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
         expect(store.snapshot().generation).toBeTruthy()
         store.close()
         const db = new DatabaseSync(path)
-        expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
+        expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
         expect(db.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' })
         expect(
           db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'memory_fts%'").all(),
@@ -48,20 +48,20 @@ describe('Brain v4 SQLite schema and preferences', () => {
       }
     },
   )
-  it('resets all knowledge and jobs, retains prefs with review on and changes generation', () => {
+  it('resets all knowledge and jobs, retains prefs as they were and changes generation', () => {
     const { store } = fixture()
     store.setPrefs({
       neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
       enabled: true,
       recall: false,
-      review: false,
+      agentAuto: false,
       model: null,
     })
-    approve(store)
+    saveAndListMemories(store)
     const generation = store.snapshot().generation
     store.reset()
     expect(store.snapshot()).toMatchObject({
-      prefs: { enabled: true, recall: false, review: true },
+      prefs: { enabled: true, recall: false, agentAuto: false },
       revision: 0,
       jobs: [],
       counts: { memories: 0, entities: 0 },
@@ -87,7 +87,7 @@ describe('Brain v4 SQLite schema and preferences', () => {
       old.exec("INSERT INTO memory_fts VALUES ('old','discard'); PRAGMA user_version=3;")
       old.close()
       const store = openBrainStore({ path, Database: Defensive })
-      approve(store)
+      saveAndListMemories(store)
       expect(store.snapshot().counts.memories).toBeGreaterThan(0)
       store.reset()
       expect(store.snapshot().counts).toMatchObject({ memories: 0, entities: 0 })

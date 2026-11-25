@@ -6,7 +6,7 @@ import { expect, it } from 'vitest'
 import { openBrainStore } from './store'
 import { tidySchema } from './tidy/schema'
 
-it('upgrades v6 in place without losing the read or its checkpoints', () => {
+it('upgrades v6 through v7 to v8 in place without losing the read or its checkpoints', () => {
   const directory = mkdtempSync(join(tmpdir(), 'harbor-v7-'))
   const path = join(directory, 'brain.sqlite')
   try {
@@ -22,7 +22,7 @@ it('upgrades v6 in place without losing the read or its checkpoints', () => {
     const store = openBrainStore({ path, Database: DatabaseSync })
     try {
       const inspect = new DatabaseSync(path)
-      expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
+      expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
       inspect.close()
       expect(store.job('job')).toMatchObject({
         state: 'done',

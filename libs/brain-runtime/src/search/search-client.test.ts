@@ -15,7 +15,9 @@ function fakeSearch(patch: Partial<BrainSearch> = {}): BrainSearch {
     recall: vi.fn(),
     find: vi.fn(),
     entities: vi.fn(),
-    recent: vi.fn(),
+    expand: vi.fn(),
+    routes: vi.fn(),
+    resolve: vi.fn(),
     nearestEntities: vi.fn((vectors: Float32Array[]) =>
       vectors.map((v) => [{ id: `harbor-${v.length}`, score: v[0]! }]),
     ),
@@ -168,30 +170,20 @@ it('loads a readiness-faithful index on first open and again after a process res
   await client.close()
 })
 
-it('forwards browse and recent reads through the search worker and lets each recover', async () => {
+it('forwards browse and name resolution through the search worker and lets each recover', async () => {
   const entities = vi
     .fn<BrainSearch['entities']>()
     .mockImplementationOnce(() => {
       throw new Error('Browse unavailable')
     })
     .mockReturnValue({ items: [], more: false, kinds: ['person'], counts: { person: 3 }, total: 3 })
-  const recent = vi
-    .fn<BrainSearch['recent']>()
+  const resolve = vi
+    .fn<BrainSearch['resolve']>()
     .mockImplementationOnce(() => {
-      throw new Error('Recent unavailable')
+      throw new Error('Resolve unavailable')
     })
-    .mockReturnValue({
-      items: [
-        {
-          id: 'harbor-memory',
-          summary: 'Harbor uses Ledger.',
-          type: 'fact',
-          originTitle: 'Harbor planning',
-          learnedAt: 100,
-        },
-      ],
-    })
-  const { spawn } = host(() => fakeSearch({ entities, recent }))
+    .mockReturnValue([[]])
+  const { spawn } = host(() => fakeSearch({ entities, resolve }))
   const client = createSearchClient({ path: 'brain.sqlite', spawn })
   await expect(client.entities('person', 20, 20, 'recent')).rejects.toThrow('Browse unavailable')
   await expect(client.entities('person', 20, 20, 'recent')).resolves.toEqual({
@@ -202,8 +194,8 @@ it('forwards browse and recent reads through the search worker and lets each rec
     total: 3,
   })
   expect(entities).toHaveBeenLastCalledWith('person', 20, 20, 'recent')
-  await expect(client.recent(10)).rejects.toThrow('Recent unavailable')
-  expect((await client.recent(10)).items[0]?.id).toBe('harbor-memory')
-  expect(recent).toHaveBeenLastCalledWith(10)
+  await expect(client.resolve(['Ledger'])).rejects.toThrow('Resolve unavailable')
+  expect(await client.resolve(['Ledger'])).toEqual([[]])
+  expect(resolve).toHaveBeenLastCalledWith(['Ledger'])
   await client.close()
 })

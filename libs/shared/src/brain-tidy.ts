@@ -1,9 +1,17 @@
-import type { BrainStatus } from './brain'
+import type { BrainEntityKind, BrainStatus } from './brain'
 import type { BrainEntityView, BrainMemoryDetail } from './brain-explore'
 
-export const BRAIN_TIDY_KINDS = ['same_entity', 'same_memory', 'conflict', 'flagged'] as const
+export const BRAIN_TIDY_KINDS = [
+  'same_entity',
+  'group',
+  'unlinked',
+  'same_memory',
+  'conflict',
+  'flagged',
+] as const
 export type BrainTidyKind = (typeof BRAIN_TIDY_KINDS)[number]
-export type BrainTidySource = 'sweep' | 'check' | 'flag'
+/** `read`: a saved read's identity guess or group question. */
+export type BrainTidySource = 'sweep' | 'check' | 'flag' | 'read'
 export type BrainTidyState = 'open' | 'applied' | 'dismissed' | 'cleared'
 export type BrainTidyProblem = 'wrong' | 'outdated' | 'duplicate'
 export type BrainTidyVerdict =
@@ -24,9 +32,23 @@ export interface BrainTidySuggestion {
   verdict: BrainTidyVerdict | null
   model: string | null
   flag: { problem: BrainTidyProblem; sessionId: string; title: string } | null
+  detail: BrainTidySuggestionExtra | null
   createdAt: number
   updatedAt: number
 }
+/** What a suggestion carries beyond its two subjects. */
+export type BrainTidySuggestionExtra =
+  /** A read saved an unsure identity as a new record; the pair asks whether it is the other. */
+  | { kind: 'guess'; jobId: string }
+  /** A read asked whether these are part of one parent. The parent may not exist yet. */
+  | {
+      kind: 'group'
+      jobId: string
+      parent: { label: string; kind: BrainEntityKind; entityId: string | null }
+      memberIds: string[]
+    }
+  /** Named together in `shared` current memories, the newest 8 listed, with no link. */
+  | { kind: 'unlinked'; shared: number; memoryIds: string[] }
 export type BrainTidySubjectDetail =
   { type: 'entity'; value: BrainEntityView } | { type: 'memory'; value: BrainMemoryDetail }
 export interface BrainTidySuggestionDetail {
@@ -41,8 +63,9 @@ export type BrainTidyAction =
   | { kind: 'fold'; survivorId: string }
   | { kind: 'dispute' }
   | { kind: 'replace'; newerId: string }
-  | { kind: 'forget' }
   | { kind: 'keep' }
+  /** States the group's `part_of` links, creating the parent if it does not exist. */
+  | { kind: 'group' }
   /** "Not the same; remove this name from X": the shared name leaves one record. */
   | { kind: 'unname'; entityId: string; name: string }
 /** Who made a change: you on the Brain page, the local pass, or Brain Agent. */
@@ -57,7 +80,7 @@ export interface BrainTidyOperation {
     | 'split'
     | 'unname'
     | 'describe'
-    /** Brain Agent approved or rejected a read; undo puts it back to waiting. */
+    /** A read approved or rejected before v8, when reads waited for review. */
     | 'approve'
     | 'reject'
     /** Brain Agent kept both sides of a suggestion; undo reopens it. */
@@ -66,12 +89,22 @@ export interface BrainTidyOperation {
     | 'correct'
     /** Brain Agent erased a memory. Final: only its reason is kept, never its text. */
     | 'erase'
+    /** A read saved when it finished; undo removes what it added. */
+    | 'read'
+    /** Brain Agent stated a link. */
+    | 'relate'
+    /** Brain Agent changed a link's wording or dates. */
+    | 'relation'
+    /** Brain Agent changed a memory's importance. */
+    | 'importance'
+    /** Brain Agent settled a read's group question with `part_of` links. */
+    | 'group'
   who: BrainChangeWho
   /** Brain Agent's one-sentence reason; null for your own and automatic changes. */
   reason: string | null
   /** The Defrag run that made it; null outside a run. */
   runId: string | null
-  /** The read an approve or reject decided. */
+  /** The read a `read` operation saved, or an older approve or reject decided. */
   jobId: string | null
   /** False once undone, for erasures, and once an erasure or the journal limit took its record. */
   undoable: boolean
@@ -112,6 +145,8 @@ export interface BrainTidySweep {
   coverage: BrainTidyCoverage
   suggestions: number
   folded: number
+  /** `unlinked` pairs this chunk offered. */
+  unlinked: number
   operationIds: string[]
 }
 export interface BrainTidyFlag {
@@ -135,7 +170,7 @@ export function checkBrainTidyAction(value: unknown): BrainTidyAction {
     if (Object.keys(row).length === 3 && bounded(row.entityId) && bounded(row.name))
       return value as BrainTidyAction
   } else if (
-    ['dispute', 'forget', 'keep'].includes(String(row.kind)) &&
+    ['dispute', 'keep', 'group'].includes(String(row.kind)) &&
     Object.keys(row).length === 1
   )
     return value as BrainTidyAction

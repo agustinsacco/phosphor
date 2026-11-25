@@ -1,37 +1,54 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from '../test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  lane,
+  running,
+  save,
+  vector,
+} from '../test-support'
 import { dump } from '../tidy/test-support'
 
 const note = { runId: null, reason: 'The lane supports these claims.' }
-const decision = {
-  memories: [0, 1],
-  identities: {},
-  groups: [],
-  descriptions: [],
-  confirmations: [],
-}
+
 it('undoes Read again, restoring the replaced memories and their entities and quotes', () => {
   const { store, db } = fixture()
-  const ids = approve(store)
-  const previous = store.history(50).items[0]!.job.id
-  const job = store.enqueue(lane({ replaces: previous, leafId: 'leaf-2' }), 'queued')
-  const data = extraction(job.id, { computedRevision: store.knowledgeRevision() })
+  const ids = saveAndListMemories(store)
+  const previous = store.laneRead('harbor-lane')!.job.id
+  const jobId = running(store, { replaces: previous, leafId: 'leaf-2' })
+  const data = extraction(jobId, { computedRevision: store.knowledgeRevision() })
   data.memories = data.memories.map((m) => ({ ...m, summary: `${m.summary} Updated for Ledger.` }))
-  store.propose(data)
-  const before = dump(db),
-    proposal = store.proposal(job.id)
-  const op = store.decideRead(job.id, decision, proposal.revision, note)
+  const before = dump(db)
+  const saved = store.saveRead(data)
+  expect(saved.replaced).toBe(2)
   for (const id of ids) expect(() => store.memory(id)).toThrow('not found')
-  store.agentUndo(op.operationId, note)
+  store.agentUndo(saved.operationId!, note)
   expect(dump(db)).toEqual(before)
-  expect(store.proposal(job.id)).toEqual(proposal)
 })
-it('restores extraction outcomes on undo, and a stale undone approval waits in review', () => {
+it('refuses undo of a read once a later read of the lane finished', () => {
+  const { store, db } = fixture()
+  const saved = save(store, {
+    memories: [extraction('unused').memories[0]!],
+    memoryVectors: [vector()],
+  })
+  for (let i = 0; i < 21; i++) {
+    const next = store.enqueue(lane({ leafId: `next-${i}` }), 'queued')
+    store.updateJob(next.id, { state: 'empty', finishedAt: 100000 + i })
+  }
+  expect(store.job(saved.jobId)).toBeUndefined()
+  const before = dump(db)
+  expect(() => store.agentUndo(saved.operationId!, note)).toThrow(
+    'Later changes touch this Brain change',
+  )
+  expect(dump(db)).toEqual(before)
+})
+it('links extraction outcomes to saved memories and keeps the record after undo', () => {
   const { store } = fixture()
-  const job = store.enqueue(lane(), 'queued')
-  store.propose(extraction(job.id))
+  const jobId = running(store)
+  const job = store.job(jobId)!
   store.saveExtraction({
-    jobId: job.id,
+    jobId,
     sessionId: job.sessionId,
     sessionPath: job.sessionPath,
     title: job.title,
@@ -46,92 +63,36 @@ it('restores extraction outcomes on undo, and a stale undone approval waits in r
     startedAt: 100,
     finishedAt: 200,
   })
-  const before = store.extraction(job.id)
-  const op = store.decideRead(job.id, decision, 0, note)
-  expect(store.extraction(job.id).outcomes[0]?.memoryId).toBeTruthy()
-  store.agentUndo(op.operationId, note)
-  expect(store.extraction(job.id)).toEqual(before)
-  expect(store.job(job.id)?.state).toBe('review')
-  expect(store.proposal(job.id).revision).toBeLessThan(store.knowledgeRevision())
+  const saved = store.saveRead(extraction(jobId))
+  const memoryId = store.extraction(jobId).outcomes[0]?.memoryId
+  expect(memoryId).toBeTruthy()
+  store.agentUndo(saved.operationId!, note)
+  expect(store.extraction(jobId).outcomes[0]).toMatchObject({ memoryId, removed: true })
 })
-it('defers incidental retention pruning and refuses undo if a later finished read prunes its job', () => {
+it('keeps at most 20 finished reads a lane as reads save, and undoes only the newest', () => {
   const { store, db } = fixture()
-  for (let i = 0; i < 20; i++) {
-    const job = store.enqueue(lane({ leafId: `leaf-${i}` }), 'queued')
-    store.updateJob(job.id, { state: 'empty', finishedAt: i })
-  }
-  const job = store.enqueue(lane({ leafId: 'leaf-agent' }), 'queued')
-  const data = extraction(job.id, {
-    memories: [extraction(job.id).memories[0]!],
-    memoryVectors: [vector()],
-  })
-  store.propose(data)
-  const op = store.decideRead(job.id, { ...decision, memories: [0] }, 0, note)
-  expect(db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({ n: 21 })
-  for (let i = 0; i < 21; i++) {
-    const next = store.enqueue(lane({ leafId: `next-${i}` }), 'queued')
-    store.updateJob(next.id, { state: 'empty', finishedAt: 100000 + i })
-  }
-  expect(store.job(job.id)).toBeUndefined()
-  const before = dump(db)
-  expect(() => store.agentUndo(op.operationId, note)).toThrow(
-    'Later changes touch this Brain change',
-  )
-  expect(dump(db)).toEqual(before)
-})
-it('bounds repeated agent approvals at 20 plus the newest decision by pruning on the next enqueue', () => {
-  const { store, db } = fixture()
-  const operations: { jobId: string; operationId: string }[] = []
+  const operations: string[] = []
   for (let i = 0; i < 25; i++) {
-    const job = store.enqueue(lane({ leafId: `agent-leaf-${i}` }), 'queued')
-    const data = extraction(job.id, {
-      computedRevision: store.knowledgeRevision(),
+    const data = extraction('unused')
+    const saved = save(store, {
       entities: [],
       entityVectors: [],
       memoryVectors: [vector()],
+      memories: [
+        {
+          ...data.memories[0]!,
+          entities: [],
+          links: [],
+          summary: `Ledger records responsibility ${i}.`,
+        },
+      ],
     })
-    data.memories = [
-      {
-        ...data.memories[0]!,
-        entities: [],
-        links: [],
-        summary: `Ledger records responsibility ${i}.`,
-      },
-    ]
-    store.propose(data)
-    const result = store.decideRead(
-      job.id,
-      { ...decision, memories: [0] },
-      store.proposal(job.id).revision,
-      note,
-    )
-    operations.push({ jobId: job.id, operationId: result.operationId })
+    operations.push(saved.operationId!)
     expect(
       (db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get() as { n: number }).n,
-    ).toBeLessThanOrEqual(21)
+    ).toBeLessThanOrEqual(20)
   }
-  const latest = operations.at(-1)!
-  store.agentUndo(latest.operationId, note)
-  expect(store.job(latest.jobId)?.state).toBe('review')
-  store.propose({
-    ...store.storedProposal(latest.jobId)!,
-    computedRevision: store.knowledgeRevision(),
-  })
-  const reapplied = store.decideRead(
-    latest.jobId,
-    { ...decision, memories: [0] },
-    store.proposal(latest.jobId).revision,
-    note,
-  )
-  store.enqueue(lane({ leafId: 'next-after-agent' }), 'queued')
-  expect(db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get()).toEqual({ n: 20 })
-  const before = dump(db)
-  expect(() => store.agentUndo(reapplied.operationId, note)).toThrow(
-    'Later changes touch this Brain change',
-  )
-  expect(dump(db)).toEqual(before)
-  expect(() => store.agentUndo(operations[0]!.operationId, note)).toThrow(
-    'Later changes touch this Brain change',
-  )
-  expect(dump(db)).toEqual(before)
+  expect(() => store.agentUndo(operations[0]!, note)).toThrow('Later changes')
+  store.agentUndo(operations.at(-1)!, note)
+  expect(db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE state='done'").get()).toEqual({ n: 19 })
 })

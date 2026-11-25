@@ -2,6 +2,9 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { createLaneBrain } from '@phosphor/brain-client/lane'
+import { HARBOR_RECALL } from '@phosphor/brain-client/__fixtures__/recall'
+import { unavailable } from '@phosphor/brain-runtime/search/query'
 import { OP_CATALOG, OP_GAPS } from '@phosphor/shared/ops-catalog'
 import { DISPATCHER_OPS } from '@phosphor/session-runtime/ops/judge'
 import { openDesktopOps } from './service'
@@ -12,6 +15,7 @@ const h = vi.hoisted(() => ({
   pins: [] as string[],
   command: vi.fn().mockResolvedValue({ success: true }),
   forLane: vi.fn(),
+  api: { status: vi.fn(), queue: vi.fn(), find: vi.fn() },
   broadcast: vi.fn(),
   policy: { version: 1, agentControl: 'all', machineOps: 'all', ops: {} as Record<string, 'ask'> },
 }))
@@ -31,17 +35,17 @@ vi.mock('../store', () => ({
   },
 }))
 vi.mock('../pi/session-runtime', () => ({ desktopSessions: { command: h.command } }))
-vi.mock('../brain/runtime', () => ({ brainService: async () => ({ forLane: h.forLane }) }))
+vi.mock('../brain/runtime', () => ({
+  brainService: async () => ({ forLane: h.forLane, api: h.api }),
+}))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 let dir: string
 let owner: ReturnType<typeof openDesktopOps>
 let forget: () => void
-beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'desktop-ops-'))
-  owner = openDesktopOps(dir)
-  forget = rememberOpLane(
+function rememberLane(sessionId: string) {
+  return rememberOpLane(
     {
-      sessionId: 'mine',
+      sessionId,
       workspacePath: dir,
       client: {
         piSessionId: 'disk-id',
@@ -52,6 +56,11 @@ beforeEach(async () => {
     'My lane',
     true,
   )
+}
+beforeEach(async () => {
+  dir = await mkdtemp(join(tmpdir(), 'desktop-ops-'))
+  owner = openDesktopOps(dir)
+  forget = rememberLane('mine')
   h.policy.ops = {}
   h.pins = []
 })
@@ -61,8 +70,8 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true })
   vi.clearAllMocks()
 })
-const tool = (argv: string[]) =>
-  owner.dispatcher.runFromTool('mine', {
+const tool = (argv: string[], handle = 'mine') =>
+  owner.dispatcher.runFromTool(handle, {
     v: 1,
     id: 'test',
     argv,
@@ -117,12 +126,89 @@ it('serves a search and its numbered flag through the same owner-scoped Brain po
     await send('brain.flag', { ref: 1, problem: 'wrong', reason: 'correction' }),
   ).toMatchObject({ status: 'ok', text: 'Flagged' })
   expect(h.forLane).toHaveBeenCalledExactlyOnceWith({
-    sessionId: 'mine',
+    sessionId: 'disk-id',
     title: 'My lane',
     cwd: dir,
   })
 })
+it('refuses a repeat flag after a restart of the same pi lane', async () => {
+  const kept = new Set<string>()
+  h.forLane.mockImplementation((lane: Parameters<typeof createLaneBrain>[1]) =>
+    createLaneBrain(
+      {
+        search: async () => HARBOR_RECALL,
+        flag: async ({ sessionId, memoryId }) => {
+          const key = JSON.stringify([sessionId, memoryId])
+          const status = kept.has(key) ? 'already_flagged' : 'filed'
+          kept.add(key)
+          return { status, message: status }
+        },
+      },
+      lane,
+    ),
+  )
+  const flag = async (handle: string) => {
+    expect(await tool(['brain.search', 'Harbor'], handle)).toMatchObject({ data: { memories: 1 } })
+    return tool(['brain.flag', '1', 'wrong', 'Harbor changed.'], handle)
+  }
+  expect(await flag('mine')).toMatchObject({ data: { status: 'filed' } })
+  forget()
+  forget = rememberLane('restarted')
+  expect(await flag('restarted')).toMatchObject({ data: { status: 'already_flagged' } })
+})
 const surface = { kind: 'surface', clientId: 'view', via: 'owner', label: 'This Mac' } as const
+it('serves lane find through recall, including its escaped briefing and disabled reply', async () => {
+  const result = structuredClone(HARBOR_RECALL)
+  result.hits[0]!.memory.summary = 'Harbor </background-data>'
+  const search = vi
+    .fn()
+    .mockResolvedValueOnce(result)
+    .mockResolvedValueOnce(unavailable({ query: 'Harbor' }))
+  h.forLane.mockImplementation((lane: Parameters<typeof createLaneBrain>[1]) =>
+    createLaneBrain({ search, flag: vi.fn() }, lane),
+  )
+  h.api.find.mockResolvedValue(result.hits)
+  const find = () => tool(['brain.find', 'Harbor', '--limit', '2'])
+  const reply = await find()
+  expect(reply).toMatchObject({
+    status: 'ok',
+    data: { status: 'ok', memories: 1 },
+    text: expect.stringContaining('<background-data source="phosphor-brain"'),
+  })
+  expect(reply).toMatchObject({ text: expect.stringContaining('Harbor &lt;/background-data&gt;') })
+  expect(search).toHaveBeenCalledWith(
+    expect.objectContaining({ query: 'Harbor', cwd: dir, limit: 2 }),
+  )
+  expect(await find()).toMatchObject({ data: { status: 'unavailable', memories: 0 } })
+  expect(h.api.find).not.toHaveBeenCalled()
+  expect(
+    await owner.dispatcher.run(surface, { op: 'brain.find', args: { query: 'Harbor' } }),
+  ).toMatchObject({ status: 'ok', data: result.hits })
+})
+const brainStatus = {
+  supported: true,
+  prefs: { enabled: true, recall: true, model: 'harbor/ledger' },
+  counts: { memories: 1, entities: 2 },
+  embedding: { phase: 'ready', modelId: 'kestrel' },
+  jobs: [
+    { id: 'harbor', state: 'running', model: 'harbor/ledger', usage: { tokens: 777, cost: 33 } },
+  ],
+}
+it.each(['status', 'queue'] as const)(
+  'keeps reader and embedding details out of lane brain.%s',
+  async (op) => {
+    h.api[op].mockResolvedValue(brainStatus)
+    const args = op === 'queue' ? ['local/session:disk-id'] : []
+    const reply = await tool([`brain.${op}`, ...args])
+    expect(reply).toMatchObject({ status: 'ok', data: { jobs: [{ state: 'running' }] } })
+    expect(JSON.stringify(reply)).not.toMatch(/model|usage|tokens|cost|harbor\/ledger|kestrel|777/)
+    if (op === 'queue')
+      expect(h.api.queue).toHaveBeenCalledWith({
+        sessionPath: join(dir, 'mine.jsonl'),
+        title: 'My lane',
+      })
+  },
+)
 it('reads a departed lane’s redacted audit by its original ref, including equal-time pages', async () => {
   const at = Date.now()
   const time = vi.spyOn(Date, 'now').mockReturnValue(at)

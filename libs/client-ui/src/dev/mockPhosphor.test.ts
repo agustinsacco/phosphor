@@ -112,11 +112,18 @@ it('dispatches the Brain queue, Defrag and Explorer channels', async () => {
     title: 'Harbor billing',
   })
   const id = queued.jobs.at(-1)!.id
-  expect((await window.phosphor.invoke('brain:status')).jobs.at(-1)?.state).toBe('running')
-  await vi.advanceTimersByTimeAsync(5000)
-  await window.phosphor.invoke('brain:status')
-  const proposal = await window.phosphor.invoke('brain:proposal', id)
-  expect(proposal.memories.length).toBeGreaterThan(0)
+  // The harness reads its own queued lane first; each read saves after four seconds.
+  for (let step = 0; step < 6; step++) {
+    await window.phosphor.invoke('brain:status')
+    await vi.advanceTimersByTimeAsync(2500)
+  }
+  expect((await window.phosphor.invoke('brain:status')).jobs.map((job) => job.id)).not.toContain(id)
+  expect((await window.phosphor.invoke('brain:extraction', id)).memories).toHaveLength(2)
+  const answer = await window.phosphor.invoke('brain:ask', 'Who does Tom Lee report to?')
+  expect(answer.hits.map((hit) => hit.memory.summary)).toContain('Tom Lee reports to Mara Voss.')
+  expect(await window.phosphor.invoke('brain:tell', 'Tom Lee left the team')).toHaveProperty(
+    'sessionPath',
+  )
   await window.phosphor.invoke('brain:defrag')
   await vi.advanceTimersByTimeAsync(60_000)
   await window.phosphor.invoke('brain:status')
@@ -142,10 +149,6 @@ it('round trips the Brain reader preference through the browser bridge', async (
   expect((await window.phosphor.invoke('brain:setPrefs', prefs)).prefs).toEqual(prefs)
 })
 
-it('dispatches both Knowledge overview reads in the browser harness', async () => {
-  const page = await window.phosphor.invoke('brain:entities', null, 0, 20, 'connected')
-  expect(page.items).toHaveLength(20)
-  expect(page.more).toBe(true)
-  expect(page.kinds).toContain('person')
-  expect(await window.phosphor.invoke('brain:recent', 10)).toHaveProperty('items')
+it('exposes the map owner in the browser harness', async () => {
+  expect((await window.phosphor.invoke('brain:status')).ownerId).toBe('mara')
 })

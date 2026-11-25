@@ -10,14 +10,7 @@ import {
   formatWaiting,
   formatWrite,
 } from './curator-format'
-import { formatReview } from './curator-review-format'
-import {
-  LEDGER_REVIEW,
-  OWNERSHIP_DETAIL,
-  RINA_SUGGESTION,
-  RINA_VIEW,
-  WAITING,
-} from './__fixtures__/curator'
+import { OWNERSHIP_DETAIL, RINA_SUGGESTION, RINA_VIEW, WAITING } from './__fixtures__/curator'
 import { HARBOR_RECALL } from './__fixtures__/recall'
 
 const OPEN = '<background-data source="phosphor-brain" authority="none">'
@@ -26,36 +19,20 @@ describe('formatWaiting', () => {
   it('counts the header, lists each kind in deciding order and shows the ids', () => {
     const text = formatWaiting(WAITING)
     expect(text.split('\n').slice(0, 2)).toEqual([
-      '3 waiting: 1 read, 1 person or thing, 1 flag.',
-      'Decide in this order: reads, people and things, repeats and disagreements, flags.',
+      '2 waiting: 1 person or thing, 1 flag.',
+      'Decide in this order: people and things, groups, unlinked pairs, repeats and disagreements, flags, then possible repeats.',
     ])
-    expect(text).toContain(
-      '- job-ledger · Ledger invoices · 2 memories, 1 question · read 2026-11-10',
-    )
     expect(text).toContain(
       '- sugg-rina · Rina Okafor (entity rina) / Rina (entity rina-2) · Same first name and both work on Harbor.',
     )
     expect(text).toContain('- flag-ownership · outdated ·')
-    expect(text.indexOf('Reads (')).toBeLessThan(text.indexOf('People and things ('))
     expect(text.indexOf('People and things (')).toBeLessThan(text.indexOf('Flags from lanes ('))
     expect(text).toContain(OPEN)
   })
 
-  it('says when nothing waits and when a read must be rejected', () => {
-    const never: BrainWaiting = {
-      counts: { reads: 1, entities: 0, repeats: 0, conflicts: 0, flags: 0 },
-      items: [{ ...WAITING.items[0]!, neverRead: true } as BrainWaiting['items'][number]],
-      more: 0,
-    }
-    expect(formatWaiting(never)).toContain('NEVER READ: reject it')
-    expect(
-      formatWaiting({ counts: { ...never.counts, reads: 0 }, items: [], more: 0 }).split('\n')[0],
-    ).toBe('Nothing is waiting.')
-  })
-
   it('ends with how many items the limit or the size cap left out', () => {
     const many: BrainWaiting = {
-      counts: { reads: 0, entities: 0, repeats: 400, conflicts: 0, flags: 0 },
+      counts: { groups: 0, unlinked: 0, entities: 0, repeats: 400, conflicts: 0, flags: 0 },
       items: Array.from({ length: 200 }, (_, i) => ({
         kind: 'same_memory' as const,
         suggestionId: `sugg-${i}`,
@@ -101,75 +78,6 @@ describe('stored text is data', () => {
   })
 })
 
-describe('formatReview', () => {
-  it('names the revision, the required question and the held memory', () => {
-    const text = formatReview(LEDGER_REVIEW)
-    expect(text).toContain('Read job-ledger · "Ledger invoices" · revision 41.')
-    expect(text).toContain(
-      'brain_decide_read { jobId: "job-ledger", revision: 41, approve, reason }',
-    )
-    expect(text).toContain('Answer before approving: e1')
-    expect(text).toContain(
-      '- e1 · Rina (person) · uncertain · REQUIRED · Approves Ledger invoices · candidates: rina = Rina Okafor (person, Harbor billing lead)',
-    )
-    expect(text).toContain('- 1 · fact · add · HELD (temporary): saved only if you list it')
-    expect(text).toContain('quote "Rina signs off anything over 10k"')
-  })
-
-  it('tells Brain Agent to reject a lane Brain never reads', () => {
-    expect(formatReview({ ...LEDGER_REVIEW, neverRead: true })).toContain(
-      'Brain never reads this lane: reject it with brain_decide_read { jobId: "job-ledger", revision: 41, approve: false, reason }.',
-    )
-  })
-
-  it('pages a proposal over the cap, counting identities, groups, memories and said again', () => {
-    const memory = LEDGER_REVIEW.proposal.memories[0]!
-    const review = {
-      ...LEDGER_REVIEW,
-      proposal: {
-        ...LEDGER_REVIEW.proposal,
-        memories: Array.from({ length: 300 }, (_, index) => ({
-          ...memory,
-          index,
-          summary: 's'.repeat(500),
-        })),
-      },
-    }
-    const first = formatReview(review)
-    expect(first.length).toBeLessThanOrEqual(CURATOR_TEXT_MAX)
-    const [, shown, next] =
-      /Identities 1–2 of 2; Memories 1–(\d+) of 300\. Call again with offset (\d+)\.$/.exec(first)!
-    expect(Number(next)).toBe(Number(shown) + 2)
-    const second = formatReview(review, Number(next))
-    expect(second).not.toContain('Identities (')
-    expect(second).toContain(`Memories (indexes for memories):\n- ${shown} · procedure`)
-    expect(second.split('\n').at(-1)).toMatch(
-      new RegExp(`^Memories ${Number(shown) + 1}–\\d+ of 300\\.`),
-    )
-    const last = formatReview(review, 301)
-    expect(last).toContain('- 299 · procedure')
-    expect(last.split('\n').at(-1)).toBe('Memories 300–300 of 300. That is the end of this read.')
-    expect(formatReview(LEDGER_REVIEW)).not.toContain('offset')
-  })
-
-  it('clips one line longer than a page, so paging always moves on', () => {
-    const [identity] = LEDGER_REVIEW.proposal.identities
-    const candidates = Array.from({ length: 60 }, (_, i) => ({
-      ...identity!.candidates[0]!,
-      id: `rina-${i}`,
-      description: 'd'.repeat(160),
-    }))
-    const review = {
-      ...LEDGER_REVIEW,
-      proposal: { ...LEDGER_REVIEW.proposal, identities: [{ ...identity!, candidates }] },
-    }
-    const text = formatReview(review)
-    expect(text.length).toBeLessThanOrEqual(CURATOR_TEXT_MAX)
-    expect(text).toMatch(/Identities 1–1 of 1\. Call again with offset 1\.$/)
-    expect(formatReview(review, 1)).toContain('- 0 · procedure')
-  })
-})
-
 describe('formatSuggestion, formatEntity and formatMemory', () => {
   it('shows the allowed actions and each record with its id', () => {
     const text = formatSuggestion(RINA_SUGGESTION)
@@ -191,7 +99,7 @@ describe('formatSuggestion, formatEntity and formatMemory', () => {
   it('lists an entity with its connections and a memory with its quotes', () => {
     const entity = formatEntity(RINA_VIEW)
     expect(entity).toContain('Rina Okafor (person, also Rina)')
-    expect(entity).toContain('(project harbor) · 1 memory')
+    expect(entity).toContain('project harbor) · 1 memory')
     expect(entity).toContain('From lanes: Harbor billing (3)')
     const memory = formatMemory(OWNERSHIP_DETAIL)
     expect(memory.split('\n')[0]).toBe(`Memory ${OWNERSHIP_DETAIL.memory.id}.`)
@@ -218,11 +126,6 @@ describe('formatWrite', () => {
         operationId: null,
       }),
     ).toBe('Refused, nothing changed: Give a reason without quoting the memory; nothing changed.')
-    expect(formatWrite({ status: 'limit', message: 'Cap.', operationId: null })).toBe(
-      'Not erased: Cap.',
-    )
-    expect(formatWrite({ status: 'changed', message: 'Read again.', operationId: null })).toBe(
-      'Not saved: Read again.',
-    )
+    expect(formatWrite({ status: 'limit', message: 'Cap.', operationId: null })).toBe('Limit: Cap.')
   })
 })

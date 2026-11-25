@@ -2,6 +2,8 @@ import { expect, it } from 'vitest'
 import { fixture } from '../test-support'
 import { seed } from './test-support'
 
+const note = { runId: null, reason: 'The memories show the answer.' }
+
 it('offers a one-word person/full-name pair and shared aliases, never a cross-kind namesake', () => {
   const { store, db } = fixture()
   seed(db, 4)
@@ -15,7 +17,7 @@ it('offers a one-word person/full-name pair and shared aliases, never a cross-ki
     UPDATE entity_words SET text='Mara Voss Rina Okafor' WHERE rowid=4;`)
   store.sweep('all')
   const pairs = store
-    .suggestions('same_entity', null, 50)
+    .suggestions('same_entity')
     .items.map((s) => s.subjects.map((v) => v.id).sort())
   expect(pairs).toContainEqual(['rina-1', 'rina-2'])
   expect(pairs).toContainEqual(['rina-2', 'rina-4'])
@@ -30,7 +32,7 @@ it('names shared full-name evidence even when a one-word alias is visited first'
     "UPDATE entity_names SET name='Rina',folded='rina' WHERE entity=1; INSERT INTO entity_names VALUES (3,1,'Rina Okafor','rina okafor')",
   )
   store.sweep({ entityIds: ['rina-1', 'rina-2'], memoryIds: [] })
-  expect(store.suggestions('same_entity', null, 20).items.map((s) => s.reason)).toEqual([
+  expect(store.suggestions('same_entity').items.map((s) => s.reason)).toEqual([
     'Both are named "Rina Okafor".',
   ])
 })
@@ -42,7 +44,7 @@ it('names one-word and full-name evidence rather than quoting memory sentences',
     "UPDATE entities SET label='Rina' WHERE n=1; UPDATE entity_names SET name='Rina',folded='rina' WHERE entity=1; UPDATE entity_words SET text='Rina' WHERE rowid=1",
   )
   store.sweep({ entityIds: ['rina-1'], memoryIds: [] })
-  expect(store.suggestions('same_entity', null, 20).items.map((s) => s.reason)).toEqual([
+  expect(store.suggestions('same_entity').items.map((s) => s.reason)).toEqual([
     '"Rina" is part of the name "Rina Okafor".',
   ])
 })
@@ -54,7 +56,7 @@ it('names the shared alias of two differently named things', () => {
     "UPDATE entities SET kind='component',label=CASE n WHEN 1 THEN 'Ledger service' ELSE 'Ledger backend' END; UPDATE entity_names SET name=CASE entity WHEN 1 THEN 'Ledger service' ELSE 'Ledger backend' END,folded=CASE entity WHEN 1 THEN 'ledger service' ELSE 'ledger backend' END; INSERT INTO entity_names VALUES (3,1,'Ledger API','ledger api'),(4,2,'Ledger API','ledger api')",
   )
   store.sweep({ entityIds: ['rina-1'], memoryIds: [] })
-  expect(store.suggestions('same_entity', null, 20).items.map((s) => s.reason)).toEqual([
+  expect(store.suggestions('same_entity').items.map((s) => s.reason)).toEqual([
     'Both use the name "Ledger API".',
   ])
 })
@@ -64,19 +66,15 @@ it('settles four records in three merges even when the first merge removes the c
   seed(db, 4)
   store.sweep('all')
   const pairs = () =>
-    store.suggestions('same_entity', null, 50).items.map((s) => s.subjects.map((v) => v.id).sort())
+    store.suggestions('same_entity').items.map((s) => s.subjects.map((v) => v.id).sort())
   const merge = (source: string) => {
     const suggestion = store
-      .suggestions('same_entity', null, 50)
+      .suggestions('same_entity')
       .items.find(
         (s) => s.subjects.some((v) => v.id === source) && s.subjects.some((v) => v.id === 'rina-4'),
       )!
     expect(suggestion).toBeDefined()
-    return store.applySuggestion(
-      suggestion.id,
-      { kind: 'merge', survivorId: 'rina-4' },
-      store.revision(),
-    )!
+    return store.resolve(suggestion.id, { kind: 'merge', survivorId: 'rina-4' }, note)!
   }
   merge('rina-1')
   expect(pairs()).toContainEqual(['rina-2', 'rina-4'])

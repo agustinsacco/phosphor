@@ -1,5 +1,6 @@
+import { routes } from './routes'
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from './test-support'
+import { saveAndListMemories, extraction, fixture, vector } from './test-support'
 import type { ProposalEntity } from './types'
 
 function node(ref: string): ProposalEntity {
@@ -17,8 +18,8 @@ function node(ref: string): ProposalEntity {
     auto: false,
   }
 }
-it('groups both directions, pages connections and memories without duplicates and finds supported paths', () => {
-  const { store } = fixture()
+it('groups both directions, pages connections and memories without duplicates ', () => {
+  const { store, db } = fixture()
   const data = extraction('graph')
   const refs = Array.from({ length: 50 }, (_, i) => `Harbor-${i}`)
   const memories = refs.slice(1).map((ref, index) => ({
@@ -27,6 +28,7 @@ it('groups both directions, pages connections and memories without duplicates an
     summary: `Harbor connection ${index}.`,
     links: [
       {
+        label: '',
         subject: refs[0]!,
         predicate: 'part_of' as const,
         object: ref,
@@ -34,7 +36,7 @@ it('groups both directions, pages connections and memories without duplicates an
       },
     ],
   }))
-  approve(store, {
+  saveAndListMemories(store, {
     entities: refs.map(node),
     entityVectors: refs.map(() => vector()),
     memories,
@@ -62,25 +64,36 @@ it('groups both directions, pages connections and memories without duplicates an
   const page = store.entityMemories(center.id, {}, null)
   expect(page.memories).toHaveLength(40)
   expect(store.entityMemories(center.id, {}, page.next).memories).toHaveLength(9)
-  const path = store.path(target.id, nodes.find((item) => item.label === refs[2])!.id)
-  expect(path.paths[0]).toHaveLength(2)
+  const path = routes(
+    { db, now: () => 1, id: () => '' },
+    target.id,
+    nodes.find((item) => item.label === refs[2])!.id,
+    1,
+  )
+  expect(path.routes[0]).toHaveLength(2)
   expect(path.memories).toHaveLength(2)
   expect(
-    path.paths.flat().every((link) => path.memories.some((memory) => memory.id === link.memoryId)),
+    path.routes
+      .flat()
+      .every((link) =>
+        path.memories.some(
+          (memory) => memory.id === (link.kind === 'relation' ? link.link.memoryId : link.memoryId),
+        ),
+      ),
   ).toBe(true)
   expect(store.neighbourhood(center.id, 2, 12).nodes).toHaveLength(12)
   expect(store.neighbourhood(center.id, 2, 12).truncated).toBe(true)
 })
 it('merge repoints mentions, keys, names and duplicate support, removes self-links and audits labels', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const nodes = store.overview(300).nodes
   const source = nodes.find((item) => item.label === 'Rina Okafor')!
   const target = nodes.find((item) => item.label === 'Tom Lee')!
   const harbor = nodes.find((item) => item.label === 'Harbor')!
   const old = store.entityMemories(source.id, {}, null).memories[0]!
   const data = extraction('extra')
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'extra',
     entities: [],
     entityVectors: [],
@@ -92,12 +105,14 @@ it('merge repoints mentions, keys, names and duplicate support, removes self-lin
         entities: [target.id],
         links: [
           {
+            label: '',
             subject: target.id,
             object: harbor.id,
             predicate: 'owns',
             citation: data.memories[0]!.citations[0]!,
           },
           {
+            label: '',
             subject: source.id,
             object: target.id,
             predicate: 'works_on',

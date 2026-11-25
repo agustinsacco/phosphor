@@ -160,7 +160,7 @@ service.update destructive machine now - - - job 32062bdb9024160d3b9816f12ba2f33
 maintenance.scan read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 maintenance.run destructive machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 hosts.list read machine now - - local - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
-brain.search read self now - - local - 07a2a5546a3c9fbad64c315db0789c97cf7d0498721cc19f0cf3c1cc8c9c30e4
+brain.search read self now - - local - bb88ccb4ab6f43e369959e481ff8de8bf4b6d42e14bba0cc7a696671147b17b2
 brain.flag lane self now - - local - 5b85d6a81378bcd3832d874a33ff22ecc970492f17ede6109ec083a89881b556
 brain.status read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 brain.find read machine now - - - - 07a2a5546a3c9fbad64c315db0789c97cf7d0498721cc19f0cf3c1cc8c9c30e4

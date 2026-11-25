@@ -22,7 +22,7 @@ const DESCRIPTION_MAX = 160
 /** `brain:split` takes a new name of 1 to 80 characters. */
 const SPLIT_LABEL_MAX = 80
 
-/** The profile's ⋯ menu: the three edits, then the full map. */
+/** The card's edit menu: the three edits, then the full map. */
 export function profileMenu(
   view: BrainEntityView,
   onEdit: (edit: EntityEdit) => void,
@@ -37,7 +37,7 @@ export function profileMenu(
       onClick: () => onEdit('removeName'),
     },
     { label: 'Edit description…', onClick: () => onEdit('describe') },
-    { label: 'Show on full map', onClick: onFullMap, separatorAbove: true },
+    { label: 'Show in the whole graph', onClick: onFullMap, separatorAbove: true },
   ]
 }
 

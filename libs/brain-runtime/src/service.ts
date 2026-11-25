@@ -1,9 +1,11 @@
 import { mkdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { BrainStore } from '@phosphor/memory-engine/types'
-import type { BrainService, BrainServiceOptions } from './types'
+import type { BrainService, BrainServiceOptions, BrainSearchPort } from './types'
 import { ExtractionQueue } from './queue'
-import { returnRefreshesToReview } from './stale-review'
+import { createAutoRun, type AutoRun } from './agent/auto-run'
+import type { BrainAgentRun } from '@phosphor/shared/brain-agent'
+import type { ReadOptions } from './extraction-save'
 import { extractJob } from './extract'
 import { createRecall } from './recall'
 import { createApi } from './api'
@@ -55,33 +57,19 @@ async function removePrototypeFiles(directory: string): Promise<void> {
   )
 }
 
-/**
- * What the last session left: reads go back to the queue, refreshes nobody waits for any more go
- * back to review (stale reviews wait for Brain Agent), and an unfinished Defrag run is reported.
- */
-function recoverInterrupted(store: BrainStore, options: BrainServiceOptions): void {
+function recoverInterrupted(store: BrainStore): void {
   store.requeueInterrupted()
-  const left = returnRefreshesToReview(store)
-  if (left) options.log?.('Brain left stale reviews waiting for Brain Agent', { reviews: left })
   store.interruptRuns(DEFRAG_INTERRUPTED)
 }
 
-export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
-  await mkdir(options.directory, { recursive: true })
-  await removePrototypeFiles(options.directory)
-  const store = options.openStore(join(options.directory, 'brain.sqlite'))
-  const search = options.openSearch(join(options.directory, 'brain.sqlite'))
-  let disposed = false
-  const notify = (): void => {
-    if (!disposed) options.onChange?.()
-  }
-  const maintenance = createTidyMaintenance({ store, search, notify, log: options.log })
-  const changed = (): void => {
-    notify()
-    maintenance.schedule()
-  }
-  const files = new LaneFiles()
-  const queue = new ExtractionQueue({
+function createQueue(
+  store: BrainStore,
+  search: BrainSearchPort,
+  files: LaneFiles,
+  changed: () => void,
+  options: ReadOptions,
+): ExtractionQueue {
+  return new ExtractionQueue({
     store,
     busy: (path) => options.lanes.busy(path),
     ready: () => store.snapshot().prefs.enabled && options.embeddings.status().phase === 'ready',
@@ -97,9 +85,40 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
       }),
     now: options.now ?? Date.now,
   })
+}
+
+export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
+  await mkdir(options.directory, { recursive: true })
+  await removePrototypeFiles(options.directory)
+  const store = options.openStore(join(options.directory, 'brain.sqlite'))
+  const search = options.openSearch(join(options.directory, 'brain.sqlite'))
+  let disposed = false
+  const notify = (): void => {
+    if (!disposed) options.onChange?.()
+  }
+  const maintenance = createTidyMaintenance({ store, search, notify, log: options.log })
+  const changed = (): void => {
+    notify()
+    maintenance.schedule()
+    autoRun.changed()
+  }
+  const files = new LaneFiles()
+  const queue = createQueue(store, search, files, changed, {
+    ...options,
+    onReadSaved: () => autoRun.readSaved(),
+  })
   const setup = modelSetup(options, changed, () => queue.kick())
-  const defrag = createDefrag({ store, search, options, queue, changed })
-  const curator = createCurator({
+  const defragContext = {
+    store,
+    search,
+    options,
+    queue,
+    changed,
+    runEnded: (run: BrainAgentRun) => autoRun.runEnded(run),
+  }
+  const defrag = createDefrag(defragContext)
+  const autoRun: AutoRun = createAutoRun({ store, queue, defrag, options })
+  const curatorContext = {
     store,
     search,
     options,
@@ -108,9 +127,10 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     defrag,
     changed,
     enabled: () => !disposed && queue.accepting && store.snapshot().prefs.enabled,
-  })
+  }
+  const curator = createCurator(curatorContext)
   const recall = createRecall(store, options, search, () => queue.accepting, store, curator)
-  recoverInterrupted(store, options)
+  recoverInterrupted(store)
   if (store.snapshot().prefs.enabled) setup.start(() => options.embeddings.setEnabled(true))
   else await options.embeddings.setEnabled(false)
   changed()
@@ -134,6 +154,7 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
     async dispose() {
       if (disposed) return
       disposed = true
+      autoRun.dispose()
       defrag.dispose()
       options.embeddings.dispose()
       await queue.dispose()

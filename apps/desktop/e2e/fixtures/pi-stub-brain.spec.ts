@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
-import { spawnSync } from 'node:child_process'
+import { createBrainBridge } from '@phosphor/brain-runtime/bridge'
+import { promisify } from 'node:util'
+import { execFile, spawnSync } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { extractPrompt, EXTRACTION_SYSTEM } from '@phosphor/brain-runtime/stage-prompts/extract'
@@ -113,14 +115,20 @@ test('Brain stub reads stdin and system file, keeps handles and directed owner/p
     {
       subject: 'n1',
       predicate: 'owns',
+      label: 'owns',
       object: 'n2',
+      validFrom: null,
+      validTo: null,
       segment: 's2',
       quote: answer.claims[0]!.text,
     },
     {
       subject: 'n2',
       predicate: 'part_of',
+      label: 'is part of',
       object: 'n3',
+      validFrom: null,
+      validTo: null,
       segment: 's3',
       quote: answer.claims[1]!.text,
     },
@@ -247,7 +255,10 @@ test('Brain stub reuses registry handles for lower-case component sentences', as
       claim: 'c1',
       subject: 'r1',
       predicate: 'part_of',
+      label: 'is part of',
       object: 'r2',
+      validFrom: null,
+      validTo: null,
       segment: 's1',
       quote: source.segments[0]!.text,
     },
@@ -294,6 +305,7 @@ test('Brain stub gets the parent link only from the small links call, including 
       claim: 'c2',
       subject: 'n2',
       predicate: 'part_of',
+      label: 'is part of',
       object: 'n3',
       segment: 's3',
       quote: 'Harbor ledger is part of Harbor.',
@@ -301,4 +313,93 @@ test('Brain stub gets the parent link only from the small links call, including 
   ])
   const repaired = await call(LINKS_SYSTEM, repairPrompt(prompt, '{}', 'Expected links'))
   expect(repaired.message.content).toEqual(normal.message.content)
+})
+
+test('stub reader models a handover and leaves joint work for Brain Agent', async () => {
+  const text = [
+    'Rina Okafor owns Harbor ledger.',
+    'Harbor ledger is part of Harbor.',
+    'Tom Lee took over Harbor ledger from Rina Okafor.',
+    'Rina Okafor and Mara Voss reviewed the Harbor invoices.',
+    'Rina Okafor and Mara Voss planned the Kestrel rollout.',
+  ].join('\n')
+  const result = await call(
+    EXTRACTION_SYSTEM,
+    extractPrompt(
+      makeWindow([{ entryId: 'ledger', role: 'user', label: 'You', observedAt: 0, text }]),
+      [],
+    ),
+  )
+  const raw = JSON.parse(result.message.content[0].text)
+  expect(raw.claims).toHaveLength(5)
+  const id = (name: string) => raw.entities.find((e: { label: string }) => e.label === name).ref
+  expect(raw.claims[2].links).toEqual([
+    expect.objectContaining({
+      subject: id('Tom Lee'),
+      predicate: 'took_over_from',
+      label: 'took over Harbor ledger from',
+      object: id('Rina Okafor'),
+    }),
+  ])
+  expect(raw.claims[2].mentions).toContain(id('Harbor ledger'))
+  for (const claim of raw.claims.slice(3))
+    expect(claim).toMatchObject({
+      importance: 1,
+      links: [],
+      mentions: [id('Rina Okafor'), id('Mara Voss')],
+    })
+})
+
+test('the stub settles two unexplained people over a protocol 7 curator bridge', async () => {
+  const calls: { method: string; params: unknown }[] = []
+  const bridge = await createBrainBridge(async (method, params) => {
+    calls.push({ method, params })
+    if (method === 'waiting') return { items: [{ kind: 'unlinked', suggestionId: 'pair' }] }
+    if (method === 'suggestion')
+      return {
+        suggestion: { detail: { memoryIds: ['invoices', 'rollout'] } },
+        subjects: ['rina', 'mara'].map((id) => ({
+          type: 'entity',
+          value: { entity: { id, kind: 'person' } },
+        })),
+      }
+    if (method === 'relate') return { status: 'done', operationId: 'link', message: 'Stated.' }
+    throw new Error('Unexpected stub call')
+  })
+  const dir = await scratchDir('brain-stub-turn-')
+  const folder = join(dir, 'brain', 'Brain')
+  try {
+    await mkdir(folder, { recursive: true })
+    const file = join(import.meta.dirname, 'pi-stub-brain.cjs')
+    const { stdout } = await promisify(execFile)(
+      process.execPath,
+      [
+        '-e',
+        `require(${JSON.stringify(file)}).handleAgentPrompt('Defrag.',()=>{},m=>console.log(JSON.stringify(m)))`,
+      ],
+      {
+        cwd: folder,
+        env: {
+          ...process.env,
+          PHOSPHOR_BRAIN_ENDPOINT: bridge.endpoint,
+          PHOSPHOR_BRAIN_TOKEN: bridge.curatorToken,
+        },
+        timeout: 10000,
+      },
+    )
+    expect(stdout).toContain('1 change.')
+    expect(calls.map((c) => c.method)).toEqual(['waiting', 'suggestion', 'relate'])
+    expect(calls[2]?.params).toEqual({
+      subjectId: 'rina',
+      objectId: 'mara',
+      predicate: 'works_with',
+      label: 'works with',
+      memoryIds: ['invoices', 'rollout'],
+      suggestionId: 'pair',
+      reason: 'Both memories show them working together.',
+    })
+  } finally {
+    await bridge.close()
+    await rm(dir, { recursive: true, force: true })
+  }
 })

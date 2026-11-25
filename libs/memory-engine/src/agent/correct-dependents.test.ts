@@ -15,7 +15,7 @@ it('refuses undo of a correction when a later quote depends on the memory it cre
     },
     null,
     note,
-  )
+  ).operationId
   const memory = db.prepare("SELECT n FROM memories WHERE id!='memory-1'").get() as { n: number }
   db.prepare('INSERT INTO evidence VALUES (999,NULL,?,?,?,?,?)').run(
     'later',

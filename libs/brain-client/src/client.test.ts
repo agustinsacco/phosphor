@@ -30,8 +30,8 @@ describe('createBrainClient', () => {
     { ...HARBOR_RECALL, status: 'partial' },
     { ...HARBOR_RECALL, entities: [{}] },
     { ...HARBOR_RECALL, focus: [1] },
-    { ...HARBOR_RECALL, paths: [[{ subjectId: 'rina', predicate: 'likes', objectId: 'harbor' }]] },
-    { ...HARBOR_RECALL, paths: undefined },
+    { ...HARBOR_RECALL, hits: [{ ...HARBOR_RECALL.hits[0], trail: { links: [] } }] },
+    { ...HARBOR_RECALL, mode: undefined },
     { ...HARBOR_RECALL, branch: 3 },
     {
       ...HARBOR_RECALL,
@@ -55,7 +55,7 @@ describe('createBrainClient', () => {
           hits: [],
           entities: [],
           focus: [],
-          paths: [],
+          mode: 'search',
           more: 0,
           branch: null,
           degradation: [],
@@ -117,4 +117,10 @@ it.each([
   { status: 'filed', message: 'ok', extra: true },
 ])('rejects malformed flag responses %j', async (response) => {
   await expect(setup(response).client.flag(flag)).rejects.toMatchObject({ code: 'malformed' })
+})
+
+it('explains the three moves when a search mixes modes', async () => {
+  await expect(setup().client.search({ query: 'Harbor', from: 'Ledger' })).rejects.toThrow(
+    /query.*from.*optional context.*from and to/i,
+  )
 })

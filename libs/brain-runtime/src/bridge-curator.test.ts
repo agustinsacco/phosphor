@@ -16,11 +16,17 @@ const PARAMS: Record<string, unknown> = {
     title: 'Harbor billing',
   },
   waiting: {},
-  readReview: { jobId: 'job-ledger' },
   suggestion: { suggestionId: 'sugg-rina' },
   entity: { entityId: 'rina' },
   memory: { memoryId: 'ownership' },
-  decideRead: { jobId: 'job-ledger', revision: 41, approve: false, reason },
+  relate: {
+    subjectId: 'rina',
+    objectId: 'harbor',
+    predicate: 'owns',
+    label: 'owns',
+    memoryIds: ['ownership'],
+    reason,
+  },
   resolve: { suggestionId: 'sugg-rina', action: { kind: 'keep' }, reason },
   edit: { edit: { kind: 'merge', sourceId: 'rina-2', targetId: 'rina' }, reason },
   correct: {
@@ -154,8 +160,8 @@ it('keeps an authenticated curator call open past the idle timeout and aborts it
     const slow = open(bridge.endpoint, {
       version: BRAIN_PROTOCOL,
       token: bridge.curatorToken,
-      method: 'readReview',
-      params: { jobId: 'job-ledger' },
+      method: 'search',
+      params: { from: 'Harbor' },
     })
     await new Promise((resolve) => setTimeout(resolve, 150))
     expect(signal?.aborted).toBe(false)
@@ -165,8 +171,8 @@ it('keeps an authenticated curator call open past the idle timeout and aborts it
     const dropped = open(bridge.endpoint, {
       version: BRAIN_PROTOCOL,
       token: bridge.curatorToken,
-      method: 'decideRead',
-      params: PARAMS.decideRead,
+      method: 'correct',
+      params: PARAMS.correct,
     })
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledTimes(2))
     expect(signal?.aborted).toBe(false)

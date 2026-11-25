@@ -1,79 +1,58 @@
 import { queueMockBrain } from './mockBrainQueue'
-import { MockBrainAgent } from './mockBrainAgent'
+import { MOCK_BRAIN_SESSION, MockBrainAgent } from './mockBrainAgent'
 import { MockTidy, type MockTidyOptions } from './tidy/mockTidy'
+import { checkMockTidyArguments } from './tidy/mockTidyArguments'
 import { mockBrainPrefs } from './mockBrainPrefs'
-import type { BrainEntitySort } from '@shared/brain-explore'
 import { brainLaneNeverRead } from '@shared/brain'
-import { BRAIN_REVIEW_REFRESHING } from '@shared/brain-review'
 import type {
   BrainExtractionView,
-  BrainEntityKind,
   BrainJob,
   BrainLaneRef,
   BrainMemoryFilter,
-  BrainProposalView,
-  BrainPredicate,
   BrainStatus,
 } from '@shared/brain'
-import { mockBrainProposal, mockBrainStatus } from './mockBrainData'
-import { mockDemoJobs, mockStartingJobs, withDemoQuestions } from './mockBrainDemo'
-import { applyMockReview, checkMockDecision } from './mockReview'
+import { mockBrainStatus } from './mockBrainData'
+import { mockDemoReads, mockStartingJobs } from './mockBrainDemo'
 import { mockExtractionRecord } from './mockExtractionRecord'
 import { MockExplorer } from './mockExplorer'
-import { MockReadHistory } from './mockReadHistory'
+import { MockReads } from './mockReads'
+import { mockAsk, mockRoutes } from './mockRecall'
 
 export interface MockBrainOptions extends MockTidyOptions {
-  /** The browser harness: a required question, held claims and a never-read review. */
-  demoReviews?: boolean
+  /** The browser harness: two reads already saved and one about to be read. */
+  demo?: boolean
+  /** How long after a saved read the automatic Brain Agent run starts. */
+  autoRunMs?: number
 }
-const FINISHED: readonly BrainJob['state'][] = ['done', 'empty', 'rejected']
+/** A mock read runs this long before it saves. */
+const READ_MS = 4000
 
 export class MockBrain {
   private state = mockBrainStatus()
-  private explorer = new MockExplorer()
-  private history = new MockReadHistory(this.explorer)
+  private explorer: MockExplorer
+  private reads: MockReads
   private records = new Map<string, BrainExtractionView>()
   private downloading: number | null = null
   private resets = 0
-  private computedRevisions = new Map<string, number>()
   private tidy: MockTidy
   private agent: MockBrainAgent
-  private demo: boolean
+  /** What `brain:tell` sent, newest last, so tests can see it. */
+  told: string[] = []
   constructor(
     private now: () => number,
     options: MockBrainOptions,
   ) {
+    this.explorer = new MockExplorer(now)
     this.tidy = new MockTidy(this.explorer, this.state, now, options)
-    this.agent = new MockBrainAgent(this.state, this.tidy, now, (job) => {
-      this.computedRevisions.set(job.id, this.state.revision)
-      job.state = 'review'
-      const proposal = this.proposal(job.id)
-      this.decideRead(
-        job.id,
-        brainLaneNeverRead(this.state.prefs.neverRead, job)
-          ? null
-          : {
-              memories: proposal.memories.filter((m) => !m.hold).map((m) => m.index),
-              identities: { rina: 'rina' },
-              groups: [],
-              descriptions: [],
-              confirmations: [],
-            },
-        this.state.revision,
-      )
-      return () => {
-        this.history.jobs = this.history.jobs.filter((read) => read.id !== job.id)
-      }
-    })
-    this.demo = !!options.demoReviews
-    this.state.jobs = [...mockStartingJobs(), ...(this.demo ? mockDemoJobs() : [])]
-    // The demo review adds two held claims to the usual two memories.
-    const review = this.state.jobs.find((job) => job.id === 'harbor-demo-review')!
-    if (this.demo) review.memories = 4
-    for (const job of this.state.jobs) {
-      this.records.set(job.id, this.extractionRecord(job.id))
-      this.computedRevisions.set(job.id, this.state.revision)
+    this.reads = new MockReads(this.explorer, this.tidy, now)
+    this.agent = new MockBrainAgent(this.state, this.tidy, now, options.autoRunMs)
+    this.state.jobs = mockStartingJobs()
+    if (options.demo) {
+      const { saved, queued } = mockDemoReads()
+      for (const job of saved) this.finish(job)
+      this.state.jobs.push(...queued)
     }
+    for (const job of this.state.jobs) this.records.set(job.id, this.extractionRecord(job))
   }
   private status(): BrainStatus {
     this.tidy.tick()
@@ -83,49 +62,24 @@ export class MockBrain {
       memories: this.explorer.details.length,
       entities: this.explorer.entities.length,
     }
-    const read = [...this.history.jobs, ...this.state.jobs].filter((job) =>
-      FINISHED.includes(job.state),
+    if (this.state.ownerId && !this.explorer.entities.some((e) => e.id === this.state.ownerId))
+      this.state.ownerId = null
+    this.state.readSessionIds = [...new Set(this.reads.jobs.map((job) => job.sessionId))].slice(
+      0,
+      5000,
     )
-    this.state.readSessionIds = [...new Set(read.map((job) => job.sessionId))].slice(0, 5000)
     return this.state
   }
-  decideRead(id: string, value: unknown, revision: number): BrainStatus {
-    if (this.state.revision !== revision) throw new Error(BRAIN_REVIEW_REFRESHING)
-    const proposal = this.proposal(id)
-    const decision = checkMockDecision(proposal, value, (entityId) =>
-      this.explorer.entities.some((entity) => entity.id === entityId),
-    )
-    if (decision) {
-      if (proposal.job.replaces)
-        this.explorer.details = this.explorer.details.filter(
-          (d) => d.memory.origin?.sessionId !== proposal.job.sessionId,
-        )
-      applyMockReview(this.explorer, proposal, decision)
-      const record = this.records.get(id)
-      if (record)
-        for (const outcome of record.outcomes)
-          outcome.memoryId = this.explorer.details.find(
-            (d) => d.memory.jobId === id && d.memory.summary === outcome.summary,
-          )?.memory.id
-    }
-    // Either way the read joins history; a rejected Read again leaves the earlier read in place.
-    const memories = decision?.memories.length ?? 0
-    this.history.finish({ ...proposal.job, memories }, decision ? 'done' : 'rejected', this.now())
-    this.state.jobs = this.state.jobs.filter((item) => item.id !== id)
+  /** A read saves when it finishes: one journal operation, then the automatic run may follow. */
+  private finish(job: BrainJob): void {
+    this.records.set(job.id, this.extractionRecord(job))
+    this.reads.save(job)
+    this.state.jobs = this.state.jobs.filter((item) => item.id !== job.id)
+    const record = this.records.get(job.id)!
+    for (const outcome of record.outcomes)
+      outcome.memoryId = this.explorer.details.find((d) => d.memory.jobId === job.id)?.memory.id
     this.state.revision++
-    return this.status()
-  }
-  private proposal(id: string): BrainProposalView {
-    const job = this.state.jobs.find((item) => item.id === id)
-    if (!job || !['review', 'refreshing'].includes(job.state)) throw new Error('Review not found')
-    const plain = mockBrainProposal(job, this.computedRevisions.get(id) ?? this.state.revision)
-    const proposal = this.demo && job.id === 'harbor-demo-review' ? withDemoQuestions(plain) : plain
-    if (job.replaces) {
-      proposal.replacingMemories = this.history.memories(job.sessionId).length
-      proposal.confirmations = []
-      proposal.memories = proposal.memories.map((m) => ({ ...m, action: 'add', target: null }))
-    }
-    return proposal
+    this.agent.readSaved()
   }
   private tick(): void {
     if (this.downloading !== null) {
@@ -141,45 +95,25 @@ export class MockBrain {
     if (!this.state.prefs.enabled || this.state.embedding.phase !== 'ready') return
     this.agent.tick()
     if (this.agent.active()) return
-    // One attempt at a time; a waiting refresh goes before any queued read, as on Desktop.
     const jobs = this.state.jobs
     const job =
-      jobs.find((j) => j.runStartedAt !== null && ['running', 'refreshing'].includes(j.state)) ??
-      jobs.find((j) => j.state === 'refreshing') ??
+      jobs.find((j) => j.state === 'running') ??
       jobs.find((j) => j.state === 'queued' && this.agent.canRead(j.id))
     if (!job) return
-    if (job.state === 'queued' || job.runStartedAt === null) return this.start(job)
-    if (this.now() - job.runStartedAt < 4000) return
-    const refreshed = job.state === 'refreshing'
-    Object.assign(job, { state: 'review', runStartedAt: null, progress: null })
-    this.computedRevisions.set(job.id, this.state.revision)
-    // A refresh recomputes the same review: same read, same record, same finish.
-    if (refreshed) return
-    job.finishedAt = this.now()
-    this.records.set(job.id, this.extractionRecord(job.id))
-    job.memories = 2
-    if (!this.state.prefs.review)
-      this.decideRead(
-        job.id,
-        { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
-        this.state.revision,
-      )
+    if (job.state === 'queued') return this.start(job)
+    if (this.now() - (job.runStartedAt ?? 0) >= READ_MS) this.finish(job)
   }
-  /** A read's first start freezes its model; every attempt, refresh included, restarts the clock. */
+  /** A read's first start freezes its model; every attempt restarts the clock. */
   private start(job: BrainJob): void {
-    if (job.state === 'queued') {
-      if (job.startedAt === null) {
-        job.model = this.state.prefs.model ?? job.model
-        this.records.set(job.id, {
-          ...this.extractionRecord(job.id),
-          thinking: this.state.prefs.model === null ? 'low' : 'medium',
-        })
-      }
-      job.state = 'running'
-      job.startedAt ??= this.now()
-      job.progress = { stage: 'extract', done: 1, total: 4 }
-    } else job.progress = { stage: 'reconcile', done: 1, total: 1 }
+    if (job.startedAt === null) job.model = this.state.prefs.model ?? job.model
+    job.state = 'running'
+    job.startedAt ??= this.now()
+    job.progress = { stage: 'extract', done: 1, total: 4 }
     job.runStartedAt = this.now()
+    this.records.set(job.id, {
+      ...this.extractionRecord(job),
+      thinking: this.state.prefs.model === null ? 'low' : 'medium',
+    })
   }
   private download(): BrainStatus {
     this.downloading = this.now()
@@ -187,13 +121,15 @@ export class MockBrain {
     return this.status()
   }
   private queue(lane: BrainLaneRef, previous?: BrainJob): BrainStatus {
-    queueMockBrain(lane, previous, this.state, this.history, this.now)
+    queueMockBrain(lane, previous, this.state, this.reads, this.now)
+    const job = this.state.jobs.at(-1)!
+    this.records.set(job.id, this.extractionRecord(job))
     return this.status()
   }
   private setPrefs(channel: 'brain:neverRead' | 'brain:setPrefs', args: unknown[]): BrainStatus {
     this.state.prefs = mockBrainPrefs(channel, args, this.state.prefs)
     if (!this.state.prefs.enabled) this.agent.call('brain:defragStop', [])
-    // As on Desktop, a rule change drops reads not yet started; a review stays in the Inbox.
+    // As on Desktop, a rule change drops reads not yet started.
     this.state.jobs = this.state.jobs.filter(
       (job) =>
         !['queued', 'waiting'].includes(job.state) ||
@@ -205,9 +141,8 @@ export class MockBrain {
       ? this.download()
       : this.status()
   }
-  private extractionRecord(id: string): BrainExtractionView {
-    const job = this.state.jobs.find((j) => j.id === id)!
-    return mockExtractionRecord(job, this.records.get(id)?.thinking ?? 'low', this.now())
+  private extractionRecord(job: BrainJob): BrainExtractionView {
+    return mockExtractionRecord(job, this.records.get(job.id)?.thinking ?? 'low', this.now())
   }
   private mutation(channel: string, args: unknown[]): BrainStatus {
     switch (channel) {
@@ -216,13 +151,12 @@ export class MockBrain {
         this.explorer.entities = []
         this.explorer.details = []
         this.records.clear()
-        this.history.jobs = []
-        this.computedRevisions.clear()
+        this.reads.jobs = []
         this.state.jobs = []
         this.state.agent.run = null
+        this.state.ownerId = null
         this.state.revision = 0
         this.state.generation = `mock-generation-${++this.resets}`
-        this.state.prefs.review = true
         return this.status()
       case 'brain:merge': {
         const operationId = this.tidy.merge(args[0] as string, args[1] as string, args[2] as number)
@@ -242,9 +176,15 @@ export class MockBrain {
         break
       case 'brain:retry': {
         const job = this.state.jobs.find((j) => j.id === args[0] && j.state === 'failed')
-        if (!job) throw new Error('Failed job not found')
+        if (!job) throw new Error('Only failed Brain jobs can be retried.')
         job.state = 'queued'
         job.error = null
+        return this.status()
+      }
+      case 'brain:setOwner': {
+        const id = args[0] as string | null
+        if (id !== null) this.explorer.entity(id)
+        this.state.ownerId = id
         return this.status()
       }
       default:
@@ -263,10 +203,8 @@ export class MockBrain {
       ...record,
       job:
         this.state.jobs.find((j) => j.id === record.jobId) ??
-        this.history.jobs.find((j) => j.id === record.jobId) ??
+        this.reads.jobs.find((j) => j.id === record.jobId) ??
         null,
-      laneMemories: this.history.memories(record.sessionId).length,
-      replaceable: this.history.memories(record.sessionId).length,
       memories,
       outcomes: record.outcomes.map((outcome) => ({
         ...outcome,
@@ -276,8 +214,40 @@ export class MockBrain {
       })),
     }
   }
+  private reread(id: string): BrainStatus {
+    const previous = this.reads.jobs.find((j) => j.id === id)
+    if (!previous) throw new Error('Only finished Brain reads can be read again.')
+    return this.queue(previous, previous)
+  }
+  private explore(channel: string, args: unknown[]): unknown {
+    switch (channel) {
+      case 'brain:find':
+        return this.explorer.find(args[0] as string, args[1] as number)
+      case 'brain:overview':
+        return this.explorer.graph(null)
+      case 'brain:neighbourhood':
+        return this.explorer.graph(args[0] as string, args[1] as 1 | 2)
+      case 'brain:entity':
+        return this.explorer.entity(args[0] as string)
+      case 'brain:entityMemories':
+        return this.explorer.memories(
+          args[0] as string,
+          args[1] as BrainMemoryFilter,
+          args[2] as string | null,
+        )
+      case 'brain:memory':
+        return this.explorer.memory(args[0] as string)
+      case 'brain:path':
+        return mockRoutes(this.explorer, args[0] as string, args[1] as string)
+      case 'brain:ask':
+        return mockAsk(this.explorer, (args[0] as string).trim())
+      default:
+        return this.mutation(channel, args)
+    }
+  }
   call(channel: string, args: unknown[]): unknown {
-    if (channel !== 'brain:proposal') this.tick()
+    checkMockTidyArguments(channel, args)
+    this.tick()
     if (['brain:defrag', 'brain:defragStop', 'brain:undoRun'].includes(channel)) {
       const result = this.agent.call(channel, args)
       return Object.assign(this.status(), result)
@@ -285,14 +255,6 @@ export class MockBrain {
     if (['brain:tidyChanges', 'brain:tidyUndo'].includes(channel))
       return this.tidy.call(channel, args)
     switch (channel) {
-      case 'brain:history':
-        return this.history.history(args[0] as number)
-      case 'brain:reread': {
-        const previous = this.history.jobs.find((j) => j.id === args[0])
-        if (previous?.state !== 'done')
-          throw new Error('Only finished Brain reads can be read again.')
-        return this.queue(previous, previous)
-      }
       case 'brain:status':
         return this.status()
       case 'brain:neverRead':
@@ -308,49 +270,21 @@ export class MockBrain {
         return this.status()
       case 'brain:queue':
         return this.queue(args[0] as BrainLaneRef)
+      case 'brain:reread':
+        return this.reread(args[0] as string)
       case 'brain:cancel':
         this.state.jobs = this.state.jobs.filter((j) => j.id !== args[0])
         return this.status()
-      case 'brain:proposal':
-        return this.proposal(args[0] as string)
       case 'brain:extraction':
         return this.extraction(args[0] as string)
-      case 'brain:find':
-        return this.explorer.find(args[0] as string, args[1] as number)
-      case 'brain:entities':
-        return this.explorer.browse(
-          args[0] as BrainEntityKind | null,
-          args[1] as number,
-          args[2] as number,
-          args[3] as BrainEntitySort,
-        )
-      case 'brain:recent':
-        return this.explorer.recent(args[0] as number, this.history.jobs)
-      case 'brain:overview':
-        return this.explorer.graph(null)
-      case 'brain:neighbourhood':
-        return this.explorer.graph(args[0] as string, args[1] as 1 | 2)
-      case 'brain:entity':
-        return this.explorer.entity(args[0] as string)
-      case 'brain:connections':
-        return this.explorer.connections(
-          args[0] as string,
-          args[1] as BrainPredicate,
-          args[2] as 'out' | 'in',
-          args[3] as string | null,
-        )
-      case 'brain:entityMemories':
-        return this.explorer.memories(
-          args[0] as string,
-          args[1] as BrainMemoryFilter,
-          args[2] as string | null,
-        )
-      case 'brain:memory':
-        return this.explorer.memory(args[0] as string)
-      case 'brain:path':
-        return this.explorer.path(args[0] as string, args[1] as string)
+      case 'brain:laneRead':
+        return this.reads.laneRead(args[0] as string)
+      case 'brain:tell':
+        if (!this.state.prefs.enabled) throw new Error('Turn Brain on first.')
+        this.told.push((args[0] as string).trim())
+        return { sessionPath: MOCK_BRAIN_SESSION }
       default:
-        return this.mutation(channel, args)
+        return this.explore(channel, args)
     }
   }
 }
@@ -365,5 +299,6 @@ export function createMockBrain(
 }
 export const mockBrainCall = createMockBrain(() => Date.now(), {
   flagAfterMs: 20000,
-  demoReviews: true,
+  demo: true,
+  autoRunMs: 8000,
 })

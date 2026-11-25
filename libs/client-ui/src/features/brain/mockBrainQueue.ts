@@ -1,15 +1,15 @@
 import type { BrainJob, BrainLaneRef, BrainStatus } from '@shared/brain'
 import { brainNeverReadReason } from '@shared/brain'
 import { mockBrainJob } from './mockBrainData'
-import type { MockReadHistory } from './mockReadHistory'
-const UNFINISHED = ['waiting', 'queued', 'running', 'refreshing', 'review']
+import type { MockReads } from './mockReads'
+const UNFINISHED = ['waiting', 'queued', 'running']
 
 /** A whole-lane reread replaces; a later queue continues after the last finished leaf. */
 export function queueMockBrain(
   lane: BrainLaneRef,
   previous: BrainJob | undefined,
   state: BrainStatus,
-  history: MockReadHistory,
+  history: MockReads,
   now: () => number,
 ): void {
   if (!state.prefs.enabled) throw new Error('Turn Brain on first.')

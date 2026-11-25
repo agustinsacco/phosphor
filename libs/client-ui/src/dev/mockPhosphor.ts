@@ -971,7 +971,7 @@ export function installMockPhosphor(): void {
 
     invoke: (channel: string, ...args: unknown[]) => {
       // Brain channels include clock-driven Defrag and reasoned changes, with no inference.
-      // Includes read history and reread; Brain remains local-only in the real web bridge.
+      // Brain remains local-only in the real web bridge.
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
       if (MACHINE_SETTINGS_MOCK.has(channel))

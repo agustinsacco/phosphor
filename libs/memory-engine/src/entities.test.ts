@@ -1,6 +1,6 @@
 import { wordRows } from './candidates'
 import { describe, expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from './test-support'
+import { saveAndListMemories, extraction, fixture, vector } from './test-support'
 import { fold, mentions, wholePhrase } from './text'
 
 describe('Brain entity identities and indexed candidates', () => {
@@ -13,7 +13,7 @@ describe('Brain entity identities and indexed candidates', () => {
     const { store } = fixture()
     const base = extraction('unused')
     base.entities[0]!.keys = [{ namespace: 'ticket', value: 'H-27' }]
-    approve(store, base)
+    saveAndListMemories(store, base)
     const matches = store.entityMatches(
       [
         {
@@ -32,11 +32,11 @@ describe('Brain entity identities and indexed candidates', () => {
   })
   it('reuse adds aliases without touching memory FTS; uncertain and same-name people create new identities', () => {
     const { store, db } = fixture()
-    approve(store)
+    saveAndListMemories(store)
     const original = store.overview(300).nodes.find((item) => item.label === 'Harbor')!
     const before = db.prepare('SELECT rowid,summary FROM memory_words').all()
     const base = extraction('next')
-    approve(store, {
+    saveAndListMemories(store, {
       jobId: 'next',
       entities: [
         { ...base.entities[0]!, label: 'Gateway', decision: 'reuse', entityId: original.id },
@@ -57,7 +57,7 @@ describe('Brain entity identities and indexed candidates', () => {
       before,
     )
     const tom = base.entities[2]!
-    approve(store, {
+    saveAndListMemories(store, {
       jobId: 'third',
       entities: [{ ...tom, decision: 'uncertain' }],
       entityVectors: [vector()],

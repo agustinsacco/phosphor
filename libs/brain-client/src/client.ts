@@ -1,6 +1,12 @@
-import type { BrainQuery, BrainRecall, BrainAgentMap } from '@phosphor/shared/brain'
+import type { BrainAgentMap } from '@phosphor/shared/brain'
+import type { BrainQuery, BrainSearchResult } from '@phosphor/shared/brain-recall'
 import type { BrainTransport } from './port'
-import { isBrainRecall, isBrainFlagResponse, validateBrainRequest } from './validate'
+import {
+  isBrainRecall,
+  isBrainFlagResponse,
+  validateBrainRequest,
+  SEARCH_GUIDANCE,
+} from './validate'
 
 export type { BrainConnection, BrainTransport } from './port'
 export { formatBrainRecall, brainBriefing } from './format'
@@ -17,7 +23,7 @@ export class BrainClientError extends Error {
   }
 }
 export interface BrainClient {
-  search(query: BrainQuery, signal?: AbortSignal): Promise<BrainRecall>
+  search(query: BrainQuery, signal?: AbortSignal): Promise<BrainSearchResult>
   flag(
     input: BrainAgentMap['flag']['request'],
     signal?: AbortSignal,
@@ -43,7 +49,7 @@ export function createBrainClient(transport: BrainTransport): BrainClient {
       try {
         validateBrainRequest('search', query)
       } catch {
-        throw new BrainClientError('malformed', 'Brain search request is invalid')
+        throw new BrainClientError('malformed', SEARCH_GUIDANCE)
       }
       const data: unknown = await transport.request('search', query, signal)
       if (!isBrainRecall(data))

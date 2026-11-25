@@ -1,4 +1,6 @@
-import { DEFAULT_BRAIN_PREFS } from '@phosphor/shared/brain'
+import { createBrainCuratorClient } from '@phosphor/brain-client/curator-client'
+import { createNodeBrainTransport } from '@phosphor/brain-client/node-transport'
+import { DEFAULT_BRAIN_PREFS, type BrainStatus } from '@phosphor/shared/brain'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,30 +9,18 @@ import { afterEach, vi } from 'vitest'
 import { openBrainStore } from '@phosphor/memory-engine/store'
 import { openBrainSearch } from '@phosphor/memory-engine/search'
 import type { BrainStore, Proposal } from '@phosphor/memory-engine/types'
-import type { BrainService, BrainServiceOptions, BrainSearchPort } from '../../types'
+import type { BrainService, BrainServiceOptions } from '../../types'
 import type { ModelCallInput, ModelCallResult } from '../../model-call'
 import { createBrainService } from '../../service'
+import { inProcessSearch } from '../../search/in-process'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-/** Promise adapter only: all search and mutation logic uses real SQLite connections. */
-function searchPort(path: string): BrainSearchPort {
-  const search = openBrainSearch({ path, Database: DatabaseSync })
-  return {
-    refresh: () => search.refresh(),
-    ready: async () => search.ready(),
-    entities: async (...args) => search.entities(...args),
-    recent: async (...args) => search.recent(...args),
-    nearestEntities: async (...args) => search.nearestEntities(...args),
-    nearestMemories: async (...args) => search.nearestMemories(...args),
-    recall: async (...args) => search.recall(...args),
-    find: async (...args) => search.find(...args),
-    close: async () => search.close(),
-  }
-}
+/** All search and mutation logic uses real SQLite connections. */
+const searchPort = inProcessSearch((path) => openBrainSearch({ path, Database: DatabaseSync }))
 
 export async function realService(overrides: Partial<BrainServiceOptions> = {}) {
   const directory = await mkdtemp(join(tmpdir(), 'brain-tidy-integration-'))
@@ -39,7 +29,7 @@ export async function realService(overrides: Partial<BrainServiceOptions> = {}) 
   store.setPrefs({
     enabled: true,
     recall: true,
-    review: true,
+    agentAuto: true,
     model: 'example/reader',
     neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
@@ -71,12 +61,19 @@ export async function realService(overrides: Partial<BrainServiceOptions> = {}) 
       launch: async () => ({ binaryPath: '/not-a-provider', prefixArgs: [], env: {} }),
     },
     guardExtension: '/made-up/guard.mjs',
+    curator: { extension: '/brain-curator.mjs', skill: '/brain-agent' },
     recall: { extension: '/made-up/brain.mjs', skill: '/made-up/brain' },
     ...overrides,
   }
   const service = await createBrainService(options)
   cleanups.push(() => service.dispose())
   return { directory, store, service, options, call }
+}
+
+export async function curatorClient(service: BrainService) {
+  const launch = await service.curatorLaunch()
+  if (!launch) throw new Error('Expected a curator launch')
+  return createBrainCuratorClient(createNodeBrainTransport(launch.connection))
 }
 
 const SUMMARIES = [
@@ -87,38 +84,22 @@ const SUMMARIES = [
   'Ledger bills monthly.',
 ]
 
-/** A finished reader proposal; review and its post-commit sweep are never mocked. */
-export async function approveRead(
+/** Seeds a saved read and runs its real post-commit sweep. */
+export async function savedRead(
   store: BrainStore,
   service: BrainService,
   options: BrainServiceOptions,
   summaries = SUMMARIES,
-) {
-  const job = await proposeRead(store, options, summaries)
-  store.review(
-    job.id,
-    {
-      memories: summaries.map((_, i) => i),
-      identities: {},
-      groups: [],
-      descriptions: [],
-      confirmations: [],
-    },
-    store.knowledgeRevision(),
-  )
-  // Wake the service after seeding through the real store; no manual-review API remains.
+): Promise<BrainStatus> {
+  await seedRead(store, options, summaries)
+  // Notify the service after a direct store write.
   await service.api.setPrefs(store.snapshot().prefs)
   return service.api.status()
 }
 
-/** A read waiting in review with one proposed memory per summary. */
-export async function proposeRead(
-  store: BrainStore,
-  options: BrainServiceOptions,
-  summaries = SUMMARIES,
-) {
+/** Commits one memory per summary. */
+async function seedRead(store: BrainStore, options: BrainServiceOptions, summaries = SUMMARIES) {
   const lane = { sessionPath: join(options.directory, 'harbor.jsonl'), title: 'Harbor planning' }
-  // A waiting read's lane exists: Brain checks it, as it is now, before every decision.
   await writeFile(
     lane.sessionPath,
     [
@@ -161,7 +142,8 @@ export async function proposeRead(
       'document',
     )
   ).map((v) => new Float32Array(v))
-  store.propose({
+  store.updateJob(job.id, { state: 'running' })
+  store.saveRead({
     jobId: job.id,
     origin: { sessionId: job.sessionId, title: job.title },
     scope: job.scope,
@@ -189,7 +171,6 @@ export async function proposeRead(
     })),
     evidence: evidence(summaries, job.sessionId),
   })
-  return store.job(job.id)!
 }
 
 function evidence(summaries: string[], sessionId: string): Proposal['evidence'] {

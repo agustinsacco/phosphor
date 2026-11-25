@@ -232,14 +232,14 @@ it('builds the excerpt around the quoted words, never around the same words insi
   expect(prompt).not.toContain('Old notes.')
 })
 
-it('reuses an old-hash parsed links part during refresh without re-reading its source excerpts', async () => {
+it('reuses an old-hash parsed links part on a resumed read without re-reading its source excerpts', async () => {
   const s = await extract()
   for (const [key, part] of [...s.store.parts]) {
     if (part.part !== 'links:w1') continue
     s.store.parts.delete(key)
     s.store.savePart(s.job.id, { ...part, inputHash: 'old-link-rules' })
   }
-  s.store.updateJob(s.job.id, { state: 'refreshing' })
+  s.store.updateJob(s.job.id, { state: 'running' })
   s.store.proposals.set(s.job.id, extraction(s.job.id))
   s.store.savePart(s.job.id, {
     part: 'prepare',
@@ -262,7 +262,7 @@ it('reuses an old-hash parsed links part during refresh without re-reading its s
   expect(parts[0]!.extraction.claims[0]!.links).toMatchObject([{ predicate: 'owns' }])
 })
 
-it('filters the links a refresh reuses from a part saved before the link rules', async () => {
+it('filters the links a resumed read reuses from a part saved before the link rules', async () => {
   const value = fixture()
   value.entities[0] = { ...value.entities[0]!, user: true }
   const s = await extract(value)
@@ -273,7 +273,7 @@ it('filters the links a refresh reuses from a part saved before the link rules',
     s.store.parts.delete(key)
     s.store.savePart(s.job.id, { ...part, inputHash: 'old', output: JSON.stringify(saved) })
   }
-  s.store.updateJob(s.job.id, { state: 'refreshing' })
+  s.store.updateJob(s.job.id, { state: 'running' })
   s.store.proposals.set(s.job.id, extraction(s.job.id))
   s.store.savePart(s.job.id, {
     part: 'prepare',

@@ -4,11 +4,9 @@ import {
   checkBrainReaderModel,
   checkBrainNeverRead,
   BRAIN_MEMORY_TYPES,
-  BRAIN_PREDICATES,
   type BrainEntityKind,
   type BrainLaneRef,
   type BrainMemoryFilter,
-  type BrainPredicate,
   type BrainPrefs,
 } from '@phosphor/shared/brain'
 
@@ -25,6 +23,8 @@ export const text = (value: unknown, max = 4096): string =>
   typeof value === 'string' && value.length > 0 && value.length <= max
     ? value
     : fail('Invalid Brain request.')
+export const messageOf = (value: unknown, max: number): string =>
+  text(typeof value === 'string' ? value.trim() : value, max)
 export const id = (value: unknown): string => text(value, 200)
 
 /** Exactly the switches and reader model; anything else is refused rather than stored. */
@@ -33,8 +33,8 @@ export function checkPrefs(value: unknown): BrainPrefs {
   if (
     !prefs ||
     typeof prefs !== 'object' ||
-    Object.keys(prefs).sort().join() !== 'enabled,model,neverRead,recall,review' ||
-    (['enabled', 'recall', 'review'] as const).some((key) => typeof prefs[key] !== 'boolean')
+    Object.keys(prefs).sort().join() !== 'agentAuto,enabled,model,neverRead,recall' ||
+    (['enabled', 'recall', 'agentAuto'] as const).some((key) => typeof prefs[key] !== 'boolean')
   )
     fail('Invalid Brain settings.')
   checkBrainReaderModel(prefs.model)
@@ -61,14 +61,6 @@ export const limitOf = (value: unknown): number =>
 
 export const hopsOf = (value: unknown): 1 | 2 =>
   value === 1 || value === 2 ? value : fail('Invalid Brain request.')
-
-export const predicateOf = (value: unknown): BrainPredicate =>
-  (BRAIN_PREDICATES as readonly unknown[]).includes(value)
-    ? (value as BrainPredicate)
-    : fail('Invalid Brain request.')
-
-export const directionOf = (value: unknown): 'out' | 'in' =>
-  value === 'out' || value === 'in' ? value : fail('Invalid Brain request.')
 
 /** Cursors are opaque strings the API issued; null asks for the first page. */
 export const cursorOf = (value: unknown): string | null =>

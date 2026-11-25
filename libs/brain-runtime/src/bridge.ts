@@ -40,7 +40,7 @@ const DENIED = { ok: false, error: 'Brain request unavailable' } as const
 export interface BrainBridgeOptions {
   /** Until a request authenticates. */
   idleMs?: number
-  /** After a curator request authenticates: reading or deciding a review may refresh it first. */
+  /** Authenticated curator calls can take longer, such as embedding a corrected memory. */
   curatorIdleMs?: number
   /** Shared by both ingress paths in the Brain service process; tests inject their own. */
   flagLimit?: () => BrainFlagResponse | undefined
@@ -55,7 +55,7 @@ export async function createBrainBridge(invoke: BridgeInvoke, options: BrainBrid
   await chmod(directory, 0o700)
   const token = randomBytes(32).toString('hex')
   const curatorToken = randomBytes(32).toString('hex')
-  const idle = { lane: options.idleMs ?? 15_000, curator: options.curatorIdleMs ?? 15 * 60_000 }
+  const idle = { lane: options.idleMs ?? 15_000, curator: options.curatorIdleMs ?? 120_000 }
   const endpoint = join(directory, 'rpc.sock')
   const sockets = new Set<Socket>()
   const limit = options.flagLimit ?? brainFlagLimit

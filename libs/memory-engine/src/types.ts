@@ -1,27 +1,23 @@
 import type { BrainTidyStore } from './tidy/types'
 import type { BrainAgentStore } from './agent/types'
-import type { BrainEntitySort } from '@phosphor/shared/brain-explore'
+import type { BrainEntitySort, BrainEntitySummary } from '@phosphor/shared/brain-explore'
+import type { BrainExpansion, BrainRecall, BrainRoutes } from '@phosphor/shared/brain-recall'
+import type { BrainTidyTouched } from '@phosphor/shared/brain-tidy'
 import type { DatabaseSync } from 'node:sqlite'
 import type {
   BrainConnectionPage,
   BrainEntityView,
   BrainEntityKind,
   BrainEntityPage,
-  BrainRecentMemories,
   BrainExtractionRecord,
   BrainFindResult,
   BrainGraph,
-  BrainHistory,
   BrainJob,
   BrainMemoryDetail,
   BrainMemoryFilter,
   BrainMemoryPage,
-  BrainPaths,
   BrainPredicate,
   BrainPrefs,
-  BrainProposalView,
-  BrainRecall,
-  BrainReviewDecision,
   BrainSnapshot,
 } from '@phosphor/shared/brain'
 import type {
@@ -31,7 +27,6 @@ import type {
   MemoryCard,
   MemoryMatch,
   Proposal,
-  ProposalResult,
 } from './proposal-types'
 
 /** `node:sqlite`'s DatabaseSync, injected so Electron and plain Node load it their own way. */
@@ -73,7 +68,28 @@ export interface JobPart {
   prepare?: Pick<BrainJob, 'leafId' | 'model' | 'branch'> & { fromLeafId?: string | null }
 }
 
-/** The single writer: queue, proposals, review and the Explorer's indexed reads. Synchronous. */
+/** What one saved read did. Held claims are counted here and in the read's record. */
+export interface SavedRead {
+  /** `empty` when nothing saved, nothing was confirmed and no group opened; nothing is journaled. */
+  state: 'done' | 'empty'
+  /** The `read` operation that undoes it; null when empty. */
+  operationId: string | null
+  memories: number
+  confirmed: number
+  /** Saved with an end BRAIN_TEMPORARY_DAYS after they were said. */
+  temporary: number
+  /** Never saved. */
+  personal: number
+  /** Unsure identities saved as new records, each with a `same_entity` guess. */
+  guesses: number
+  /** `group` suggestions opened. */
+  groups: number
+  /** Earlier memories of the lane that Read again removed. */
+  replaced: number
+  touched: BrainTidyTouched
+}
+
+/** The single writer: queue, saved reads and the Explorer's indexed reads. Synchronous. */
 export interface BrainStore extends BrainTidyStore, BrainAgentStore {
   snapshot(): BrainSnapshot
   setPrefs(prefs: BrainPrefs): BrainPrefs
@@ -84,7 +100,8 @@ export interface BrainStore extends BrainTidyStore, BrainAgentStore {
   /** Throws when the lane already has an unfinished job, or nothing changed since the last one. */
   enqueue(job: NewJob, state: 'waiting' | 'queued'): BrainJob
   job(id: string): BrainJob | undefined
-  history(limit: number): BrainHistory
+  /** The lane's newest finished read and what Read again would replace. */
+  laneRead(sessionId: string): { job: BrainJob; memories: number; replaceable: number } | null
   /** The newest sixty current summaries from this lane, frozen into prepare context. */
   laneContext(sessionId: string): string[]
   /** All surviving memories from a lane, and those without independent support elsewhere. */
@@ -114,13 +131,14 @@ export interface BrainStore extends BrainTidyStore, BrainAgentStore {
   memoryMatches(probes: ClaimProbe[], limit: number): MemoryMatch[][]
   memoryCards(ids: string[]): MemoryCard[]
 
-  /** Stores a proposal; the job moves to review, or empty when there is nothing to review. */
-  propose(proposal: Proposal): ProposalResult
-  proposal(jobId: string): BrainProposalView
-  /** Raw stored proposal, for recomputation when it went stale. */
+  /**
+   * Commits a finished read in one transaction and one journal operation, and sets the job to
+   * done or empty. Throws BRAIN_READ_STALE (`./read-stale`) when knowledge moved since
+   * `proposal.computedRevision`.
+   */
+  saveRead(proposal: Proposal): SavedRead
+  /** A legacy job's proposal, stored before v8 saved reads directly, until it is saved. */
   storedProposal(jobId: string): Proposal | undefined
-  /** Commits a decision in one transaction; null rejects. Refuses a stale revision. */
-  review(jobId: string, decision: BrainReviewDecision | null, revision: number): void
   saveExtraction(record: BrainExtractionRecord): void
   extraction(jobId: string): BrainExtractionRecord & { memories: { id: string; summary: string }[] }
 
@@ -139,13 +157,18 @@ export interface BrainStore extends BrainTidyStore, BrainAgentStore {
     cursor: string | null,
   ): BrainMemoryPage
   memory(id: string): BrainMemoryDetail
-  path(fromId: string, toId: string): BrainPaths
   merge(sourceId: string, targetId: string, revision: number): string
   forget(memoryId: string): void
+  /** The entity that is you (`meta.owner_entity`), or null. */
+  owner(): string | null
+  /** Says which entity is you; null forgets it. Throws for an unknown entity. */
+  setOwner(entityId: string | null): void
+  /** Recall hits shown to a lane, counted in `memory_use`. No revision bump, no journal. */
+  recordRecall(memoryIds: string[], at: number): void
   /**
    * Drops all knowledge, jobs, proposals and records in one transaction, recreates the schema,
-   * keeps prefs (review forced on) and starts a new generation. Opening a v3 or older file does
-   * the same. Search connections notice the generation change on `refresh`.
+   * keeps prefs and starts a new generation. Opening a v3 or older file does the same. Search
+   * connections notice the generation change on `refresh`.
    */
   reset(): void
   close(): void
@@ -177,12 +200,25 @@ export interface BrainSearch {
     limit: number,
     sort: BrainEntitySort,
   ): BrainEntityPage
-  recent(limit: number): BrainRecentMemories
   /** Coalesced, chunked load; calls keep using the previous complete index while it refreshes. */
   refresh(): Promise<void>
   /** False while the vector index is still loading; searches then use words and names only. */
   ready(): boolean
   recall(input: SearchInput): BrainRecall
+  /** One entity's relationships, the entities named with it, and its memories ranked from it. */
+  expand(input: {
+    entityId: string
+    /** Entities that steer the ranking. */
+    contextIds: string[]
+    limit: number
+    scope: string | null
+    branch: string | null
+    now: number
+  }): BrainExpansion
+  /** Up to three routes between two entities, through links or memories naming both. */
+  routes(fromId: string, toId: string, now: number): BrainRoutes
+  /** Exact name, alias or key matches for each text, best first. An id resolves to itself. */
+  resolve(names: string[]): BrainEntitySummary[][]
   find(query: string, vector: Float32Array | null, limit: number): BrainFindResult
   nearestEntities(vectors: Float32Array[], k: number): Neighbour[][]
   nearestMemories(vectors: Float32Array[], k: number): Neighbour[][]

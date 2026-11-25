@@ -412,9 +412,13 @@
       "types": "./src/brain-agent.ts",
       "default": "./src/brain-agent.ts"
     },
-    "./brain-review": {
-      "types": "./src/brain-review.ts",
-      "default": "./src/brain-review.ts"
+    "./brain-links": {
+      "types": "./src/brain-links.ts",
+      "default": "./src/brain-links.ts"
+    },
+    "./brain-recall": {
+      "types": "./src/brain-recall.ts",
+      "default": "./src/brain-recall.ts"
     },
     "./ipc-web-archive": {
       "types": "./src/ipc-web-archive.ts",

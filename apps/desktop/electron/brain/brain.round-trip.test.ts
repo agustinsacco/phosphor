@@ -64,7 +64,7 @@ it('returns a Desktop briefing to the pi tool through the daemon dispatcher, the
     log: vi.fn(),
   })
   onTestFinished(() => ops.close())
-  appServices.attachLane(session, dir)
+  appServices.attachLane(session, dir, () => 'harbor-pi')
   const lifetime = new AbortController()
   const desktop = new BrainAppService()
   onTestFinished(() => desktop.dispose())
@@ -97,7 +97,7 @@ it('returns a Desktop briefing to the pi tool through the daemon dispatcher, the
   expect((await search()).details).toEqual({ status: 'ok', memories: 1 })
   expect(agent).toHaveBeenCalledWith(
     'search',
-    expect.objectContaining({ query: 'Harbor', sessionId: session, cwd: dir }),
+    expect.objectContaining({ query: 'Harbor', sessionId: 'harbor-pi', cwd: dir }),
     expect.any(AbortSignal),
   )
   lifetime.abort()

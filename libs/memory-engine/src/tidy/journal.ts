@@ -1,6 +1,6 @@
 import { cleanNote, saveNote, pruneOperations, type JournalNote } from '../agent/notes'
 import { checkCreatedDependents } from '../agent/undo-reads'
-import { hasLaterRead } from '../jobs'
+import { hasLaterRead, job, unsaveRead } from '../jobs'
 import {
   captureMemoryGuards,
   checkDependents,
@@ -36,8 +36,10 @@ import {
 } from './rows'
 
 const LATER_CHANGES = 'Later changes touch this Brain change; it cannot be cleanly undone.'
+const REJECTED_IN_V7 =
+  "This read was rejected in an older version and can't be brought back. Use Read again on the lane."
 export function checkRevision(ctx: Context, expected: number): void {
-  if (expected !== revision(ctx)) throw new Error('Brain changed; refresh Tidy and try again.')
+  if (expected !== revision(ctx)) throw new Error('Brain changed; refresh and try again.')
 }
 export interface JournalInput {
   kind: BrainTidyOperation['kind']
@@ -67,13 +69,20 @@ const SUMMARIES: Record<BrainTidyOperation['kind'], string> = {
   keep: 'Kept both as they are',
   correct: 'Corrected a memory',
   erase: 'Erased a memory',
+  read: 'Saved a read',
+  relate: 'Linked two people or things',
+  relation: 'Changed a link',
+  importance: "Changed a memory's importance",
+  group: 'Grouped people or things under one parent',
 }
+/** Reads capture only their memories' neighbourhood, never a hub's every mention. */
+const READS = new Set(['approve', 'reject', 'read'])
 /** Operations that settle a pair; undoing one keeps the pair apart. */
 const PAIR_KINDS = new Set(['merge', 'fold', 'dispute', 'replace'])
 /** Caller owns the transaction. The latest run and recent erasures outlive the 200-row cap. */
 export function journal(ctx: Context, input: JournalInput, action: () => void): string {
   if (input.note) input.note = cleanNote(input.note)
-  const read = input.kind === 'approve' || input.kind === 'reject'
+  const read = READS.has(input.kind)
   const before = capture(ctx, input.selection, input.only, read)
   const references = affected(before, new Map(), input.selection)
   const memories = all<{ id: string; n: number }>(
@@ -129,7 +138,8 @@ export function journal(ctx: Context, input: JournalInput, action: () => void): 
     run(ctx, 'INSERT INTO tidy_operation_memories VALUES (?,?,?)', id, m.id, m.n)
   if (input.kind === 'fold') inheritFoldReferences(ctx, input.subjects.first, input.subjects.second)
   pruneOperations(ctx)
-  if (input.automatic)
+  // Only exact repeats folded on their own count toward the notice, never a saved read.
+  if (input.automatic && input.kind === 'fold')
     run(
       ctx,
       "INSERT INTO meta VALUES ('tidy_automatic_folds','1') ON CONFLICT(key) DO UPDATE SET value=CAST(value AS INTEGER)+1",
@@ -142,11 +152,8 @@ function journalGuards(
   before: Rows,
   memories: number[],
 ): Guards | null {
-  if (input.kind === 'approve' || input.kind === 'reject')
-    return {
-      memories,
-      covers: (table) => table === 'jobs',
-    }
+  // A read's referenced memories join the after-capture; it guards no unchanged rows.
+  if (READS.has(input.kind)) return { memories, covers: () => false }
   if (input.kind === 'fold') return foldGuards(memories)
   if (input.kind !== 'merge') return null
   const [source, survivor] = [input.subjects.first, input.subjects.second].map(
@@ -162,7 +169,7 @@ function saveDelta(ctx: Context, id: string, before: Rows, after: Rows, guards: 
     for (const key of new Set([...old.keys(), ...next.keys()])) {
       const previous = old.get(key) ?? null,
         current = next.get(key) ?? null
-      const unchanged = hash(previous) === hash(current)
+      const unchanged = hash(table, previous) === hash(table, current)
       if (unchanged && !guards?.covers(table, current!)) continue
       run(
         ctx,
@@ -173,7 +180,7 @@ function saveDelta(ctx: Context, id: string, before: Rows, after: Rows, guards: 
         unchanged
           ? encodeGuard(table, current!)
           : encodeImage(table, previous ?? current!, previous),
-        hash(current),
+        hash(table, current),
       )
     }
   }
@@ -199,7 +206,7 @@ function undoRows(ctx: Context, id: string): Delta[] {
       throw new Error('This Brain change needs a newer application to undo.')
     const image = decodeImage(ctx, row.table_name, row.before_image)
     const current = currentRow(ctx, row.table_name, image.key)
-    if (hash(current) !== row.after_hash) throw new Error(LATER_CHANGES)
+    if (hash(row.table_name, current) !== row.after_hash) throw new Error(LATER_CHANGES)
     return { table: row.table_name, image, current }
   })
 }
@@ -253,7 +260,9 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     if (!op) throw new Error('This Brain change is no longer available to undo.')
     if (op.undone_at !== null) throw new Error('This Brain change was already undone.')
     if (op.kind === 'erase') throw new Error("Erasing can't be undone.")
-    if (['approve', 'reject'].includes(op.kind) && hasLaterRead(ctx, op.first_id))
+    if (op.kind === 'reject') throw new Error(REJECTED_IN_V7)
+    // A read's job leaves only when twenty later finished reads of its lane displace it.
+    if (READS.has(op.kind) && (hasLaterRead(ctx, op.first_id) || !job(ctx, op.first_id)))
       throw new Error(LATER_CHANGES)
     const deltas = undoRows(ctx, id)
     if (!deltas.length && op.kind !== 'keep')
@@ -261,7 +270,8 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
         'This Brain change is no longer available to undo because a memory was forgotten.',
       )
     const selection = selectionOf(deltas)
-    if (op.kind === 'approve' || op.kind === 'correct') checkCreatedDependents(ctx, deltas)
+    if (['approve', 'read', 'correct', 'group'].includes(op.kind))
+      checkCreatedDependents(ctx, deltas)
     if (op.kind === 'keep') {
       const suggestion = one<{ state: string }>(
         ctx,
@@ -287,6 +297,7 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
       throw new Error(LATER_CHANGES)
     }
     if (op.kind === 'fold') returnMovedFlags(ctx, id, op.second_id)
+    if (op.kind === 'approve' || op.kind === 'read') unsaveRead(ctx, op.first_id)
     restoreLinkedStates(ctx, selection.memories)
     rebuild(ctx, selection, names)
     fingerprintMemories(ctx, selection.memories)
@@ -296,7 +307,7 @@ export function undo(ctx: Context, id: string, expected: number, note?: JournalN
     run(ctx, 'UPDATE tidy_operations SET undone_at=? WHERE id=?', ctx.now(), id)
     run(ctx, 'DELETE FROM tidy_operation_rows WHERE operation_id=?', id)
     run(ctx, 'DELETE FROM tidy_operation_memories WHERE operation_id=?', id)
-    if (op.kind === 'reject' || op.kind === 'keep') bumpRevision(ctx)
+    if (op.kind === 'keep') bumpRevision(ctx)
     else bumpKnowledgeRevision(ctx)
     return selection
   })

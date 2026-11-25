@@ -1,9 +1,10 @@
-import { BRAIN_ENTITY_KINDS, type BrainEntityKind } from '@phosphor/shared/brain'
+import { BRAIN_ENTITY_KINDS, BRAIN_PREDICATES, type BrainEntityKind } from '@phosphor/shared/brain'
 import {
   BRAIN_REASON_MAX,
   type BrainAgentEdit,
   type BrainAgentMap,
   type BrainResolve,
+  type BrainLinkInput,
 } from '@phosphor/shared/brain-agent'
 import { checkBrainTidyAction } from '@phosphor/shared/brain-tidy'
 
@@ -22,10 +23,6 @@ export const BRAIN_CURATOR_LIMITS = {
   summary: 1200,
   source: 120,
   quote: 600,
-  /** Indexes, identity answers or description refs in one decision, as brain_decide_read takes. */
-  choices: 400,
-  /** An identity ref, such as e1. */
-  ref: 64,
 } as const
 
 class CuratorRequestError extends Error {}
@@ -109,7 +106,24 @@ function edit(value: unknown): BrainAgentEdit {
       name: bounded(v.name, limits.name, 'name'),
     }
   }
-  return refuse('Brain edit kind must be merge, describe, split or removeName.')
+  if (kindOf === 'importance') {
+    const v = keys(value, ['kind', 'memoryId', 'importance'])
+    if (v.importance !== 'low' && v.importance !== 'normal' && v.importance !== 'high')
+      return refuse('Choose low, normal or high importance.')
+    return { kind: 'importance', memoryId: id(v.memoryId, 'memoryId'), importance: v.importance }
+  }
+  if (kindOf === 'relation') {
+    const v = keys(value, ['kind', 'relationId'], ['label', 'since', 'until'])
+    if (v.label === undefined && v.since === undefined && v.until === undefined)
+      return refuse('Specify wording or a date to edit.')
+    return {
+      kind: 'relation',
+      relationId: id(v.relationId, 'relationId'),
+      ...dates(v),
+      ...(v.label === undefined ? {} : { label: bounded(v.label, 80, 'label') }),
+    }
+  }
+  return refuse('Unknown Brain edit kind.')
 }
 
 function action(value: unknown): BrainResolve['action'] {
@@ -118,53 +132,45 @@ function action(value: unknown): BrainResolve['action'] {
     return checkBrainTidyAction(value) as BrainResolve['action']
   } catch {
     return refuse(
-      'Brain action must be merge or fold (survivorId), replace (newerId), dispute, keep, or unname (entityId, name).',
+      'Brain action must be merge or fold (survivorId), replace (newerId), dispute, group, keep, or unname (entityId, name).',
     )
   }
 }
 
-const offset = (value: unknown): { offset?: number } => {
-  if (value === undefined) return {}
-  if (!Number.isSafeInteger(value) || (value as number) < 0)
-    refuse('Brain review offset must be a whole number, 0 or more.')
-  return { offset: value as number }
-}
-
-/** Brain Agent's optional choices on an approval, each within brain_decide_read's own limits. */
-function choices(
-  v: Record<string, unknown>,
-): Omit<Request<'decideRead'>, 'jobId' | 'revision' | 'approve' | 'reason'> {
-  const { choices: most, ref, id: answer } = BRAIN_CURATOR_LIMITS
-  const list = <T>(field: string, item: (value: unknown) => T): { [field: string]: T[] } => {
-    const value = v[field]
-    if (value === undefined) return {}
-    if (!Array.isArray(value) || value.length > most)
-      refuse(`Brain ${field} must be a list of at most ${most}.`)
-    return { [field]: (value as unknown[]).map(item) }
+function dates(v: Record<string, unknown>) {
+  function date(x: unknown): string | null {
+    if (x === null) return null
+    if (
+      typeof x !== 'string' ||
+      !/^\d{4}-\d\d-\d\d$/.test(x) ||
+      !Number.isFinite(Date.parse(x)) ||
+      new Date(x).toISOString().slice(0, 10) !== x
+    )
+      return refuse('Brain dates must be YYYY-MM-DD.')
+    return x
   }
-  const index = (field: string) => (value: unknown) =>
-    Number.isSafeInteger(value) && (value as number) >= 0
-      ? (value as number)
-      : refuse(`Brain ${field} must be indexes of 0 or more.`)
-  const name = (value: unknown, max: number, field: string): string =>
-    typeof value === 'string' && value && value.length <= max && !value.includes('\0')
-      ? value
-      : refuse(`Brain ${field} needs 1 to ${max} characters.`)
-  return {
-    ...list('memories', index('memories')),
-    ...list('identities', (value) => {
-      const i = keys(value, ['ref', 'answer'])
-      return {
-        ref: name(i.ref, ref, 'identity ref'),
-        answer: name(i.answer, answer, 'identity answer'),
-      }
-    }),
-    ...list('groups', index('groups')),
-    ...list('descriptions', (value) => name(value, ref, 'description ref')),
-    ...list('confirmations', index('confirmations')),
+  const result = {
+    ...(v.since === undefined ? {} : { since: date(v.since) }),
+    ...(v.until === undefined ? {} : { until: date(v.until) }),
   }
+  if (result.since && result.until && result.since > result.until)
+    refuse('The end cannot precede the start.')
+  return result
 }
-
+const linkFields = ['subjectId', 'predicate', 'objectId', 'label']
+function link(v: Record<string, unknown>): BrainLinkInput {
+  const subjectId = id(v.subjectId, 'subjectId'),
+    objectId = id(v.objectId, 'objectId')
+  if (subjectId === objectId) refuse('Link two different records.')
+  const predicate = BRAIN_PREDICATES.find((p) => p === v.predicate)
+  if (!predicate) return refuse('Unknown Brain link predicate.')
+  return { subjectId, predicate, objectId, label: bounded(v.label, 80, 'label'), ...dates(v) }
+}
+function ids(v: unknown, field: string, min: number, max: number) {
+  if (!Array.isArray(v) || v.length < min || v.length > max || new Set(v).size !== v.length)
+    return refuse(`Brain ${field} needs ${min} to ${max} different ids.`)
+  return v.map((x) => id(x, field))
+}
 const VALIDATORS: { [M in BrainCuratorMethod]: (input: unknown) => Request<M> } = {
   waiting: (input) => {
     const v = keys(input, [], ['limit'])
@@ -177,30 +183,22 @@ const VALIDATORS: { [M in BrainCuratorMethod]: (input: unknown) => Request<M> } 
       refuse(`Brain waiting limit must be 1 to ${BRAIN_CURATOR_LIMITS.waiting}.`)
     return v.limit === undefined ? {} : { limit: v.limit as number }
   },
-  readReview: (input) => {
-    const v = keys(input, ['jobId'], ['offset'])
-    return { jobId: id(v.jobId, 'jobId'), ...offset(v.offset) }
-  },
   suggestion: (input) => ({
     suggestionId: id(keys(input, ['suggestionId']).suggestionId, 'suggestionId'),
   }),
   entity: (input) => ({ entityId: id(keys(input, ['entityId']).entityId, 'entityId') }),
   memory: (input) => ({ memoryId: id(keys(input, ['memoryId']).memoryId, 'memoryId') }),
-  decideRead: (input) => {
+  relate: (input) => {
     const v = keys(
       input,
-      ['jobId', 'revision', 'approve', 'reason'],
-      ['memories', 'identities', 'groups', 'descriptions', 'confirmations'],
+      [...linkFields, 'memoryIds', 'reason'],
+      ['since', 'until', 'suggestionId'],
     )
-    if (!Number.isSafeInteger(v.revision) || (v.revision as number) < 0)
-      refuse('Brain revision must be the review’s revision number.')
-    if (typeof v.approve !== 'boolean') refuse('Brain approve must be true or false.')
     return {
-      jobId: id(v.jobId, 'jobId'),
-      revision: v.revision as number,
-      approve: v.approve as boolean,
-      ...choices(v),
+      ...link(v),
+      memoryIds: ids(v.memoryIds, 'memoryIds', 1, 8),
       reason: reason(v),
+      ...(v.suggestionId === undefined ? {} : { suggestionId: id(v.suggestionId, 'suggestionId') }),
     }
   },
   resolve: (input) => {
@@ -216,10 +214,16 @@ const VALIDATORS: { [M in BrainCuratorMethod]: (input: unknown) => Request<M> } 
     return { edit: edit(v.edit), reason: reason(v) }
   },
   correct: (input) => {
-    const v = keys(input, ['memoryId', 'summary', 'source', 'quote', 'reason'])
+    const v = keys(input, ['memoryId', 'summary', 'source', 'quote', 'reason'], ['links', 'ends'])
+    if (v.links !== undefined && (!Array.isArray(v.links) || v.links.length > 200))
+      return refuse('Brain links must be a bounded list.')
     const limits = BRAIN_CURATOR_LIMITS
     return {
       memoryId: id(v.memoryId, 'memoryId'),
+      ...(Array.isArray(v.links)
+        ? { links: v.links.map((x) => link(keys(x, linkFields, ['since', 'until']))) }
+        : {}),
+      ...(v.ends === undefined ? {} : { ends: ids(v.ends, 'ends', 0, 200) }),
       summary: bounded(v.summary, limits.summary, 'summary'),
       source: bounded(v.source, limits.source, 'source'),
       quote: bounded(v.quote, limits.quote, 'quote'),

@@ -10,7 +10,9 @@ export function inProcessSearch(
     return {
       refresh: () => search.refresh(),
       entities: async (kind, offset, limit, sort) => search.entities(kind, offset, limit, sort),
-      recent: async (limit) => search.recent(limit),
+      resolve: async (names) => search.resolve(names),
+      expand: async (input) => search.expand(input),
+      routes: async (...args) => search.routes(...args),
       ready: async () => search.ready(),
       recall: async (input) => search.recall(input),
       find: async (query, vector, limit) => search.find(query, vector, limit),

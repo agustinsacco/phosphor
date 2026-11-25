@@ -113,10 +113,10 @@ it('removes one of the other names, never the label, and shows a refusal in plac
   const names = [...dialog().querySelectorAll('[aria-label="Other names"] li')]
   expect(names.map((li) => li.firstChild?.textContent)).toEqual(['Harbor customer'])
   expect(button('Remove “Harbor”')).toBeUndefined()
-  refusal = 'That name belongs to a memory under review.'
+  refusal = 'That name already belongs to Ledger.'
   await click('Remove “Harbor customer”')
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
-    'That name belongs to a memory under review.',
+    'That name already belongs to Ledger.',
   )
   expect(onClose).not.toHaveBeenCalled()
   refusal = ''
@@ -169,7 +169,7 @@ it('says why a split of every memory is refused, and stays open', async () => {
   for (const box of dialog().querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))
     await act(async () => box.click())
   await type('New name', 'Rina from finance')
-  await click('Split off 2 memories')
+  await click('Split off 5 memories')
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
     'Splitting off every memory is a rename; keep at least one.',
   )
@@ -183,7 +183,7 @@ it('offers Remove a name only when there is another name', async () => {
     ['Split…', false],
     ['Remove a name…', false],
     ['Edit description…', false],
-    ['Show on full map', false],
+    ['Show in the whole graph', false],
   ])
   expect(items(await entity('rina')).find((item) => item.label === 'Remove a name…')).toMatchObject(
     { disabled: true, hint: 'no other names' },

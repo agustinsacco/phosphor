@@ -51,7 +51,21 @@ it('sends only query and limit and returns the owner-formatted briefing', async 
     { op: 'brain.search', args: { query: 'Harbor', limit: 2 } },
     { signal, deadlineMs: 10_000 },
   )
-  expect(tool.description).toMatch(/person, team, system or ticket/)
+  expect(tool.description).toMatch(/from and to/)
+})
+it('sends a name to expand with its context, and a route, as the same op', async () => {
+  const { tool, send } = setup()
+  send.mockResolvedValue({ v: 1, id: '1', status: 'ok', applies: 'now', text: 'x', data: {} })
+  const signal = new AbortController().signal
+  const moves = [
+    { from: 'Rina Okafor', context: ['Harbor'] },
+    { from: 'Rina Okafor', to: 'Tom Lee', limit: 3 },
+  ]
+  for (const move of moves)
+    await tool.execute('one', move as unknown as { query: string }, signal, undefined, {})
+  expect(send.mock.calls.map(([, request]) => request)).toEqual(
+    moves.map((args) => ({ op: 'brain.search', args })),
+  )
 })
 
 it('reports a missing service, failed transport or unexpected confirmation as unavailable, not a no-match', async () => {
@@ -117,6 +131,7 @@ it('sends a flag with its reason in the request envelope, where the owner audits
   const send = vi.fn<Parameters<typeof registerBrain>[1]>()
   registerBrain({ registerTool: (tool) => tools.push(tool as (typeof tools)[number]) }, send)
   const flag = tools.find((tool) => tool.name === 'brain_flag')!
+  expect(flag.description).toContain('Brain Agent')
   send.mockResolvedValue({
     v: 1,
     id: '1',
@@ -142,4 +157,14 @@ it('sends a flag with its reason in the request envelope, where the owner audits
     },
     { signal, deadlineMs: 10_000 },
   )
+})
+
+it('returns move guidance for a mixed search instead of an unavailable briefing', async () => {
+  const { tool, send } = setup()
+  send.mockResolvedValue(noOwnerReply(null))
+  const params = { query: 'Harbor', from: 'Ledger' }
+  const result = await tool.execute('one', params, undefined, undefined, {})
+  expect(result.content).toEqual([
+    { type: 'text', text: expect.stringMatching(/query.*from.*optional context.*from and to/i) },
+  ])
 })

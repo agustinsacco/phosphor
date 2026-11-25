@@ -1,5 +1,4 @@
 import { brainNeverReadReason, type BrainJob } from '@phosphor/shared/brain'
-import { BRAIN_NEVER_READ_REFRESH_REFUSAL } from '@phosphor/shared/brain-review'
 import type { BrainStore } from '@phosphor/memory-engine/types'
 import type { CurrentLane, LaneFiles } from './lane-files'
 import type { LaneEntry } from './transcript'
@@ -15,7 +14,7 @@ export interface LaneReadCheck {
 
 /**
  * The lane's current title, stored on the job when it changed. A title is bookkeeping: storing it
- * never bumps the knowledge revision, so it never stales a review.
+ * never bumps the knowledge revision.
  */
 export async function currentTitle(
   store: BrainStore,
@@ -30,7 +29,7 @@ export async function currentTitle(
 }
 
 /**
- * Eligibility follows the current transcript; an unreadable review stays available to reject.
+ * Eligibility follows the current transcript.
  * `brainFolder`: Brain Agent's folder, whose lanes Brain never reads.
  */
 export async function currentReadCheck(
@@ -43,14 +42,16 @@ export async function currentReadCheck(
   const byId = brainNeverReadReason({ ...prefs(), titles: [] }, job)
   if (byId) return { refusal: byId }
   const current = await currentTitle(store, files, job).catch((error: unknown) => {
+    const proposal = store.storedProposal(job.id)
     if (
       (error as NodeJS.ErrnoException).code === 'ENOENT' &&
-      (job.state === 'review' || job.state === 'refreshing' || store.storedProposal(job.id))
+      proposal &&
+      proposal.computedRevision === store.knowledgeRevision()
     )
       return null
     throw error
   })
-  if (current === null) return { refusal: DELETED_LANE_REFRESH_REFUSAL }
+  if (!current) return { refusal: brainNeverReadReason(prefs(), job) }
   return {
     refusal: isBrainOwnLane(current.cwd, brainFolder)
       ? BRAIN_OWN_LANE_REFUSAL
@@ -59,9 +60,3 @@ export async function currentReadCheck(
     retitled: current.retitled,
   }
 }
-
-/** Shared, so the review page can tell it from the sentences that reload a review. */
-export const NEVER_READ_REFRESH_REFUSAL = BRAIN_NEVER_READ_REFRESH_REFUSAL
-
-export const DELETED_LANE_REFRESH_REFUSAL =
-  "This lane was deleted, so this review can't be refreshed. Reject it."

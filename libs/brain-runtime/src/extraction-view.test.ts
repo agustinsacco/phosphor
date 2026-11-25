@@ -99,7 +99,7 @@ it('rebuilds both repair attempts from the original answer after a provider retr
     return { text: answerFor(input), usage: { tokens: 1, cost: 0 } }
   })
   await extractJob(s.job, new AbortController().signal, s.store, s.options, s.search)
-  expect(s.store.job(s.job.id)?.state).toBe('review')
+  expect(s.store.job(s.job.id)?.state).toBe('done')
   const view = await extractionView(s.store, s.job.id)
   expect(view.calls.map((c) => c.stage)).toEqual([
     'extract',

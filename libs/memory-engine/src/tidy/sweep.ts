@@ -11,6 +11,7 @@ import { recountEntities } from '../entities'
 import { sweepEntity } from './sweep-entities'
 import { memoryCandidateCache } from './memory-candidates'
 import { sweepBudget, sweepMemory } from './sweep-memories'
+import { sweepLinks } from './sweep-links'
 
 export const TIDY_CHUNK = 128
 /** Rows the closing pass reads per call while looking for memories without a fingerprint. */
@@ -33,7 +34,7 @@ export function coverage(ctx: Context): Cursor {
     : { ...emptyBrainTidyCoverage(), entityMax: 0, memoryMax: 0 }
 }
 /**
- * What the page shows: no cursor internals. A finished pass reports today's counts, because every
+ * Coverage as a sweep reports it: no cursor internals. A finished pass reports today's counts, because every
  * memory saved since is swept as it lands (or by maintenance right after); a pass in progress
  * reports the totals it set out to check.
  */
@@ -89,7 +90,13 @@ export function sweep(
 ): BrainTidySweep {
   return transaction(ctx, () => {
     let c = coverage(ctx)
-    const result: BrainTidySweep = { coverage: c, suggestions: 0, folded: 0, operationIds: [] }
+    const result: BrainTidySweep = {
+      coverage: c,
+      suggestions: 0,
+      folded: 0,
+      unlinked: 0,
+      operationIds: [],
+    }
     const entities = input === 'all' ? [] : [...new Set(input.entityIds)]
     const memories =
       input === 'all'
@@ -130,7 +137,11 @@ export function sweep(
       result.operationIds.push(...found.operations)
     }
     result.folded = result.operationIds.length
-    if (result.suggestions) bumpRevision(ctx)
+    // A finished pass offers every pair named together that no link explains. New memories offer
+    // the pairs they name, so a saved read's pair waits before the automatic check decides.
+    if (input === 'all' ? c.phase === 'done' : memories.length > 0)
+      result.unlinked = sweepLinks(ctx, input === 'all' ? undefined : memories)
+    if (result.suggestions || result.unlinked) bumpRevision(ctx)
     if (input === 'all') save(ctx, c)
     result.coverage = publicCoverage(ctx, c)
     return result

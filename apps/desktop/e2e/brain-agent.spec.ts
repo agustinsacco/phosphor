@@ -3,21 +3,25 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { launch, shutdown } from './fixtures/local-app'
 import { seedBrainLanes } from './fixtures/brain-lanes'
 import {
-  awaitRead,
+  AUTO_RUN_TIMEOUT,
+  awaitSaved,
   brainNav,
-  brainTab,
+  card,
+  changes,
   defragButton,
-  defragRead,
+  edge,
   enableBrain,
   queueLane,
-  runStrip,
+  searchTo,
   status,
-  waitingRow,
+  statusBar,
+  whatChanged,
 } from './fixtures/brain-flow'
 
-const REASON = 'The lasting memories have evidence in this read.'
+const WORKS_WITH = 'Rina Okafor works with Mara Voss'
 
-test('Brain Agent decides a waiting read, records its reason and undoes the run', async () => {
+test('Brain Agent settles an unlinked pair on its own after a saved read, and its run undoes', async () => {
+  test.setTimeout(240_000)
   const seed = await seedBrainLanes()
   const h = await launch({
     workspace: seed.workspace,
@@ -28,33 +32,40 @@ test('Brain Agent decides a waiting read, records its reason and undoes the run'
   const { page } = h
   try {
     await enableBrain(page, seed.harbor)
-    await expect(defragButton(page)).toBeDisabled()
     await queueLane(page, seed.harbor)
-    await awaitRead(page, seed.harbor)
-    await brainTab(page, 'Lanes').click()
-    await expect(waitingRow(page, seed.harbor)).toBeVisible()
-    await expect(page.locator('.page-shell-header')).toContainText('1 waiting')
-    await expect(brainNav(page)).toHaveAccessibleName('Brain 1 waiting')
-    await defragButton(page).hover()
-    await expect(page.getByRole('tooltip')).toContainText('1 waiting: 1 read')
-    const id = await defragRead(page, seed.harbor)
-    expect(
-      await page.evaluate(
-        async () => (await window.phosphor.invoke('app:getPrefs')).lastWorkspacePath,
-      ),
-    ).toBe(seed.workspace)
-    const recent = page.getByRole('region', { name: 'Recent changes', exact: true })
-    await expect(recent).toContainText('Brain Agent')
-    await recent.getByRole('button', { name: /^Approved / }).click()
-    await expect(page.getByRole('article', { name: 'Change detail' })).toContainText(REASON)
-    expect(
-      (await page.evaluate(() => window.phosphor.invoke('brain:tidyChanges', 50))).items[0],
-    ).toMatchObject({ kind: 'approve', who: 'agent', jobId: id, reason: REASON })
-    await runStrip(page).getByRole('button', { name: 'Undo run', exact: true }).click()
-    await expect(waitingRow(page, seed.harbor)).toBeVisible()
-    expect((await status(page)).counts.memories).toBe(0)
-    await expect(page.locator('.page-shell-header')).toContainText('1 waiting')
-    await expect(recent).toContainText('Undone')
+    await awaitSaved(page, seed.harbor)
+    await expect.poll(async () => (await status(page)).agent.waiting.unlinked).toBe(1)
+    await expect(brainNav(page)).toHaveAccessibleName(/^Brain \d+ waiting$/)
+    // Nobody presses Defrag: Brain Agent starts once reads have been quiet for a minute.
+    await expect
+      .poll(
+        async () => {
+          const run = (await status(page)).agent.run
+          return run && { automatic: run.automatic, state: run.state }
+        },
+        { timeout: AUTO_RUN_TIMEOUT, intervals: [2_000] },
+      )
+      .toEqual({ automatic: true, state: 'done' })
+    expect((await status(page)).agent.waiting.unlinked).toBe(0)
+    const relate = (await changes(page)).items.find((item) => item.kind === 'relate')!
+    expect(relate).toMatchObject({ who: 'agent', undoable: true })
+    expect(relate.runId).toBe((await status(page)).agent.run!.id)
+    expect(relate.reason).toBeTruthy()
+
+    await searchTo(page, 'Rina Okafor')
+    await expect(edge(page, WORKS_WITH)).toBeVisible()
+    const now = card(page).getByRole('region', { name: 'Now', exact: true })
+    const stated = now.getByRole('button', { name: WORKS_WITH, exact: true })
+    await expect(stated).toContainText('by Brain Agent')
+    const run = whatChanged(page).getByRole('listitem').filter({ hasText: 'Brain Agent run' })
+    await expect(run).toContainText(relate.summary)
+    await run.getByRole('button', { name: 'Undo run', exact: true }).click()
+    await expect(edge(page, WORKS_WITH)).toHaveCount(0)
+    await expect(now.getByRole('button', { name: WORKS_WITH, exact: true })).toHaveCount(0)
+    expect((await changes(page)).items.find((i) => i.id === relate.id)?.undoneAt).not.toBeNull()
+    // The read itself stays saved: only the run's changes were undone.
+    expect((await status(page)).counts.memories).toBe(seed.harbor.facts.length)
+    await tellBrainAgent(page)
   } finally {
     await shutdown(h)
   }
@@ -75,18 +86,19 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
   })
   const { page } = h
   try {
-    await enableBrain(page, seed.harbor)
+    await enableBrain(page, seed.harbor, { agentAuto: false })
     await queueLane(page, seed.harbor)
-    await awaitRead(page, seed.harbor)
+    await awaitSaved(page, seed.harbor)
     await defragButton(page).click()
-    await expect(runStrip(page)).toContainText('Brain Agent is defragging')
-    await expect(runStrip(page).getByRole('button', { name: 'Brain lane' })).toBeEnabled()
-    await runStrip(page).getByRole('button', { name: 'Brain lane' }).click()
+    await expect(statusBar(page)).toContainText('Brain Agent is defragging')
+    const lane = statusBar(page).getByRole('button', { name: 'Brain lane', exact: true })
+    await expect(lane).toBeEnabled()
+    await lane.click()
     const group = page.getByRole('region', { name: 'Brain', exact: true })
     await expect(group.getByTestId('session-row')).toContainText('🧠')
     await expect(group.getByTestId('session-row')).toContainText('Brain Agent')
-    await expect(page.getByRole('main').getByText(/^Defrag\. 1 waiting:/)).toBeVisible()
-    expect((await status(page)).agent.run?.state).toBe('running')
+    await expect(page.getByRole('main').getByText(/^Defrag\. \d+ waiting:/)).toBeVisible()
+    expect((await status(page)).agent.run).toMatchObject({ state: 'running', automatic: false })
     await group.getByTestId('session-row').click({ button: 'right' })
     await expect(page.getByText('Queue for knowledge extraction', { exact: true })).toHaveCount(0)
     await page.keyboard.press('Escape')
@@ -94,17 +106,20 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
       .poll(() => launches(seed.audit, (cwd) => cwd.endsWith('/brain/Brain')))
       .toHaveLength(1)
     await brainNav(page).click()
-    await runStrip(page).getByRole('button', { name: 'Stop', exact: true }).click()
+    await statusBar(page).getByRole('button', { name: 'Stop', exact: true }).click()
     await expect.poll(async () => (await status(page)).agent.run?.state).toBe('stopped')
-    await expect(runStrip(page)).toContainText('stopped')
-    await brainTab(page, 'Lanes').click()
-    await expect(waitingRow(page, seed.harbor)).toBeVisible()
+    await expect(statusBar(page)).toContainText('stopped')
+    expect((await status(page)).agent.waiting.unlinked).toBe(1)
     await page.getByRole('button', { name: 'Close page', exact: true }).click()
     await page.getByTestId('session-row').filter({ hasText: seed.ledger.title }).first().click()
     // Recall answers over the lane's op channel; curator verbs are not ops an agent may run.
     await send(page, opPrompt(['brain.search', 'Harbor']))
     await expect(
-      page.getByRole('main').getByText(/No approved Brain memories matched\./),
+      page
+        .getByRole('main')
+        .getByRole('listitem')
+        .filter({ hasText: 'Rina Okafor owns Harbor ledger.' })
+        .first(),
     ).toBeVisible()
     await send(page, opPrompt(['brain.review']))
     await expect(page.getByText('brain.review is not available to agents.')).toBeVisible()
@@ -124,6 +139,15 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     await shutdown(h)
   }
 })
+
+async function tellBrainAgent(page: Page) {
+  const message = 'Check the Ledger handover with Rina Okafor.'
+  const bar = page.getByRole('form', { name: 'Ask Brain' })
+  await bar.getByRole('textbox').fill(message)
+  await bar.getByRole('button', { name: 'Tell Brain Agent', exact: true }).click()
+  await bar.getByRole('button', { name: 'Open Brain lane', exact: true }).click()
+  await expect(page.getByRole('main').getByText(message, { exact: true })).toBeVisible()
+}
 
 async function launches(file: string, include: (cwd: string) => boolean) {
   const rows = (await readFile(file, 'utf8'))

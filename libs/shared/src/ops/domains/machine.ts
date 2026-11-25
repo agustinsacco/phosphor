@@ -1,3 +1,4 @@
+import { Type } from 'typebox'
 import {
   caps,
   choice,
@@ -18,6 +19,14 @@ const inventory = domain('machine', caps('skills.read'), untrusted)
 const lane = domain('self', control, { routable: false, ...untrusted })
 const service = { class: 'service' } as const
 const query = object({ query: text(2000), limit: optional(count(20)) })
+/** One move: a query, a name to expand (with context names), or a route from one name to another. */
+const search = object({
+  query: optional(text(2000)),
+  from: optional(text(200)),
+  to: optional(text(200)),
+  context: optional(Type.Array(text(200), { maxItems: 5 })),
+  limit: optional(count(20)),
+})
 export const machineOps = [
   read('machine.status', 'Show machine and Phosphor service status.', 'read'),
   read('machine.doctor', 'Check machine and Phosphor service health.', 'read'),
@@ -37,11 +46,11 @@ export const machineOps = [
   read('hosts.list', 'List machines available to this lane.', 'read', undefined, {
     routable: false,
   }),
-  lane('brain.search', 'Search Brain for relevant memories.', 'read', query, {
+  lane('brain.search', 'Search Brain for relevant memories.', 'read', search, {
     ...service,
     positional: ['query'],
     requires: caps('sessions.read'),
-    sensitive: ['query'],
+    sensitive: ['query', 'from', 'to', 'context'],
   }),
   lane(
     'brain.flag',

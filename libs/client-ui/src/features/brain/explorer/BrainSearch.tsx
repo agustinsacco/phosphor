@@ -42,12 +42,14 @@ interface SearchProps {
   onSelect: (visit: BrainVisit) => void
   entitiesOnly?: boolean
   exclude?: string
+  autoFocus?: boolean
 }
 /** A search field with its own results: the other end of a route or a merge. */
 export function BrainSearch({
   onSelect,
   entitiesOnly = false,
   exclude,
+  autoFocus = false,
 }: SearchProps): React.JSX.Element {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
@@ -83,6 +85,7 @@ export function BrainSearch({
     <section aria-label={entitiesOnly ? 'Choose entity' : 'Find knowledge'} className="space-y-2">
       <TextInput
         role="combobox"
+        autoFocus={autoFocus}
         aria-label={label}
         placeholder={label}
         aria-autocomplete="list"

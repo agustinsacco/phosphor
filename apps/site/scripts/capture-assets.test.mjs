@@ -39,7 +39,12 @@ test('every published capture has inventoried dimensions, bytes and honest prove
   for (const name of [
     'brain-setup',
     'brain-graph',
-    'brain-review',
+    'brain-changes',
+    'brain-ready',
+    'brain-memory',
+    'brain-extraction',
+    'brain-queue',
+    'brain-recall',
     'lane-pr',
     'slack-pill',
     'machines',

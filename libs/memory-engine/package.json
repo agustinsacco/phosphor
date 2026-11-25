@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./types": "./src/types.ts",
+    "./read-stale": "./src/read-stale.ts",
     "./store": "./src/store.ts",
     "./vectors": "./src/vectors.ts",
     "./text": "./src/text.ts",

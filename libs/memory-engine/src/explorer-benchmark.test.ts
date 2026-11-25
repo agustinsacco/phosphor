@@ -43,11 +43,12 @@ it.skipIf(process.env.BRAIN_EXPLORER_BENCH !== '1')(
       const leaf = store.connections('entity-1234', 'part_of', 'out', null)
       expect(leaf.items).toHaveLength(1)
       expect(leaf.items[0]).toMatchObject({ entity: { id: 'entity-1' }, supports: 10 })
-      // The hub's one parent, stated ten times, and the first page of its 50,000 children.
+      // The hub's one parent and its incoming project and person neighbours.
       const groups = store.entity('entity-1').groups
-      expect(groups.map((g) => [g.direction, g.items.length])).toEqual([
-        ['out', 1],
-        ['in', 8],
+      expect(groups.map((g) => [g.predicate, g.direction, g.items.length])).toEqual([
+        ['works_on', 'in', 8],
+        ['part_of', 'out', 1],
+        ['part_of', 'in', 8],
       ])
       expect(groups[0]!.items[0]!.supports).toBe(10)
     } finally {

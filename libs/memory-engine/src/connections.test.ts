@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture } from './test-support'
+import { saveAndListMemories, extraction, fixture } from './test-support'
 import type { Proposal } from './types'
 
 /** "Rina Okafor owns Harbor", stated by two memories of one read. */
@@ -22,7 +22,7 @@ function twice(): Partial<Proposal> {
 }
 function setup() {
   const { store, db } = fixture()
-  approve(store, twice())
+  saveAndListMemories(store, twice())
   const nodes = store.overview(300).nodes
   const id = (label: string) => nodes.find((node) => node.label === label)!.id
   return { store, db, rina: id('Rina Okafor'), harbor: id('Harbor'), tom: id('Tom Lee') }
@@ -60,6 +60,7 @@ it('pages distinct neighbours with a stable cursor when their support interleave
     summary: `Kestrel part ${ref} round ${round}.`,
     links: [
       {
+        label: '',
         subject: refs[0]!,
         predicate: 'part_of' as const,
         object: ref,
@@ -69,7 +70,7 @@ it('pages distinct neighbours with a stable cursor when their support interleave
   })
   // Every neighbour is stated in both rounds, so its older link sits a whole page away.
   const memories = [1, 2].flatMap((round) => refs.slice(1).map((ref) => link(ref, round)))
-  approve(store, {
+  saveAndListMemories(store, {
     entities: refs.map((ref) => ({
       ...extraction('x').entities[0]!,
       ref,

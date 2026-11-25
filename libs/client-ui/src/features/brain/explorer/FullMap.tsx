@@ -9,7 +9,7 @@ import { useEntityView } from './useEntityView'
 import { pageKeyTarget } from '../pageKeys'
 import type { BrainVisit } from './trail'
 
-/** The whole graph in 3D, given the width of profile and map. A click inspects; it never walks. */
+/** Every person and thing in 3D, in the map's place. A click inspects; Open walks there. */
 export function FullMap({
   entityId,
   label,
@@ -20,7 +20,7 @@ export function FullMap({
   entityId: string | null
   label: string | undefined
   path: BrainLink[] | null
-  /** Open this person or thing's profile and leave the full map. */
+  /** Walk to this person or thing and leave the whole graph. */
   onOpen: (visit: BrainVisit) => void
   onClose: () => void
 }): React.JSX.Element {
@@ -32,20 +32,20 @@ export function FullMap({
   const inspected = selected && selected.id !== entityId ? selected.id : null
   return (
     <section
-      aria-label="Full map"
+      aria-label="Whole graph"
       className="relative flex min-h-0 flex-1 flex-col"
       onKeyDown={(event) => {
-        if (!selected || !pageKeyTarget(event, 'Escape')) return
+        if (!selected || !pageKeyTarget(event.nativeEvent, 'Escape')) return
         event.preventDefault()
         setSelected(null)
       }}
     >
       <header className="border-border flex items-center gap-2 border-b px-3 py-1.5">
         <h2 className="min-w-0 flex-1 truncate font-mono text-xs font-medium tracking-wider uppercase">
-          Full map
+          Whole graph
         </h2>
         <Button size="xs" onClick={onClose}>
-          {entityId ? 'Back to profile' : 'Close full map'}
+          Back to the map
         </Button>
       </header>
       <ExplorerGraph
@@ -118,7 +118,7 @@ function Inspector({
           disabled={!data}
           onClick={() => data && onOpen({ kind: 'entity', id, label: data.entity.label })}
         >
-          Open profile
+          Go there
         </Button>
         <Button size="xs" onClick={onClose}>
           Close

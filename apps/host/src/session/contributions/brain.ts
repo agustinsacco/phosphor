@@ -10,7 +10,12 @@ export function createBrainContribution(brain: {
   return {
     ...brainContribution(async () => brain.appServices.resources(brain.resourceRoot)),
     attach(session) {
-      const forget = brain.appServices.attachLane(session.sessionId, session.workspacePath)
+      // The registry handle is live now; pi reports its saved session id after startup.
+      const forget = brain.appServices.attachLane(
+        session.sessionId,
+        session.workspacePath,
+        () => session.client.piSessionId,
+      )
       session.client.once('exit', forget)
     },
   }

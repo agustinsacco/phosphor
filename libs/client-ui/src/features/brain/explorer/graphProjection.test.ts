@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest'
 import type { BrainGraph } from '@shared/brain'
+import { graphLink } from '../__fixtures__/graph3D'
 import { combineGraphs } from './graphProjection'
 
 it('bounds outside selection and route additions at 300 while retaining priority nodes', () => {
@@ -15,6 +16,7 @@ it('bounds outside selection and route additions at 300 while retaining priority
   const base: BrainGraph = {
     nodes: Array.from({ length: 300 }, (_, i) => node(`Harbor ${i}`)),
     links: [],
+    ended: [],
     centerId: null,
     truncated: false,
   }
@@ -22,14 +24,15 @@ it('bounds outside selection and route additions at 300 while retaining priority
     nodes: [node('Ledger'), node('Kestrel')],
     centerId: 'Ledger',
     truncated: false,
+    ended: [],
     links: [
-      {
+      graphLink({
         id: 'link-1',
         subjectId: 'Ledger',
         objectId: 'Kestrel',
         predicate: 'uses',
         memoryId: 'memory-1',
-      },
+      }),
     ],
   }
   const result = combineGraphs([base, extra], ['Ledger', 'Kestrel'])

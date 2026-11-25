@@ -30,7 +30,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it('loads once for multiple consumers and does not poll idle or review-only status', async () => {
+it('loads once for multiple consumers and does not poll idle or finished reads', async () => {
   await act(async () =>
     root.render(
       <>
@@ -74,9 +74,9 @@ it('classifies download, verification, testing and all queued job states as in f
   expect(brainInFlight(null)).toBe(false)
   for (const phase of ['downloading', 'verifying', 'testing'] as const)
     expect(brainInFlight({ ...status, embedding: { ...status.embedding, phase } })).toBe(true)
-  for (const state of ['waiting', 'queued', 'running', 'refreshing'] as const)
+  for (const state of ['waiting', 'queued', 'running'] as const)
     expect(brainInFlight({ ...status, jobs: [mockBrainJob({ state })] })).toBe(true)
-  for (const state of ['review', 'empty', 'failed', 'done', 'rejected'] as const)
+  for (const state of ['empty', 'failed', 'done', 'rejected'] as const)
     expect(brainInFlight({ ...status, jobs: [mockBrainJob({ state })] })).toBe(false)
 })
 
@@ -152,7 +152,7 @@ it('does not let an older status request overwrite an action’s returned status
     prefs: {
       enabled: true,
       recall: true,
-      review: true,
+      agentAuto: true,
       model: null,
       neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
     },

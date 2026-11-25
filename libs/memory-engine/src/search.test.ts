@@ -1,12 +1,12 @@
 import { DatabaseSync } from 'node:sqlite'
 import { expect, it, vi } from 'vitest'
-import { approve, extraction, searchFixture, vector } from './test-support'
+import { saveAndListMemories, extraction, searchFixture, vector } from './test-support'
 import { freshness } from './recall'
 import { named } from './seeds'
 
 it('degrades during initial loading, then recalls paraphrases through vectors with no evidence text', async () => {
   const { store, search } = searchFixture()
-  approve(store)
+  saveAndListMemories(store)
   expect(search.ready()).toBe(false)
   const input = {
     query: 'network resilience',
@@ -28,14 +28,18 @@ it('degrades during initial loading, then recalls paraphrases through vectors wi
 })
 it('loads incrementally, filters deletions and clears all old rows on reset generation', async () => {
   const { store, search } = searchFixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   await search.refresh()
   expect(search.nearestMemories([vector()], 10)[0]).toHaveLength(2)
   store.forget(ids[0]!)
   await search.refresh()
   expect(search.nearestMemories([vector()], 10)[0]).toHaveLength(1)
   const next = extraction('next')
-  approve(store, { jobId: 'next', memories: [next.memories[0]!], memoryVectors: [vector()] })
+  saveAndListMemories(store, {
+    jobId: 'next',
+    memories: [next.memories[0]!],
+    memoryVectors: [vector()],
+  })
   await search.refresh()
   expect(search.nearestMemories([vector()], 10)[0]).toHaveLength(2)
   store.reset()
@@ -45,7 +49,7 @@ it('loads incrementally, filters deletions and clears all old rows on reset gene
 })
 it('find returns entities and memories with referenced entity cards and bounded limits', () => {
   const { store, search } = searchFixture()
-  approve(store)
+  saveAndListMemories(store)
   const result = search.find('Rina', null, 10)
   expect(result.entities[0]?.label).toBe('Rina Okafor')
   expect(result.memories[0]?.summary).toContain('Rina')
@@ -67,7 +71,7 @@ it('keeps named matching whole-word, unicode-folded and punctuation-aware', () =
 })
 it('freshness ignores future effective dates and retains old memories', () => {
   const { store } = searchFixture()
-  const [id] = approve(store)
+  const [id] = saveAndListMemories(store)
   const memory = { ...store.memory(id!).memory, type: 'fact' as const, observedAt: 0 }
   const now = 200 * 86_400_000
   expect(freshness({ ...memory, validFrom: 180 * 86_400_000 }, now)).toBeCloseTo(
@@ -80,7 +84,7 @@ it('freshness ignores future effective dates and retains old memories', () => {
 
 it('refresh reads maintained counts instead of scanning all bit rows', async () => {
   const { store, search, path } = searchFixture()
-  approve(store)
+  saveAndListMemories(store)
   await search.refresh()
   const db = new DatabaseSync(path)
   try {
@@ -132,7 +136,7 @@ async function rankedBrain() {
     'Kestrel replaces the Harbor export job.',
     'Harbor keeps invoices for seven years.',
   ]
-  approve(fixture.store, {
+  saveAndListMemories(fixture.store, {
     jobId: 'ranked',
     memories: sentences.map((summary, i) => ({
       ...data.memories[i % 2]!,

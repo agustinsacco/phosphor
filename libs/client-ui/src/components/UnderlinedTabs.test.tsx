@@ -10,16 +10,16 @@ it('keeps tab semantics and roving focus through arrows, Home and End', async ()
   document.body.append(container)
   const root = createRoot(container)
   function Harness(): React.JSX.Element {
-    const [value, setValue] = useState('knowledge')
+    const [value, setValue] = useState('overview')
     return (
       <UnderlinedTabs
-        id="brain"
-        label="Brain views"
+        id="harbor"
+        label="Harbor views"
         value={value}
         onChange={setValue}
         tabs={[
-          { value: 'knowledge', label: 'Knowledge' },
-          { value: 'lanes', label: 'Lanes' },
+          { value: 'overview', label: 'Overview' },
+          { value: 'details', label: 'Details' },
         ]}
       />
     )
@@ -28,7 +28,7 @@ it('keeps tab semantics and roving focus through arrows, Home and End', async ()
     await act(async () => root.render(<Harness />))
     const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
     expect(container.querySelector('[role="tablist"]')?.getAttribute('aria-label')).toBe(
-      'Brain views',
+      'Harbor views',
     )
     for (const [key, index] of [
       ['End', 1],
@@ -43,7 +43,7 @@ it('keeps tab semantics and roving focus through arrows, Home and End', async ()
       expect(document.activeElement).toBe(tabs[index])
       expect(tabs[index]?.getAttribute('aria-selected')).toBe('true')
       expect(tabs[index]?.getAttribute('aria-controls')).toBe(
-        `brain-panel-${index ? 'lanes' : 'knowledge'}`,
+        `harbor-panel-${index ? 'details' : 'overview'}`,
       )
       expect(tabs.filter((tab) => tab.tabIndex === 0)).toEqual([tabs[index]])
     }

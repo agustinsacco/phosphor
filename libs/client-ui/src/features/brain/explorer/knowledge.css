@@ -1,30 +1,3 @@
-.brain-knowledge {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-}
-.brain-knowledge-column {
-  min-width: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  border-right: 1px solid var(--px-border);
-  background: color-mix(in srgb, var(--px-bg-secondary) 40%, transparent);
-  padding: 12px;
-  overflow-wrap: anywhere;
-}
-.brain-knowledge .brain-row {
-  display: flex;
-  width: 100%;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: var(--px-radius-sm);
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-.brain-row:hover,
 .graph-icon:hover {
   background: var(--px-bg-secondary);
 }

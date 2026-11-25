@@ -27,6 +27,9 @@ function detail(
       observedAt: 1,
       validFrom: null,
       validTo: null,
+      importance: 1,
+      saidBy: 'agent',
+      lanes: 1,
     },
     quotes: [],
     linkQuotes: {},
@@ -34,6 +37,7 @@ function detail(
     history: [],
     related: [],
     sourcePath: null,
+    use: { recalled: 0, lastRecalledAt: null, flagged: 0 },
   }
 }
 const flag: BrainTidyFlag = {
@@ -75,7 +79,7 @@ it('dispatches flags through the engine, reports duplicate and sixth flag, and k
   try {
     expect(await recall.agent('flag', flag)).toMatchObject({
       status: 'filed',
-      message: expect.stringContaining('has not changed'),
+      message: expect.stringMatching(/Brain Agent.*has not changed/),
     })
     expect(await recall.agent('flag', flag)).toMatchObject({
       status: 'already_flagged',

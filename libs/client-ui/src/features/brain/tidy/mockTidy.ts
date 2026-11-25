@@ -23,7 +23,12 @@ export class MockTidy {
   private operations: BrainTidyOperation[] = []
   private snapshots = new Map<
     string,
-    { entities: MockExplorer['entities']; details: MockExplorer['details']; revision: number }
+    {
+      entities: MockExplorer['entities']
+      details: MockExplorer['details']
+      revision: number
+      undone?: () => void
+    }
   >()
   private initialized = false
   private flagAt: number | null = null
@@ -40,7 +45,7 @@ export class MockTidy {
   }
 
   summary(): BrainTidySummary {
-    const automatic = this.operations.filter((op) => op.who === 'automatic' && !op.undoneAt)
+    const automatic = this.operations.filter((op) => op.kind === 'fold' && !op.undoneAt)
     return {
       ...emptyBrainTidySummary(),
       automaticFolds: automatic.length,
@@ -91,36 +96,40 @@ export class MockTidy {
     if (this.options.flagAfterMs !== undefined) this.flagAt = this.now() + this.options.flagAfterMs
   }
   private check(revision: unknown): void {
-    if (revision !== this.state.revision)
-      throw new Error('Brain changed; refresh Tidy and try again.')
+    if (revision !== this.state.revision) throw new Error('Brain changed; refresh and try again.')
   }
   private journal(
     kind: BrainTidyOperation['kind'],
     summary: string,
     change: () => void,
-    suggestionId: string | null = null,
+    extra: { who?: BrainTidyOperation['who']; jobId?: string; undone?: () => void } = {},
   ): string {
     const id = `operation-${this.operations.length}`
     this.snapshots.set(id, {
       entities: structuredClone(this.explorer.entities),
       details: structuredClone(this.explorer.details),
       revision: this.state.revision + 1,
+      undone: extra.undone,
     })
     change()
     this.operations.unshift({
       id,
       kind,
       summary,
-      suggestionId,
-      who: 'you',
+      suggestionId: null,
+      who: extra.who ?? 'you',
       reason: null,
       runId: null,
-      jobId: null,
+      jobId: extra.jobId ?? null,
       undoable: true,
       createdAt: this.now(),
       undoneAt: null,
     })
     return id
+  }
+  /** A read saved when it finished: one automatic operation; Undo removes what it added. */
+  recordRead(jobId: string, summary: string, save: () => void, undone: () => void): string {
+    return this.journal('read', summary, save, { who: 'automatic', jobId, undone })
   }
   /** `brain:describe`, `brain:removeName` and `brain:split`: journaled, so Undo restores them. */
   edit(channel: string, args: unknown[]): string {
@@ -168,7 +177,9 @@ export class MockTidy {
     if (snapshot.revision !== revision) throw new Error('Later changes prevent a clean undo.')
     this.explorer.entities = snapshot.entities
     this.explorer.details = snapshot.details
+    snapshot.undone?.()
     op.undoneAt = this.now()
+    op.undoable = false
     this.state.revision++
   }
 }

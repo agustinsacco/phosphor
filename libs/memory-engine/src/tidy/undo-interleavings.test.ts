@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from '../test-support'
+import { saveAndListMemories, extraction, fixture, lane, vector } from '../test-support'
 import type { BrainStore, Proposal } from '../types'
 import { dump, seed } from './test-support'
 
@@ -9,7 +9,7 @@ function setup() {
   seed(result.db, 5)
   result.db.exec(`INSERT INTO mentions VALUES (1,2),(2,1),(3,1),(4,1),(5,1);
     UPDATE memories SET observed_at=100;
-    INSERT INTO relations VALUES (1,1,1,'member_of',3,1,100);
+    INSERT INTO relations(n,memory,subject,predicate,object,live,observed_at) VALUES (1,1,1,'member_of',3,1,100);
     INSERT INTO relation_support VALUES (1,1,'Original Ledger support');`)
   return result
 }
@@ -18,11 +18,8 @@ function change(store: BrainStore, kind: Kind, first = 'memory-1', second = 'mem
   store.sweep({ entityIds: [], memoryIds: [first, second] })
   const pair = store
     .waitingSuggestions(50, 0)
-    .items.find(
-      (s) =>
-        s.kind !== 'read' && [first, second].every((id) => s.subjects.some((v) => v.id === id)),
-    )
-  if (!pair || pair.kind === 'read') throw new Error('Expected a waiting memory pair')
+    .items.find((s) => [first, second].every((id) => s.subjects.some((v) => v.id === id)))
+  if (!pair) throw new Error('Expected a waiting memory pair')
   return store.resolve(
     pair.suggestionId,
     kind === 'fold'
@@ -51,6 +48,7 @@ function enrich(
               subject: 'rina-1',
               predicate: event === 'support' ? 'member_of' : 'works_on',
               object: 'rina-3',
+              label: event === 'support' ? 'is a member of' : 'works on',
               citation: { evidence: 0, quote: 'Independent Ledger support' },
             },
           ],
@@ -62,7 +60,7 @@ function enrich(
     reason: '',
     citations: [{ evidence: 0, quote: 'Independent Ledger support' }],
   }
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [],
     entityVectors: [],
     memories: [memory],
@@ -169,11 +167,12 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
       if (later === 'merge') store.merge('rina-1', 'rina-3', store.revision())
       else change(store, later, target, 'memory-3')
       const before = dump(db)
+      // A replace carries memory-1's link to memory-2; a later replace carries it on again.
       const refuse =
         kind === 'merge' ||
         kind === 'fold' ||
         (kind === 'dispute' && later === 'replace') ||
-        (kind === 'replace' && later === 'merge')
+        (kind === 'replace' && (later === 'merge' || later === 'replace'))
       if (refuse) {
         expect(() => store.tidyUndo(operation, store.revision())).toThrow(
           'cannot be cleanly undone',
@@ -218,7 +217,7 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
 }
 
 it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
-  '%s undo after Read again cannot restore the replaced lane memory',
+  '%s undo after Read again is refused while the replaced lane memory is gone',
   (kind) => {
     const { store, db } = setup()
     const target = kind === 'merge' ? 'memory-1' : 'memory-2'
@@ -231,18 +230,16 @@ it.each(['merge', 'fold', 'dispute', 'replace'] as const)(
       lane({ sessionId, replaces: old.id, leafId: 'replacement-leaf' }),
       'queued',
     )
-    store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
-    store.review(
-      next.id,
-      { descriptions: [], confirmations: [], memories: [], identities: {}, groups: [] },
-      store.knowledgeRevision(),
+    store.updateJob(next.id, { state: 'running' })
+    store.saveRead(
+      extraction(next.id, {
+        computedRevision: store.knowledgeRevision(),
+        origin: { sessionId, title: 'Harbor planning' },
+      }),
     )
     expect(() => store.memory(target)).toThrow('not found')
-    if (kind === 'merge') store.tidyUndo(operation, store.revision())
-    else
-      expect(() => store.tidyUndo(operation, store.revision())).toThrow(
-        /forgotten|no longer available/,
-      )
+    // Read again keeps the earlier record, so the change cannot half-undo around the gap.
+    expect(() => store.tidyUndo(operation, store.revision())).toThrow('Later changes')
     expect(() => store.memory(target)).toThrow('not found')
     expect(db.prepare('PRAGMA foreign_key_check').all()).toEqual([])
   },
@@ -264,7 +261,7 @@ for (const kind of ['merge', 'fold', 'dispute', 'replace'] as const) {
   it(`${kind} undo stays clean after a later approval that touches none of its records`, () => {
     const { store, db } = setup()
     const operation = change(store, kind)
-    approve(store, { origin: { sessionId: 'kestrel-lane', title: 'Kestrel' } })
+    saveAndListMemories(store, { origin: { sessionId: 'kestrel-lane', title: 'Kestrel' } })
     const learned = store.snapshot().counts.memories
     store.tidyUndo(operation, store.revision())
     expect(store.snapshot().counts.memories).toBe(

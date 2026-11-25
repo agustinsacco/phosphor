@@ -1,12 +1,17 @@
 import type { BrainTidySummary } from './brain-tidy'
 import type { BrainAgentMethod, BrainAgentStatus } from './brain-agent'
+import type { BrainLink } from './brain-links'
 
 /**
  * Brain: machine-local knowledge learned only from lanes the user queues. Private model calls
- * read the conversation in parts, the user approves what they propose, and every lane can recall it.
- * No credentials or database paths cross this contract.
+ * read the conversation in parts, the read saves what they find when it finishes, Brain Agent
+ * tidies it, and every lane can recall it. No credentials or database paths cross this contract.
  */
-export const BRAIN_PROTOCOL = 6
+export const BRAIN_PROTOCOL = 7
+export const BRAIN_ASK_MAX = 2000
+export const BRAIN_TELL_MAX = 4096
+/** A temporary claim with no end of its own is saved until this many days after it was said. */
+export const BRAIN_TEMPORARY_DAYS = 14
 /** Pinned local embedding model. No hosted embedding or silent model fallback. */
 export const BRAIN_EMBEDDING_MODEL = {
   id: 'embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66',
@@ -29,81 +34,19 @@ export const BRAIN_ENTITY_KINDS = [
   'event',
 ] as const
 export type BrainEntityKind = (typeof BRAIN_ENTITY_KINDS)[number]
-/** Directed relationship types, read subject → object. A memory can state several. */
-export const BRAIN_PREDICATES = [
-  'owns',
-  'works_on',
-  'member_of',
-  'part_of',
-  'for_customer',
-  'documents',
-  'depends_on',
-  'uses',
-  'decided',
-  'prefers',
-  'leads',
-] as const
-export type BrainPredicate = (typeof BRAIN_PREDICATES)[number]
-/** Extraction-only endpoint rules; review may re-point an identity across kinds. */
-export const BRAIN_LINK_RULES: Record<
-  BrainPredicate,
-  { subject: readonly BrainEntityKind[]; object: readonly BrainEntityKind[] }
-> = {
-  owns: {
-    subject: ['person', 'team', 'organization'],
-    object: ['project', 'component', 'document'],
-  },
-  works_on: { subject: ['person', 'team'], object: ['project', 'component', 'document'] },
-  member_of: { subject: ['person', 'team'], object: ['team', 'organization'] },
-  part_of: {
-    subject: ['component', 'project', 'document', 'team'],
-    object: ['component', 'project', 'team', 'organization'],
-  },
-  for_customer: { subject: ['project', 'component', 'document', 'team'], object: ['organization'] },
-  documents: {
-    subject: ['document'],
-    object: ['project', 'component', 'concept', 'team', 'organization', 'event'],
-  },
-  depends_on: {
-    subject: ['component', 'project'],
-    object: ['component', 'project', 'organization'],
-  },
-  uses: {
-    subject: ['component', 'project', 'team', 'person', 'organization'],
-    object: ['component', 'project', 'organization', 'concept', 'document'],
-  },
-  decided: {
-    subject: ['person', 'team', 'organization'],
-    object: ['project', 'component', 'document', 'concept', 'event'],
-  },
-  prefers: {
-    subject: ['person', 'team', 'organization'],
-    object: ['component', 'project', 'concept', 'document', 'organization'],
-  },
-  leads: { subject: ['person'], object: ['team', 'project'] },
-}
-/** Predicates that place an entity: recall follows them one hop further than the rest. */
-export const BRAIN_STRUCTURAL_PREDICATES = [
-  'part_of',
-  'for_customer',
-  'owns',
-  'member_of',
-  'documents',
-] as const satisfies readonly BrainPredicate[]
-/** Plain words for each predicate, from the subject's side and from the object's side. */
-export const BRAIN_PREDICATE_LABELS: Record<BrainPredicate, { out: string; in: string }> = {
-  leads: { out: 'Leads', in: 'Led by' },
-  owns: { out: 'Owns', in: 'Owned by' },
-  works_on: { out: 'Works on', in: 'Worked on by' },
-  member_of: { out: 'Member of', in: 'Members' },
-  part_of: { out: 'Part of', in: 'Contains' },
-  for_customer: { out: 'For customer', in: 'Customer of' },
-  documents: { out: 'Documents', in: 'Documented in' },
-  depends_on: { out: 'Depends on', in: 'Needed by' },
-  uses: { out: 'Uses', in: 'Used by' },
-  decided: { out: 'Decided', in: 'Decided by' },
-  prefers: { out: 'Prefers', in: 'Preferred by' },
-}
+export {
+  BRAIN_LINK_LABEL_MAX,
+  BRAIN_LINK_RULES,
+  BRAIN_PREDICATE_LABELS,
+  BRAIN_PREDICATES,
+  BRAIN_SINGLE_VALUED_PREDICATES,
+  BRAIN_STRUCTURAL_PREDICATES,
+  BRAIN_SYMMETRIC_PREDICATES,
+  brainLinkEnded,
+  brainLinkSentence,
+  brainLinkWords,
+} from './brain-links'
+export type { BrainLink, BrainPredicate, BrainStatedBy } from './brain-links'
 /** What a memory is for; the extractor picks one and the UI groups by it, in this order. */
 export const BRAIN_MEMORY_TYPES = [
   'decision',
@@ -123,8 +66,8 @@ export interface BrainPrefs {
   enabled: boolean
   /** Lane agents get brain_search and brain_flag. */
   recall: boolean
-  /** Extracted memories wait for approval; off saves them as soon as extraction ends. */
-  review: boolean
+  /** Brain Agent checks new knowledge on its own once reads settle; off leaves it to Defrag. */
+  agentAuto: boolean
   /** Reader provider/modelId; null uses each lane's own model. Frozen when a job starts. */
   model: string | null
   /** Whole-word title patterns and individually excluded lanes. */
@@ -133,7 +76,7 @@ export interface BrainPrefs {
 export const DEFAULT_BRAIN_PREFS: BrainPrefs = {
   enabled: false,
   recall: true,
-  review: true,
+  agentAuto: true,
   model: null,
   neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
 }
@@ -168,15 +111,7 @@ export interface BrainOrigin {
   sessionId: string
   title: string
 }
-/** One directed relationship, stated and supported by one memory. */
-export interface BrainLink {
-  id: string
-  subjectId: string
-  predicate: BrainPredicate
-  objectId: string
-  memoryId: string
-}
-/** One approved memory: a self-contained sentence, the entities it names and the links it states. */
+/** One saved memory: a self-contained sentence, the entities it names and the links it states. */
 export interface BrainMemory {
   id: string
   jobId: string | null
@@ -194,11 +129,17 @@ export interface BrainMemory {
   /** When it took effect and stopped applying, if the lane said. */
   validFrom: number | null
   validTo: number | null
-  /** When it was approved. */
+  /** When it was saved. */
   recordedAt: number
   /** When a lane last said it: its latest independent citation. Search ranks by its age. */
   observedAt: number
   origin: BrainOrigin | null
+  /** 0 low (background detail), 1 normal, 2 high (decisions, owners, commitments, risks). */
+  importance: 0 | 1 | 2
+  /** 'you' when any lane citation is a message you wrote; else 'agent'. */
+  saidBy: 'you' | 'agent'
+  /** Distinct lanes among its citations. */
+  lanes: number
 }
 export interface BrainQuote {
   quote: string
@@ -209,19 +150,11 @@ export interface BrainQuote {
 
 export type BrainJobStage = 'prepare' | 'extract' | 'identity' | 'reconcile' | 'embed'
 export type BrainJobState =
-  | 'waiting'
-  | 'queued'
-  | 'running'
-  | 'refreshing'
-  | 'review'
-  | 'empty'
-  | 'failed'
-  | 'done'
-  | 'rejected'
+  'waiting' | 'queued' | 'running' | 'empty' | 'failed' | 'done' | 'rejected'
 /** One lane read. Up to twenty finished reads per lane retain their leaves and records. */
 export interface BrainJob {
   id: string
-  /** Earlier finished read; replacement happens only when the new result is approved. */
+  /** Earlier finished read of the lane; its unshared memories are replaced when this one saves. */
   replaces: string | null
   sessionId: string
   sessionPath: string
@@ -232,7 +165,7 @@ export interface BrainJob {
   model: string
   /** waiting: the lane's agent is working; extraction starts once it is idle. */
   state: BrainJobState
-  /** Memories proposed by the run, shown as the review count. */
+  /** Memories the read saved. */
   memories: number
   /** Last lane entry the run reads; frozen when the job first starts. */
   leafId: string | null
@@ -249,16 +182,6 @@ export interface BrainJob {
   /** Where a running job is: `done` of `total` steps in `stage`. */
   progress: { stage: BrainJobStage; done: number; total: number } | null
 }
-export interface BrainHistory {
-  items: {
-    job: BrainJob
-    /** Current (active or disputed) memories produced by this read, never superseded ones. */
-    memories: number
-    /** Unshared memories across the whole lane that Read again replaces, including older reads. */
-    replaceable: number
-  }[]
-  more: boolean
-}
 export interface BrainEmbeddingStatus {
   phase: 'missing' | 'downloading' | 'verifying' | 'testing' | 'ready' | 'error' | 'unsupported'
   receivedBytes: number
@@ -269,7 +192,7 @@ export interface BrainEmbeddingStatus {
 }
 export interface BrainSnapshot {
   prefs: BrainPrefs
-  /** General change counter for explorer and Tidy guards; reviews use a knowledge-only guard. */
+  /** General change counter for explorer and Tidy guards; reads use a knowledge-only guard. */
   revision: number
   /** New after every reset, so views reload even when the revision repeats. */
   generation: string
@@ -278,6 +201,8 @@ export interface BrainSnapshot {
   readSessionIds: string[]
   /** The inbox: every job that is not done, oldest first. */
   jobs: BrainJob[]
+  /** The entity that is you, which the map centres on; null until a read or you say which. */
+  ownerId: string | null
 }
 export interface BrainStatus extends BrainSnapshot {
   tidy: BrainTidySummary
@@ -291,34 +216,6 @@ export interface BrainLaneRef {
   title: string
 }
 
-/** What a lane agent sends. `cwd` ranks the lane's own project first and picks its branch. */
-export interface BrainQuery {
-  query: string
-  limit?: number
-  sessionId?: string
-  cwd?: string
-}
-export interface BrainHit {
-  memory: BrainMemory
-  score: number
-  /** `exact`: names a queried entity. `linked`: reached by walking links from one. */
-  reasons: ('exact' | 'lexical' | 'semantic' | 'linked')[]
-}
-export interface BrainRecall {
-  status: 'ok' | 'no_match' | 'unavailable'
-  hits: BrainHit[]
-  /** Every entity the hits, focus and paths reference, so tools can print names. */
-  entities: BrainEntity[]
-  /** Entity ids the query named, or sits inside: "NRS" names every NRS project. */
-  focus: string[]
-  /** Supported routes out of the focus, each hop citing the memory that states it. */
-  paths: BrainLink[][]
-  /** Strong matches the limit left out, counted up to 50. */
-  more: number
-  /** The asking lane's branch; memories for other branches are listed apart. */
-  branch: string | null
-  degradation: string[]
-}
 export type { BrainInvokeMap } from './ipc/brain'
 export interface BrainFlagResponse {
   status: 'filed' | 'already_flagged' | 'limit' | 'unavailable'
@@ -350,8 +247,6 @@ export type {
 } from './brain-extraction'
 export type {
   BrainEntityPage,
-  BrainRecentMemory,
-  BrainRecentMemories,
   BrainEntitySummary,
   BrainGraph,
   BrainConnection,
@@ -362,16 +257,7 @@ export type {
   BrainMemoryPage,
   BrainMemoryDetail,
   BrainFindResult,
-  BrainPaths,
 } from './brain-explore'
-export type {
-  BrainIdentity,
-  BrainGroupQuestion,
-  BrainProposedLink,
-  BrainProposedMemory,
-  BrainProposalView,
-  BrainReviewDecision,
-} from './brain-review'
 
 export {
   brainLaneNeverRead,

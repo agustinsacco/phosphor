@@ -12,6 +12,9 @@ export function createLaneBrain(
       refs.clear()
       const query = validateBrainRequest('search', {
         query: input.query,
+        from: input.from,
+        to: input.to,
+        context: input.context,
         limit: input.limit,
         cwd: lane.cwd,
         sessionId: lane.sessionId,
@@ -19,7 +22,8 @@ export function createLaneBrain(
       const result = await client.search(query)
       const briefing = brainBriefing(result, lane.cwd)
       refs = briefing.refs
-      return { text: briefing.text, data: { status: result.status, memories: result.hits.length } }
+      const memories = result.mode === 'route' ? result.memories.length : result.hits.length
+      return { text: briefing.text, data: { status: result.status, memories } }
     },
     async flag(input: Readonly<Record<string, unknown>>) {
       const memoryId = typeof input.ref === 'number' && refs.get(input.ref)

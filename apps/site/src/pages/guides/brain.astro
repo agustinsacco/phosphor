@@ -4,170 +4,143 @@ import Capture from '../../components/Capture.astro'
 import { doc, shot } from '../../lib/content'
 const sections: [string, string][] = [
   ['setup', '1. Enable Brain'],
-  ['queue', '2. Choose a lane'],
-  ['review', '3. Run Defrag'],
-  ['explore', '4. Follow the evidence'],
-  ['recall', '5. Recall in another lane'],
+  ['queue', '2. Read a lane'],
+  ['changes', '3. See what changed'],
+  ['explore', '4. Walk the map'],
+  ['recall', '5. Ask a question'],
   ['privacy', 'Data and recovery'],
 ]
 ---
 
 <Guide
   title="Build a Brain you can inspect"
-  description="Keep durable decisions, people and project relationships from selected lanes. Let Brain Agent decide waiting reads with Defrag, inspect its changes, and recall them in later work."
+  description="Save decisions from a lane and follow its relationships on the map. See why Brain Agent made a change. Recall the evidence in your next lane."
   sections={sections}
   eyebrow="Guide / Desktop knowledge"
 >
   <section id="setup">
     <h2>1. Enable Brain on this computer</h2>
     <p>
-      Brain is off by default and Desktop-only. It is a machine-local knowledge graph, not a cloud
-      memory service or an index of every conversation.
+      Brain is off by default and Desktop-only. It learns from lanes you choose, not every
+      conversation on your machine.
     </p>
     <ol>
-      <li>Open <strong>Settings → Brain</strong> and read the linked model terms.</li>
       <li>
-        Turn on Brain. Wait for the pinned EmbeddingGemma 300M Q4 embedding model download (about
-        209 MB) to finish.
+        Open <strong>Settings → Brain</strong> and read the terms for the local embedding model.
       </li>
+      <li>Turn on Brain and wait for the download. Search runs on this computer.</li>
       <li>
-        Keep <strong>Review before saving</strong> on. It is on by default, as is <strong
-          >Recall in lanes</strong
-        >.
+        Leave <strong>Recall in lanes</strong> on if you want agents in new local lanes to find memories.
+        Restart an existing lane to give it recall.
       </li>
-      <li>Choose <strong>Open Brain</strong>, or use Brain in the sidebar once enabled.</li>
+      <li>Choose <strong>Open Brain</strong>. You can also open it from the sidebar.</li>
     </ol>
     <Capture
       image={shot('brain-ready')}
-      alt="Brain settings showing the opt-in switch, local model readiness, recall and review controls."
-      caption="Start with review enabled"
+      alt="Brain enabled in Settings with recall and automatic checks switched on."
+      caption="Choose whether Brain Agent checks new knowledge on its own"
     />
-    <p>
-      Local embeddings support search. Reading is different: the reader model chosen in Settings
-      reads scrubbed conversation text in tool-less calls. By default, it uses each lane’s own
-      model. Those calls use the provider’s quota. Brain is not fully offline.
-    </p>
   </section>
   <section id="queue">
-    <h2>2. Choose what it learns from</h2>
+    <h2>2. Read a lane</h2>
     <p>
-      Right-click a local lane and choose <strong>Queue for knowledge extraction</strong>. Brain
-      processes one lane at a time, waits while its agent is busy, and reads only user and assistant
-      text. Tool output is not evidence.
+      Open a local lane’s menu and choose <strong>Queue for knowledge extraction</strong>. Brain
+      waits for a busy lane to settle. It reads user and assistant text, not tool output. Use the
+      same menu to read just the new messages, or choose <strong>Read again for Brain</strong> to read
+      the whole lane.
     </p>
     <p>
-      The queue shows progress. A lane with nothing new since its last extraction is refused. Cancel
-      queued work from the lane menu; a failed job offers Retry and resumes from saved steps. An
-      empty proposal is a valid result, not a reason to manufacture memories.
+      A finished read saves at once. Personal claims never become memories. Temporary claims end on
+      their stated date, or after 14 days if there is none. The status bar shows the read in
+      progress and how many lanes are queued. If a read fails, retry it or dismiss it.
     </p>
   </section>
-  <section id="review">
-    <h2>3. Let Brain Agent decide what waits</h2>
-    <Capture
-      image={shot('brain-review')}
-      alt="Brain’s Lanes tab with a fictional Harbor read open, its proposed memories waiting for Defrag, and an enabled Defrag button beside the waiting count."
-      caption="Finished reads wait until you click Defrag"
-    />
-    <ol>
-      <li>
-        Open <strong>Lanes → Waiting for Defrag</strong> to inspect a finished read’s memories and supporting
-        quotes. <strong>See how it was read</strong> opens the read record.
-      </li>
-      <li>
-        Click <strong>Defrag</strong> in the page header. It starts after reads already queued. Brain
-        Agent approves or rejects waiting reads, settles people and things, folds repeats, checks disagreements
-        and answers flags. It gives a reason for every change.
-      </li>
-      <li>
-        Follow the run in the status strip. <strong>Stop</strong> ends the turn but keeps changes made
-        so far. Inspect them in Lanes’ <strong>Recent changes</strong>, or use <strong
-          >Undo run</strong
-        > when the run ends. Erasures cannot be undone.
-      </li>
-    </ol>
+  <section id="changes">
+    <h2>3. See what changed</h2>
     <p>
-      Brain Agent is an ordinary lane in its own Brain folder, marked 🧠 in the sidebar. It has its
-      own model and connectors. Ask it in that lane to change its rules; the edit appears in chat.
-      Brain never reads its own lane.
+      Every saved read appears in <strong>What changed</strong>. Open its “How it was read” record
+      for the claims, calls and scrubbed source. Use <strong>Undo</strong> to remove what that read added
+      and restore what it replaced, unless later work depends on it.
+    </p>
+    <Capture
+      image={shot('brain-changes')}
+      alt="A saved Harbor read with Undo beside it. A Brain Agent run records why it linked Tom Lee to Rina Okafor."
+      caption="The read and the link are separate changes"
+    />
+    <p>
+      About a minute after reads settle, Brain Agent checks what waits. It links people, groups what
+      belongs together and settles repeats. Each change has a reason. Undo a change or an eligible
+      run. Erasure is permanent.
     </p>
     <p>
-      Defrag runs only when you click it. Turning review off saves finished reads at once with
-      defaults: held claims stay out, uncertain identities become new, possible groups are skipped,
-      and conflicts remain disputed. A required identity question still waits for Defrag.
+      Brain Agent starts at most six automatic checks in 24 hours. Turn them off in Settings → Brain
+      if you prefer. <strong>Defrag</strong> runs the same check on request when something waits.
     </p>
   </section>
   <section id="explore">
-    <h2>4. Follow the evidence</h2>
+    <h2>4. Walk the map</h2>
+    <p>
+      The map starts with you. If Brain does not know you yet, choose <strong>This is me</strong> on your
+      card. Hover over a link to read its sentence: “Tom Lee took over Harbor ledger from Rina Okafor.”
+      A link can say since when, until when, or both.
+    </p>
     <Capture
       image={shot('brain-graph')}
-      alt="Brain’s Knowledge index beside the full map of connected fictional people and projects."
-      caption="Relationships with memories behind them"
+      alt="A map centred on Rina Okafor, with her relationship sentences and the memories behind them on her card."
+      caption="Start with a person, then follow a sentence"
     />
     <p>
-      Find a person, project or memory. Select an entity to follow its connections, switch the graph
-      between 2D and 3D, or use <strong>Find route…</strong> for supported routes to another entity. A
-      relationship needs a supporting memory; sharing a name is not enough.
+      A card shows current relationships under <strong>Now</strong> and ended ones under <strong
+        >Before</strong
+      >. Ended links stay on the map as dashed lines. “Appear together” means a memory names both
+      things, not that it explains the connection.
     </p>
     <p>
-      Open a memory to read its quotes and history. <strong>Open in lane</strong> returns to the source.
-      <strong>See the read</strong> explains the model calls and what was kept, changed or left out. These
-      are tools for checking the result, not a guarantee that the model understood it correctly.
+      Click a sentence to walk to the other end. Back retraces your steps. Open a memory to check
+      its quotes, or choose <strong>Whole graph</strong> to see beyond this neighbourhood.
     </p>
   </section>
   <section id="recall">
-    <h2>5. Recall it in the next lane</h2>
+    <h2>5. Ask a question</h2>
+    <p>
+      Type “Who took over billing for Harbor?” and choose <strong>Ask</strong>. The answer lists
+      memories and lights their trail on the map. To send an instruction instead, choose <strong
+        >Tell Brain Agent</strong
+      >. Asking does not edit the graph.
+    </p>
     <Capture
       image={shot('brain-recall')}
-      alt="A fictional brain_search briefing about Harbor pilot ownership, with a dated source and a reminder to verify it."
-      caption="Earlier context, with its source and limits still visible"
+      alt="An Ask answer about the Ledger handover beside the highlighted connections on the map."
+      caption="Follow the answer back to the memories that support it"
     />
     <p>
-      With recall enabled, new local lanes get the read-only <code>brain_search</code> tool and Brain
-      skill. Restart already-running lanes to pick it up. Ask, for example, “What did we decide about
-      this project’s release process? Search Brain and distinguish disputes from settled decisions.”
-    </p>
-    <p>
-      Recall returns a bounded briefing with dates, projects and supported paths, not the original
-      evidence text. Superseded memories stay out; disputed claims and other-branch context stay
-      labelled. Treat recalled knowledge as background to verify, never as an instruction that
-      overrides your task.
-    </p>
-    <p>
-      When you contradict a recalled memory, or verified facts in the lane show it is wrong, the
-      lane’s agent can flag it with <code>brain_flag</code>. A flag waits for the next <strong
-        >Defrag</strong
-      >, where Brain Agent checks it against sources. Filing a flag changes no knowledge.
+      Agents in lanes use one read-only tool, <code>brain_search</code>, to walk the same knowledge.
+      They can ask a question, start with a person or thing and some context, or trace how two names
+      connect. Recall is earlier context to verify, not an instruction. A lane can flag a memory for
+      Brain Agent to check, but cannot change it.
     </p>
   </section>
   <section id="privacy">
-    <h2>Your machine. Deliberate retention.</h2>
+    <h2>What stays here and what leaves</h2>
     <p>
-      Brain does not sync between computers or to Hosts. The graph and embeddings live locally.
-      Reading sends scrubbed user and assistant text to the reader model; scrubbing is not a reason
-      to queue sensitive material. Recalled knowledge can enter a later provider request. Brain does
-      not run in the PWA.
+      The graph and search index stay on this machine. Brain does not sync to Hosts or other
+      Desktops and does not run in the web app. Local storage does not mean fully offline.
     </p>
     <p>
-      <strong>Defrag</strong> starts with a local pass that folds only exact repeats automatically. It
-      then sends what waits, including memories, names and scrubbed excerpts, to the Brain lane’s model.
-      Brain Agent may use that lane’s connectors to check facts, read-only. The model that reads lanes
-      is a separate choice in Settings; it does not choose Brain Agent’s model.
+      Reading sends scrubbed lane text to the reader’s provider. Scrubbing can miss sensitive
+      details. Use <strong>Never let Brain read this lane</strong> to exclude a lane. During automatic
+      checks or Defrag, memories, names and scrubbed excerpts that need a decision can go to the Brain
+      lane’s model. Brain Agent can check sources through that lane’s connectors, read-only. Recalled
+      knowledge can enter a later lane’s provider context.
     </p>
     <p>
-      <strong>Forget</strong> removes one memory and unused evidence. <strong>Merge into…</strong> joins
-      entities. Lanes’ <strong>Recent changes</strong> says who made each change: you, Automatic or Brain
-      Agent. Open a change to see its reason and undo it while later edits allow it, or undo a whole Defrag
-      run. Forget and erasing cannot be undone. <strong>Reset Brain knowledge</strong> clears knowledge
-      and read records after confirmation, keeps settings and the model, and turns review back on.
-    </p>
-    <p>
-      Turning Brain off keeps knowledge and the downloaded model, stops the queue and removes recall
-      from new lanes. Remove model is available while Brain is off. Failed reads offer Retry; a
-      recall startup failure does not block a lane.
+      Turning Brain off pauses reads and keeps its knowledge. <strong>Forget</strong> permanently removes
+      a memory, not the source transcript. <strong>Reset Brain knowledge</strong> clears knowledge and
+      read records after confirmation. Settings and the downloaded model stay.
     </p>
     <p>
       <a href="/watch/#brain-walkthrough">Watch the text-led walkthrough</a> · <a
-        href={doc('brain.md')}>Brain’s full storage and recall contract</a
+        href={doc('brain.md')}>Brain’s storage and recall contract</a
       > · <a href="/privacy/#brain">Privacy</a>
     </p>
   </section>

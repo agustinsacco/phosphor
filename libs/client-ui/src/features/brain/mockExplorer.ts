@@ -1,112 +1,57 @@
 import type {
-  BrainLink,
+  BrainConnection,
   BrainConnectionGroup,
   BrainEntity,
-  BrainEntityKind,
-  BrainEntityPage,
-  BrainRecentMemories,
   BrainEntitySummary,
   BrainEntityView,
   BrainGraph,
-  BrainJob,
+  BrainLink,
   BrainMemoryDetail,
   BrainMemoryFilter,
   BrainMemoryPage,
-  BrainPaths,
   BrainPredicate,
 } from '@shared/brain'
-import { BRAIN_MEMORY_TYPES } from '@shared/brain'
-import { BRAIN_ENTITY_SORTS, type BrainEntitySort } from '@shared/brain-explore'
+import { BRAIN_MEMORY_TYPES, brainLinkEnded } from '@shared/brain'
 import { mockBrainData } from './mockBrainData'
 
 const PAGE = 20
+
+/** The invented graph behind every explorer read: bounded pages, current and ended links. */
 export class MockExplorer {
   entities: BrainEntity[]
   details: BrainMemoryDetail[]
   private merged = new Map<string, string[]>()
   private survivors = new Map<string, string>()
-  constructor() {
+  constructor(readonly now: () => number = () => Date.now()) {
     const sample = mockBrainData()
     this.entities = sample.entities
     this.details = sample.details
   }
-  summary(entity: BrainEntity): BrainEntitySummary {
-    const memories = this.details.filter(({ memory }) => memory.entityIds.includes(entity.id))
-    const connections =
-      new Set(
-        memories.flatMap(({ memory }) =>
-          memory.links.flatMap((link) => [link.subjectId, link.objectId]),
-        ),
-      ).size - 1
-    return { ...entity, memories: memories.length, connections: Math.max(0, connections) }
-  }
-  browse(
-    kind: BrainEntityKind | null,
-    offset: number,
-    limit: number,
-    sort: BrainEntitySort,
-  ): BrainEntityPage {
-    if (!BRAIN_ENTITY_SORTS.includes(sort)) throw new Error('Invalid Brain entity sort.')
-    const all = this.entities.map((e) => this.summary(e)).filter((e) => e.memories > 0)
-    const learned = (id: string): number =>
-      Math.max(
-        0,
-        ...this.details
-          .filter((d) => d.memory.entityIds.includes(id) && d.memory.state !== 'superseded')
-          .map((d) => d.memory.observedAt),
-      )
-    const rows = all
-      .filter((e) => !kind || e.kind === kind)
-      .sort((a, b) =>
-        sort === 'name'
-          ? a.label.toLowerCase().localeCompare(b.label.toLowerCase()) || a.id.localeCompare(b.id)
-          : sort === 'recent'
-            ? learned(b.id) - learned(a.id)
-            : b.connections - a.connections,
-      )
-    const counts: BrainEntityPage['counts'] = {}
-    for (const e of all) counts[e.kind] = (counts[e.kind] ?? 0) + 1
-    return {
-      items: rows
-        .slice(offset, offset + limit)
-        .map((entity) => ({ entity, memories: entity.memories })),
-      more: rows.length > offset + limit,
-      kinds: [...new Set(all.map((e) => e.kind))],
-      counts,
-      total: rows.length,
-    }
-  }
-  recent(limit: number, jobs: BrainJob[] = []): BrainRecentMemories {
-    const finished = jobs
-      .filter((job) => job.state === 'done')
-      .sort((a, b) => (b.finishedAt ?? 0) - (a.finishedAt ?? 0))
-      .slice(0, 20)
-    return {
-      items: finished
-        .flatMap((job) =>
-          this.details
-            .map((d, index) => ({ memory: d.memory, index }))
-            .filter(
-              ({ memory }) =>
-                memory.jobId === job.id && ['active', 'disputed'].includes(memory.state),
-            )
-            .sort((a, b) => b.memory.recordedAt - a.memory.recordedAt || b.index - a.index)
-            .map(({ memory: m }) => ({
-              id: m.id,
-              summary: m.summary,
-              type: m.type,
-              originTitle: m.origin?.title ?? null,
-              learnedAt: m.recordedAt,
-            })),
-        )
-        .slice(0, limit),
-    }
-  }
-  graph(centerId: string | null, hops: 1 | 2 = 1): BrainGraph {
-    let ids = new Set(centerId ? [centerId] : this.entities.map((e) => e.id))
-    const links = this.details
+  /** Links stated by memories that are still current, current or ended. */
+  private stated(): BrainLink[] {
+    return this.details
       .filter(({ memory }) => memory.state !== 'superseded')
       .flatMap(({ memory }) => memory.links)
+  }
+  /** Links on the map now: on a current memory, not ended. */
+  liveLinks(): BrainLink[] {
+    return this.stated().filter((link) => !brainLinkEnded(link, this.now()))
+  }
+  private endedLinks(): BrainLink[] {
+    return this.stated().filter((link) => brainLinkEnded(link, this.now()))
+  }
+  summary(entity: BrainEntity): BrainEntitySummary {
+    const memories = this.details.filter(({ memory }) => memory.entityIds.includes(entity.id))
+    const neighbours = new Set(
+      this.liveLinks()
+        .filter((l) => l.subjectId === entity.id || l.objectId === entity.id)
+        .map((l) => (l.subjectId === entity.id ? l.objectId : l.subjectId)),
+    )
+    return { ...entity, memories: memories.length, connections: neighbours.size }
+  }
+  graph(centerId: string | null, hops: 1 | 2 = 1): BrainGraph {
+    const links = this.liveLinks()
+    let ids = new Set(centerId ? [centerId] : this.entities.map((e) => e.id))
     if (centerId)
       for (let i = 0; i < hops; i++) {
         const next = new Set(ids)
@@ -117,62 +62,76 @@ export class MockExplorer {
           }
         ids = next
       }
+    const ended = centerId
+      ? this.endedLinks().filter((l) => l.subjectId === centerId || l.objectId === centerId)
+      : []
+    for (const link of ended) ids.add(link.subjectId === centerId ? link.objectId : link.subjectId)
     const nodes = this.entities
       .filter((e) => ids.has(e.id))
       .slice(0, 300)
       .map((e) => this.summary(e))
-    ids = new Set(nodes.map((e) => e.id))
+    const shown = new Set(nodes.map((e) => e.id))
+    const inside = (link: BrainLink): boolean =>
+      shown.has(link.subjectId) && shown.has(link.objectId)
     return {
       nodes,
-      links: links.filter((link) => ids.has(link.subjectId) && ids.has(link.objectId)),
+      links: links.filter(inside),
+      ended: ended.filter(inside),
       centerId,
-      truncated: this.entities.filter((e) => ids.has(e.id)).length > 300,
+      truncated: ids.size > 300,
     }
   }
-  connections(
+  private connections(
     id: string,
     predicate: BrainPredicate,
     direction: 'out' | 'in',
     cursor: string | null,
   ) {
     const offset = Number(cursor ?? 0)
-    // One row per neighbour: its newest link, and how many current memories state one.
-    const byNeighbour = new Map<string, { link: BrainLink; supports: number; at: number }>()
-    for (const { memory } of this.details) {
-      if (memory.state === 'superseded') continue
-      for (const link of memory.links) {
-        if (link.predicate !== predicate) continue
-        if ((direction === 'out' ? link.subjectId : link.objectId) !== id) continue
-        const other = direction === 'out' ? link.objectId : link.subjectId
-        const seen = byNeighbour.get(other)
-        byNeighbour.set(other, {
-          link: !seen || memory.observedAt > seen.at ? link : seen.link,
-          supports: (seen?.supports ?? 0) + 1,
-          at: Math.max(seen?.at ?? 0, memory.observedAt),
-        })
-      }
-    }
-    const items = [...byNeighbour].flatMap(([other, { link, supports }]) => {
-      const entity = this.entities.find((e) => e.id === other)
-      return entity ? [{ entity: this.summary(entity), link, supports }] : []
-    })
+    const items = this.connectionsOf(id, this.liveLinks()).filter(
+      (item) =>
+        item.link.predicate === predicate &&
+        (direction === 'out' ? item.link.subjectId : item.link.objectId) === id,
+    )
     return {
       items: items.slice(offset, offset + PAGE),
       next: offset + PAGE < items.length ? String(offset + PAGE) : null,
       total: items.length,
     }
   }
-  entity(id: string): BrainEntityView {
+  /** One row per neighbour, predicate and direction: its newest link and how many state it. */
+  private connectionsOf(id: string, links: BrainLink[]): BrainConnection[] {
+    const rows = new Map<string, BrainConnection>()
+    for (const link of links) {
+      if (link.subjectId !== id && link.objectId !== id) continue
+      const out = link.subjectId === id
+      const other = out ? link.objectId : link.subjectId
+      const key = `${out ? 'out' : 'in'}:${link.predicate}:${other}`
+      const seen = rows.get(key)
+      const entity = this.entities.find((e) => e.id === other)
+      if (!entity) continue
+      rows.set(key, {
+        entity: seen?.entity ?? this.summary(entity),
+        link: seen?.link ?? link,
+        supports: (seen?.supports ?? 0) + 1,
+      })
+    }
+    return [...rows.values()]
+  }
+  private resolve(id: string): string {
     const seen = new Set<string>()
     while (!this.entities.some((e) => e.id === id) && this.survivors.has(id) && !seen.has(id)) {
       seen.add(id)
       id = this.survivors.get(id)!
     }
+    return id
+  }
+  entity(requested: string): BrainEntityView {
+    const id = this.resolve(requested)
     const entity = this.entities.find((e) => e.id === id)
     if (!entity) throw new Error('Entity not found')
     const groups = new Map<string, BrainConnectionGroup>()
-    for (const link of this.graph(id, 1).links) {
-      if (link.subjectId !== id && link.objectId !== id) continue
+    for (const { link } of this.connectionsOf(id, this.liveLinks())) {
       const direction = link.subjectId === id ? 'out' : 'in'
       const key = `${direction}:${link.predicate}`
       if (!groups.has(key))
@@ -183,9 +142,13 @@ export class MockExplorer {
         })
     }
     const memories = this.details.filter(({ memory }) => memory.entityIds.includes(id))
+    const together = this.together(id)
     return {
       entity: this.summary(entity),
       groups: [...groups.values()],
+      ended: this.connectionsOf(id, this.endedLinks()).slice(0, 20),
+      together: together.slice(0, 12),
+      togetherMore: Math.max(0, together.length - 12),
       sources: [
         ...new Map(
           memories.flatMap(({ memory }) =>
@@ -206,6 +169,26 @@ export class MockExplorer {
         ]),
       ) as BrainEntityView['memoryCounts'],
     }
+  }
+  /** Named in the same current memories as `id`, with no link either way, most shared first. */
+  together(id: string): { entity: BrainEntitySummary; shared: number }[] {
+    const linked = new Set(
+      this.stated().flatMap((l) =>
+        l.subjectId === id ? [l.objectId] : l.objectId === id ? [l.subjectId] : [],
+      ),
+    )
+    const shared = new Map<string, number>()
+    for (const { memory } of this.details) {
+      if (memory.state === 'superseded' || !memory.entityIds.includes(id)) continue
+      for (const other of memory.entityIds)
+        if (other !== id && !linked.has(other)) shared.set(other, (shared.get(other) ?? 0) + 1)
+    }
+    return [...shared]
+      .flatMap(([other, count]) => {
+        const entity = this.entities.find((e) => e.id === other)
+        return entity ? [{ entity: this.summary(entity), shared: count }] : []
+      })
+      .sort((a, b) => b.shared - a.shared || a.entity.label.localeCompare(b.entity.label))
   }
   memories(id: string, filter: BrainMemoryFilter, cursor: string | null): BrainMemoryPage {
     const offset = Number(cursor ?? 0)
@@ -228,11 +211,12 @@ export class MockExplorer {
   }
   memory(id: string): BrainMemoryDetail {
     const detail = this.details.find((item) => item.memory.id === id)
-    if (!detail) throw new Error('Memory not found')
-    return {
-      ...detail,
-      entities: this.entities.filter((e) => detail.memory.entityIds.includes(e.id)),
-    }
+    if (!detail) throw new Error('Brain memory not found.')
+    const named = new Set([
+      ...detail.memory.entityIds,
+      ...detail.memory.links.flatMap((l) => [l.subjectId, l.objectId]),
+    ])
+    return { ...detail, entities: this.entities.filter((e) => named.has(e.id)) }
   }
   find(query: string, limit: number) {
     const folded = query.toLocaleLowerCase()
@@ -251,36 +235,6 @@ export class MockExplorer {
       memories,
       referenced: this.entities.filter((e) => memories.some((m) => m.entityIds.includes(e.id))),
       degradation: [],
-    }
-  }
-  path(from: string, to: string): BrainPaths {
-    const links = this.graph(null).links
-    const paths: BrainPaths['paths'] = []
-    const queue = [{ at: from, ids: [from], links: [] as BrainPaths['paths'][number] }]
-    while (queue.length && paths.length < 3) {
-      const route = queue.shift()!
-      if (route.at === to && route.links.length) {
-        paths.push(route.links)
-        continue
-      }
-      if (route.links.length >= 4) continue
-      for (const link of links) {
-        const next =
-          link.subjectId === route.at
-            ? link.objectId
-            : link.objectId === route.at
-              ? link.subjectId
-              : null
-        if (next && !route.ids.includes(next))
-          queue.push({ at: next, ids: [...route.ids, next], links: [...route.links, link] })
-      }
-    }
-    const ids = new Set(paths.flatMap((path) => path.flatMap((l) => [l.subjectId, l.objectId])))
-    const memoryIds = new Set(paths.flatMap((path) => path.map((l) => l.memoryId)))
-    return {
-      paths,
-      entities: this.entities.filter((e) => ids.has(e.id)),
-      memories: this.details.map(({ memory }) => memory).filter((m) => memoryIds.has(m.id)),
     }
   }
   merge(source: string, target: string): void {

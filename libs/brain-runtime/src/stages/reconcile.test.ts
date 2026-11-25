@@ -33,6 +33,9 @@ const old = (summary: string): MemoryCard => ({
   validFrom: null,
   validTo: null,
   recordedAt: 0,
+  lanes: 1,
+  saidBy: 'you',
+  importance: 1,
   observedAt: 0,
   origin: null,
 })
@@ -78,12 +81,23 @@ it('same sentence with different endpoints reaches reconciliation instead of con
       subject: 'person-2',
       predicate: 'owns',
       object: 'project',
+      label: '',
       citation: { evidence: 0, quote: 'owner' },
     },
   ]
   const card = old(m.summary)
   card.links = [
-    { id: 'r', subjectId: 'person-1', predicate: 'owns', objectId: 'project', memoryId: 'old' },
+    {
+      id: 'r',
+      label: '',
+      validFrom: null,
+      validTo: null,
+      statedBy: 'reader',
+      subjectId: 'person-1',
+      predicate: 'owns',
+      objectId: 'project',
+      memoryId: 'old',
+    },
   ]
   store.oldMemories = [card]
   search.memoryNeighbours = [[{ id: 'old', score: 1 }]]
@@ -344,3 +358,47 @@ it('asks the same reconcile prompt for a held claim as before holds existed', as
   expect(prompts[1]).toBe(prompts[0])
   expect(prompts[1]).not.toContain('hold')
 })
+
+it.each(['confirm', 'enrich'])('never offers an ended memory for %s', async (action) => {
+  const store = new FakeBrainStore(),
+    search = new FakeBrainSearch()
+  const m = memory('Harbor bills weekly.')
+  store.oldMemories = [{ ...old(action === 'confirm' ? m.summary : 'Harbor bills.'), validTo: 1 }]
+  search.memoryNeighbours = [[{ id: 'old', score: 1 }]]
+  const j = job([m])
+  const ask = trackAsk(async (_s, _p, _prompt, validate) =>
+    validate(
+      JSON.stringify({ decisions: [{ ref: 'c1', action, target: 'M1', reason: 'Same billing' }] }),
+    ),
+  )
+  expect(await reconcile(j, [], store, search, [new Float32Array([1])], ask.ask)).toEqual([])
+  expect(j.claims).toMatchObject([{ memory: { action: 'add', target: null } }])
+  expect(ask.spy).not.toHaveBeenCalled()
+})
+
+it.each(['supersede', 'conflict', 'resolve_open', 'confirm', 'enrich'])(
+  'protects a lasting local claim from a held %s',
+  async (action) => {
+    for (const hold of ['temporary', 'personal'] as const) {
+      const j = job([
+        { ...memory('Harbor bills weekly.'), type: 'open' },
+        { ...memory('Harbor bills monthly.'), hold },
+      ])
+      const ask: StageAsk = async (_s, _p, _prompt, validate) =>
+        validate(
+          JSON.stringify({ decisions: [{ ref: 'c2', action, target: 'M1', reason: 'Billing' }] }),
+        )
+      await reconcile(
+        j,
+        [],
+        new FakeBrainStore(),
+        new FakeBrainSearch(),
+        j.claims.map(() => new Float32Array([1])),
+        ask,
+      )
+      expect(j.claims[0]?.ref).toBe('c1')
+      expect(j.claims[0]?.memory.hold ?? null).toBeNull()
+      expect(j.claims[1]?.memory).toMatchObject({ action: 'add', target: null, hold })
+    }
+  },
+)

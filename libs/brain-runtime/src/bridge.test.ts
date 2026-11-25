@@ -100,7 +100,7 @@ it('older protocol clients fail cleanly and flags reject unknown keys and oversi
     expect(invoke).toHaveBeenCalledWith('flag', params, expect.any(AbortSignal), 'lane')
     invoke.mockClear()
     for (const patch of [
-      { version: BRAIN_PROTOCOL - 1 },
+      { version: 6 },
       { unknown: true },
       { params: { ...params, unknown: true } },
       { params: { ...params, reason: 'x'.repeat(301) } },

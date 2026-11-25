@@ -7,19 +7,15 @@ import { type BrainCuratorMethod, validateCuratorRequest } from './validate-cura
 
 export type BrainCuratorCall = BrainCuratorMethod | 'search'
 
-/**
- * Per-method deadlines. Reading or deciding a review may first refresh it, which runs the
- * reader model, so those wait as long as the bridge keeps an authenticated call open.
- */
-export const BRAIN_CURATOR_REFRESH_TIMEOUT_MS = 15 * 60_000
+/** The transport waits at least as long as the slowest curator call (embedding a correction). */
+export const BRAIN_CURATOR_TIMEOUT_MS = 120_000
 export const BRAIN_CURATOR_TIMEOUTS: Record<BrainCuratorCall, number> = {
   search: 30_000,
   waiting: 30_000,
-  readReview: BRAIN_CURATOR_REFRESH_TIMEOUT_MS,
   suggestion: 30_000,
   entity: 30_000,
   memory: 30_000,
-  decideRead: BRAIN_CURATOR_REFRESH_TIMEOUT_MS,
+  relate: 60_000,
   resolve: 60_000,
   edit: 60_000,
   // Embeds the corrected sentence with the local model.
@@ -39,7 +35,7 @@ export interface BrainCuratorClient {
 /**
  * Brain Agent's client. Requests are validated before they leave (a refusal names the field),
  * results are checked before a tool formats them. The transport's own deadline must be at
- * least BRAIN_CURATOR_REFRESH_TIMEOUT_MS; each method's shorter one rides on the signal.
+ * least BRAIN_CURATOR_TIMEOUT_MS; each method's shorter one rides on the signal.
  */
 export function createBrainCuratorClient(
   transport: BrainTransport,

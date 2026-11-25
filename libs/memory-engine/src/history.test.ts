@@ -1,24 +1,29 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, lane, vector } from './test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  lane,
+  running,
+  save,
+  vector,
+} from './test-support'
 
-it('returns newest finished reads, bounded with more, and counts surviving lane memories', () => {
+it("returns the lane's newest finished read and counts its surviving memories", () => {
   const { store } = fixture()
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const old = store.memory(ids[0]!).memory.jobId!
   store.forget(ids[0]!)
-  const later = store.enqueue(lane({ sessionId: 'ledger' }), 'queued')
-  store.updateJob(later.id, { state: 'done', finishedAt: 9000 })
-  store.enqueue(lane({ sessionId: 'kestrel' }), 'queued')
-  expect(store.history).toBeTypeOf('function')
-  expect(store.history(1)).toMatchObject({
-    items: [{ job: { id: later.id }, memories: 0 }],
-    more: true,
+  expect(store.laneRead('harbor-lane')).toMatchObject({
+    job: { id: old },
+    memories: 1,
+    replaceable: 1,
   })
-  expect(store.history(2)).toMatchObject({
-    items: [{ job: { id: later.id } }, { job: { id: old }, memories: 1, replaceable: 1 }],
-    more: false,
-  })
-  expect(store.snapshot().jobs).toHaveLength(1)
+  const later = store.enqueue(lane({ leafId: 'leaf-later' }), 'queued')
+  expect(store.laneRead('harbor-lane')?.job.id).toBe(old)
+  store.updateJob(later.id, { state: 'empty', finishedAt: 9000 })
+  expect(store.laneRead('harbor-lane')).toMatchObject({ job: { id: later.id }, memories: 1 })
+  expect(store.laneRead('kestrel')).toBeNull()
 })
 it('retains completed step inputs and removes proposal vectors with their proposal', () => {
   const { store, db } = fixture()
@@ -29,77 +34,36 @@ it('retains completed step inputs and removes proposal vectors with their propos
   store.removeJob(id)
   expect(db.prepare('SELECT * FROM job_parts').all()).toEqual([])
 })
-
-it('uses indexed reads and one grouped count for the history page', () => {
+it('reads the lane memories through the origin index', () => {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const statements: string[] = []
   const prepare = db.prepare.bind(db)
   db.prepare = (sql) => {
     statements.push(sql)
     return prepare(sql)
   }
-  expect(store.history).toBeTypeOf('function')
-  store.history(20)
   store.laneMemories('harbor-lane')
-  const historySql = statements.find(
-    (sql) =>
-      sql.includes("WHERE state IN ('done','empty','rejected')") && sql.includes('finished_at'),
-  )!
-  const countSql = statements.find((sql) => sql.includes('GROUP BY m.origin_session'))!
   const laneSql = statements.find((sql) => sql.includes('WHERE m.origin_session=?'))!
-  expect(statements.filter((sql) => sql.includes('GROUP BY m.origin_session'))).toHaveLength(1)
-  const plan = (sql: string, args: (string | number | null)[]) =>
-    JSON.stringify(prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...args))
-  expect(plan(historySql, [21])).toContain('jobs_finished')
-  expect(plan(countSql, ['harbor-lane'])).toContain('memories_origin')
-  expect(plan(laneSql, ['harbor-lane', null, null])).toContain('memories_origin')
-  expect(plan(historySql, [21])).not.toMatch(/SCAN jobs/)
-  expect(plan(countSql, ['harbor-lane'])).not.toMatch(/SCAN m\b/)
+  const plan = JSON.stringify(
+    prepare(`EXPLAIN QUERY PLAN ${laneSql}`).all('harbor-lane', null, null),
+  )
+  expect(plan).toContain('memories_origin')
 })
-
-it('counts current memories by read while every row keeps the lane-wide replacement count', () => {
+it('counts current memories and replacements across all reads of a lane', () => {
   const { store, db } = fixture()
-  approve(store)
-  const first = store.history(1).items[0]!.job.id
+  save(store)
   const data = extraction('')
-  approve(store, {
-    jobId: 'second-leaf',
-    memories: data.memories.slice(0, 1),
-    memoryVectors: [vector()],
-  })
-  const second = store.history(1).items[0]!.job.id
-  expect(
-    store.history(20).items.map(({ memories, replaceable }) => [memories, replaceable]),
-  ).toEqual([
-    [1, 3],
-    [2, 3],
-  ])
-  const rejected = store.enqueue(lane({ leafId: 'rejected-leaf' }), 'queued')
-  store.propose(extraction(rejected.id, { computedRevision: store.knowledgeRevision() }))
-  store.review(rejected.id, null, store.proposal(rejected.id).revision)
-  expect(store.history(1).items[0]).toMatchObject({
-    job: { state: 'rejected' },
-    memories: 0,
+  const second = save(store, { memories: data.memories.slice(0, 1), memoryVectors: [vector()] })
+  expect(store.laneRead('harbor-lane')).toMatchObject({
+    job: { id: second.jobId },
+    memories: 3,
     replaceable: 3,
   })
-  const next = store.enqueue(lane({ replaces: second }), 'queued')
-  store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
-  store.review(
-    next.id,
-    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    store.proposal(next.id).revision,
-  )
-  expect(
-    store
-      .history(20)
-      .items.map(({ job, memories, replaceable }) => [job.id, memories, replaceable]),
-  ).toEqual([
-    [next.id, 1, 1],
-    [rejected.id, 0, 1],
-    [second, 0, 1],
-    [first, 0, 1],
-  ])
-  db.prepare("UPDATE memories SET state='superseded' WHERE job_id=?").run(next.id)
-  expect(store.history(1).items[0]?.memories).toBe(0)
+  const next = running(store, { replaces: second.jobId, leafId: 'leaf-again' })
+  const again = extraction(next, { computedRevision: store.knowledgeRevision() })
+  store.saveRead({ ...again, memories: again.memories.slice(0, 1), memoryVectors: [vector()] })
+  expect(store.laneRead('harbor-lane')).toMatchObject({ job: { id: next }, memories: 1 })
+  db.prepare("UPDATE memories SET state='superseded' WHERE job_id=?").run(next)
+  expect(store.laneRead('harbor-lane')).toMatchObject({ memories: 0, replaceable: 0 })
 })

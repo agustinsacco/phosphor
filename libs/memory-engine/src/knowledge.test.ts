@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryCard, memoryCards } from './knowledge'
-import { approve, extraction, fixture, lane } from './test-support'
+import { saveAndListMemories, extraction, fixture } from './test-support'
 
 describe('Brain memory details, dates and deletion', () => {
   it('returns link quotes, origin path and observed dates independently of approval time', () => {
     const { store } = fixture()
-    const ids = approve(store)
+    const ids = saveAndListMemories(store)
     const detail = store.memory(ids.find((id) => store.memory(id).memory.type === 'fact')!)
     expect(detail.memory.observedAt).toBe(10)
     expect(detail.memory.recordedAt).toBeGreaterThan(1000)
@@ -15,16 +15,10 @@ describe('Brain memory details, dates and deletion', () => {
   })
   it('forgets rows, FTS, scoped orphan entities and evidence, retaining shared evidence', () => {
     const { store, db } = fixture()
-    const job = store.enqueue(lane(), 'queued')
-    const data = extraction(job.id)
+    const data = extraction('harbor')
     data.memories[1]!.citations = [{ evidence: 0, quote: 'Rina owns Harbor.' }]
     data.memories[1]!.links = []
-    store.propose(data)
-    store.review(
-      job.id,
-      { descriptions: [], confirmations: [], memories: [0, 1], identities: {}, groups: [] },
-      0,
-    )
+    saveAndListMemories(store, { memories: data.memories })
     const tom = store.overview(300).nodes.find((item) => item.label === 'Tom Lee')!
     const id = store.entityMemories(tom.id, {}, null).memories[0]!.id
     store.forget(id)
@@ -45,9 +39,9 @@ describe('Brain memory details, dates and deletion', () => {
   })
   it('stores supersede history with validity and non-live historical relations', () => {
     const { store, db } = fixture()
-    const [old] = approve(store)
+    const [old] = saveAndListMemories(store)
     const data = extraction('next')
-    const ids = approve(store, {
+    const ids = saveAndListMemories(store, {
       jobId: 'next',
       memories: [{ ...data.memories[0]!, action: 'supersede', target: old!, validFrom: 5000 }],
       memoryVectors: data.memoryVectors.slice(0, 1),
@@ -71,7 +65,7 @@ describe('Brain memory details, dates and deletion', () => {
 it('uses the exact approval timestamp when source evidence is undated', () => {
   const { store } = fixture()
   const data = extraction('undated')
-  const ids = approve(store, {
+  const ids = saveAndListMemories(store, {
     evidence: data.evidence.map((entry) => ({ ...entry, observedAt: 0 })),
   })
   for (const id of ids) {
@@ -98,7 +92,7 @@ it('batches memory cards without changing order, duplicate removal, links, menti
     })
     return statement
   })
-  const ids = approve(store)
+  const ids = saveAndListMemories(store)
   const ctx = { db, now: () => 1, id: () => 'unused' }
   const expected = ids.map((id) => memoryCard(ctx, id)).toReversed()
   queries.length = 0

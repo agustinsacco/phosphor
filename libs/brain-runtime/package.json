@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent/auto-run": {
+      "types": "./src/agent/auto-run.ts",
+      "default": "./src/agent/auto-run.ts"
+    },
     "./agent/curator": {
       "types": "./src/agent/curator.ts",
       "default": "./src/agent/curator.ts"
@@ -36,17 +40,9 @@
       "types": "./src/agent/own-lane.ts",
       "default": "./src/agent/own-lane.ts"
     },
-    "./agent/read-decision": {
-      "types": "./src/agent/read-decision.ts",
-      "default": "./src/agent/read-decision.ts"
-    },
     "./agent/refusal": {
       "types": "./src/agent/refusal.ts",
       "default": "./src/agent/refusal.ts"
-    },
-    "./agent/review-refresh": {
-      "types": "./src/agent/review-refresh.ts",
-      "default": "./src/agent/review-refresh.ts"
     },
     "./api": {
       "types": "./src/api.ts",
@@ -108,6 +104,10 @@
       "types": "./src/extraction-record.ts",
       "default": "./src/extraction-record.ts"
     },
+    "./extraction-save": {
+      "types": "./src/extraction-save.ts",
+      "default": "./src/extraction-save.ts"
+    },
     "./extraction-view": {
       "types": "./src/extraction-view.ts",
       "default": "./src/extraction-view.ts"
@@ -148,6 +148,10 @@
       "types": "./src/search/in-process.ts",
       "default": "./src/search/in-process.ts"
     },
+    "./search/query": {
+      "types": "./src/search/query.ts",
+      "default": "./src/search/query.ts"
+    },
     "./search/search-client": {
       "types": "./src/search/search-client.ts",
       "default": "./src/search/search-client.ts"
@@ -167,10 +171,6 @@
     "./source-checkpoint": {
       "types": "./src/source-checkpoint.ts",
       "default": "./src/source-checkpoint.ts"
-    },
-    "./stale-review": {
-      "types": "./src/stale-review.ts",
-      "default": "./src/stale-review.ts"
     },
     "./stage-call": {
       "types": "./src/stage-call.ts",

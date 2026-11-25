@@ -1,7 +1,13 @@
-import type { BrainHit, BrainLink, BrainMemory, BrainRecall } from '@phosphor/shared/brain'
+import type { BrainLink, BrainMemory } from '@phosphor/shared/brain'
+
+import type { BrainHit, BrainRecall } from '@phosphor/shared/brain-recall'
 
 const OWNS: BrainLink = {
   id: 'owns',
+  label: '',
+  validFrom: null,
+  validTo: null,
+  statedBy: 'reader',
   subjectId: 'rina',
   predicate: 'owns',
   objectId: 'harbor',
@@ -9,6 +15,7 @@ const OWNS: BrainLink = {
 }
 
 export const HARBOR_RECALL: BrainRecall = {
+  mode: 'search',
   status: 'ok',
   entities: [
     { id: 'rina', label: 'Rina Okafor', kind: 'person', aliases: ['Rina'], description: '' },
@@ -25,6 +32,9 @@ export const HARBOR_RECALL: BrainRecall = {
       memory: {
         id: 'ownership',
         jobId: null,
+        importance: 2,
+        lanes: 2,
+        saidBy: 'you',
         summary: 'Rina Okafor owns Harbor billing.',
         type: 'fact',
         kind: 'reported',
@@ -39,12 +49,12 @@ export const HARBOR_RECALL: BrainRecall = {
         observedAt: Date.parse('2026-11-06'),
         origin: { sessionId: 'harbor-lane', title: 'Harbor billing' },
       },
+      trail: { seedId: 'harbor', links: [OWNS], entityId: 'rina' },
       score: 0.03,
       reasons: ['exact', 'semantic'],
     },
   ],
   focus: ['harbor'],
-  paths: [[OWNS]],
   more: 0,
   branch: null,
   degradation: [],
@@ -52,7 +62,7 @@ export const HARBOR_RECALL: BrainRecall = {
 
 const OWNERSHIP = HARBOR_RECALL.hits[0]!
 function hit(id: string, patch: Partial<BrainMemory>): BrainHit {
-  return { ...OWNERSHIP, memory: { ...OWNERSHIP.memory, id, ...patch } }
+  return { ...OWNERSHIP, trail: null, memory: { ...OWNERSHIP.memory, id, ...patch } }
 }
 /** One of each section, in score order, so the briefing has to regroup them. */
 export const HARBOR_BRIEFING: BrainRecall = {

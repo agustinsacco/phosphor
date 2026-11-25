@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest'
-import { approve, extraction, fixture, vector } from '@phosphor/memory-engine/test-support'
+import {
+  saveAndListMemories,
+  extraction,
+  fixture,
+  save,
+  vector,
+} from '@phosphor/memory-engine/test-support'
 import type { BrainStore, ProposalMemory } from '@phosphor/memory-engine/types'
 import { FakeBrainSearch } from '../__fixtures__/fake-store'
 import type { StageAsk } from '../stage-types'
@@ -14,7 +20,7 @@ interface Stored {
 /** One person, Rina Okafor, named by every stored memory. Returns her id and the memory ids by summary. */
 function hub(store: BrainStore, memories: Stored[]): { rina: string; ids: Map<string, string> } {
   const base = extraction('')
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [base.entities[1]!],
     memories: memories.map((m, i) => ({
       ...base.memories[0]!,
@@ -121,6 +127,28 @@ it('ranks memories that only share a person by similarity to the claim, not by r
   expect(offered[0]![0]).toBe(ids.get(closest))
 })
 
+it('saves a restatement beside its expired memory instead of confirming it', async () => {
+  const { store, db } = fixture()
+  const summary = 'Rina Okafor owns Harbor billing.'
+  const { rina, ids } = hub(store, [{ summary, observedAt: 1, vector: vector(1) }])
+  db.prepare('UPDATE memories SET valid_to=2 WHERE id=?').run(ids.get(summary)!)
+  const job = claim(summary, [rina])
+  const { ask, offered } = offeredIds()
+  const confirmations = await reconcile(job, [], store, new FakeBrainSearch(), [vector(1)], ask)
+  expect(offered).toEqual([])
+  const result = save(store, {
+    entities: [],
+    entityVectors: [],
+    memories: job.claims.map((c) => c.memory),
+    memoryVectors: job.claims.map(() => vector(1)),
+    confirmations,
+  })
+  expect(result).toMatchObject({ state: 'done', confirmed: 0, memories: 1 })
+  expect(store.entityMemories(rina, {}, null).memories.map((m) => m.validTo)).toEqual(
+    expect.arrayContaining([2, null]),
+  )
+})
+
 /** Rina's weekly preference, then a later read that replaced it with a daily one. */
 function replacedPreference(store: BrainStore): { rina: string; weekly: string } {
   const weeklySummary = 'Rina Okafor wants weekly status updates.'
@@ -129,7 +157,7 @@ function replacedPreference(store: BrainStore): { rina: string; weekly: string }
   ])
   const weekly = ids.get(weeklySummary)!
   const base = extraction('')
-  approve(store, {
+  saveAndListMemories(store, {
     jobId: 'leaf-2',
     entities: [],
     entityVectors: [],
@@ -184,7 +212,10 @@ function repeatsWhenOffered(id: string): { ask: StageAsk; offered: OfferedCandid
 it('offers a close replaced memory as replaced earlier and drops a claim that repeats it', async () => {
   const { store } = fixture()
   const { rina, weekly } = replacedPreference(store)
-  expect(store.memory(weekly).memory.state).toBe('superseded')
+  expect(store.memory(weekly).memory).toMatchObject({
+    state: 'superseded',
+    validTo: expect.any(Number),
+  })
   const { ask, offered } = repeatsWhenOffered(weekly)
   const job = claim('Rina Okafor asks for weekly status updates.', [rina])
   await reconcile(job, [], store, new FakeBrainSearch(), [vector(1, 0.25)], ask)
@@ -257,6 +288,11 @@ it('refuses any other action on a replaced memory, and repeats_replaced on a cur
   })
 })
 
+function entityIdByLabel(store: ReturnType<typeof fixture>['store']) {
+  const nodes = store.overview(300).nodes
+  return (label: string) => nodes.find((n) => n.label === label)!.id
+}
+
 it('regression: a shared link counts only with the same predicate, so uses links cannot crowd out a close depends_on paraphrase', async () => {
   const { store } = fixture()
   const base = extraction('')
@@ -267,7 +303,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
     (topic) => `Harbor uses Ledger for ${topic}.`,
   )
   const summaries = [paraphrase, ...uses]
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [harbor, ledger],
     entityVectors: [vector(0, 0, 1), vector(0, 0, 1)],
     memories: summaries.map((summary, i) => ({
@@ -280,6 +316,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
               subject: 'harbor',
               predicate: 'uses' as const,
               object: 'ledger',
+              label: '',
               citation: { evidence: i, quote: summary },
             },
           ]
@@ -297,8 +334,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
     // The paraphrase is close to the claim; the uses memories are not.
     memoryVectors: summaries.map((_, i) => (i ? vector(0, 1, i) : vector(1, 0.1))),
   })
-  const nodes = store.overview(300).nodes
-  const id = (label: string) => nodes.find((n) => n.label === label)!.id
+  const id = entityIdByLabel(store)
   const ids = new Map(
     store.entityMemories(id('Harbor'), {}, null).memories.map((m) => [m.summary, m.id] as const),
   )
@@ -310,6 +346,7 @@ it('regression: a shared link counts only with the same predicate, so uses links
       subject: id('Harbor'),
       predicate: 'depends_on',
       object: id('Ledger'),
+      label: '',
       citation: { evidence: 0, quote: 'Harbor needs Ledger running before it starts.' },
     },
   ]
@@ -326,7 +363,7 @@ it('regression: five earlier uses claims of the same read cannot push out a clos
   const harbor = base.entities[0]!
   const ledger = { ...harbor, ref: 'ledger', label: 'Ledger', aliases: [] }
   const paraphrase = 'Harbor cannot start without Ledger.'
-  approve(store, {
+  saveAndListMemories(store, {
     entities: [harbor, ledger],
     entityVectors: [vector(0, 0, 1), vector(0, 0, 1)],
     memories: [
@@ -334,13 +371,13 @@ it('regression: five earlier uses claims of the same read cannot push out a clos
     ],
     memoryVectors: [vector(1, 0.1)],
   })
-  const nodes = store.overview(300).nodes
-  const id = (label: string) => nodes.find((n) => n.label === label)!.id
+  const id = entityIdByLabel(store)
   const stored = store.entityMemories(id('Harbor'), {}, null).memories[0]!.id
   const link = (predicate: 'uses' | 'depends_on', quote: string) => ({
     subject: id('Harbor'),
     predicate,
     object: id('Ledger'),
+    label: '',
     citation: { evidence: 0, quote },
   })
   const summaries = [

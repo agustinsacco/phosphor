@@ -39,15 +39,15 @@ export interface MapNode extends MapNodeInput {
   caption: MapLabel | null
 }
 /** One line per pair of drawn entities, however many links join them. */
-export interface MapEdge {
+export interface MapEdge<L extends MapLinkInput = MapLinkInput> {
   key: string
   from: string
   to: string
-  links: MapLinkInput[]
+  links: L[]
 }
-export interface MapLayout {
+export interface MapLayout<L extends MapLinkInput = MapLinkInput> {
   nodes: MapNode[]
-  edges: MapEdge[]
+  edges: MapEdge<L>[]
   /** Neighbours left out to keep the map readable. */
   hidden: number
 }
@@ -61,7 +61,7 @@ const MARGIN = 6
 const LONG_LABEL = 18
 const SHORT_LABEL = 10
 
-export function layoutMap({
+export function layoutMap<L extends MapLinkInput>({
   centerId,
   nodes,
   links,
@@ -72,12 +72,12 @@ export function layoutMap({
 }: {
   centerId: string
   nodes: MapNodeInput[]
-  links: MapLinkInput[]
+  links: L[]
   hops: 1 | 2
   width: number
   height: number
   limit?: number
-}): MapLayout {
+}): MapLayout<L> {
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const center = byId.get(centerId)
   if (!center || width <= 0 || height <= 0) return { nodes: [], edges: [], hidden: 0 }
@@ -166,9 +166,11 @@ function placeRings(
   ]
   rings.forEach((ids, index) => {
     const radius = index === 0 ? inner : outer
+    // At least three slots: two neighbours opposite each other put a link between them
+    // straight through the centre, where it reads as the centre's own.
+    const slots = Math.max(ids.length, 3)
     ids.forEach((id, position) => {
-      const angle =
-        (position / ids.length) * 2 * Math.PI - Math.PI / 2 + (index ? Math.PI / ids.length : 0)
+      const angle = (position / slots) * 2 * Math.PI - Math.PI / 2 + (index ? Math.PI / slots : 0)
       const node = byId.get(id)!
       placed.push({
         ...node,
@@ -186,7 +188,7 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text
 }
 
-function overlaps(a: MapBox, b: MapBox): boolean {
+export function overlaps(a: MapBox, b: MapBox): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height
 }
 
@@ -252,7 +254,7 @@ function placeLabels(placed: Omit<MapNode, 'caption'>[], width: number, height: 
   return placed.map((node, index) => ({ ...node, caption: labels.get(index) ?? null }))
 }
 
-function inside(box: MapBox, frame: MapBox): boolean {
+export function inside(box: MapBox, frame: MapBox): boolean {
   return (
     box.x >= frame.x &&
     box.y >= frame.y &&
@@ -261,14 +263,14 @@ function inside(box: MapBox, frame: MapBox): boolean {
   )
 }
 
-function edgesBetween(links: MapLinkInput[], drawn: Set<string>): MapEdge[] {
-  const edges = new Map<string, MapEdge>()
+function edgesBetween<L extends MapLinkInput>(links: L[], drawn: Set<string>): MapEdge<L>[] {
+  const edges = new Map<string, MapEdge<L>>()
   for (const link of links) {
     if (!drawn.has(link.subjectId) || !drawn.has(link.objectId)) continue
     if (link.subjectId === link.objectId) continue
     const [from, to] = [link.subjectId, link.objectId].sort() as [string, string]
     const key = `${from}|${to}`
-    const edge = edges.get(key) ?? { key, from, to, links: [] }
+    const edge: MapEdge<L> = edges.get(key) ?? { key, from, to, links: [] }
     if (
       !edge.links.some(
         (known) => known.predicate === link.predicate && known.subjectId === link.subjectId,

@@ -20,7 +20,7 @@ async function setup(withCurator = true) {
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const store = new FakeAgentStore()
   store.prefs.enabled = true
-  store.counts = { reads: 0, entities: 2, repeats: 0, conflicts: 0, flags: 1 }
+  store.counts = { groups: 0, unlinked: 0, entities: 2, repeats: 0, conflicts: 0, flags: 1 }
   const service = await createBrainService({
     ...recallOptions(store),
     directory,
@@ -82,4 +82,9 @@ it('needs Brain on but not lane recall, and a configured extension', async () =>
   expect(await s.service.curatorLaunch()).toBeUndefined()
   const bare = await setup(false)
   expect(await bare.service.curatorLaunch()).toBeUndefined()
+})
+
+it('does not dispatch curator requests from the lane service entry', async () => {
+  const { service } = await setup()
+  await expect(service.agent('waiting', {})).rejects.toThrow('Brain request unavailable')
 })

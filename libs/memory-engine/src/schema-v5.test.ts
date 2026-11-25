@@ -7,9 +7,9 @@ import { openBrainStore } from './store'
 import { openBrainSearch } from './search'
 import { fixture } from './test-support'
 
-it('creates fresh databases at version 7', () => {
+it('creates fresh databases at version 8', () => {
   const { db } = fixture()
-  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
+  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
 })
 it('migrates a real v4 database in place without dropping any knowledge or extraction', () => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-v5-'))
@@ -27,7 +27,16 @@ it('migrates a real v4 database in place without dropping any knowledge or extra
       INSERT INTO jobs VALUES ('job','lane','/made-up/lane.jsonl','Harbor','/Harbor',NULL,'fake/model','done',1,'leaf',NULL,1,1,2,NULL,4,NULL,NULL);
       INSERT INTO extractions VALUES ('job','lane','/made-up/lane.jsonl','Harbor','leaf','fake/model','low','[]','[]',NULL,1,2);`)
     const tables = ['entities', 'memories', 'relations', 'extractions', 'mentions', 'meta']
-    const before = tables.map((t) => db.prepare(`SELECT * FROM ${t}`).all())
+    // Columns as they were, so the columns later versions add are left out of the comparison.
+    const select = tables.map(
+      (table) =>
+        `SELECT ${db
+          .prepare('SELECT name FROM pragma_table_info(?)')
+          .all(table)
+          .map((row) => String(row.name))
+          .join(',')} FROM ${table}`,
+    )
+    const before = select.map((sql) => db.prepare(sql).all())
     db.close()
     class Defensive extends DatabaseSync {
       override exec(sql: string) {
@@ -38,8 +47,8 @@ it('migrates a real v4 database in place without dropping any knowledge or extra
     const store = openBrainStore({ path, Database: Defensive })
     try {
       const inspect = new DatabaseSync(path)
-      expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
-      expect(tables.map((t) => inspect.prepare(`SELECT * FROM ${t}`).all())).toEqual(before)
+      expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
+      expect(select.map((sql) => inspect.prepare(sql).all())).toEqual(before)
       inspect.close()
       expect(store.job('job')).toMatchObject({ state: 'done', replaces: null })
       expect(store.extraction('job').memories).toHaveLength(1)
@@ -112,7 +121,7 @@ it('fresh and upgraded v7 schemas have identical objects and a failed upgrade re
   }
 })
 
-it('reopens v7 unchanged and refuses newer databases without resetting them', () => {
+it('reopens v8 unchanged and refuses newer databases without resetting them', () => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-forward-'))
   const path = join(dir, 'brain.sqlite')
   try {
@@ -121,7 +130,7 @@ it('reopens v7 unchanged and refuses newer databases without resetting them', ()
       neverRead: { titles: ['1:1', '1-1', 'one on one', '1on1'], sessionIds: [] },
       enabled: true,
       recall: false,
-      review: false,
+      agentAuto: false,
       model: null,
     })
     const before = first.snapshot()
@@ -130,13 +139,13 @@ it('reopens v7 unchanged and refuses newer databases without resetting them', ()
     expect(current.snapshot()).toEqual(before)
     current.close()
     const inspect = new DatabaseSync(path)
-    inspect.exec('PRAGMA user_version=8')
+    inspect.exec('PRAGMA user_version=9')
     const objects = schemaObjects(inspect)
     const meta = inspect.prepare('SELECT * FROM meta').all()
     expect(() => openBrainStore({ path, Database: DatabaseSync })).toThrow(
       'This Brain database requires a newer application.',
     )
-    expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
+    expect(inspect.prepare('PRAGMA user_version').get()).toEqual({ user_version: 9 })
     expect(inspect.prepare('SELECT * FROM meta').all()).toEqual(meta)
     expect(schemaObjects(inspect)).toEqual(objects)
     inspect.close()

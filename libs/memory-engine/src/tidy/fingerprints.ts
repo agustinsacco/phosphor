@@ -16,7 +16,7 @@ export function writeFingerprint(ctx: Context, n: number): string | null {
   return fingerprint
 }
 /**
- * Reads without writing: a stored key marks a swept memory, so the closing pass of "Tidy now"
+ * Reads without writing: a stored key marks a swept memory, so the closing maintenance pass
  * finds the memories a deferred merge left unswept by their missing key.
  */
 export function fingerprintOf(ctx: Context, n: number): string | null {

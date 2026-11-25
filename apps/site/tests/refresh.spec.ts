@@ -17,7 +17,7 @@ for (const route of newRoutes) {
   })
 }
 
-test('Brain describes opt-in, review, provider extraction and machine-local recall', async ({
+test('Brain describes opt-in, saved reads, provider extraction and machine-local recall', async ({
   page,
 }) => {
   await page.goto('/guides/brain/')
@@ -25,7 +25,10 @@ test('Brain describes opt-in, review, provider extraction and machine-local reca
     'off by default',
     'Desktop-only',
     'Settings → Brain',
-    'Review before saving',
+    'What changed',
+    'How it was read',
+    'Tell Brain Agent',
+    'Defrag',
     'Queue for knowledge extraction',
     'brain_search',
     'provider',

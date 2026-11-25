@@ -13,6 +13,5 @@ it('reads merged-away entity ids as their survivor, including chains; writes sta
     store.connections('rina-3', 'owns', 'out', null),
   )
   expect(store.entityMemories('rina-1', {}, null)).toEqual(store.entityMemories('rina-3', {}, null))
-  expect(store.path('rina-1', 'rina-3')).toEqual(store.path('rina-3', 'rina-3'))
   expect(() => store.merge('rina-1', 'rina-3', store.revision())).toThrow()
 })

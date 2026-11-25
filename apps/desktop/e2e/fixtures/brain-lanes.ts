@@ -5,10 +5,25 @@ import { scratchDir } from './scratch'
 
 export interface BrainLane {
   title: string
+  /** pi's session id, as Brain's status lists read lanes. */
+  sessionId: string
   source: string
   original: string
   facts: string[]
 }
+
+/**
+ * The Harbor lane's sentences, one per line, that the stub reader turns into a fixed result:
+ * owns, part_of, took_over_from (label "took over Harbor ledger from"), and two memories that
+ * name Rina Okafor and Mara Voss together with no link, which become an unlinked pair.
+ */
+export const HARBOR_FACTS = [
+  'Rina Okafor owns Harbor ledger.',
+  'Harbor ledger is part of Harbor.',
+  'Tom Lee took over Harbor ledger from Rina Okafor.',
+  'Rina Okafor and Mara Voss reviewed the Harbor invoices.',
+  'Rina Okafor and Mara Voss planned the Kestrel rollout.',
+]
 
 async function seedLane(
   agent: string,
@@ -50,7 +65,7 @@ async function seedLane(
         timestamp: at(3),
         message: {
           role: 'assistant',
-          content: [{ type: 'text', text: facts.slice(1).join(' ') }],
+          content: [{ type: 'text', text: facts.slice(1).join('\n') }],
           provider: 'stub',
           model: 'stub-model',
         },
@@ -59,7 +74,7 @@ async function seedLane(
       .map((entry) => JSON.stringify(entry))
       .join('\n') + '\n'
   await writeFile(source, original)
-  return { title, source, original, facts }
+  return { title, sessionId: id, source, original, facts }
 }
 
 /** Stopped, made-up lanes: the real pipeline only reads their bytes. */
@@ -73,7 +88,7 @@ export async function seedBrainLanes() {
     workspace,
     'Harbor ledger',
     '01a0272a-7be5-76ed-b420-36b363924633',
-    ['Rina Okafor owns Harbor ledger.', 'Harbor ledger is part of Harbor.'],
+    HARBOR_FACTS,
   )
   const ledger = await seedLane(
     agent,

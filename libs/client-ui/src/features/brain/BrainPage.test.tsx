@@ -12,64 +12,65 @@ import {
 import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { PromptHost } from '@/components/PromptHost'
+import { CardMemories } from './card/CardMemories'
 import { BrainPage } from './BrainPage'
-import { openBrain, openTidy, useBrainNavigation } from './brainNavigation'
+import { useBrainNavigation } from './brainNavigation'
 import { createMockBrain } from './mockBrain'
-import { mockBrainJob, mockBrainProposal } from './mockBrainData'
+import { MOCK_SAID_AT } from './mockBrainData'
 import { useBrain } from './useBrain'
 
 let root: Root, container: HTMLDivElement
 let fake: ReturnType<typeof createFakePhosphor>, restore: () => void
 let mock: ReturnType<typeof createMockBrain>
-let defragError = ''
-let defragPending: Promise<BrainStatus> | null
-let patchStatus: ((status: BrainStatus) => BrainStatus) | null
+/** Channels that refuse their next call, once, as a failed first load does. */
+let handlers: FakePhosphorHandlers
+let failOnce: Set<string>
+const calls: [string, unknown[]][] = []
 const CHANNELS: IpcInvokeChannel[] = [
   'brain:status',
-  'brain:describe',
   'brain:setPrefs',
-  'brain:history',
-  'brain:entities',
-  'brain:recent',
   'brain:overview',
   'brain:entity',
   'brain:neighbourhood',
   'brain:entityMemories',
-  'brain:connections',
   'brain:memory',
+  'brain:forget',
   'brain:find',
   'brain:defrag',
   'brain:defragStop',
   'brain:undoRun',
   'brain:tidyChanges',
-  'brain:proposal',
+  'brain:tidyUndo',
   'brain:extraction',
+  'brain:ask',
+  'brain:tell',
+  'brain:setOwner',
+  'brain:retry',
+  'brain:cancel',
+  'brain:path',
 ]
 beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
-  mock = createMockBrain(() => 10000)
-  patchStatus = null
-  defragError = ''
-  defragPending = null
+  Element.prototype.scrollIntoView = vi.fn()
+  mock = createMockBrain(() => MOCK_SAID_AT, { demo: true })
+  failOnce = new Set()
+  calls.length = 0
   await mock('brain:setPrefs', [{ ...DEFAULT_BRAIN_PREFS, enabled: true }])
-  const handlers = Object.fromEntries(
+  handlers = Object.fromEntries(
     CHANNELS.map((channel) => [
       channel,
       async (...args: unknown[]) => {
-        if (channel === 'brain:defrag' && defragError) throw new Error(defragError)
-        if (channel === 'brain:defrag' && defragPending) return defragPending
-        const result = await mock(channel, args)
-        return channel === 'brain:status' && patchStatus
-          ? patchStatus(result as BrainStatus)
-          : result
+        calls.push([channel, args])
+        if (failOnce.delete(channel)) throw new Error(`${channel} is unavailable`)
+        return mock(channel, args)
       },
     ]),
   ) as FakePhosphorHandlers
   fake = createFakePhosphor(handlers)
   restore = installFakePhosphor(fake)
   useBrain.setState({ status: null, saving: false, error: '' })
-  useBrainNavigation.setState({ request: 0, target: null, tab: null })
+  useBrainNavigation.setState({ request: 0, target: null })
   useSettingsUiStore.setState({ open: false })
   container = document.createElement('div')
   document.body.append(container)
@@ -92,116 +93,271 @@ async function render(): Promise<void> {
       </>,
     ),
   )
+  await settle()
 }
-const tab = (id: string) => container.querySelector<HTMLButtonElement>(`#brain-tab-${id}`)!
-const selectedTab = () => container.querySelector('[role="tab"][aria-selected="true"]')?.id
-const section = (name: string): HTMLElement => container.querySelector(`[aria-label="${name}"]`)!
-function button(text: string, scope: ParentNode = container): HTMLButtonElement | undefined {
-  return [...scope.querySelectorAll<HTMLButtonElement>('button')].find(
-    (b) => b.textContent === text || b.getAttribute('aria-label') === text,
+/** Let every pending load answer. */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 5; i++) await act(async () => {})
+}
+const region = (name: string): HTMLElement | null =>
+  document.querySelector<HTMLElement>(`[aria-label="${name}"]`)
+function button(text: string, scope: ParentNode = document): HTMLButtonElement | undefined {
+  return [...scope.querySelectorAll<HTMLButtonElement>('button, [role="button"]')].find(
+    (b) => b.textContent?.trim() === text || b.getAttribute('aria-label') === text,
   )
 }
-async function click(text: string, scope: ParentNode = container): Promise<void> {
+async function click(text: string, scope: ParentNode = document): Promise<void> {
   const target = button(text, scope)
   expect(target, text).toBeDefined()
   await act(async () => target!.click())
+  await settle()
 }
 const press = (key: string, target: Element, init: KeyboardEventInit = {}) =>
-  act(async () =>
-    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init })),
-  )
-const search = () => container.querySelector<HTMLInputElement>('[role="combobox"]')
-const goToAnyone = () =>
-  [...container.querySelectorAll('button')].find((b) =>
-    b.textContent?.includes('Go to anyone or anything'),
-  )!
+  act(async () => {
+    target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, ...init }))
+  })
+const card = () => region('Card')!
+const cardTitle = () => card().querySelector('h2')?.textContent
+const map = () => region('Map')!
+const edge = (sentence: string) =>
+  map().querySelector<SVGGElement>(`[data-edge][aria-label="${sentence}"]`)
+const shownSentences = () =>
+  [...map().querySelectorAll('[data-edge-sentence]')].map((node) => node.textContent)
+const walkSteps = () =>
+  [...region('Walk')!.querySelectorAll('li')].map((step) => step.textContent?.trim())
+const called = (channel: string) => calls.filter(([name]) => name === channel).map(([, a]) => a)
 
-it('has Knowledge and Lanes only, and offers Defrag with the waiting breakdown', async () => {
+it('is one screen: no tabs and no Lanes, with Defrag and how many things wait', async () => {
   await render()
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-  expect(tab('inbox')).toBeNull()
+  expect(container.querySelector('[role="tablist"]')).toBeNull()
+  expect(region('Brain lanes')).toBeNull()
+  expect(button('Lanes')).toBeUndefined()
+  for (const name of ['Map', 'Card', 'Walk', 'Ask Brain', 'What changed'])
+    expect(region(name), name).not.toBeNull()
   const status = useBrain.getState().status!
   const total = Object.values(status.agent.waiting).reduce((sum, n) => sum + n, 0)
-  expect(container.textContent).toContain(`${total} waiting`)
-  expect(button('Defrag')?.disabled).toBe(false)
-  expect(button('Defrag')?.dataset.tooltip).toContain(`${total} waiting: 1 read`)
-  await click('Defrag')
-  expect(container.textContent).toContain('Defrag starts after the reads already queued')
+  expect(container.querySelector('.page-shell-header')?.textContent).toContain(`${total} waiting`)
+  expect(button('Defrag')?.dataset.tooltip).toContain('1 unlinked pair')
 })
 
-it.each(['off', 'empty', 'queued', 'running'])(
-  'explains why Defrag is disabled: %s',
-  async (state) => {
-    patchStatus = (status) => {
-      if (state === 'off') status.prefs.enabled = false
-      if (state === 'empty')
-        status.agent.waiting = { reads: 0, entities: 0, repeats: 0, conflicts: 0, flags: 0 }
-      if (state === 'queued' || state === 'running')
-        status.agent.run = {
-          id: 'run',
-          state,
-          total: 0,
-          decided: 0,
-          erased: 0,
-          undoable: 0,
-          queuedAt: 0,
-          startedAt: null,
-          finishedAt: null,
-          sessionPath: null,
-          error: null,
-          rulesChanged: false,
-        }
-      return status
-    }
-    await render()
-    expect(button('Defrag')?.disabled).toBe(true)
-    expect(button('Defrag')?.dataset.tooltip).toMatch(
-      /Turn Brain on|Nothing is waiting|already queued/,
-    )
-  },
-)
-
-it('shows a Defrag refusal as a recoverable action error', async () => {
+it('centres the map on you and opens your card', async () => {
   await render()
-  defragError = 'Defrag unavailable'
-  await click('Defrag')
-  expect(useBrain.getState().error).toBe('Defrag unavailable')
+  const svg = map().querySelector('svg')!
+  expect(svg.getAttribute('aria-label')).toBe('Map of Mara Voss and its neighbours')
+  expect(map().querySelector('[aria-label^="Mara Voss,"]')?.getAttribute('aria-label')).toContain(
+    '(centre)',
+  )
+  expect(cardTitle()).toBe('Mara Voss')
+  expect(card().textContent).toContain('This is you')
+  expect(called('brain:neighbourhood')[0]).toEqual(['mara', 1])
 })
 
-it('opens on Knowledge with nothing to decide, and on Lanes before anything is known', async () => {
-  patchStatus = (status) => ({ ...status, jobs: [], tidy: { ...status.tidy, open: 0 } })
+it('says an edge’s sentence on hover, and an ended one is dashed with its end date', async () => {
   await render()
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-  act(() => root.unmount())
-  root = createRoot(container)
-  patchStatus = (status) => ({
-    ...status,
-    jobs: [mockBrainJob({ state: 'queued' })],
-    tidy: { ...status.tidy, open: 0 },
-    counts: { memories: 0, entities: 0 },
+  const handover = edge('Tom Lee took over Ledger billing from Rina Okafor (since 2026-09-01)')
+  expect(handover).not.toBeNull()
+  expect(shownSentences()).not.toContain(
+    'Tom Lee took over Ledger billing from Rina Okafor (since 2026-09-01)',
+  )
+  await act(async () => handover!.dispatchEvent(new FocusEvent('focusin', { bubbles: true })))
+  expect(shownSentences()).toContain(
+    'Tom Lee took over Ledger billing from Rina Okafor (since 2026-09-01)',
+  )
+  await click('Tom Lee reports to Mara Voss', card())
+  const ended = edge('Tom Lee worked on Kestrel (until 2026-08-15)')!
+  expect(ended.dataset.ended).toBe('true')
+  expect(ended.querySelector('line')?.getAttribute('stroke-dasharray')).toBeTruthy()
+  expect(ended.textContent).toContain('until 2026-08-15')
+})
+
+it('walks along relationships from the card, sentence by sentence, and steps back', async () => {
+  await render()
+  expect(walkSteps()).toEqual(['Mara Voss'])
+  await click('Tom Lee reports to Mara Voss', card())
+  expect(cardTitle()).toBe('Tom Lee')
+  await click('Tom Lee took over Ledger billing from Rina Okafor (since 2026-09-01)', card())
+  expect(cardTitle()).toBe('Rina Okafor')
+  expect(walkSteps()).toEqual([
+    'Mara Voss',
+    'Tom Lee reports to Mara Voss',
+    'Tom Lee took over Ledger billing from Rina Okafor (since 2026-09-01)',
+  ])
+  expect(map().querySelector('svg')!.getAttribute('aria-label')).toBe(
+    'Map of Rina Okafor and its neighbours',
+  )
+  await click('Back', region('Walk')!)
+  expect(cardTitle()).toBe('Tom Lee')
+  await press('[', document.body)
+  await settle()
+  expect(cardTitle()).toBe('Mara Voss')
+  await press(']', document.body)
+  await settle()
+  expect(cardTitle()).toBe('Tom Lee')
+})
+
+it('shows what is known now, before and named together, and memories in plain words', async () => {
+  await render()
+  await click('Tom Lee reports to Mara Voss', card())
+  const now = region('Now')!.textContent
+  expect(now).toContain('Tom Lee leads Ledger team (since 2026-09-01)')
+  expect(region('Before')!.textContent).toContain('Tom Lee worked on Kestrel (until 2026-08-15)')
+  expect(region('Together')!.textContent).toContain('+2 appear together, not explained yet')
+  expect(region('Together')!.textContent).toContain('Northwind')
+  const memories = region('Memories')!.textContent
+  expect(memories).toContain('Tom Lee took over Ledger billing from Rina Okafor in September.')
+  expect(memories).toContain('decision · still true · you said it · told · 2 lanes · important')
+  expect(memories).toContain('an agent said it')
+  await click('This is me', card())
+  expect(called('brain:setOwner')).toEqual([['tom']])
+})
+
+it('asks Brain on Enter, lights the answer’s trail and lists its memories', async () => {
+  await render()
+  const input = region('Ask Brain')!.querySelector('textarea, input') as HTMLTextAreaElement
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')!.set!
+    setter.call(input, 'What is Mara busy with?')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
   })
-  useBrain.setState({ status: null })
-  await render()
-  expect(selectedTab()).toBe('brain-tab-lanes')
+  expect(input.maxLength).toBe(4096)
+  await press('Enter', input)
+  await settle()
+  expect(called('brain:ask')).toEqual([['What is Mara busy with?']])
+  expect(called('brain:tell')).toEqual([])
+  const answer = region('Answer')!
+  expect(answer.textContent).toContain('Mara Voss decided Ledger invoices close on the fifth')
+  expect(answer.textContent).toContain('Mara Voss set the invoice close date for Ledger')
+  expect(map().querySelectorAll('[data-edge][data-lit="true"]').length).toBeGreaterThan(0)
+  expect(shownSentences()).toContain('Mara Voss set the invoice close date for Ledger')
 })
 
-it('focuses Knowledge search with / from anywhere on the page, but not from a field', async () => {
+it('keeps Ask available while an instruction waits for Brain Agent', async () => {
+  handlers['brain:tell'] = () => new Promise(() => {})
+  await mock('brain:defrag', [])
   await render()
-  await press('/', section('Index'))
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-  expect(document.activeElement).toBe(search())
-  await press('/', search()!)
-  expect(search()!.value).toBe('')
-  await act(async () => tab('lanes').click())
-  await press('k', section('Brain lanes'), { metaKey: true })
-  expect(selectedTab()).toBe('brain-tab-lanes')
+  const input = region('Ask Brain')!.querySelector('textarea')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      input,
+      'Ledger',
+    )
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await press('Enter', input, { metaKey: true })
+  expect(button('Ask')?.disabled).toBe(false)
+  expect(region('Ask Brain')!.textContent).toContain('Waiting for Brain Agent to finish')
+  await press('Enter', input)
+  expect(called('brain:ask')).toEqual([['Ledger']])
 })
 
-it('goes to Knowledge search from the header button', async () => {
+it('drops earlier memory pages after forgetting an open row', async () => {
+  await act(async () =>
+    root.render(
+      <>
+        <CardMemories
+          entityId="harbor"
+          count={30}
+          actions={{ onEntity: vi.fn(), onMap: vi.fn(), onOpenRead: vi.fn() }}
+        />
+        <PromptHost />
+      </>,
+    ),
+  )
+  await settle()
+  const row = region('Memories')!.querySelector<HTMLButtonElement>('li button')!
+  const summary = row.firstElementChild!.textContent!
+  await click('Show more memories')
+  await act(async () => row.click())
+  await click('Forget')
+  await click('Forget permanently')
+  expect(region('Memories')!.textContent).not.toContain(summary)
+  expect(button('Show more memories')).toBeDefined()
+})
+
+it('tells Brain Agent with ⌘Enter, never asking, and offers its lane', async () => {
   await render()
-  await act(async () => goToAnyone().click())
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-  expect(document.activeElement).toBe(search())
+  const input = region('Ask Brain')!.querySelector('textarea, input') as HTMLTextAreaElement
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')!.set!
+    setter.call(input, 'Tom Lee left the team')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await press('Enter', input, { metaKey: true })
+  await settle()
+  expect(called('brain:tell')).toEqual([['Tom Lee left the team']])
+  expect(called('brain:ask')).toEqual([])
+  expect(button('Open Brain lane')).toBeDefined()
+})
+
+it('lists a saved read in What changed with Undo, and opens how it was read', async () => {
+  await render()
+  const changes = region('What changed')!
+  expect(changes.textContent).toContain('Read Ledger handover: 2 memories')
+  expect(changes.textContent).toContain('Automatic')
+  await click('How Ledger handover was read', changes)
+  const dialog = region('How Ledger handover was read')!
+  expect(dialog.getAttribute('role')).toBe('dialog')
+  expect(dialog.textContent).toContain('Read the conversation · part 1')
+  expect(dialog.textContent).not.toContain('demo/harbor-model')
+  await press('Escape', dialog)
+  await settle()
+  const undo = [...changes.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === 'Undo',
+  )!
+  await act(async () => undo.click())
+  await settle()
+  expect(called('brain:tidyUndo')).toHaveLength(1)
+})
+
+it('reloads What changed after a refused undo, so the next click undoes', async () => {
+  await render()
+  const changes = region('What changed')!
+  const loads = called('brain:tidyChanges').length
+  const statuses = called('brain:status').length
+  failOnce.add('brain:tidyUndo')
+  await click('Undo', changes)
+  expect(changes.querySelector('[role="alert"]')?.textContent).toContain('unavailable')
+  expect(called('brain:tidyChanges').length).toBeGreaterThan(loads)
+  expect(called('brain:status').length).toBeGreaterThan(statuses)
+  await click('Undo', changes)
+  expect(called('brain:tidyUndo')).toHaveLength(2)
+  expect(changes.textContent).toContain('undone')
+})
+
+it('recovers a failed first load of the map with Retry', async () => {
+  failOnce.add('brain:neighbourhood')
+  await render()
+  expect(map().textContent).toContain('brain:neighbourhood is unavailable')
+  await click('Retry', map())
+  expect(map().querySelector('svg')).not.toBeNull()
+})
+
+it('recovers a failed first load of Brain with Retry', async () => {
+  failOnce.add('brain:status')
+  await render()
+  expect(container.textContent).toContain('brain:status is unavailable')
+  await click('Retry')
+  expect(region('Map')).not.toBeNull()
+})
+
+it('shows reads and failed reads in the status bar with Retry and Dismiss', async () => {
+  await render()
+  const bar = region('Brain status')!
+  expect(bar.textContent).toContain('Ledger extraction to retry')
+  expect(bar.textContent).toContain('1 lane queued')
+  await click('Retry', bar)
+  expect(called('brain:retry')).toEqual([['harbor-demo-failed']])
+})
+
+it('opens Brain search with / but leaves ⌘K to the command palette', async () => {
+  await render()
+  await press('k', map(), { metaKey: true })
+  expect(region('Search Brain')).toBeNull()
+  await press('/', document.body)
+  await settle()
+  const search = region('Search Brain')!
+  expect(search).not.toBeNull()
+  expect(search.querySelector('[role="combobox"]')).toBe(document.activeElement)
 })
 
 it('opens Brain settings and refuses Brain on a platform without it', async () => {
@@ -216,116 +372,11 @@ it('opens Brain settings and refuses Brain on a platform without it', async () =
     ),
   )
   expect(container.textContent).toContain('Brain is available on Desktop')
-  expect(container.querySelector('[role="tab"]')).toBeNull()
 })
 
-it('shows a thin status line only while Brain reads or checks, with a way to Lanes', async () => {
-  patchStatus = (status) => ({
-    ...status,
-    jobs: [
-      mockBrainJob({
-        id: 'reading',
-        title: 'Northwind contract',
-        state: 'running',
-        progress: { stage: 'reconcile', done: 1, total: 1 },
-      }),
-      mockBrainJob({ id: 'next', state: 'queued' }),
-    ],
-  })
+it('never shows a model name, cost or tokens', async () => {
   await render()
-  const strip = container.querySelector('[role="status"]')!
-  expect(strip.textContent).toContain(
-    'Reading Northwind contract · Compare with what Brain knows · 1 queued',
-  )
-  await click('Lanes', strip)
-  expect(selectedTab()).toBe('brain-tab-lanes')
-})
-
-it('names the review Brain refreshes in the status line, only while the refresh runs', async () => {
-  const refreshing = mockBrainJob({ title: 'Kestrel rollout', state: 'refreshing' })
-  patchStatus = (status) => ({ ...status, jobs: [{ ...refreshing, runStartedAt: null }] })
-  await render()
-  expect(container.textContent).not.toContain('Refreshing the review of')
-  patchStatus = (status) => ({ ...status, jobs: [{ ...refreshing, runStartedAt: 10000 }] })
-  await act(async () => useBrain.getState().refresh())
-  expect(container.querySelector('[role="status"]')?.textContent).toContain(
-    'Refreshing the review of Kestrel rollout',
-  )
-})
-
-it('routes notices to Lanes and automatic changes to Recent changes', async () => {
-  await mock('brain:merge', ['tom', 'rina', 0])
-  await render()
-  await act(async () => openTidy(true))
-  expect(selectedTab()).toBe('brain-tab-lanes')
-  expect(section('Recent changes').querySelector('[aria-current="true"]')).not.toBeNull()
-  expect(section('Change detail').textContent).toContain('Combined names, links and memories.')
-  await act(async () => openTidy())
-  expect(selectedTab()).toBe('brain-tab-lanes')
-})
-
-it('selects Recent changes on a second Open recent changes', async () => {
-  await mock('brain:merge', ['tom', 'rina', 0])
-  await render()
-  await act(async () => openTidy(true))
-  const read = section('Brain lanes').querySelector<HTMLButtonElement>(
-    'section:not([aria-label="Recent changes"]) button',
-  )!
-  await act(async () => read.click())
-  expect(section('Recent changes').querySelector('[aria-current="true"]')).toBeNull()
-  await act(async () => openTidy(true))
-  expect(section('Recent changes').querySelector('[aria-current="true"]')).not.toBeNull()
-  expect(section('Change detail').textContent).toContain('Combined names, links and memories.')
-})
-
-it('focuses the search again on a second click of the header button', async () => {
-  await render()
-  await act(async () => goToAnyone().click())
-  expect(document.activeElement).toBe(search())
-  search()!.blur()
-  await act(async () => goToAnyone().click())
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-  expect(document.activeElement).toBe(search())
-})
-
-it('never replays a consumed request on a page mounted later', async () => {
-  await render()
-  await act(async () => openBrain({ tab: 'lanes' }))
-  expect(selectedTab()).toBe('brain-tab-lanes')
-  act(() => root.unmount())
-  root = createRoot(container)
-  await render()
-  expect(selectedTab()).toBe('brain-tab-knowledge')
-  expect(useBrainNavigation.getState().request).toBe(1)
-})
-
-it('keeps stale waiting memories visible after a Knowledge edit without starting a refresh', async () => {
-  await render()
-  const before = useBrain.getState().status!
-  const job = before.jobs.find((read) => read.state === 'review')!
-  await mock('brain:describe', ['ledger', 'The Harbor ledger.', before.revision])
-  await act(async () => useBrain.getState().refresh())
-  await act(async () => tab('lanes').click())
-  expect(section('Waiting read').textContent).toContain(mockBrainProposal(job).memories[0]!.summary)
-  expect(section('Waiting read').textContent).toContain('Waits for Defrag')
-  expect(section('Waiting read').textContent).not.toContain('refreshing this review')
-  const after = (await mock('brain:status', [])) as BrainStatus
-  expect(after.jobs.find((read) => read.id === job.id)).toEqual(job)
-})
-
-it('disables Defrag during its request and enables retry after a refusal', async () => {
-  await render()
-  let refuse!: (reason: Error) => void
-  defragPending = new Promise<BrainStatus>((_resolve, reject) => {
-    refuse = reject
-  })
-  await click('Defrag')
-  expect(button('Defrag')?.disabled).toBe(true)
-  await click('Defrag')
-  await act(async () => refuse(new Error('Defrag unavailable')))
-  expect(useBrain.getState().error).toBe('Defrag unavailable')
-  expect(button('Defrag')?.disabled).toBe(false)
-  defragPending = null
-  await click('Defrag')
-  expect(container.textContent).toContain('Defrag starts after the reads already queued')
+  const status = (await mock('brain:status', [])) as BrainStatus
+  expect(container.textContent).not.toMatch(/tokens|\$\d|demo\/harbor-model/)
+  expect(status.jobs.some((job) => job.model === 'demo/harbor-model')).toBe(true)
 })

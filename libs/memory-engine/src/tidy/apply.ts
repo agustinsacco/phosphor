@@ -1,28 +1,21 @@
 import type { JournalNote } from '../agent/notes'
 import { checkBrainTidyAction, type BrainTidyAction } from '@phosphor/shared/brain-tidy'
 import { one, run, transaction, type Context } from '../database'
-import { removeMemory } from '../merge'
-import { pruneExtractions } from '../extractions'
 import { bumpRevision, bumpKnowledgeRevision } from '../prefs'
-import { checkRevision, journal } from './journal'
+import { journal } from './journal'
 import { changeMemories, mergeChange } from './operations'
 import { actionRefusal } from './action-guards'
 import { openSuggestion, type SuggestionRow } from './suggestions'
 import { removableNames, removeNameChange } from './entity-edits'
 import { fold } from '../text'
+import { groupChange } from '../agent/group'
 
-export function apply(
-  ctx: Context,
-  id: string,
-  raw: BrainTidyAction,
-  expected: number,
-  note?: JournalNote,
-): string | null {
+/** Brain Agent settles a suggestion; every action is journaled with its note. */
+export function apply(ctx: Context, id: string, raw: BrainTidyAction, note: JournalNote): string {
   const action = checkBrainTidyAction(raw)
   return transaction(ctx, () => {
-    checkRevision(ctx, expected)
-    const row = openSuggestion(ctx, id, !!note)
-    const refusal = actionRefusal(ctx, row, action.kind, !!note)
+    const row = openSuggestion(ctx, id)
+    const refusal = actionRefusal(ctx, row, action.kind)
     if (refusal) throw new Error(refusal)
     const operation = applyAction(ctx, row, action, note)
     run(
@@ -40,8 +33,8 @@ function applyAction(
   ctx: Context,
   row: SuggestionRow,
   action: BrainTidyAction,
-  note?: JournalNote,
-): string | null {
+  note: JournalNote,
+): string {
   const ids = [row.first_id, row.second_id],
     id = row.id
   if (action.kind === 'merge' && ids.includes(action.survivorId))
@@ -81,17 +74,8 @@ function applyAction(
     bumpKnowledgeRevision(ctx)
     return operation
   }
-  if (action.kind === 'keep' && note) return keepChange(ctx, row, note)
-  if (action.kind === 'forget') {
-    removeMemory(ctx, row.first_id)
-    pruneExtractions(ctx)
-    bumpKnowledgeRevision(ctx)
-    return null
-  }
-  if (action.kind === 'keep') {
-    bumpRevision(ctx)
-    return null
-  }
+  if (action.kind === 'group') return groupChange(ctx, row, note)
+  if (action.kind === 'keep') return keepChange(ctx, row, note)
   throw new Error('This action does not apply to this Tidy suggestion.')
 }
 function keepChange(ctx: Context, row: SuggestionRow, note: JournalNote): string {
@@ -116,6 +100,12 @@ function keepChange(ctx: Context, row: SuggestionRow, note: JournalNote): string
 }
 function keepSummary(ctx: Context, row: SuggestionRow): string {
   if (row.kind === 'flagged') return 'Kept the flagged memory'
+  if (row.kind === 'group') return 'Kept these apart from the group a read suggested'
+  if (row.kind === 'unlinked') {
+    const label = (id: string) =>
+      one<{ label: string }>(ctx, 'SELECT label FROM entities WHERE id=?', id)!.label
+    return `No lasting link: ${label(row.first_id)} and ${label(row.second_id!)}`
+  }
   if (row.subject_type === 'memory') return 'Kept both memories'
   const label = (id: string) =>
     one<{ label: string }>(ctx, 'SELECT label FROM entities WHERE id=?', id)!.label

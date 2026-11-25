@@ -1,11 +1,11 @@
 import { expect, it } from 'vitest'
-import { approve, fixture, lane } from './test-support'
-import { entities, recent } from './browse'
+import { saveAndListMemories, fixture } from './test-support'
+import { entities } from './browse'
 import type { Context } from './database'
 
 function setup() {
   const { store, db } = fixture()
-  approve(store)
+  saveAndListMemories(store)
   const ctx: Context = { db, now: () => 1000, id: () => 'made-up' }
   return { store, db, ctx }
 }
@@ -79,38 +79,13 @@ it('sorts by name without case, then id, and by newest current memory, with stab
     expect(paged).toEqual(whole)
   }
 })
-it('returns current memories from finished jobs only and stops at twenty reads', () => {
-  const { store, db, ctx } = setup()
-  const initial = recent(ctx, 50)
-  expect(initial.items.length).toBeGreaterThan(0)
-  expect(initial.items[0]).toMatchObject({ originTitle: 'Harbor billing', type: 'procedure' })
-  expect(initial.items[0]!.learnedAt).toBeTypeOf('number')
-  expect(recent(ctx, 1).items).toEqual(initial.items.slice(0, 1))
-  db.prepare("UPDATE memories SET state='superseded' WHERE id=?").run(initial.items[0]!.id)
-  expect(recent(ctx, 50).items.some((m) => m.id === initial.items[0]!.id)).toBe(false)
-  for (let i = 0; i < 20; i++) {
-    const job = store.enqueue(lane({ sessionId: `ledger-${i}` }), 'queued')
-    store.updateJob(job.id, { state: 'done', finishedAt: 100000 + i })
-  }
-  expect(recent(ctx, 50).items).toEqual([])
-  db.exec('UPDATE memories SET job_id=NULL')
-  expect(recent(ctx, 50).items).toEqual([])
-})
-it('uses the v5 indexes for the unfiltered browse, finished reads and per-job memories', () => {
+it('uses the v5 indexes for the unfiltered browse', () => {
   const { db } = setup()
   const plan = (sql: string) => JSON.stringify(db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all())
   expect(
     plan('SELECT id FROM entities WHERE memories>0 ORDER BY connections DESC,n ASC LIMIT 21'),
   ).toContain('entities_connections')
-  expect(
-    plan("SELECT id FROM jobs WHERE state='done' ORDER BY finished_at DESC LIMIT 20"),
-  ).toContain('jobs_finished')
-  expect(
-    plan(
-      "SELECT id FROM memories WHERE job_id='harbor' AND state IN ('active','disputed') ORDER BY recorded_at DESC,n DESC LIMIT 10",
-    ),
-  ).toContain('memories_job')
-  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
+  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
 })
 
 it('walks the connection index for common and rare kinds, and finds kinds in one pass', () => {

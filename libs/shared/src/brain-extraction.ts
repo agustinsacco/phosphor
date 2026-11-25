@@ -86,8 +86,6 @@ export interface BrainSourceSegment {
 }
 export interface BrainExtractionView extends BrainExtractionRecord {
   job: BrainJob | null
-  replaceable: number
-  laneMemories: number
   /** Each call's prompt, rebuilt from the lane file; empty when the lane is gone. */
   prompts: string[]
   memories: { id: string; summary: string }[]

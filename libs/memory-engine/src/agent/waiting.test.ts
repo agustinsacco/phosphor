@@ -22,8 +22,9 @@ it('lists waiting kinds in decision order, oldest first, with bounded unchecked 
     title: 'Ledger planning',
   })
   expect(store.waitingCounts()).toEqual({
-    reads: 0,
     entities: 2,
+    groups: 0,
+    unlinked: 0,
     repeats: 1,
     conflicts: 1,
     flags: 1,
@@ -59,7 +60,6 @@ it('bounds and scrubs waiting labels and reasons and keeps unknown kinds out', (
   )
   db.prepare('UPDATE memories SET summary=? WHERE n=1').run('x'.repeat(1400))
   const result = store.waitingSuggestions(20, 40).items[0]!
-  if (result.kind === 'read') throw new Error('Expected a suggestion')
   expect(result.subjects[0]!.label).toHaveLength(1200)
   expect(result.reason).not.toContain('made-up-token-value')
   expect(store.agentSuggestion(result.suggestionId)?.suggestion.reason).not.toContain(

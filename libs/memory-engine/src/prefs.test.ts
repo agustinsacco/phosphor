@@ -6,12 +6,12 @@ it('defaults the reader model to null, including older stored preferences', () =
   const { store, db } = fixture()
   expect(store.snapshot().prefs).toHaveProperty('model', null)
   db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run(
-    JSON.stringify({ enabled: true, recall: false, review: true }),
+    JSON.stringify({ enabled: true, recall: false, agentAuto: false }),
   )
   expect(store.snapshot().prefs).toEqual({
     enabled: true,
     recall: false,
-    review: true,
+    agentAuto: false,
     model: null,
     neverRead: DEFAULT_BRAIN_PREFS.neverRead,
   })
@@ -59,7 +59,7 @@ it.each([{ id: 'harbor/reader' }, '-harbor/reader', 'harbor reader', 42, ['harbo
       JSON.stringify({
         enabled: true,
         recall: true,
-        review: false,
+        agentAuto: false,
         model,
         neverRead: DEFAULT_BRAIN_PREFS.neverRead,
       }),
@@ -67,7 +67,7 @@ it.each([{ id: 'harbor/reader' }, '-harbor/reader', 'harbor reader', 42, ['harbo
     expect(store.snapshot().prefs).toEqual({
       enabled: true,
       recall: true,
-      review: false,
+      agentAuto: false,
       model: null,
       neverRead: DEFAULT_BRAIN_PREFS.neverRead,
     })
@@ -76,7 +76,13 @@ it.each([{ id: 'harbor/reader' }, '-harbor/reader', 'harbor reader', 42, ['harbo
 it('reads malformed stored switches as their defaults and ignores unknown fields', () => {
   const { store, db } = fixture()
   db.prepare("INSERT OR REPLACE INTO meta VALUES ('prefs', ?)").run(
-    JSON.stringify({ enabled: 'yes', recall: null, review: 0, model: 'harbor/reader', extra: 1 }),
+    JSON.stringify({
+      enabled: 'yes',
+      recall: null,
+      agentAuto: 0,
+      model: 'harbor/reader',
+      extra: 1,
+    }),
   )
   expect(store.snapshot().prefs).toEqual({ ...DEFAULT_BRAIN_PREFS, model: 'harbor/reader' })
 })

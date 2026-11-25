@@ -35,13 +35,12 @@ export function answerFor(input: ModelCallInput): string {
     })),
   })
 }
-export async function pipelineSetup() {
+export async function pipelineSetup(store = new FakeBrainStore()) {
   const directory = await mkdtemp(join(tmpdir(), 'harbor-pipeline-'))
   const file = join(directory, 'harbor.jsonl')
   const entries = LANE_ENTRIES.map((e) => (e.type === 'session' ? { ...e, cwd: directory } : e))
   await writeFile(file, entries.map((e) => JSON.stringify(e)).join('\n'))
-  const store = new FakeBrainStore(),
-    search = new FakeBrainSearch()
+  const search = new FakeBrainSearch()
   store.prefs.enabled = true
   const runner = vi.fn(async (input: ModelCallInput) => ({
     text: answerFor(input),

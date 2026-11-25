@@ -9,20 +9,20 @@ export const films = [
       'Start with a lane: choose a repository and model, and keep independent tasks on separate worktrees.',
       'Inspect tool calls, changed files and versioned artifacts instead of relying on a final message.',
       'Use the PR inspector to check evidence. Hand-off buttons draft a message; you decide whether to send it.',
-      'Opt into Brain on Desktop to review durable knowledge. Reach your own Hosts from Desktop or the PWA.',
+      'Opt into Brain on Desktop to follow relationships across selected lanes. Reach your own Hosts from Desktop or the PWA.',
     ],
   },
   {
     id: 'brain-walkthrough',
-    title: 'Build a reviewed memory',
+    title: 'Follow a handover in Brain',
     description:
-      'Enable Brain, queue a lane, review proposals and explore their sources. Silent walkthrough of Desktop’s opt-in knowledge graph.',
+      'Read a lane, walk a relationship and see what Brain Agent changed. Silent walkthrough of Desktop’s opt-in knowledge graph.',
     guide: '/guides/brain/',
     steps: [
-      'Open Settings → Brain, read the model terms, enable it and wait for the local embedding model.',
-      'Keep Review before saving on. Queue a selected local lane for knowledge extraction; provider calls can consume quota.',
-      'Check proposed identities, relationships and quotes. Approve selected knowledge or reject it.',
-      'Explore the graph and open supporting memories. New lanes can use brain_search; restart existing lanes for recall.',
+      'On Desktop, read the terms in Settings → Brain and enable local search. Brain Agent checks new knowledge up to six times a day; turn off automatic checks to use Defrag only.',
+      'Queue a local lane from its menu. Extraction calls the lane’s provider. A read saves when it finishes.',
+      'Open What changed to see each saved read and Brain Agent change. Inspect how a lane was read or undo an eligible change.',
+      'Follow the handover sentence from Rina Okafor to Tom Lee. His card separates Now from Before. Ask about the handover to see the memories and their trail.',
     ],
   },
   {

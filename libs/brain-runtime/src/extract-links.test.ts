@@ -59,7 +59,7 @@ async function setup(mode: 'normal' | 'repair' | 'provider' = 'normal') {
 it('carries a links-only relationship through extractJob and fake print transport into proposal evidence', async () => {
   const s = await setup()
   await s.run()
-  const proposal = s.store.storedProposal(s.job.id)!
+  const proposal = s.store.saved.get(s.job.id)!
   expect(proposal.memories[0]!.links).toMatchObject([
     {
       subject: 'w1:n1',
@@ -98,7 +98,7 @@ it.each(['repair', 'provider'] as const)(
     ])
     expect(view.prompts).toEqual(s.runner.mock.calls.map(([c]) => c.prompt))
     expect(view.prompts.map(inputHash)).toEqual(view.calls.map((c) => c.inputHash))
-    expect(s.store.storedProposal(s.job.id)!.memories[0]!.links).toHaveLength(1)
+    expect(s.store.saved.get(s.job.id)!.memories[0]!.links).toHaveLength(1)
     expect(s.options.retryDelay).toHaveBeenCalledTimes(mode === 'provider' ? 1 : 0)
   },
 )
@@ -119,5 +119,5 @@ it('reuses the links checkpoint after a later failure and never adds an accepted
       `${s.store.revision()}:${call.inputHash}`,
     ),
   ).toBeUndefined()
-  expect(s.store.storedProposal(s.job.id)!.memories[0]!.links).toHaveLength(1)
+  expect(s.store.saved.get(s.job.id)!.memories[0]!.links).toHaveLength(1)
 })

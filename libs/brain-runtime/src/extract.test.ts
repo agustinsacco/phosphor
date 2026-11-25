@@ -17,7 +17,7 @@ const signal = () => new AbortController().signal
 it('extracts windows, resolves, embeds and proposes with progress, summed usage and per-call records', async () => {
   const s = await setup()
   await extractJob(s.job, signal(), s.store, s.options, s.search)
-  const p = s.store.storedProposal(s.job.id)!
+  const p = s.store.saved.get(s.job.id)!
   expect(p.memories[0]).toMatchObject({
     summary: RAW_EXTRACTION.claims[0]!.text,
     action: 'add',
@@ -26,7 +26,7 @@ it('extracts windows, resolves, embeds and proposes with progress, summed usage 
   expect(p.computedRevision).toBe(0)
   expect(p.memoryVectors).toHaveLength(1)
   expect(s.store.job(s.job.id)).toMatchObject({
-    state: 'review',
+    state: 'done',
     usage: { tokens: 30, cost: 0 },
     progress: { stage: 'embed', done: 1, total: 1 },
   })
@@ -56,7 +56,7 @@ it('unusable envelope triggers one repair; a second invalid answer visibly fails
     'identity',
   ])
   expect(s.runner.mock.calls[1]![0].prompt).toContain('Expected an array')
-  expect(s.store.storedProposal(s.job.id)!.memories[0]!.links[0]!.predicate).toBe('owns')
+  expect(s.store.saved.get(s.job.id)!.memories[0]!.links[0]!.predicate).toBe('owns')
   expect(s.store.extraction(s.job.id).calls[0]!.error).toContain('Expected an array')
   const t = await setup()
   t.runner.mockResolvedValue({ text: JSON.stringify(bad), usage: { tokens: 5, cost: 0 } })
@@ -95,18 +95,6 @@ it('retry keeps the frozen leaf/model/branch and reuses validated extract parts'
   expect(s.store.job(s.job.id)).toMatchObject({ leafId: leaf, model: 'example/fast' })
   expect(s.runner.mock.calls.every(([c]) => c.lane.leafId === leaf)).toBe(true)
 })
-it('auto-approves review-off jobs and refreshes the reader', async () => {
-  const s = await setup()
-  s.store.prefs.review = false
-  await extractJob(s.job, signal(), s.store, s.options, s.search)
-  expect(s.store.reviews).toEqual([
-    {
-      id: s.job.id,
-      decision: { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    },
-  ])
-  expect(s.search.refreshes).toBe(1)
-})
 it('does not propose after cancellation while embedding, and scrubs failed call records', async () => {
   const s = await setup(),
     controller = new AbortController()
@@ -116,7 +104,7 @@ it('does not propose after cancellation while embedding, and scrubs failed call 
     return embed(args[0], args[1], args[2])
   })
   await expect(extractJob(s.job, controller.signal, s.store, s.options, s.search)).rejects.toThrow()
-  expect(s.store.storedProposal(s.job.id)).toBeUndefined()
+  expect(s.store.saved.get(s.job.id)).toBeUndefined()
   const t = await setup()
   t.runner.mockRejectedValue(new Error('Bearer harbor-secret'))
   await expect(extractJob(t.job, signal(), t.store, t.options, t.search)).rejects.toThrow()
@@ -133,7 +121,7 @@ it('keeps an outcome for each validated claim when a later stage fails', async (
     expect.objectContaining({
       candidate: 'w1:c1',
       status: 'dropped',
-      reason: 'Run failed before proposal',
+      reason: 'Read failed before saving',
     }),
   )
 })
@@ -148,7 +136,7 @@ it('publishes extract progress before the first model call begins', async () => 
   await extractJob(s.job, signal(), s.store, s.options, s.search)
 })
 
-it('reaches review with all 20 claims when reconciliation answers only 19 twice', async () => {
+it('saves with all 20 claims when reconciliation answers only 19 twice', async () => {
   const s = await setup()
   const claims = Array.from({ length: 20 }, (_, i) => ({
     ...RAW_EXTRACTION.claims[0]!,
@@ -172,6 +160,9 @@ it('reaches review with all 20 claims when reconciliation answers only 19 twice'
       validTo: null,
       recordedAt: 0,
       observedAt: 0,
+      importance: 1,
+      saidBy: 'agent',
+      lanes: 1,
       origin: null,
     },
   ]
@@ -189,8 +180,8 @@ it('reaches review with all 20 claims when reconciliation answers only 19 twice'
     usage: { tokens: 1, cost: 0 },
   }))
   await expect(extractJob(s.job, signal(), s.store, s.options, s.search)).resolves.toBeUndefined()
-  expect(s.store.job(s.job.id)!.state).toBe('review')
-  const memories = s.store.storedProposal(s.job.id)!.memories
+  expect(s.store.job(s.job.id)!.state).toBe('done')
+  const memories = s.store.saved.get(s.job.id)!.memories
   expect(memories).toHaveLength(20)
   expect(memories[19]).toMatchObject({
     action: 'add',

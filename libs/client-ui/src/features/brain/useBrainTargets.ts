@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react'
 import type { BrainTarget } from './brainNavigation'
-import type { LaneSelection } from './lanes/laneGroups'
 
 /** Apply what a notice, toast or the search button asked for, once per request. */
 export function useBrainTargets(
   target: { value: BrainTarget; request: number } | null,
   actions: {
-    setLane: (selection: LaneSelection | null) => void
-    focusSearch: () => void
+    openSearch: () => void
+    showChanges: () => void
+    openRecord: (jobId: string) => void
   },
 ): void {
   const latest = useRef(actions)
@@ -17,9 +17,8 @@ export function useBrainTargets(
     if (!target || target.request === applied.current) return
     applied.current = target.request
     const { value } = target
-    const { setLane, focusSearch } = latest.current
-    if (value.tab === 'lanes' && value.jobId) setLane({ type: 'job', id: value.jobId })
-    if (value.tab === 'lanes' && value.recent) setLane({ type: 'change', id: null })
-    if (value.tab === 'knowledge' && value.search) focusSearch()
+    if (value.search) latest.current.openSearch()
+    if (value.changes) latest.current.showChanges()
+    if (value.jobId) latest.current.openRecord(value.jobId)
   }, [target])
 }

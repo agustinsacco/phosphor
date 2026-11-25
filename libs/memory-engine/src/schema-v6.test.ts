@@ -19,16 +19,16 @@ function oldDatabase(path: string, version: 4 | 5): void {
     CREATE INDEX jobs_finished ON jobs(state, finished_at DESC); PRAGMA user_version=5;`)
   db.close()
 }
-it('creates version 7 with an empty resumable sweep and no startup fingerprint backfill', () => {
+it('creates version 8 with an empty resumable sweep and no startup fingerprint backfill', () => {
   const { db } = fixture()
-  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
+  expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
   expect(db.prepare('SELECT * FROM tidy_memory_keys').all()).toEqual([])
   expect(db.prepare('SELECT phase,cursor FROM tidy_sweep').get()).toEqual({
     phase: 'entities',
     cursor: 0,
   })
 })
-it.each([4, 5] as const)('upgrades version %i to 7 without changing existing rows', (version) => {
+it.each([4, 5] as const)('upgrades version %i to 8 without changing existing rows', (version) => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-v6-'))
   const path = join(dir, 'brain.sqlite')
   try {
@@ -40,10 +40,19 @@ it.each([4, 5] as const)('upgrades version %i to 7 without changing existing row
       )
       .all()
       .map((row) => String(row.name))
-    const before = tables.map((table) => db.prepare(`SELECT * FROM ${table}`).all())
+    // Columns as they were, so the columns later versions add are left out of the comparison.
+    const select = tables.map(
+      (table) =>
+        `SELECT ${db
+          .prepare('SELECT name FROM pragma_table_info(?)')
+          .all(table)
+          .map((row) => String(row.name))
+          .join(',')} FROM ${table}`,
+    )
+    const before = select.map((sql) => db.prepare(sql).all())
     const store = openBrainStore({ path, Database: DatabaseSync })
-    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 7 })
-    expect(tables.map((table) => db.prepare(`SELECT * FROM ${table}`).all())).toEqual(before)
+    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
+    expect(select.map((sql) => db.prepare(sql).all())).toEqual(before)
     expect(store.memory('memory').memory.summary).toBe('Rina leads Ledger')
     expect(db.prepare('SELECT * FROM tidy_memory_keys').all()).toEqual([])
     store.close()
@@ -52,7 +61,7 @@ it.each([4, 5] as const)('upgrades version %i to 7 without changing existing row
     rmSync(dir, { recursive: true, force: true })
   }
 })
-it('rolls back a failed v5 migration and refuses version 8 without resetting', () => {
+it('rolls back a failed v5 migration and refuses version 9 without resetting', () => {
   const dir = mkdtempSync(join(tmpdir(), 'brain-v6-failure-'))
   const path = join(dir, 'brain.sqlite')
   try {
@@ -73,9 +82,9 @@ it('rolls back a failed v5 migration and refuses version 8 without resetting', (
       summary: 'Rina leads Ledger',
     })
     expect(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'tidy_%'").all()).toEqual([])
-    db.exec('PRAGMA user_version=8')
+    db.exec('PRAGMA user_version=9')
     expect(() => openBrainStore({ path, Database: DatabaseSync })).toThrow('newer application')
-    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 8 })
+    expect(db.prepare('PRAGMA user_version').get()).toEqual({ user_version: 9 })
     db.close()
   } finally {
     rmSync(dir, { recursive: true, force: true })

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { fixture, extraction, lane } from '../test-support'
+import { fixture, extraction, save } from '../test-support'
 import { seed } from '../tidy/test-support'
 import type { DatabaseSync } from 'node:sqlite'
 
@@ -25,30 +25,24 @@ function scan(db: DatabaseSync): string {
     )
     .join('\n')
 }
-it('erasing an approved memory removes its entire proposal undo record, including rejected claims', () => {
+it('erasing a saved memory removes the read undo record, so the read can no longer be undone', () => {
   const { store, db } = fixture()
-  const job = store.enqueue(lane(), 'queued')
-  const data = extraction(job.id)
-  store.propose(data)
-  const op = store.decideRead(
-    job.id,
-    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    0,
-    note,
-  )
-  const id = op.touched.memoryIds[0]!
+  const data = extraction('unused')
+  const saved = save(store)
+  const id = saved.touched.memoryIds[0]!
   expect(
     db
       .prepare('SELECT memory_id FROM tidy_operation_memories WHERE operation_id=?')
-      .all(op.operationId),
+      .all(saved.operationId),
   ).toEqual(expect.arrayContaining([{ memory_id: id }]))
+  const erased = db.prepare('SELECT summary FROM memories WHERE id=?').get(id)!.summary
   store.erase(id, note)
-  expect(scan(db)).not.toContain(data.memories[0]!.summary)
-  expect(scan(db)).not.toContain(data.memories[1]!.summary)
-  expect(store.tidyChanges(50).items.find((item) => item.id === op.operationId)?.undoable).toBe(
+  expect(scan(db)).not.toContain(erased)
+  expect(data.memories.map((m) => m.summary)).toContain(erased)
+  expect(store.tidyChanges(50).items.find((item) => item.id === saved.operationId)?.undoable).toBe(
     false,
   )
-  expect(() => store.agentUndo(op.operationId, note)).toThrow('forgotten')
+  expect(() => store.agentUndo(saved.operationId!, note)).toThrow('forgotten')
 })
 it('forget also drops a read approval snapshot and erasure redacts prior agent reasons', () => {
   const { store, db } = fixture()
@@ -66,53 +60,16 @@ it('forget also drops a read approval snapshot and erasure redacts prior agent r
   ])
   expect(scan(db).toLowerCase()).not.toContain('rina leads ledger area 1.')
 })
-it('Forget removes an approval snapshot, and erase removes another read snapshot quoting the memory', () => {
+it('Forget removes the saved read snapshot that held the memory', () => {
   const { store, db } = fixture()
-  const job = store.enqueue(lane(), 'queued')
-  const data = extraction(job.id)
-  store.propose(data)
-  const approved = store.decideRead(
-    job.id,
-    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    0,
-    note,
-  )
-  const id = approved.touched.memoryIds[0]!
-  const next = store.enqueue(lane({ sessionId: 'ledger-lane' }), 'queued')
-  store.propose(extraction(next.id, { computedRevision: store.knowledgeRevision() }))
-  const rejected = store.decideRead(next.id, null, store.knowledgeRevision(), note)
+  const saved = save(store)
+  const id = saved.touched.memoryIds[0]!
+  const summary = db.prepare('SELECT summary FROM memories WHERE id=?').get(id)!.summary
   store.forget(id)
-  expect(scan(db)).not.toContain(data.memories[0]!.summary)
-  for (const operation of [approved.operationId, rejected.operationId])
-    expect(
-      db
-        .prepare('SELECT COUNT(*) AS n FROM tidy_operation_rows WHERE operation_id=?')
-        .get(operation),
-    ).toEqual({ n: 0 })
-})
-it('drops other read undo snapshots even when JSON escapes the erased sentence', () => {
-  const { store, db } = fixture()
-  const summary = 'Rina said "Ledger uses Kestrel".'
-  const first = store.enqueue(lane(), 'queued')
-  const data = extraction(first.id)
-  data.memories[0]!.summary = summary
-  data.evidence[0]!.text = summary
-  data.memories[0]!.citations[0]!.quote = summary
-  data.memories[0]!.links[0]!.citation.quote = summary
-  store.propose(data)
-  const approved = store.decideRead(
-    first.id,
-    { memories: [0], identities: {}, groups: [], descriptions: [], confirmations: [] },
-    0,
-    note,
-  )
-  const second = store.enqueue(lane({ sessionId: 'ledger-lane' }), 'queued')
-  store.propose({ ...data, jobId: second.id, computedRevision: store.knowledgeRevision() })
-  const rejected = store.decideRead(second.id, null, store.knowledgeRevision(), note)
-  store.erase(approved.touched.memoryIds[0]!, note)
+  expect(scan(db)).not.toContain(summary)
   expect(
     db
       .prepare('SELECT COUNT(*) AS n FROM tidy_operation_rows WHERE operation_id=?')
-      .get(rejected.operationId),
+      .get(saved.operationId),
   ).toEqual({ n: 0 })
 })

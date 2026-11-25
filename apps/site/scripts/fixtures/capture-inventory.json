@@ -14,59 +14,59 @@
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
+    "path": "apps/site/src/assets/shots/brain-changes.webp",
+    "width": 384,
+    "height": 225,
+    "bytes": 9604,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
     "path": "apps/site/src/assets/shots/brain-extraction.webp",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 47448,
+    "width": 760,
+    "height": 470,
+    "bytes": 11850,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "apps/site/src/assets/shots/brain-graph.webp",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 54010,
+    "width": 1344,
+    "height": 956,
+    "bytes": 53630,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "apps/site/src/assets/shots/brain-memory.webp",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 62908,
+    "width": 1344,
+    "height": 956,
+    "bytes": 60456,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "apps/site/src/assets/shots/brain-queue.webp",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 58380,
+    "width": 1344,
+    "height": 956,
+    "bytes": 56718,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "apps/site/src/assets/shots/brain-ready.webp",
     "width": 880,
     "height": 780,
-    "bytes": 49052,
+    "bytes": 51874,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "apps/site/src/assets/shots/brain-recall.webp",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 73864,
-    "provenance": "Product demo · fictional data; current renderer"
-  },
-  {
-    "path": "apps/site/src/assets/shots/brain-review.webp",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 52818,
+    "width": 1344,
+    "height": 956,
+    "bytes": 34898,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "apps/site/src/assets/shots/brain-setup.webp",
     "width": 880,
     "height": 780,
-    "bytes": 26732,
+    "bytes": 26134,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
@@ -315,59 +315,59 @@
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
+    "path": "docs/img/brain-changes.png",
+    "width": 384,
+    "height": 225,
+    "bytes": 20040,
+    "provenance": "Product demo · fictional data; current renderer"
+  },
+  {
     "path": "docs/img/brain-extraction.png",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 126072,
+    "width": 760,
+    "height": 470,
+    "bytes": 30999,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "docs/img/brain-graph.png",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 145361,
+    "width": 1344,
+    "height": 956,
+    "bytes": 132285,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "docs/img/brain-memory.png",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 162064,
+    "width": 1344,
+    "height": 956,
+    "bytes": 143946,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "docs/img/brain-queue.png",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 150526,
+    "width": 1344,
+    "height": 956,
+    "bytes": 137600,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "docs/img/brain-ready.png",
     "width": 880,
     "height": 780,
-    "bytes": 109673,
+    "bytes": 114196,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "docs/img/brain-recall.png",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 157564,
-    "provenance": "Product demo · fictional data; current renderer"
-  },
-  {
-    "path": "docs/img/brain-review.png",
-    "width": 1600,
-    "height": 1000,
-    "bytes": 131982,
+    "width": 1344,
+    "height": 956,
+    "bytes": 90197,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
     "path": "docs/img/brain-setup.png",
     "width": 880,
     "height": 780,
-    "bytes": 67395,
+    "bytes": 66471,
     "provenance": "Product demo · fictional data; current renderer"
   },
   {
