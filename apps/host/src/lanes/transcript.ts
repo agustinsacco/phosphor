@@ -3,7 +3,7 @@ import type { LaneSummary, StoppedComposer, StreamCursor } from '@phosphor/share
 import { fitSnapshot, type SnapshotResult } from './projection-host'
 import type { HostStore } from './store'
 import { createTranscriptCache } from './transcript/cache'
-import { readTranscript, type TranscriptFailureReason } from './transcript/read'
+import { readTranscriptWithComposer, type TranscriptFailureReason } from './transcript/read'
 
 export function createUnattachedSnapshots(options: {
   store: Pick<HostStore, 'getLane'>
@@ -44,7 +44,7 @@ export function createUnattachedSnapshots(options: {
         mode !== 'complete',
       )
     if (lane.sessionFile !== null) {
-      const result = readTranscript({
+      const result = readTranscriptWithComposer({
         sessionFile: lane.sessionFile,
         sessionsRoot: options.sessionsRoot,
         laneId,
