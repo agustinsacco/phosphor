@@ -340,8 +340,8 @@ it('queues a remote follow-up typed while the steer before it awaits its receipt
   await click('Queue follow-up')
   const prompts = pi.mock.calls.filter(([, op]) => op.type === 'prompt').map(([, op]) => op)
   expect(prompts).toEqual([
-    { type: 'prompt', message: 'PHX-steered', streamingBehavior: 'steer' },
-    { type: 'prompt', message: 'PHX-followed', streamingBehavior: 'followUp' },
+    { type: 'prompt', message: 'PHX-steered', streamingBehavior: 'steer', busy: true },
+    { type: 'prompt', message: 'PHX-followed', streamingBehavior: 'followUp', busy: true },
   ])
   await act(async () => receipts.forEach((done) => done()))
   expect(useDraftsStore.getState().get(key).text).toBe('')

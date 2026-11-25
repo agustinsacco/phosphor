@@ -53,6 +53,30 @@ describe('lane command guards and operations', () => {
     },
   )
 
+  it('hands pi two busy sends on one lane in order when the second precedes the first receipt', async () => {
+    // The first send takes control at fence 1, which moves the lane to fence 2.
+    const busy = (message: string, streamingBehavior: 'steer' | 'followUp', fence: number) =>
+      f.frame({ type: 'prompt', message, streamingBehavior, busy: true }, fence)
+    const first = busy('PHX-first', 'steer', 1)
+    const second = busy('PHX-second', 'followUp', 2)
+    const sends = [f.service.submit(f.one, first), f.service.submit(f.one, second)]
+    try {
+      expect(f.last(first.requestId)?.status).toBe('pending')
+      expect(f.command.mock.calls.map(([, cmd]) => cmd)).toMatchObject([
+        { type: 'prompt', message: 'PHX-first', streamingBehavior: 'steer' },
+        { type: 'prompt', message: 'PHX-second', streamingBehavior: 'followUp' },
+      ])
+    } finally {
+      f.finish(0)
+      f.finish(1)
+      await Promise.all(sends)
+    }
+    expect([f.last(first.requestId)?.status, f.last(second.requestId)?.status]).toEqual([
+      'done',
+      'done',
+    ])
+  })
+
   it('caps pi errors, drops oversize data in delivered receipts and logs no content', async () => {
     const request = { ...f.frame(), trace: '1234567890abcdef' }
     const a = f.service.submit(f.one, request)

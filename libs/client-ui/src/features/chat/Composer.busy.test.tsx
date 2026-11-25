@@ -119,7 +119,9 @@ it.each([
   expect(button('Queue follow-up')).toBeDefined()
   expect(container.querySelector('textarea')?.placeholder).not.toBe('Describe a task…')
   await enter()
-  expect(prompts(pi)).toEqual([{ type: 'prompt', message: 'PHX-busy', streamingBehavior: 'steer' }])
+  expect(prompts(pi)).toEqual([
+    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'steer', busy: true },
+  ])
 })
 
 it('the Send button steers and a modified Enter queues while the Host reports the lane working', async () => {
@@ -130,8 +132,8 @@ it('the Send button steers and a modified Enter queues while the Host reports th
   act(() => useDraftsStore.getState().setText(hostKey, 'PHX-later'))
   await enter({ altKey: true })
   expect(prompts(pi)).toEqual([
-    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'steer' },
-    { type: 'prompt', message: 'PHX-later', streamingBehavior: 'followUp' },
+    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'steer', busy: true },
+    { type: 'prompt', message: 'PHX-later', streamingBehavior: 'followUp', busy: true },
   ])
 })
 
@@ -189,14 +191,14 @@ it('accepts a follow-up draft on a live Host before the first prompt is acknowle
   act(() => useDraftsStore.getState().setText(hostKey, 'PHX-second'))
   expect(button('Queue follow-up')?.matches(':disabled')).toBe(false)
   await act(async () => button('Queue follow-up')?.click())
-  expect(prompts(pi)).toEqual([
+  // The follow-up goes out before the first prompt's receipt; the Host keeps lane order.
+  const sent = [
     { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'followUp' },
-  ])
+    { type: 'prompt', message: 'PHX-second', streamingBehavior: 'followUp', busy: true },
+  ]
+  expect(prompts(pi)).toEqual(sent)
   await act(async () => acceptFirst())
-  expect(prompts(pi)).toEqual([
-    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'followUp' },
-    { type: 'prompt', message: 'PHX-second', streamingBehavior: 'followUp' },
-  ])
+  expect(prompts(pi)).toEqual(sent)
 })
 
 it('Queue follow-up treats a shell-looking draft as a message, not an immediate bash command', async () => {
@@ -208,5 +210,7 @@ it('Queue follow-up treats a shell-looking draft as a message, not an immediate 
   expect(pi.mock.calls.map(([, command]) => command)).not.toContainEqual(
     expect.objectContaining({ type: 'bash' }),
   )
-  expect(prompts(pi)).toEqual([{ type: 'prompt', message: '!pwd', streamingBehavior: 'followUp' }])
+  expect(prompts(pi)).toEqual([
+    { type: 'prompt', message: '!pwd', streamingBehavior: 'followUp', busy: true },
+  ])
 })
