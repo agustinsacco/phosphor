@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ContextMenuHost } from '@/components/ContextMenu'
+import { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { useMachinesStore } from '@/stores/machines'
@@ -214,3 +215,37 @@ it('offers no tree or clone before the lane has a first message: the Host would 
   render({ ...host(true), ops: true, laneEditing: true })
   expect(labels()).toEqual(expect.arrayContaining(['Clone', 'Session tree…']))
 })
+
+it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
+  'updates the open $formFactor lane menu when warm-on-open finishes',
+  async (platform) => {
+    const view = host(true)
+    view.lanes[0] = { ...view.lanes[0]!, activity: 'stopped' }
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: view }, filter: MOCK_HOST_ID })
+    act(() =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <RemoteLanes />
+          <ContextMenuHost />
+        </PlatformProvider>,
+      ),
+    )
+    const row = container.querySelector('[data-testid=remote-session-row]')!
+    act(() => {
+      row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+    })
+    const menu = document.querySelector(
+      '[data-testid=context-menu], [data-testid=context-menu-sheet]',
+    )!
+    const action = (label: string) =>
+      [...menu.querySelectorAll('button')].find((b) => b.textContent === label)
+    expect(action('Resume')).toBeDefined()
+    const idle = structuredClone(view)
+    idle.lanes[0] = { ...idle.lanes[0]!, activity: 'idle' }
+    act(() => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: idle } }))
+    expect(action('Stop')).toBeDefined()
+    expect(action('Resume')).toBeUndefined()
+    await act(async () => action('Stop')!.click())
+    expect(invoke).toHaveBeenCalledWith('hosts:stopLane', MOCK_HOST_ID, idle.lanes[0]!.laneId)
+  },
+)

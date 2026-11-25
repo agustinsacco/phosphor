@@ -33,7 +33,11 @@ export interface ContextMenuOptions {
   title?: string
 }
 
+type MenuItems = () => ContextMenuItem[]
+
 interface ContextMenuState {
+  /** Only a menu opened by this trigger may refresh its actions. */
+  source?: MenuItems
   x: number
   y: number
   items: ContextMenuItem[]
@@ -43,7 +47,7 @@ interface ContextMenuState {
 }
 
 /** Imperative context menu — call show() from onContextMenu handlers. */
-let showMenu: ((state: ContextMenuState) => void) | null = null
+let showMenu: React.Dispatch<React.SetStateAction<ContextMenuState | null>> | null = null
 
 function openMenu(
   x: number,
@@ -51,8 +55,9 @@ function openMenu(
   items: ContextMenuItem[],
   options: ContextMenuOptions,
   trigger: HTMLElement | null,
+  source?: MenuItems,
 ): void {
-  showMenu?.({ x, y, items, title: options.title, trigger })
+  showMenu?.({ x, y, items, title: options.title, trigger, source })
 }
 
 export function showContextMenu(
@@ -92,6 +97,8 @@ export function showMenuBelow(
 export interface MenuTriggerOptions extends ContextMenuOptions {
   /** No menu and no vibration; every event passes through untouched. */
   disabled?: boolean
+  /** Rebuild this trigger’s open menu when the underlying action state changes. */
+  revision?: string
 }
 
 export interface MenuTriggerProps {
@@ -122,14 +129,34 @@ export function useMenuTriggers(
 ): MenuTriggerProps {
   const latest = useRef({ items, options })
   latest.current = { items, options }
+  const opened = useRef<MenuItems | undefined>(undefined)
+  const { revision, disabled } = options
+  useLayoutEffect(() => {
+    const source = opened.current
+    if (source)
+      showMenu?.((menu) =>
+        menu?.source !== source ? menu : disabled ? null : { ...menu, items: source() },
+      )
+  }, [revision, disabled])
   const [gesture] = useState(
     () =>
       new MenuGesture(
         () => latest.current.options.disabled === true,
-        (x, y, trigger) => openMenu(x, y, latest.current.items(), latest.current.options, trigger),
+        (x, y, trigger) => {
+          const { items, options } = latest.current
+          opened.current = options.revision === undefined ? undefined : () => latest.current.items()
+          openMenu(x, y, items(), options, trigger, opened.current)
+        },
       ),
   )
-  useEffect(() => gesture.dispose, [gesture])
+  useEffect(
+    () => () => {
+      gesture.dispose()
+      const source = opened.current
+      if (source) showMenu?.((menu) => (menu?.source === source ? null : menu))
+    },
+    [gesture],
+  )
   return {
     'data-menu-trigger': true,
     onContextMenu: gesture.onContextMenu,
