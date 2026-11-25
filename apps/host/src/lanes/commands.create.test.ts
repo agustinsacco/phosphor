@@ -49,6 +49,30 @@ describe('lane.create', () => {
     expect(f.last(request.requestId)).toEqual(receipt)
     expect(f.ports.sessions.start).toHaveBeenCalledTimes(1)
   })
+  it('keeps a slow create pending through replay and returns the same lane once done', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: f.lane.cwd,
+      branch: 'slow',
+      undo: async () => {},
+    })
+    const gate = deferred<{ sessionId: string; sessionFile: null }>()
+    vi.mocked(f.ports.sessions.start).mockReturnValueOnce(gate.promise)
+    const request = create({ worktree: { branch: 'slow', fresh: true } })
+    const running = f.service.submit(f.one, request)
+    await vi.advanceTimersByTimeAsync(75_000)
+    expect(f.receipts(request.requestId)).toEqual([])
+    await f.service.submit(f.one, request)
+    expect(f.last(request.requestId)).toMatchObject({ status: 'pending' })
+    gate.release({ sessionId: 'slow', sessionFile: null })
+    await running
+    const done = f.last(request.requestId)
+    expect(done).toMatchObject({ status: 'done', laneId: expect.any(String), fence: 1 })
+    expect(f.receipts(request.requestId).map(({ status }) => status)).toEqual(['pending', 'done'])
+    await f.service.submit(f.one, request)
+    expect(f.last(request.requestId)).toEqual(done)
+    expect(f.ports.sessions.start).toHaveBeenCalledOnce()
+    expect(f.store.listLanes()).toHaveLength(2)
+  })
   it('rejects laneId, unknown and inactive repositories, and unnormalized or oversized names', async () => {
     const requests = [
       { ...create(), laneId: f.lane.laneId },
