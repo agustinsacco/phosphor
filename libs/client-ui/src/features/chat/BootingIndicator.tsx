@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSessionHostLane } from '@/stores/remoteLanes'
 import { useChatStore } from '@/stores/chat'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { BOOT_PHRASE_MS, bootPhrase } from './bootPhrases'
@@ -39,7 +40,9 @@ function usePhrase(sessionId: string): string {
  */
 export function BootingIndicator({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const booting = useSessionBooting(sessionId)
-  const phrase = usePhrase(sessionId)
+  const waiting = usePhrase(sessionId)
+  const phrase =
+    useSessionHostLane(sessionId)?.lane?.activity === 'stopped' ? 'Starting lane…' : waiting
   if (!booting) return null
 
   return (

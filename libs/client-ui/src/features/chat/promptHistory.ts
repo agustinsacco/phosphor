@@ -35,3 +35,22 @@ export function recallNext(
   const next = index - 1
   return { index: next, text: history[history.length - 1 - next] as string }
 }
+
+/**
+ * The prompts this session has already sent, oldest first.
+ *
+ * Read straight off the transcript rather than kept as a second list: every
+ * send appends a user item (optimistically, before pi echoes it), so the
+ * transcript is already the history — and a session resumed from disk has one
+ * without Phosphor persisting anything of its own.
+ */
+export function promptHistory(items: readonly { kind: string; text?: string }[]): string[] {
+  const prompts: string[] = []
+  for (const item of items) {
+    if (item.kind !== 'user') continue
+    const text = item.text?.trim()
+    // Consecutive duplicates (a retried prompt) would make ↑ look stuck.
+    if (text && text !== prompts[prompts.length - 1]) prompts.push(text)
+  }
+  return prompts
+}

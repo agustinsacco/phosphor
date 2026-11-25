@@ -1247,6 +1247,11 @@ Create from the Host home composer; [remote creation](remote-desktop.md#machine-
 owns repository, thinking and branch choices.
 
 Slash commands come from the lane; file mentions search its Host file list.
+On Enter in an idle Host lane the bubble appears and the composer clears before uploads,
+control claims or receipts. The booting strip says “Starting lane…” while the lane is stopped.
+A refusal removes the pending bubble, restores the text and attachments and shows the error.
+Steers and follow-ups enter the transcript only when delivered.
+
 Thinking levels derive from its model. Continue waits for the receipt and echo
 rather than inserting an optimistic duplicate. The Files, Changes, Terminal and
 Artifacts panes route to the Host when their capabilities are announced. Remote
