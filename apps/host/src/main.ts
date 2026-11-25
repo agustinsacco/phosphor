@@ -3,6 +3,7 @@ import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runCli } from './cli'
 import { stopProbes } from './machine/probe'
+import { stopUsageProbes } from './providers/account-probes'
 import { createShutdown, flushStreams, SHUTDOWN_SIGNALS } from './shutdown'
 import { richTerminal } from './ui/terminal'
 
@@ -12,7 +13,10 @@ import { richTerminal } from './ui/terminal'
 const shutdown = createShutdown({
   exit: (code) => process.exit(code),
   stderr: (text) => process.stderr.write(text),
-  stopProbes,
+  stopProbes: () => {
+    stopProbes()
+    stopUsageProbes()
+  },
   flush: flushStreams([process.stdout, process.stderr]),
 })
 for (const signal of SHUTDOWN_SIGNALS) process.on(signal, () => void shutdown.signal(signal))

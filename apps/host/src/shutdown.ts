@@ -46,7 +46,7 @@ export interface Drainable {
 export interface ShutdownIo {
   exit(code: number): void
   stderr(text: string): void
-  /** Kill every version probe still running: each leads its own process group. */
+  /** Kill every version and usage probe still running, removing a usage probe's directory. */
   stopProbes(): void
   /** Call `done` once stdout and stderr have flushed. Without it, an exit is immediate. */
   flush?(done: () => void): void
