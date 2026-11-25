@@ -1,4 +1,3 @@
-import type { AgentMessage } from '@phosphor/shared/rpc'
 import {
   isLaneBranchName,
   parseHostFrame,
@@ -64,7 +63,7 @@ export function summaryFor(state: LiveState, laneId: string): LaneSummary | null
       title(sessionState?.sessionName) ??
       title(summary.title) ??
       live?.firstPrompt ??
-      firstPromptTitle(live?.projection.messages()),
+      promptTitle(live?.projection.firstUserText() ?? ''),
     model: model(sessionState?.model) ?? model(summary.model),
     branch: isLaneBranchName(summary.branch) ? summary.branch : null,
   }
@@ -85,16 +84,4 @@ export function promptTitle(message: string): string | null {
   const result = line.length <= 80 ? line : prefix.trimEnd() + '…'
   // The shared label contract also refuses control and invisible characters.
   return normalizeLabel(result)
-}
-function firstPromptTitle(messages: readonly AgentMessage[] | undefined) {
-  const message = messages?.find((m) => m.role === 'user')
-  if (!message || message.role !== 'user') return null
-  return promptTitle(
-    typeof message.content === 'string'
-      ? message.content
-      : message.content
-          .filter((c) => c.type === 'text')
-          .map((c) => c.text)
-          .join('\n'),
-  )
 }

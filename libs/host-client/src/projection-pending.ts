@@ -1,3 +1,4 @@
+import { utf8Length } from '@phosphor/shared/host-protocol'
 import type { PiEvent } from '@phosphor/shared/rpc'
 import type { PendingList, ProjectionState } from './projection-state'
 
@@ -5,26 +6,24 @@ import type { PendingList, ProjectionState } from './projection-state'
  * A projection's pending events (`tail`, or `barrier` while one holds) and their running
  * UTF-8 size as `JSON.stringify` encodes them. Each event is measured once, when it enters
  * pending, so the replay bound costs O(event) per event, not O(pending bytes).
- *
- * A merged delta is sized as the new event plus the earlier text it extends. That is exact
- * except for a surrogate pair split across two deltas: it counts two 6-byte escapes for one
- * 4-byte character, so the size runs over by 8 bytes per split pair and never under.
  */
 export interface PendingSizes {
   /** JSON bytes of each event. */
   event: WeakMap<PiEvent, number>
-  /** JSON-escaped bytes of a merged delta's text, without its quotes. */
-  text: WeakMap<PiEvent, number>
+  /** Escaped text bytes (without quotes) and the last UTF-16 code unit of a merged delta. */
+  text: WeakMap<PiEvent, DeltaTextSize>
 }
 
 export function createPendingSizes(): PendingSizes {
   return { event: new WeakMap(), text: new WeakMap() }
 }
 
-// JSON.stringify escapes lone surrogates, so its output always encodes losslessly.
-const encoder = new TextEncoder()
-const jsonBytes = (value: unknown) => encoder.encode(JSON.stringify(value)).length
-const textBytes = (text: string) => jsonBytes(text) - 2
+const jsonBytes = (value: unknown) => utf8Length(JSON.stringify(value))
+type DeltaTextSize = { bytes: number; lastCodeUnit: number }
+
+function measureDeltaText(text: string): DeltaTextSize {
+  return { bytes: jsonBytes(text) - 2, lastCodeUnit: text.charCodeAt(text.length - 1) }
+}
 
 export function eventBytes(sizes: PendingSizes, event: PiEvent): number {
   let bytes = sizes.event.get(event)
@@ -43,9 +42,26 @@ function mergedDeltaBytes(
   last: PiEvent,
   texts: { last: string; event: string },
 ): number {
-  const earlier = sizes.text.get(last) ?? textBytes(texts.last)
-  sizes.text.set(merged, earlier + textBytes(texts.event))
-  const bytes = eventBytes(sizes, event) + earlier
+  // The wire guard is shallow; concatenation can coerce a value or add a missing field.
+  if (typeof texts.last !== 'string' || typeof texts.event !== 'string')
+    return eventBytes(sizes, merged)
+
+  // Reading the end of the accumulated string can flatten it. Use the cached code unit.
+  const earlier = sizes.text.get(last) ?? measureDeltaText(texts.last)
+  const next = measureDeltaText(texts.event)
+  const first = texts.event.charCodeAt(0)
+  // Two lone surrogate escapes (6 bytes each) become one 4-byte character.
+  const joinsPair =
+    earlier.lastCodeUnit >= 0xd800 &&
+    earlier.lastCodeUnit <= 0xdbff &&
+    first >= 0xdc00 &&
+    first <= 0xdfff
+  const added = earlier.bytes - (joinsPair ? 8 : 0)
+  sizes.text.set(merged, {
+    bytes: next.bytes + added,
+    lastCodeUnit: texts.event.length ? next.lastCodeUnit : earlier.lastCodeUnit,
+  })
+  const bytes = eventBytes(sizes, event) + added
   sizes.event.set(merged, bytes)
   return bytes
 }

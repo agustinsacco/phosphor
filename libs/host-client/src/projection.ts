@@ -234,8 +234,10 @@ function applyUi(state: ProjectionState, options: ProjectionOptions, request: Ex
 function apply(state: ProjectionState, options: ProjectionOptions, push: LanePiPush) {
   if (push.kind === 'event') {
     if (state.discarding && push.event.type === 'message_update') return
-    applyEvent(state, options, push.event)
-    if (state.barrier) state.barrier = appendEvent(state, 'barrier', state.barrier, push.event)
+    // Pending byte counts assume retained events cannot be changed by the producer.
+    const event = structuredClone(push.event)
+    applyEvent(state, options, event)
+    if (state.barrier) state.barrier = appendEvent(state, 'barrier', state.barrier, event)
     checkBounds(state, options)
   } else if (push.kind === 'exit') applyExit(state, push)
   else applyUi(state, options, push.request)
@@ -282,7 +284,8 @@ function view(state: ProjectionState, options: ProjectionOptions): LaneProjectio
   return {
     state: state.session,
     messages: [...state.messages],
-    pending: pending(state),
+    // Copy only on view reads, not while updating cached sizes on each event.
+    pending: structuredClone(pending(state)),
     dialogs: [...state.dialogs.values()].map((d) => d.request),
     ui: [
       ...state.statuses.values(),
@@ -290,6 +293,17 @@ function view(state: ProjectionState, options: ProjectionOptions): LaneProjectio
       ...(state.title ? [state.title] : []),
     ],
   }
+}
+
+function firstUserText(messages: readonly AgentMessage[]): string | undefined {
+  const message = messages.find((m) => m.role === 'user')
+  if (!message) return undefined
+  return typeof message.content === 'string'
+    ? message.content
+    : message.content
+        .filter((c) => c.type === 'text')
+        .map((c) => c.text)
+        .join('\n')
 }
 
 function activity(state: ProjectionState, options: ProjectionOptions): LaneActivity {
@@ -345,10 +359,13 @@ export function createLaneProjection(options: ProjectionOptions) {
       state.dialogs.delete(id)
     },
     view: () => view(state, options),
-    /** `view().state` without building the rest of the view, for per-push summaries. */
-    sessionState: () => state.session,
-    /** `view().messages` without its copy; the projection replaces, never mutates, it. */
-    messages: (): readonly AgentMessage[] => state.messages,
+    // Read only what per-push summaries use, without building a view.
+    sessionState() {
+      if (!state.session) return null
+      const { sessionName, model } = state.session
+      return { sessionName, model: model && { provider: model.provider, id: model.id } } as const
+    },
+    firstUserText: () => firstUserText(state.messages),
     activity: () => activity(state, options),
   }
 }

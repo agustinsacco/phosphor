@@ -238,16 +238,38 @@ describe('lane projection state transitions', () => {
     expect(p.sessionState()?.sessionName).toBe('saved')
   })
 
-  it('reads session state and transcript without copying the view', () => {
+  it('reads only the display model, session name and first user text for summaries', () => {
     const { projection: p, event } = setup()
-    const message: AgentMessage = { role: 'user', content: 'saved' }
-    p.settle([message], session())
-    expect(p.sessionState()).toEqual(p.view().state)
-    expect(p.messages()).toEqual(p.view().messages)
-    expect(p.messages()).toBe(p.messages())
-    const before = p.messages()
+    const message: AgentMessage = {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'first' },
+        { type: 'image', data: 'image', mimeType: 'image/png' },
+        { type: 'text', text: 'second' },
+      ],
+    }
+    p.settle([message], {
+      ...session(),
+      sessionName: 'saved',
+      model: {
+        provider: 'pi',
+        id: 'example',
+        name: 'Example',
+        api: 'test',
+        reasoning: false,
+        input: ['text'],
+        contextWindow: 1000,
+        maxTokens: 100,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      },
+    })
+    expect(p.sessionState()).toEqual({
+      sessionName: 'saved',
+      model: { provider: 'pi', id: 'example' },
+    })
+    Reflect.set(p.sessionState()!.model!, 'id', 'changed')
+    expect(p.sessionState()?.model?.id).toBe('example')
     event({ type: 'message_end', message: { role: 'user', content: 'next' } })
-    expect(before).toEqual([message])
-    expect(p.messages()).toEqual(p.view().messages)
+    expect(p.firstUserText()).toBe('first\nsecond')
   })
 })

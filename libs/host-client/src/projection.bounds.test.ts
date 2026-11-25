@@ -151,7 +151,7 @@ describe('lane projection byte bound', () => {
     const h = setup()
     h.event({ type: 'compaction_start', reason: 'manual' })
     h.event({ type: 'turn_start' })
-    h.projection.view().pending.length = 0
+    Reflect.set(h.projection.view().pending, 'length', 0)
     expect(h.projection.view().pending.map((e) => e.type)).toEqual([
       'compaction_start',
       'turn_start',
