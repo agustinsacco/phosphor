@@ -208,6 +208,7 @@ const expectedEntries = [
   ['hosts:subagentInspect', 'app'],
   ['hosts:tailscaleStatus', 'app'],
   ['hosts:takeControl', 'app'],
+  ['hosts:telemetry', 'machine'],
   ['hosts:traffic', 'app'],
   ['hosts:uploadAttachments', 'app'],
   ['maintenance:run', 'machine'],

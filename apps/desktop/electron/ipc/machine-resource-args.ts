@@ -74,6 +74,7 @@ export const MACHINE_RESOURCE_ARGS: MachineResourcePolicies = {
   'hosts:claude': 'none',
   'hosts:claudeUsage': 'none',
   'hosts:providers': 'none',
+  'hosts:telemetry': 'none',
   'hosts:repositoryFiles': 'none',
   'hosts:repositoryFile': [{ arg: 2 }],
   'hosts:skills': 'none',

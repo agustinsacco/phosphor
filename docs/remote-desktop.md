@@ -446,6 +446,12 @@ way and validates it with `parseMachineClaudeUsage`; null means unavailable or a
 older Host. A remote Claude lane's context popover shows it as that lane's plan
 usage on the Host ([chat.md](chat.md#what-the-context-meters-popover-shows)).
 
+`hosts:telemetry <hostId>` reads the Host's `machine.telemetry` sample and
+validates it with `parseMachineTelemetry`; null means unreachable, refused or an
+older Host. It is a machine-scoped read with no resource argument, so the same
+call reaches This Mac's service and an enrolled machine alike, and the browser
+bridge maps it without a lane.
+
 Terminal capability, controller input, reconnects and privacy are owned by
 [terminal.md](terminal.md#host-terminals). Native release resources and wire bounds
 are owned by [host.md](host.md#host-terminals).

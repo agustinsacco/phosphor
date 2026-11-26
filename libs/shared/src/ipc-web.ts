@@ -29,6 +29,7 @@ export const IPC_WEB = {
   'hosts:claude': remote,
   'hosts:claudeUsage': remote,
   'hosts:providers': remote,
+  'hosts:telemetry': remote,
   'hosts:repositoryFiles': remote,
   'hosts:repositoryFile': remote,
   'hosts:skills': remote,

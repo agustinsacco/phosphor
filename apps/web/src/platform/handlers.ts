@@ -54,6 +54,7 @@ function machineHandlers(
     'hosts:claude': machines.claude,
     'hosts:claudeUsage': machines.claudeUsage,
     'hosts:providers': machines.providers,
+    'hosts:telemetry': machines.telemetry,
     'hosts:skills': machines.skills,
     'hosts:skillExport': (source) => share.export(source.machine, source.name),
     'hosts:skillInstall': (machine, bundle, overwrite) =>

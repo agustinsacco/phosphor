@@ -199,6 +199,7 @@ it('registers the Host catalogue and repository reads over the manager connectio
     'hosts:claude',
     'hosts:claudeUsage',
     'hosts:providers',
+    'hosts:telemetry',
     'hosts:skills',
     'hosts:repositoryFiles',
     'hosts:repositoryFile',

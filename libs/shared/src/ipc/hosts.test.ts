@@ -17,6 +17,7 @@ import type {
 } from '../machine-settings'
 import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { SubagentInspectRequest } from '../subagent-inspect'
+import type { MachineTelemetry } from '../host-protocol-telemetry'
 export interface BaselineHostsInvokeMap {
   'hosts:archiveLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:archives': { args: [hostId: string, measure?: boolean]; result: LaneArchiveList }
@@ -42,6 +43,7 @@ export interface BaselineHostsInvokeMap {
   }
 
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
+  'hosts:telemetry': { args: [hostId: string]; result: MachineTelemetry | null }
 
   'hosts:repositoryFiles': { args: [hostId: string, repositoryId: string]; result: string[] }
 

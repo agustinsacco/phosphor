@@ -42,6 +42,7 @@ export function registerHostReadHandlers(connection: ReadConnection) {
   handle('hosts:claude', (_event, hostId) => catalogues.claude(hostId))
   handle('hosts:claudeUsage', (_event, ...args) => catalogues.claudeUsage(...args))
   handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
+  handle('hosts:telemetry', (_event, hostId) => catalogues.telemetry(hostId))
   handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
   return { github: hostGithubRouter(connection, repositories), catalogues }
 }
