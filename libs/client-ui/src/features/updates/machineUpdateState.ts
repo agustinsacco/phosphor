@@ -203,7 +203,7 @@ export function deriveMachineUpdate(input: {
       const version = peer.hostVersion
       if (version && compareVersions(version, available ?? installed) > 0) available = version
     }
-  const path = host?.ops
+  const path: UpdatePath | 'none' = host?.ops
     ? 'op'
     : host?.capabilities.includes('terminal') && terminal
       ? 'task'

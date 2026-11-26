@@ -82,6 +82,34 @@ function useLive(key: string) {
   return { live, attempt }
 }
 
+/** The section's state and its one read path; of overlapping reads only the newest lands. */
+function useSettingsReads(key: string, allowed: boolean, suspended: boolean) {
+  const { live, attempt } = useLive(`${key}/${suspended}`)
+  const [state, setState] = useState(IDLE)
+  const update = useCallback(
+    (patch: Partial<SettingsState>) => setState((s) => ({ ...s, ...patch })),
+    [],
+  )
+  const read = useCallback(
+    async (request: () => Promise<MachineSettings>): Promise<void> => {
+      if (!live() || !allowed) return
+      const id = ++attempt.current
+      const latest = () => live() && attempt.current === id
+      update({ loading: true, error: null })
+      try {
+        const data = await request()
+        if (latest()) update({ result: { key, data } })
+      } catch (e) {
+        if (latest()) update({ error: errorText(e) })
+      } finally {
+        if (latest()) update({ loading: false })
+      }
+    },
+    [live, allowed, attempt, key, update],
+  )
+  return { live, state, setState, update, read }
+}
+
 /**
  * One Host settings section, for `repositoryId` or the whole machine; a null
  * `section` reads nothing. A read, check or change belongs to the connection
@@ -100,28 +128,10 @@ export function useHostSettings(
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
   const key = `${hostId}/${generation}/${section ?? ''}/${repositoryId ?? ''}/${supported}`
   const allowed = canConfigureHost(supported, connection)
-  const { live, attempt } = useLive(`${key}/${suspended}`)
-  const [state, setState] = useState(IDLE)
-  const update = useCallback(
-    (patch: Partial<SettingsState>) => setState((s) => ({ ...s, ...patch })),
-    [],
-  )
-  const read = useCallback(
-    async (request: () => Promise<MachineSettings>): Promise<void> => {
-      if (!live() || !allowed || suspended) return
-      const id = ++attempt.current
-      const latest = () => live() && attempt.current === id
-      update({ loading: true, error: null })
-      try {
-        const data = await request()
-        if (latest()) update({ result: { key, data } })
-      } catch (e) {
-        if (latest()) update({ error: errorText(e) })
-      } finally {
-        if (latest()) update({ loading: false })
-      }
-    },
-    [live, allowed, suspended, attempt, key, update],
+  const { live, state, setState, update, read } = useSettingsReads(
+    key,
+    allowed && !suspended,
+    suspended,
   )
   const refresh = useCallback(async (): Promise<void> => {
     if (section)
@@ -131,7 +141,7 @@ export function useHostSettings(
     if (suspended) return
     setState(IDLE)
     void refresh()
-  }, [refresh, suspended])
+  }, [refresh, suspended, setState])
   const data = state.result && (suspended || state.result.key === key) ? state.result.data : null
   const writer: Writer = { live, saving: state.saving, update }
   return {

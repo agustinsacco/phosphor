@@ -127,19 +127,8 @@ async function confirmUpdate(state: MachineUpdateState, working: number, product
   )
 }
 
-export function SoftwareUpdateRow({
-  id,
-  label,
-  platform,
-  configure,
-  children,
-}: {
-  id: string
-  label: string
-  platform?: string
-  configure: boolean
-  children?: React.ReactNode
-}) {
+/** What the row shows about one machine: its derived update state, name and title. */
+function useMachineUpdateView(id: string, label: string, configure: boolean, platform?: string) {
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const entry = useMachineUpdatesStore((s) => s.byMachine[id] ?? EMPTY_MACHINE_UPDATE)
   const caps = usePlatform()
@@ -166,6 +155,72 @@ export function SoftwareUpdateRow({
   ]
     .filter(Boolean)
     .join(' · ')
+  return { host, owner, state, product, title }
+}
+
+/** The row's one button area: Stop and Cancel while waiting, a spinner while running, else Update…. */
+function UpdateActions({
+  id,
+  owner,
+  state,
+  asking,
+  onUpdate,
+}: {
+  id: string
+  owner: boolean
+  state: MachineUpdateState
+  asking: boolean
+  onUpdate: () => void
+}) {
+  const running = !!state.run && !state.run.settled
+  return (
+    <>
+      {state.can.stopTurns && (
+        <Button onClick={() => void controlMachineUpdate(id, 'abort-now', owner)}>
+          Stop turns and update now
+        </Button>
+      )}
+      {state.can.cancel && (
+        <Button onClick={() => void controlMachineUpdate(id, 'cancel', owner)}>
+          Cancel update
+        </Button>
+      )}
+      {state.run?.settled && state.run.finish === 'not-back' ? (
+        <Button onClick={() => void reconnectForUpdate(id)}>Reconnect</Button>
+      ) : running && !state.can.stopTurns ? (
+        <span className="inline-flex min-w-24 justify-center" aria-hidden="true">
+          <Spinner />
+        </span>
+      ) : (
+        !running && (
+          <Button className="min-w-24" disabled={asking || !state.can.start} onClick={onUpdate}>
+            Update…
+          </Button>
+        )
+      )}
+    </>
+  )
+}
+
+export function SoftwareUpdateRow({
+  id,
+  label,
+  platform,
+  configure,
+  children,
+}: {
+  id: string
+  label: string
+  platform?: string
+  configure: boolean
+  children?: React.ReactNode
+}) {
+  const { host, owner, state, product, title } = useMachineUpdateView(
+    id,
+    label,
+    configure,
+    platform,
+  )
   const [asking, setAsking] = useState(false)
   const pending = useRef(false)
   async function update() {
@@ -182,7 +237,6 @@ export function SoftwareUpdateRow({
       setAsking(false)
     }
   }
-  const running = !!state.run && !state.run.settled
   return (
     <section aria-label="Software">
       <SectionTitle small>Software</SectionTitle>
@@ -194,33 +248,13 @@ export function SoftwareUpdateRow({
           </span>
         }
       >
-        {state.can.stopTurns && (
-          <Button onClick={() => void controlMachineUpdate(id, 'abort-now', owner)}>
-            Stop turns and update now
-          </Button>
-        )}
-        {state.can.cancel && (
-          <Button onClick={() => void controlMachineUpdate(id, 'cancel', owner)}>
-            Cancel update
-          </Button>
-        )}
-        {state.run?.settled && state.run.finish === 'not-back' ? (
-          <Button onClick={() => void reconnectForUpdate(id)}>Reconnect</Button>
-        ) : running && !state.can.stopTurns ? (
-          <span className="inline-flex min-w-24 justify-center" aria-hidden="true">
-            <Spinner />
-          </span>
-        ) : (
-          !running && (
-            <Button
-              className="min-w-24"
-              disabled={asking || !state.can.start}
-              onClick={() => void update().catch(() => undefined)}
-            >
-              Update…
-            </Button>
-          )
-        )}
+        <UpdateActions
+          id={id}
+          owner={owner}
+          state={state}
+          asking={asking}
+          onUpdate={() => void update().catch(() => undefined)}
+        />
       </Row>
       {state.run && <UpdatePipeline state={state} />}
       {state.run?.details && (

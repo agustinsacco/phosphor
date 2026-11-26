@@ -181,6 +181,12 @@ export interface BaselineLocalMachineStatus {
   service?: 'ready' | 'connecting' | 'down' | 'attestation-failed'
   serviceVersion?: string
   pause?: ServicePauseState
+  lastUpdate?: {
+    readonly from: string
+    readonly to: string
+    readonly outcome: 'updated' | 'rolled-back' | 'failed'
+    readonly at: string
+  } | null
   notice?: 'no-bundle' | 'limits' | 'other-daemon' | 'state-folder' | 'dev-build'
   install?: {
     state: 'checking' | 'installing' | 'waiting' | 'blocked' | 'failed' | 'installed'
