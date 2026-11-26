@@ -20,7 +20,8 @@ import {
 } from '@phosphor/shared/host-protocol-ops'
 import { mapLimit } from '../map-limit'
 import { effectiveLimits, type OpLimits } from './limits'
-import { gateVerdict, LANE_TARGET_OPS, policyVerdict } from './policy'
+import type { CatalogSpec } from '@phosphor/shared/ops-catalog'
+import { gateVerdict, policyVerdict } from './policy'
 import { laneRefArg, policyCheck, type Judged, type Refusal } from './judge'
 import type { OpsDispatcherDeps, RoutedHost } from './ports'
 import {
@@ -75,17 +76,11 @@ export function routeSelection(
   binding: Pick<OpsBinding, 'machineId'>,
   principal: OpPrincipal,
   request: OpsRunRequest,
+  spec: CatalogSpec,
   hosts?: HostSelection,
   isSelf?: (hostId: string) => boolean,
 ): { hosts?: HostSelection; laneHost?: string; batch: boolean; local?: boolean } | Refusal {
-  const ref =
-    request.op === 'audit.list'
-      ? undefined
-      : LANE_TARGET_OPS.has(request.op)
-        ? typeof request.args.target === 'string'
-          ? request.args.target
-          : undefined
-        : laneRefArg(request.op, request.args)
+  const ref = request.op === 'audit.list' ? undefined : laneRefArg(spec, request.args)
   const laneHost = ref === undefined ? undefined : parseRemoteLaneKey(ref)?.hostId
   const batch = hosts === 'all' || (hosts?.length ?? 0) > 1
   if (batch && request.page !== undefined)

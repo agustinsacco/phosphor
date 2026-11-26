@@ -306,6 +306,7 @@ async function execute(
     env.binding,
     principal,
     request,
+    spec,
     extras.hosts,
     env.deps.hosts?.isSelf,
   )
