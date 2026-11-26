@@ -212,6 +212,27 @@ describe('--host fan-out', () => {
     }
   })
 
+  it('warns that a remote write may be unconfirmed at the tool deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      const h = harness({
+        async run(_id, _request, budget) {
+          budget.onRemoteWrite?.()
+          await new Promise((resolve) => setTimeout(resolve, 40))
+          return ok('late')
+        },
+      })
+      const result = h.tool(
+        { op: 'settings.set', args: { key: 'contextBudget', value: 1 }, hosts: ['bee2'] },
+        { deadlineMs: 20 },
+      )
+      await vi.advanceTimersByTimeAsync(50)
+      expect(await result).toMatchObject({ code: 'timeout', text: expect.stringContaining('unconfirmed') })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reaches at most four hosts at once', async () => {
     let running = 0
     let peak = 0
