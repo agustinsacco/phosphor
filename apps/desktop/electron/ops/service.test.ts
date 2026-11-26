@@ -393,5 +393,10 @@ it('reads stored directive overrides without mistaking normalized defaults for o
     ]),
   })
   expect(h.command).not.toHaveBeenCalled()
-  expect(h.broadcast).not.toHaveBeenCalled()
+  expect(h.broadcast.mock.calls).toEqual(
+    Array.from({ length: 2 }, () => [
+      'ops:changed',
+      { machine: 'local', kind: 'audit', laneRef: 'local/session:disk-id' },
+    ]),
+  )
 })
