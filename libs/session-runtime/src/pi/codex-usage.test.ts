@@ -3,7 +3,6 @@ import { createCodexUsageReader, parseCodexUsage } from './codex-usage'
 
 vi.mock('./health', () => ({ checkPiHealth: vi.fn() }))
 vi.mock('./stub', () => ({ piStubPath: () => undefined }))
-vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: vi.fn() }))
 
 const window = (used_percent = 48, limit_window_seconds = 604800) => ({
   used_percent,
