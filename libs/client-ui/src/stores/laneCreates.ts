@@ -114,16 +114,25 @@ const laneDraftKey = (create: LaneCreate, laneId: string): DraftKey =>
 export function finishLaneCreate(id: string, restore = false): void {
   const create = laneCreate(id)
   if (!create) return
-  const shown = laneCreateShown(id)
   settleLaneCreateDraft(
     id,
     restore && create.laneId ? laneDraftKey(create, create.laneId) : undefined,
   )
-  if (shown && create.sessionId && useSessionsStore.getState().live[create.sessionId]) {
-    useSessionsStore.getState().activate(create.sessionId)
-    void refreshRemoteArtifacts(create.sessionId)
-  }
+  laneCreateAdopted(id)
   dropLaneCreate(id)
+}
+
+/**
+ * Its lane is live here: it takes the screen if the placeholder still has it,
+ * before the first prompt's files upload (the Host takes them only for the
+ * lane on screen). Otherwise the screen stays where the user went.
+ */
+export function laneCreateAdopted(id: string): void {
+  const create = laneCreate(id)
+  if (!create?.sessionId || !laneCreateShown(id)) return
+  if (!useSessionsStore.getState().live[create.sessionId]) return
+  useSessionsStore.getState().activate(create.sessionId)
+  void refreshRemoteArtifacts(create.sessionId)
 }
 
 export function failLaneCreate(id: string, failure: string, unknown: boolean): void {

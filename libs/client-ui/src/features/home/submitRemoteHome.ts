@@ -8,6 +8,7 @@ import {
   failLaneCreate,
   finishLaneCreate,
   laneCreate,
+  laneCreateAdopted,
   laneCreateShown,
   laneCreated,
   noteLaneCreateBranch,
@@ -92,6 +93,7 @@ async function runLaneCreate(
         trying: (branch) => noteLaneCreateBranch(id, branch),
         refused: (branch) => refuseLaneCreateBranch(id, branch),
         created: (info) => laneCreated(id, info),
+        adopted: () => laneCreateAdopted(id),
       },
     )
     finishLaneCreate(id)

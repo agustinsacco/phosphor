@@ -23,6 +23,8 @@ export interface LaneCreateHooks {
   refused?: (branch: string) => void
   /** The Host made the lane, before it is adopted; from here a failure is no longer a failed create. */
   created?: (info: LiveSessionInfo) => void
+  /** Adopted, before control and files: the Host takes files only for the lane on screen. */
+  adopted?: () => void
 }
 
 /** Only a definitive fresh-branch refusal may retry. Uncertain receipts keep the draft. */
@@ -60,6 +62,7 @@ export async function startRemoteChat(
   if (!info.laneId) throw new Error()
   hooks.created?.(info)
   await adoptRemoteLane(info, nav)
+  hooks.adopted?.()
   if (host.local) {
     await refreshHostsSnapshot()
     await ensureServiceLaneControl(hostId, info.laneId)
