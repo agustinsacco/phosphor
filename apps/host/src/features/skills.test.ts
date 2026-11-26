@@ -523,3 +523,13 @@ it('serves machine.claudeUsage for live lanes only, outside the pi probe queue',
   expect(await usage.call('machine.claudeUsage', { laneId })).toEqual(error('unknown-lane'))
   expect(reads).toHaveLength(2)
 })
+
+it('will not follow a replaced skill directory after indexing it', async () => {
+  expect((await feature.call('skills.list', {})).ok).toBe(true)
+  const redirected = join(root, 'redirected')
+  await mkdir(redirected)
+  await writeFile(join(redirected, 'SKILL.md'), 'elsewhere')
+  await rm(bundle, { recursive: true })
+  await symlink(redirected, bundle)
+  expect(await read()).toEqual(error('bad-request'))
+})
