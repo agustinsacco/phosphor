@@ -457,6 +457,7 @@ describe('Host API constants and op lists', () => {
       argsBytes: 307200,
       contentBytes: 262144,
       resultBytes: 65536,
+      pageBytes: 12288,
       callDataBytes: 1048576,
       reasonChars: 300,
       idsPerOp: 200,
