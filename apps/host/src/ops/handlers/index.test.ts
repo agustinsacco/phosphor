@@ -119,7 +119,18 @@ it('serves service.update as an asked background job that wraps the service upda
 
 it('reports the machine’s lanes, version and pause, and its inventory through the lane service', async () => {
   const ctx = { principal: { kind: 'local', clientId: 'cli' } } as never
-  const call = vi.fn(async (method: string) => ({ ok: true, data: { method } }))
+  const call = vi.fn(async (method: string) => ({
+    ok: true,
+    data:
+      method === 'machine.models'
+        ? {
+            models: [
+              { id: 'alpha', name: 'Alpha', provider: 'a', reasoning: true },
+              { id: 'beta', name: 'Beta', provider: 'b', reasoning: false },
+            ],
+          }
+        : { method },
+  }))
   const summaries: Record<string, { activity: string }> = {
     a: { activity: 'working' },
     b: { activity: 'idle' },
@@ -136,7 +147,9 @@ it('reports the machine’s lanes, version and pause, and its inventory through 
     lanes: { total: 3, live: 2, working: 1 },
     pause: { kind: 'none' },
   })
-  await handlers['machine.models']!({}, ctx)
+  const models = await handlers['machine.models']!({ provider: 'b' }, ctx)
+  expect(models.data).toMatchObject({ models: [{ id: 'beta' }] })
+  expect(models.text).toBe('id | provider | context | reasoning\nbeta | b |  | false')
   expect(call.mock.calls).toEqual([['machine.models', {}]])
 })
 

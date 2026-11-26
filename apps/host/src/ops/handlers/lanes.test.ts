@@ -61,7 +61,10 @@ beforeEach(async () => {
     command: f.command,
     unattended: () => false,
     daemonLanes: {
-      list: () => f.store.listLanes(),
+      list: () =>
+        f.store
+          .listLanes()
+          .map((l) => (l.laneId === f.lane.laneId ? { ...l, activity: 'working' } : l)),
       summary: (id) => f.store.getLane(id),
       sessionFor: f.ports.sessionFor,
     },
@@ -213,7 +216,6 @@ it('offers recovery advice on an oversized lane.read messages refusal', async ()
 
 it('shows live lanes with reusable canonical refs', async () => {
   const lane = f.store.getLane(f.lane.laneId)!
-  expect(lane.activity).toBe('idle')
   const result = ok(await service.dispatcher.run(cli, { op: 'lane.list', args: { state: 'live' } }))
   expect(result.data).toMatchObject({ lanes: [{ ref: `host:local/lane:${lane.laneId}` }] })
 })

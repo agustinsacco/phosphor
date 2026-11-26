@@ -11,6 +11,7 @@ import {
   object,
   on,
   optional,
+  paged,
   previous,
   untrusted,
 } from './spec'
@@ -45,6 +46,13 @@ export const settingsOps = [
       project,
     }),
     { applies: 'new-lanes', positional: ['key', 'value'], inverse: previous('settings.set') },
+  ),
+  settings(
+    'directives.read',
+    'Read directive overrides and effective values.',
+    'read',
+    object({ project: optional(Type.Union([on, Type.String({ pattern: '^[0-9a-f]{16}$' })])) }),
+    untrusted,
   ),
   settings(
     'directives.set',
@@ -95,7 +103,7 @@ export const settingsOps = [
     'List Claude account metadata without credentials.',
     'read',
     undefined,
-    untrusted,
+    { ...untrusted, ...paged },
   ),
   settings(
     'claude.routing',

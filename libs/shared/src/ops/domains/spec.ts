@@ -32,6 +32,7 @@ export const caps = (...caps: LegacyHostCapability[]) => ({ caps })
 export const configure = { caps: ['sessions.control'], configure: true } as const
 export const control = caps('sessions.control')
 export const workspaceWrite = caps('workspaces.write', 'sessions.control')
+export const paged = { paged: true } as const
 export const untrusted = { untrustedResult: true } as const
 
 /** A binding captures the full args for the inverse (including the target id), or no inverse. */

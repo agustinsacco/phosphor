@@ -151,6 +151,7 @@ async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
     ...(j.request.reason !== undefined ? { reason: j.request.reason } : {}),
     items: confirmItems(env.binding, j),
     ...(j.lane ? { lane: j.lane } : {}),
+    pending: askingLanePending(env, j),
     ...(j.request.batch ? { batch: j.request.batch } : {}),
   })
   return { result }
@@ -188,6 +189,12 @@ async function finish(
     ...(plan.terminate ? { terminate: plan.terminate } : {}),
     ...(j.spec.untrustedResult ? { untrusted: true as const } : {}),
   }
+}
+
+function askingLanePending(env: PipelineEnv, j: Judged) {
+  if (j.scope === 'self' && j.self && j.principal.kind === 'agent')
+    return env.deferred.pending(j.principal.sessionId)
+  return undefined
 }
 
 async function perform(

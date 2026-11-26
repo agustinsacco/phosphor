@@ -1,7 +1,12 @@
 import { routineRunHandlers } from './routine-output'
 import { randomUUID } from 'node:crypto'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op, pageRows } from '@phosphor/session-runtime/ops/results'
+import {
+  dataResult,
+  op,
+  pageInventory,
+  routineColumns,
+} from '@phosphor/session-runtime/ops/results'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import type { UndoPorts } from '@phosphor/session-runtime/ops/undo'
 import {
@@ -88,7 +93,12 @@ export async function routineUndoCurrent(
 export function routineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   return {
     'routine.list': op(async (_, ctx) =>
-      pageRows(parseRoutineList(await resourceCall(deps, 'routines.list', {})) ?? [], ctx),
+      pageInventory(
+        parseRoutineList(await resourceCall(deps, 'routines.list', {})) ?? [],
+        ctx,
+        routineColumns,
+        { surface: { limit: 50, shrink: true } },
+      ),
     ),
     ...routineRunHandlers(deps),
     'routine.create': op<{ definition: Definition }>(async ({ definition }) => {

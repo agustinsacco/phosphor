@@ -1,7 +1,7 @@
 import type { FileRead } from '@phosphor/shared/host-protocol-files'
 import type { FileWriteOp } from '@phosphor/shared/host-protocol-writes'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op, pageRows } from '@phosphor/session-runtime/ops/results'
+import { dataResult, op, pageInventory } from '@phosphor/session-runtime/ops/results'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import type { WriteOutcome } from '../../features/writes'
 import type { DaemonHandlerDeps } from './index'
@@ -39,7 +39,7 @@ export function fileHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, O
     'files.list': op<Path>(async ({ path }, ctx) => {
       const { laneId } = targetLane(ctx)
       const listed = (await laneCall(deps.lanes, 'files.list', { laneId })) as { files: string[] }
-      return pageRows(under(listed.files, path), ctx, 200)
+      return pageInventory(under(listed.files, path), ctx, { path: (p) => p })
     }),
     'files.read': op<Path>(async ({ path }, ctx) => {
       const { laneId } = targetLane(ctx)

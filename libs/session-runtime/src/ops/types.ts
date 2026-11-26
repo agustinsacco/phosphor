@@ -98,6 +98,8 @@ export interface OpHandlerContext {
   readonly signal: AbortSignal
   /** The lane the op is about, when it names one (or is the asking lane's own op). */
   readonly lane?: LaneFacts
+  /** The asking lane's deferred changes; absent when this owner cannot observe them. */
+  readonly pending?: readonly LaneDeferred[]
   readonly log: RuntimeLog
 }
 

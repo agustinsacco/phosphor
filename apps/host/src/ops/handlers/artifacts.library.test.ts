@@ -128,7 +128,16 @@ function context(page?: string, principal: object = { kind: 'local', clientId: '
 }
 type OwnerArtifactOp = NonNullable<ArtifactHost['ownerOp']>
 const run: OwnerArtifactOp = async (req) => {
-  const result = await handlers[req.op]!(req.args, context(req.page, { kind: 'surface', clientId: 'owner', via: 'owner', label: 'Desktop', caps: ['artifacts.read'] }))
+  const result = await handlers[req.op]!(
+    req.args,
+    context(req.page, {
+      kind: 'surface',
+      clientId: 'owner',
+      via: 'owner',
+      label: 'Desktop',
+      caps: ['artifacts.read'],
+    }),
+  )
   return { status: 'ok', applies: 'now', ...result } as Awaited<ReturnType<OwnerArtifactOp>>
 }
 
@@ -350,18 +359,27 @@ it.each(['row count', 'metadata bytes'])(
   20000,
 )
 
-
 it('keeps full version metadata for product surfaces and returns bounded summaries to agents', async () => {
-  storedIndex(v7(), [{ slug: 'second', at: 1 }])
+  storedIndex(
+    v7(),
+    Array.from({ length: 20 }, (_, n) => ({ slug: `row-${n}`, at: n })),
+  )
   storedIndex(v7(), [{ slug: 'many-versions', at: 1000, versions: 400 }])
-  expect((await listings()).map((r) => r.id)).toEqual(['many-versions', 'second'])
+  expect((await listings())[0]?.id).toBe('many-versions')
   const surface = await run({ op: 'artifact.list', args: {} })
-  expect(surface.data).toMatchObject([{ versions: Array.from({ length: 400 }, (_, i) => expect.objectContaining({ version: i + 1 })) }, { slug: 'second' }])
+  expect((surface.data as unknown[])[0]).toMatchObject({
+    versions: Array.from({ length: 400 }, (_, i) => expect.objectContaining({ version: i + 1 })),
+  })
   const agent = { kind: 'agent', sessionId: 'test', laneRef: 'test' }
-  const first = await handlers['artifact.list']!({}, { ...context(undefined, agent), limit: 1 } as OpRunContext)
-  expect(first).toMatchObject({ data: [{ slug: 'many-versions', versions: 400, latest: { version: 400 } }], next: '1' })
+  const first = await handlers['artifact.list']!({}, context(undefined, agent))
+  expect((first.data as unknown[])[0]).toMatchObject({
+    slug: 'many-versions',
+    versions: 400,
+    latest: { version: 400 },
+  })
+  expect(first.next).toBe('20')
   expect(Buffer.byteLength(JSON.stringify(first.data))).toBeLessThanOrEqual(12 * 1024)
   const last = await handlers['artifact.list']!({}, context(first.next, agent))
-  expect(last.data).toMatchObject([{ slug: 'second', versions: 1 }])
+  expect(last.data).toMatchObject([{ slug: 'row-0', versions: 1 }])
   expect(last.next).toBeUndefined()
 })

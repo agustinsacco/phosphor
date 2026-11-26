@@ -49,7 +49,15 @@ export interface LaneControl {
  * - `needs-input`: an extension dialog is open.
  * - `failed`: pi exited unexpectedly.
  */
-export type LaneActivity = 'stopped' | 'idle' | 'working' | 'needs-input' | 'failed'
+export const LANE_ACTIVITIES = ['stopped', 'idle', 'working', 'needs-input', 'failed'] as const
+export type LaneActivity = (typeof LANE_ACTIVITIES)[number]
+export const LANE_STATES = [...LANE_ACTIVITIES, 'live'] as const
+export function isLiveActivity(activity: LaneActivity) {
+  return activity !== 'stopped' && activity !== 'failed'
+}
+export function matchesLaneState(activity: LaneActivity, state?: string) {
+  return state === undefined || (state === 'live' ? isLiveActivity(activity) : activity === state)
+}
 
 export interface LaneSummary {
   readonly laneId: string

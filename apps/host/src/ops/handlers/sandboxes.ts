@@ -1,4 +1,4 @@
-import { dataResult, op } from '@phosphor/session-runtime/ops/results'
+import { dataResult, fields, op, pageInventory } from '@phosphor/session-runtime/ops/results'
 import type { DaemonHandlerDeps } from './index'
 
 export function sandboxHandlers(deps: DaemonHandlerDeps) {
@@ -7,7 +7,7 @@ export function sandboxHandlers(deps: DaemonHandlerDeps) {
     return deps.sandboxes
   }
   return {
-    'sandbox.list': op(() => dataResult(service().list())),
+    'sandbox.list': op((_, c) => pageInventory(service().list(), c, fields('name', 'path'))),
     'sandbox.create': op<{ name: string }>(async ({ name }) =>
       dataResult(await service().create(name)),
     ),

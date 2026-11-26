@@ -10,6 +10,7 @@ import {
   object,
   on,
   optional,
+  paged,
   path,
   previous,
   ref,
@@ -29,8 +30,11 @@ const positionalPath = { positional: ['path'] } as const
 const worktree = domain('machine', workspaceWrite)
 
 export const workspace = [
-  read('files.list', 'List files at a workspace path.', 'read', file, positionalPath),
-  read('files.read', 'Read a workspace file.', 'read', file, positionalPath),
+  read('files.list', 'List files at a workspace path.', 'read', file, {
+    ...positionalPath,
+    ...paged,
+  }),
+  read('files.read', 'Read a workspace file.', 'read', file, { ...positionalPath, ...paged }),
   read('files.search', 'Search workspace files.', 'read', object({ target, query: text(2000) }), {
     positional: ['query'],
   }),

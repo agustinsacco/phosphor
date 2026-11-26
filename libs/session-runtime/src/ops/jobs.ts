@@ -11,6 +11,7 @@ import type { RuntimeLog } from '../file-log'
 import { OpRefusal } from './builtins'
 import type { OpsJobPort } from './ports'
 import { principalKey } from './principals'
+import { jobInventory } from './meta-inventory'
 import { dataResult, op } from './results'
 
 export type AgentJobState = 'running' | 'done' | 'failed' | 'interrupted'
@@ -146,6 +147,6 @@ export function jobHandlers(jobs: Pick<JobStore, 'get' | 'list'>) {
       const done = job.state === 'done' && job.result ? `\n${job.result.text}` : ''
       return { ...dataResult(job), text: `Job ${jobId}: ${job.state}.${done}` }
     }),
-    'job.list': op((_args, ctx) => dataResult(jobs.list(principalKey(ctx.principal)))),
+    'job.list': jobInventory(jobs),
   }
 }

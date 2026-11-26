@@ -55,7 +55,7 @@ export function openDesktopOps(userData: string) {
       machineId: null,
       handlers,
       gaps: OP_GAPS.desktop,
-      flags: new Set(['laneContext', 'pagedLanes']),
+      flags: new Set(['laneContext', 'pagedLanes', 'laneEditing', 'sandboxes']),
       policy: policyStore,
       audit,
       lanes: { resolve: resolveLiveLane, lookup: findDiskLane, createdBy: () => null },

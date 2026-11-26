@@ -1,15 +1,15 @@
 import { expect, it } from 'vitest'
 import { folderHandlers, folderUndoCurrent } from './folders'
 import type { DaemonHandlerDeps } from './index'
-it('serves the full list in legacy-sized pages with the continuation in data', async () => {
+it('serves the full list in inventory pages and echoes the continuation in data', async () => {
   const rows = Array.from({ length: 70 }, (_, id) => ({ id: String(id) }))
   const list = folderHandlers({
     store: { listRepositories: () => rows },
   } as unknown as DaemonHandlerDeps)['folder.list']!
-  expect((await list({}, {} as never)).data).toEqual({ folders: rows.slice(0, 64), next: '64' })
-  expect((await list({}, { page: '64' } as never)).data).toEqual({
-    folders: rows.slice(64),
-    next: null,
+  expect((await list({}, {} as never)).data).toEqual({ folders: rows.slice(0, 20), next: '20' })
+  expect((await list({}, { page: '20' } as never)).data).toEqual({
+    folders: rows.slice(20, 40),
+    next: '40',
   })
 })
 
@@ -22,6 +22,18 @@ it('pages the separate owner folder source without growing the legacy repository
   expect((await list({}, { page: '64' } as never)).data).toEqual({
     folders: folders.slice(64),
     next: null,
+  })
+})
+
+it('keeps the older 64-row surface pagination and data shape', async () => {
+  const folders = Array.from({ length: 65 }, (_, i) => ({ id: String(i) }))
+  const list = folderHandlers({ ownerFolders: () => folders } as unknown as DaemonHandlerDeps)[
+    'folder.list'
+  ]!
+  const ctx = { principal: { kind: 'surface' } } as never
+  expect(await list({}, ctx)).toMatchObject({
+    next: '64',
+    data: { folders: folders.slice(0, 64), next: '64' },
   })
 })
 
@@ -39,7 +51,9 @@ it('only restores the old folder order while the order this change set is curren
 
 it('walks 65 folders through canonical cursors without repeating or losing rows', async () => {
   const folders = Array.from({ length: 65 }, (_, i) => ({ id: String(i), name: `Folder ${i}` }))
-  const list = folderHandlers({ ownerFolders: () => folders } as DaemonHandlerDeps)['folder.list']!
+  const list = folderHandlers({ ownerFolders: () => folders } as unknown as DaemonHandlerDeps)[
+    'folder.list'
+  ]!
   const seen = []
   let page: string | undefined
   for (const next of ['20', '40', '60', undefined]) {

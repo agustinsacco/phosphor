@@ -1,5 +1,5 @@
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op, pageRows } from '@phosphor/session-runtime/ops/results'
+import { fields, op, pageInventory } from '@phosphor/session-runtime/ops/results'
 import type { LaneFacts, OpHandler, OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { hostIdOfPath, remoteLaneKey } from '@phosphor/shared/remote-host'
 import {
@@ -75,9 +75,10 @@ const tree = (deps: DaemonHandlerDeps) =>
   op<{ ref: string }>(async (_args, ctx) => {
     const { lane } = targetOf(deps, ctx)
     const read = await refusing(() => readLaneTree(lane))
-    const page = pageRows(read.entries, ctx, 500)
-    const data = { sessionId: read.sessionId, leafId: read.leafId, entries: page.data }
-    return { ...dataResult(data), ...(page.next !== undefined ? { next: page.next } : {}) }
+    return pageInventory(read.entries, ctx, fields('id', 'parentId', 'type', 'label'), {
+      surface: { limit: 500, shrink: true },
+      wrap: (entries) => ({ sessionId: read.sessionId, leafId: read.leafId, entries }),
+    })
   })
 
 const label = (deps: DaemonHandlerDeps) =>

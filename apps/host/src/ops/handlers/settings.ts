@@ -9,7 +9,13 @@ import type { AgentDirectivePrefs } from '@phosphor/shared/models'
 import type { MachineSettingsSection } from '@phosphor/shared/machine-settings'
 import type { UndoPorts } from '@phosphor/session-runtime/ops/undo'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult } from '@phosphor/session-runtime/ops/results'
+import {
+  directiveResult,
+  fields,
+  op,
+  dataResult,
+  pageInventory,
+} from '@phosphor/session-runtime/ops/results'
 import {
   readGlobalInstructions,
   writeGlobalInstructions,
@@ -107,6 +113,12 @@ function agentHandlers(deps: DaemonHandlerDeps) {
         before: a.project ? undefined : { key, value: settingValue({ ...snapshot.agent }, key) },
       }
     }),
+    'directives.read': op((a, c) => {
+      const { global, project } = settingsOps(deps).settings.readDirectiveOverrides(
+        projectId(deps, a.project, c),
+      )
+      return directiveResult(global, project)
+    }),
     'directives.set': op(async (a, c) => {
       const key = a.key as keyof AgentDirectivePrefs
       if (
@@ -172,8 +184,12 @@ export function settingsHandlers(deps: DaemonHandlerDeps) {
   return {
     ...agentHandlers(deps),
     ...instructionHandlers(deps),
-    'claude.accounts': op(async () =>
-      dataResult(await settingsOps(deps).settings.accountMetadata()),
+    'claude.accounts': op(async (_, c) =>
+      pageInventory(
+        await settingsOps(deps).settings.accountMetadata(),
+        c,
+        fields('id', 'label', 'plan'),
+      ),
     ),
     'claude.routing': op(async (a, c) => {
       const snapshot = await readSection(deps, 'providers', undefined, c.signal)

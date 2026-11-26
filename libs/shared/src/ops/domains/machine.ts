@@ -11,6 +11,7 @@ import {
   ref,
   text,
   optional,
+  paged,
   untrusted,
 } from './spec'
 
@@ -36,13 +37,20 @@ export const machineOps = [
     'Refresh the login-shell environment for new lanes.',
     'configure',
   ),
-  inventory('machine.models', 'List available models.', 'read'),
-  inventory('machine.providers', 'List available providers.', 'read'),
+  inventory(
+    'machine.models',
+    'List available models.',
+    'read',
+    object({ provider: optional(text(200)) }),
+    paged,
+  ),
+  inventory('machine.providers', 'List available providers.', 'read', undefined, paged),
   inventory(
     'machine.commands',
     'List available commands.',
     'read',
     object({ project: optional(path) }),
+    paged,
   ),
   inventory('machine.usage', 'Read provider usage.', 'read'),
   machine(
@@ -81,7 +89,7 @@ export const machineOps = [
     }),
     { ...service, positional: ['ref', 'problem', 'reason'], sensitive: ['reason'] },
   ),
-  read('brain.status', 'Show Brain indexing status.', 'read'),
+  read('brain.status', 'Show Brain indexing status.', 'read', undefined, paged),
   read('brain.find', 'Find matching entries in Brain.', 'read', query, {
     positional: ['query'],
     sensitive: ['query'],

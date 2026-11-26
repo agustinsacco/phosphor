@@ -1,35 +1,62 @@
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op } from '@phosphor/session-runtime/ops/results'
+import {
+  dataResult,
+  fields,
+  modelColumns,
+  op,
+  pageInventory,
+} from '@phosphor/session-runtime/ops/results'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import { runServiceUpdate } from '../service-update'
 import { HOST_VERSION } from '../../version'
 import type { DaemonHandlerDeps } from './index'
-import { parseMachineProviders } from '@phosphor/shared/host-protocol-machine'
 import { projectId, settingsOps } from './settings-access'
 import { resourceCall } from './resources-call'
 import { laneCall } from './lane-target'
 import { laneIdOfRef } from '../lane-ref'
 import { CLAUDE_CLI_PROVIDER } from '../../machine/providers'
 
-/** Catalog op → the lane service's machine call, which reads pi's own inventory. */
-const INVENTORY = {
-  'machine.models': 'machine.models',
-  'machine.providers': 'machine.providers',
-} as const
+import { isLiveActivity } from '@phosphor/shared/host-protocol/lanes'
+import {
+  machineRecord,
+  parseMachineProviders,
+  parseMachineModelList,
+  type MachineProvider,
+} from '@phosphor/shared/host-protocol-machine'
+
+function machineInventory(deps: DaemonHandlerDeps) {
+  return {
+    'machine.models': op<{ provider?: string }>(async ({ provider }, c) => {
+      const answer = await laneCall(deps.lanes, 'machine.models', {})
+      const list = parseMachineModelList(answer)
+      if (!list) throw new OpRefusal('unavailable', 'Model inventory unavailable.')
+      return pageInventory(
+        list.models.filter((m) => !provider || m.provider === provider),
+        c,
+        modelColumns,
+        {
+          wrap: (models) => ({ ...(machineRecord(answer) ? answer : list), models }),
+        },
+      )
+    }),
+    'machine.providers': op(async (_, c) => {
+      const list = (await laneCall(deps.lanes, 'machine.providers', {})) as {
+        providers: MachineProvider[]
+      }
+      return pageInventory(list.providers, c, fields('id', 'name', 'status'), {
+        wrap: (providers) => ({ ...list, providers }),
+      })
+    }),
+  }
+}
 
 export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
-  const inventory = Object.fromEntries(
-    Object.entries(INVENTORY).map(([name, method]) => [
-      name,
-      op(async () => dataResult(await laneCall(deps.lanes, method, {}))),
-    ]),
-  )
   return {
-    ...inventory,
+    ...machineInventory(deps),
     'machine.status': op(() => {
       const lanes = deps.store.listLanes()
       const summaries = lanes.flatMap((l) => deps.laneRuntime?.summaryFor(l.laneId) ?? [])
-      const live = summaries.filter((s) => s.activity !== 'stopped' && s.activity !== 'failed')
+      const live = summaries.filter((s) => isLiveActivity(s.activity))
       return dataResult({
         hostVersion: HOST_VERSION,
         lanes: {
@@ -91,7 +118,12 @@ function machineCommands(deps: DaemonHandlerDeps) {
           : undefined
         : projectId(deps, args.project, ctx)
     const params = repoId ? { repositoryId: repoId } : {}
-    return dataResult(await resourceCall(deps, 'machine.commands', params, ctx.signal))
+    const list = (await resourceCall(deps, 'machine.commands', params, ctx.signal)) as {
+      commands: { name: string; source: string; description?: string }[]
+    }
+    return pageInventory(list.commands, ctx, fields('name', 'source', 'description'), {
+      wrap: (commands) => ({ ...list, commands }),
+    })
   })
 }
 

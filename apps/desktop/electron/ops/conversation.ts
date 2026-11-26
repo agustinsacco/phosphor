@@ -1,36 +1,71 @@
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { diskLanes, lanePath, liveOpLanes, targetLane } from './lanes'
-import { op, pageRows, dataResult, pageOffset } from '@phosphor/session-runtime/ops/results'
+import { diskLanes, lanePath, liveOpLanes, projectFolders, targetLane } from './lanes'
+import {
+  op,
+  fields,
+  pageInventory,
+  dataResult,
+  pageOffset,
+  pageLimit,
+  rowTime,
+} from '@phosphor/session-runtime/ops/results'
 
+import { matchesLaneState, type LaneActivity } from '@phosphor/shared/host-protocol/lanes'
+import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
+
+const artifactColumns = {
+  ...fields('key', 'title', 'type'),
+  lane: (a: { sessionId: string }) => `local/session:${a.sessionId}`,
+  updated: (a: { updatedAt: number }) => rowTime(a.updatedAt),
+}
 const library = async () => (await import('../artifacts/artifact-sync')).artifactLibrary
 async function listings() {
   return (await library()).list(liveOpLanes().flatMap((l) => (l.path ? [l.path] : [])))
 }
+type LaneFilter = { folder?: string; state?: string; q?: string }
+async function lanes({ folder, state, q }: LaneFilter, c: OpHandlerContext) {
+  const rows = (await diskLanes(folder)).map(({ ref, title, cwd, busy, sessionId, meta }) => ({
+    ref,
+    title,
+    cwd,
+    state: (busy ? 'working' : sessionId ? 'idle' : 'stopped') as LaneActivity,
+    updated: rowTime(meta?.mtimeMs),
+  }))
+  const query = q?.toLowerCase()
+  return pageInventory(
+    rows.filter(
+      (l) =>
+        matchesLaneState(l.state, state) &&
+        (!query || [l.ref, l.title, l.cwd].some((s) => s.toLowerCase().includes(query))),
+    ),
+    c,
+    { ...fields('ref', 'title', 'state'), branch: () => '', ...fields('updated') },
+  )
+}
 export const conversationHandlers = {
-  'lane.list': op<{ folder?: string; state?: string }>(async ({ folder, state }, c) => {
-    const lanes = (await diskLanes(folder)).map(({ ref, title, cwd, busy, sessionId }) => ({
-      ref,
-      title,
-      cwd,
-      state: busy ? 'busy' : sessionId ? 'idle' : 'stopped',
-    }))
-    return pageRows(
-      lanes.filter((l) => !state || l.state === state),
-      c,
-    )
+  'lane.list': op<LaneFilter>(lanes),
+  'lane.search': op<LaneFilter>(lanes),
+  'lane.tree': op(async (_, c) => {
+    const tree = await (await import('../pi/session-scanner')).readSessionTree(lanePath(c))
+    return pageInventory(tree.entries, c, fields('id', 'parentId', 'type', 'label'), {
+      wrap: (entries) => ({ sessionId: tree.sessionId, leafId: tree.leafId, entries }),
+    })
   }),
+  'folder.list': op(async (_, c) => pageInventory(await projectFolders(), c, { path: (p) => p })),
   'lane.read': op<{ part?: string; messages?: number }>(async ({ part, messages = 20 }, c) => {
     const l = targetLane(c)
     if (part === 'messages')
-      return pageRows(
+      return pageInventory(
         await (await import('../pi/session-scanner')).readSavedTranscript(lanePath(c)),
         c,
-        messages,
+        fields('role', 'content'),
+        { limit: pageLimit(c, messages), surface: { limit: messages, shrink: true } },
       )
     if (part === 'artifacts')
-      return pageRows(
+      return pageInventory(
         (await listings()).filter((a) => a.sessionFile === lanePath(c)),
         c,
+        artifactColumns,
       )
     if (part === 'debug')
       return dataResult({ ref: l.ref, cwd: l.cwd, running: !!l.sessionId, busy: l.busy })
@@ -45,14 +80,24 @@ export const conversationHandlers = {
         : { ref: l.ref, title: l.title, cwd: l.cwd, meta },
     )
   }),
-  'archive.list': op<{ measure?: boolean }>(async ({ measure }) => {
+  'archive.list': op<{ measure?: boolean }>(async ({ measure }, c) => {
     const result = await (await import('../archive/state')).localArchives().inventory.list(measure)
-    return dataResult(result)
+    return pageInventory(
+      result.entries,
+      c,
+      {
+        ...fields('id', 'title'),
+        folder: (a) => a.cwd,
+        archived: (a) => rowTime(a.archivedAt),
+      },
+      { wrap: (entries) => ({ ...result, entries }) },
+    )
   }),
   'artifact.list': op<{ lane?: string }>(async ({ lane }, c) =>
-    pageRows(
+    pageInventory(
       (await listings()).filter((a) => !lane || a.sessionFile === lanePath(c)),
       c,
+      artifactColumns,
     ),
   ),
   'artifact.read': op<{ key: string; lane?: string; version?: number }>(

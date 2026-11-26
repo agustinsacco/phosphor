@@ -10,7 +10,8 @@ import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import type { AuditLog } from './audit'
 import { OpRefusal } from './builtins'
 import type { ConfirmStore } from './confirm'
-import { requestPage, type OpRunContext } from './ports'
+import { auditInventory } from './meta-inventory'
+import type { OpRunContext } from './ports'
 import { dataResult, op } from './results'
 import type { OpPrincipal, OpsBinding, OpsDispatcher, PolicyStore } from './types'
 
@@ -55,14 +56,7 @@ export function metaHandlers(
         ...(laneRef !== undefined ? { laneRef } : {}),
       })
     }),
-    'audit.list': op<{ lane?: string; limit?: number }>(async ({ lane, limit = 50 }, ctx) => {
-      const rows = await audit.list({ laneRef: lane, beforeId: requestPage(ctx), limit: limit + 1 })
-      const shownRows = rows.slice(0, limit)
-      return {
-        ...dataResult(shownRows),
-        ...(rows.length > limit ? { next: shownRows[shownRows.length - 1]!.id } : {}),
-      }
-    }),
+    'audit.list': auditInventory(audit),
     'confirm.list': op((_a, c) => {
       const r = store.list(c.principal)
       if (!r.ok) throw new OpRefusal(r.code, r.text)

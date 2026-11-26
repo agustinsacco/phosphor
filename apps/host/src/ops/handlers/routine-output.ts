@@ -1,10 +1,18 @@
 import { lstatSync } from 'node:fs'
 import { isUuid } from '@phosphor/shared/control-api'
-import { parseRoutineHistory } from '@phosphor/shared/host-protocol-routines'
+import { parseRoutineHistory, ROUTINE_LIMITS } from '@phosphor/shared/host-protocol-routines'
 import type { AgentMessage } from '@phosphor/shared/rpc'
 import { extractText } from '@phosphor/session-runtime/pi/session-content'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult } from '@phosphor/session-runtime/ops/results'
+import {
+  op,
+  pageInventory,
+  pageLimit,
+  pageOffset,
+  routineRunColumns,
+  surfaceInventory,
+} from '@phosphor/session-runtime/ops/results'
+import { requestPage } from '@phosphor/session-runtime/ops/ports'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { readTranscript } from '../../lanes/transcript/read'
 import { createTranscriptCache } from '../../lanes/transcript/cache'
@@ -49,22 +57,35 @@ function conversationText(message: AgentMessage) {
 
 export function routineRunHandlers(deps: DaemonHandlerDeps) {
   const cache = createTranscriptCache()
-  const list = op<RunPage>(async ({ id, offset = 0, output }, ctx) => {
-    const rows = parseRoutineHistory(
-      await resourceCall(
-        deps,
-        id ? 'routines.history' : 'routines.activity',
-        id ? { routineId: id, offset } : { offset },
-      ),
-    )
-    if (!rows) throw new OpRefusal('unavailable', 'Routine activity is unavailable.')
+  const list = op<RunPage>(async ({ id, offset, output }, ctx) => {
+    const start = requestPage(ctx) === undefined ? (offset ?? 0) : pageOffset(ctx)
+    const surface = surfaceInventory(ctx)
+    const limit = surface ? ROUTINE_LIMITS.history : pageLimit(ctx)
+    const rows = []
+    for (
+      let n = start;
+      n <= ROUTINE_LIMITS.offset && rows.length <= limit;
+      n += ROUTINE_LIMITS.history
+    ) {
+      const batch = parseRoutineHistory(
+        await resourceCall(
+          deps,
+          id ? 'routines.history' : 'routines.activity',
+          id ? { routineId: id, offset: n } : { offset: n },
+          ctx.signal,
+        ),
+      )
+      if (!batch) throw new OpRefusal('unavailable', 'Routine activity is unavailable.')
+      rows.push(...batch)
+      if (batch.length < ROUTINE_LIMITS.history) break
+    }
     const refs = new Map(
       deps.store
         .listLanes()
         .filter((l) => l.sessionFile && !l.removedAt)
         .map((l) => [l.sessionFile, laneRefFor(deps.selfIds(), l.laneId)]),
     )
-    return dataResult(
+    return pageInventory(
       rows.map((row) => {
         const path = deps.routines?.sessionPathForRun?.(row.id)
         const laneRef = path && refs.get(path)
@@ -73,12 +94,23 @@ export function routineRunHandlers(deps: DaemonHandlerDeps) {
           ? { ...row, savedOutput: true }
           : row
       }),
+      ctx,
+      routineRunColumns,
+      surfaceInventory,
+      { windowOffset: start, limit, ...(surface ? { surface: { limit } } : {}) },
     )
   })
   return {
     'routine.activity': list,
     'routine.history': op<RunPage & { runId?: string }>((args, ctx) => {
-      if (args.runId === undefined) return list(args, ctx)
+      if (args.runId === undefined) {
+        if (!args.id)
+          throw new OpRefusal(
+            'bad-request',
+            'Supply a routine id for history; use routine activity for all runs.',
+          )
+        return list(args, ctx)
+      }
       if (!canReadOutput(ctx))
         throw new OpRefusal('forbidden', 'This connection cannot read run output.')
       if (!isUuid(args.runId) || Object.keys(args).length !== 1)

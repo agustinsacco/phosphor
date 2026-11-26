@@ -17,7 +17,10 @@ it('fits quote-heavy UTF-8 rows as serialized JSON, and continues after the last
 })
 
 it('delivers one oversized row with a visible omission marker and keeps projecting compact text', () => {
-  const rows = [{ id: 0, title: `Line 1\nLine 2 ${text.repeat(15)}` }, { id: 1, title: '' }]
+  const rows = [
+    { id: 0, title: `Line 1\nLine 2 ${text.repeat(15)}` },
+    { id: 1, title: '' },
+  ]
   const page = results.pageInventory(rows, {} as never, columns)
   expect(page.data).toEqual([{ id: 0, title: expect.stringMatching(/…\(\+\d+ chars\)$/u) }])
   expect(Buffer.byteLength(JSON.stringify(page.data))).toBeLessThanOrEqual(12 * 1024)

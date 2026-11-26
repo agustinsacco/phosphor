@@ -23,6 +23,8 @@ export const OPS_LIMITS = {
   contentBytes: 256 * 1024,
   /** A command result and the tool text a lane receives, UTF-8 bytes of its JSON. */
   resultBytes: 64 * 1024,
+  /** Serialized rows in one inventory page. */
+  pageBytes: 12 * 1024,
   /** A call result's `data`, UTF-8 bytes of its JSON (artifact and transcript chunks). */
   callDataBytes: 1024 * 1024,
   reasonChars: 300,

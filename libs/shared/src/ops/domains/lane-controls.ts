@@ -33,6 +33,7 @@ const pr = object({ url: text(2048) })
 const after = { applies: 'after-run' } as const
 const next = { applies: 'next-request' } as const
 export const laneControls = [
+  self('lane.controls', 'Read effective and pending controls in this lane.', 'read'),
   self(
     'swarm.on',
     'Request Swarm for this lane unless the user turned it off.',

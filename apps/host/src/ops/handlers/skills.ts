@@ -7,7 +7,7 @@ import {
 } from '@phosphor/session-runtime/skills/share-bundle'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult } from '@phosphor/session-runtime/ops/results'
+import { op, dataResult, fields, pageInventory } from '@phosphor/session-runtime/ops/results'
 import type { OpHandler, OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { composeSkillMd } from '@phosphor/shared/skills'
 import {
@@ -151,10 +151,16 @@ function askingLane(ctx: OpHandlerContext) {
 export function skillHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   return {
     'skill.list': op<{ project?: string }>(async (a, ctx) => {
-      if (!a.project)
-        return dataResult(await resourceCall(deps, 'skills.list', askingLane(ctx), ctx.signal))
-      const skills = await projectIndex(deps, await project(deps, a.project), ctx.signal)
-      return dataResult({ skills: skills.map((s) => s.skill) })
+      const skills = a.project
+        ? (await projectIndex(deps, await project(deps, a.project), ctx.signal)).map((s) => s.skill)
+        : (
+            (await resourceCall(deps, 'skills.list', askingLane(ctx), ctx.signal)) as {
+              skills: { name: string; scope: string; description: string }[]
+            }
+          ).skills
+      return pageInventory(skills, ctx, fields('name', 'scope', 'description'), {
+        wrap: (skills) => ({ skills }),
+      })
     }),
     'skill.read': op<{ name: string; file?: string }>(async (a, ctx) =>
       dataResult(await resourceCall(deps, 'skills.read', { ...a, ...askingLane(ctx) }, ctx.signal)),

@@ -1,6 +1,6 @@
 import { isMachinePackageSpec } from '@phosphor/shared/machine-settings'
 import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
-import { op, dataResult } from '@phosphor/session-runtime/ops/results'
+import { op, fields, pageInventory } from '@phosphor/session-runtime/ops/results'
 import { projectId, scopedProject, settingsOps, readSection } from './settings-access'
 import type { HeadlessTask } from '../../settings/headless-tasks'
 import type { DaemonHandlerDeps } from './index'
@@ -19,9 +19,11 @@ export function packageHandlers(deps: DaemonHandlerDeps) {
     })
   return {
     'package.list': op(async (a, c) =>
-      dataResult(
+      pageInventory(
         (await readSection(deps, 'resources', projectId(deps, a.project, c), c.signal)).resources
           ?.packages ?? [],
+        c,
+        fields('spec', 'scope', 'kind'),
       ),
     ),
     'package.checkUpdates': op(async (a, c) => {
@@ -31,12 +33,18 @@ export function packageHandlers(deps: DaemonHandlerDeps) {
         projectId(deps, a.project, c),
         c.signal,
       )
-      return dataResult(
-        await checkPackageUpdates(
-          (resources?.packages ?? []).flatMap(({ spec }) =>
-            isMachinePackageSpec(spec) ? [{ spec, kind: 'npm' }] : [],
-          ),
+      const updates = await checkPackageUpdates(
+        (resources?.packages ?? []).flatMap(({ spec }) =>
+          isMachinePackageSpec(spec) ? [{ spec, kind: 'npm' }] : [],
         ),
+      )
+      return pageInventory(
+        Object.entries(updates),
+        c,
+        { spec: ([spec]) => spec, latest: ([, latest]) => latest },
+        {
+          wrap: Object.fromEntries,
+        },
       )
     }),
     'package.install': task('package.install'),

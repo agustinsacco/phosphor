@@ -13,6 +13,7 @@ import {
   object,
   on,
   optional,
+  paged,
   path,
   previous,
   reverse,
@@ -48,6 +49,7 @@ const connectorTier = ({ config }: OpArgs) =>
 
 export const resources = [
   read('skill.list', 'List available skills.', 'read', object({ project: optional(path) }), {
+    ...paged,
     requires: caps('skills.read'),
   }),
   read(
@@ -95,10 +97,11 @@ export const resources = [
     'List configured MCP servers without credentials.',
     'read',
     object({ project: optional(path) }),
+    paged,
   ),
   read(
     'mcp.check',
-    'Check an MCP server.',
+    'Show cached status for an MCP server.',
     'read',
     object({ name: id, project: optional(path) }),
     byName,
@@ -140,14 +143,14 @@ export const resources = [
     'List installed packages.',
     'read',
     object({ project: optional(path) }),
-    packageDeadline,
+    { ...packageDeadline, ...paged },
   ),
   read(
     'package.checkUpdates',
     'Check for package updates.',
     'read',
     object({ project: optional(path) }),
-    packageDeadline,
+    { ...packageDeadline, ...paged },
   ),
   ...(['install', 'update', 'remove'] as const).map((action) =>
     change(

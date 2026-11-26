@@ -9,6 +9,7 @@ import {
   object,
   on,
   optional,
+  paged,
   previous,
   reverse,
   text,
@@ -39,25 +40,28 @@ const guarded = caps('routines', 'sessions.control')
 const byId = { positional: ['id'] } as const
 const one = object({ id })
 export const routines = [
-  routine('routine.list', 'List routines.', 'read', undefined, untrusted),
+  routine('routine.list', 'List routines.', 'read', undefined, { ...untrusted, ...paged }),
   routine(
     'routine.history',
-    'List recent routine runs.',
+    'List runs for one routine.',
     'read',
-    object({
-      id: optional(id),
-      offset: optional(count(ROUTINE_LIMITS.offset, 0)),
-      output: optional(on),
-      runId: optional(id),
-    }),
-    untrusted,
+    object(
+      {
+        id: optional(id),
+        offset: optional(count(ROUTINE_LIMITS.offset, 0)),
+        output: optional(on),
+        runId: optional(id),
+      },
+      { oneOf: [{ required: ['id'] }, { required: ['runId'], maxProperties: 1 }] },
+    ),
+    { ...byId, ...untrusted, ...paged },
   ),
   routine(
     'routine.activity',
     'List routine activity.',
     'read',
-    object({ id: optional(id), output: optional(on) }),
-    untrusted,
+    object({ offset: optional(count(ROUTINE_LIMITS.offset, 0)), output: optional(on) }),
+    { ...untrusted, ...paged },
   ),
   routine('routine.check', 'Check whether a routine can run.', 'read', object({ definition }), {
     sensitive: ['definition'],
