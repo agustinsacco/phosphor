@@ -489,3 +489,21 @@ it('allows a replacement pi to answer set_model after the ordinary deadline', as
   expect(await pending).toEqual({ answered: true, value: 'selected' })
   expect(p.log).not.toHaveBeenCalled()
 })
+
+// Starting pi took 51 s under load: the resume a prompt sends first must land, not read unknown.
+it('allows a slow pi start to answer lane.resume after the ordinary deadline', async () => {
+  const state = createCommandState()
+  const p = ports()
+  const slow = deferred<null>()
+  const pending = dispatch(
+    state,
+    p,
+    job(frame({ type: 'lane.resume' })),
+    queueFor(state, laneId),
+    () => slow.promise,
+  )
+  await vi.advanceTimersByTimeAsync(45_000)
+  slow.release(null)
+  expect(await pending).toEqual({ answered: true, value: null })
+  expect(p.log).not.toHaveBeenCalled()
+})
