@@ -752,3 +752,67 @@ it.each(['resume', 'paused', 'foreign'] as const)(
     }
   },
 )
+
+it('reconciles both provider switches from snapshots with no successful command receipt', async () => {
+  const id = mockRemoteInfo.sessionId
+  const opus = {
+    provider: 'pi-claude-cli',
+    id: 'opus',
+    name: 'Claude Opus',
+    contextWindow: 200_000,
+  }
+  const astra = {
+    provider: 'openai-codex',
+    id: 'astra',
+    name: 'GPT-6.2 Astra',
+    contextWindow: 272_000,
+  }
+  let model = opus
+  const piCommand = vi.spyOn(window.phosphor, 'piCommand')
+  const read = piCommand.getMockImplementation()!
+  piCommand.mockImplementation((sessionId, command) =>
+    command.type === 'get_state'
+      ? Promise.resolve({ type: 'response', command: 'get_state', success: true, data: { model } })
+      : read(sessionId, command),
+  )
+  const ui = useExtensionUiStore.getState()
+  const status = (statusKey: string) =>
+    ui.handleRequest(id, {
+      type: 'extension_ui_request',
+      id: statusKey,
+      method: 'setStatus',
+      statusKey,
+      statusText: statusKey,
+    })
+  const statuses = () => useExtensionUiStore.getState().statuses[id]
+  const chat = () => useChatStore.getState().sessions[id]
+  await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+  status('claude-rate-limit')
+  status('claude-subagents')
+  status('pi-claude-cli')
+  status('phosphor-swarm')
+  useChatStore.getState().setError(id, 'Outcome unknown')
+  model = astra
+  push?.({ kind: 'resync' })
+  await vi.waitFor(() => expect(chat()?.meta?.model).toEqual(astra))
+  expect(chat()?.error).toBeNull()
+  expect(statuses()).toEqual({ 'phosphor-swarm': 'phosphor-swarm' })
+  expect(chat()?.items).toMatchObject([
+    { kind: 'user', text },
+    { kind: 'custom', text: 'Switched to GPT-6.2 Astra', inContext: false },
+  ])
+  status('openai-codex')
+  status('pi-claude-cli') // The incoming provider may publish before get_state resolves.
+  model = opus
+  push?.({ kind: 'resync' })
+  await vi.waitFor(() => expect(chat()?.meta?.model).toEqual(opus))
+  expect(statuses()).toEqual({
+    'pi-claude-cli': 'pi-claude-cli',
+    'phosphor-swarm': 'phosphor-swarm',
+  })
+  expect(chat()?.items).toMatchObject([
+    { kind: 'user', text },
+    { kind: 'custom', text: 'Switched to GPT-6.2 Astra' },
+    { kind: 'custom', text: 'Switched to Claude Opus' },
+  ])
+})

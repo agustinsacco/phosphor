@@ -651,3 +651,23 @@ it('refreshes the open meter from a Mac lane to a Host lane and back without sta
   expect(document.body.textContent).not.toContain('remote machine')
   expect(document.body.textContent).not.toContain('600k')
 })
+
+it('recalculates from the confirmed model window before a fresh stats reading', () => {
+  seed({ tokens: 100_000, contextWindow: 200_000, percent: 50 }, 'pi-claude-cli', false)
+  render()
+  expect(container?.textContent).toContain('50% of 200k')
+  const model = useChatStore.getState().sessions[SESSION]?.meta?.model
+  if (!model) throw new Error('missing model fixture')
+  act(() =>
+    useChatStore.getState().patchMeta(SESSION, {
+      model: {
+        ...model,
+        provider: 'openai-codex',
+        id: 'astra',
+        name: 'GPT-6.2 Astra',
+        contextWindow: 400_000,
+      },
+    }),
+  )
+  expect(container?.textContent).toContain('25% of 400k')
+})

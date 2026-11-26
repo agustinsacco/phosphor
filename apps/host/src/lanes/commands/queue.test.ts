@@ -472,3 +472,20 @@ describe('close', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 })
+
+it('allows a replacement pi to answer set_model after the ordinary deadline', async () => {
+  const state = createCommandState()
+  const p = ports()
+  const slow = deferred<string>()
+  const pending = dispatch(
+    state,
+    p,
+    job(frame({ type: 'set_model', provider: 'openai-codex', modelId: 'gpt-6.2-astra' })),
+    queueFor(state, laneId),
+    () => slow.promise,
+  )
+  await vi.advanceTimersByTimeAsync(65_000)
+  slow.release('selected')
+  expect(await pending).toEqual({ answered: true, value: 'selected' })
+  expect(p.log).not.toHaveBeenCalled()
+})
