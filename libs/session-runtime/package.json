@@ -144,6 +144,10 @@
       "types": "./src/pi/global-instructions.ts",
       "default": "./src/pi/global-instructions.ts"
     },
+    "./pi/codex-usage": {
+      "types": "./src/pi/codex-usage.ts",
+      "default": "./src/pi/codex-usage.ts"
+    },
     "./pi/auth-identity": {
       "types": "./src/pi/auth-identity.ts",
       "default": "./src/pi/auth-identity.ts"
