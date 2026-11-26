@@ -453,34 +453,6 @@ it('adopted lanes receive one settled card, not a second Host attention card', a
   detach()
 })
 
-it.each(['offline', 'removed'])(
-  'does not commit when a lane becomes %s during open',
-  async (problem) => {
-    useRemoteLanesStore.setState({ filter: 'local' })
-    useSessionsStore.setState({ activeSessionId: 'mac' })
-    invoke.mockImplementation(async (channel) => {
-      if (channel !== 'hosts:openLane') return []
-      const hosts = structuredClone(mockRemoteHosts)
-      const host = hosts[MOCK_HOST_ID]
-      if (!host) throw new Error('fixture')
-      if (problem === 'offline') host.state = 'reconnecting'
-      else host.lanes = []
-      useRemoteLanesStore.setState({ hosts })
-      return mockRemoteInfo
-    })
-    expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(false)
-    expect(useSessionsStore.getState().activeSessionId).toBe('mac')
-    // The click switched to the lane at once; its view now says why it did not open.
-    expect(useRemoteLanesStore.getState().filter).toBe(MOCK_HOST_ID)
-    expect(useLayoutStore.getState().page).toBeNull()
-    expect(useSessionsStore.getState().opening?.failure).toBe(
-      useExtensionUiStore.getState().toasts[0]?.message,
-    )
-    expect(useLaneRevealStore.getState().seq).toBe(0)
-    expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
-  },
-)
-
 it('classifies an open rejection from a fresh snapshot without showing Host error payloads', async () => {
   invoke.mockImplementation(async (channel) => {
     if (channel === 'hosts:openLane') throw new Error('private Host error payload')

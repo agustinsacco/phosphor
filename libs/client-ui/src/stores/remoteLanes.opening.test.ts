@@ -8,6 +8,7 @@ import { useSessionsStore } from './sessions'
 import { useChatStore } from './chat'
 import { useLayoutStore } from './layout'
 import { useExtensionUiStore } from './extensionUi'
+import { useLaneRevealStore } from '@/features/sessions/laneReveal'
 import { navigateToLane, openRemoteLane, useRemoteLanesStore } from './remoteLanes'
 
 vi.mock('@/lib/monaco', () => ({}))
@@ -156,3 +157,32 @@ it('switches to a lane this client already holds without the opening view', asyn
   expect(await back).toBe(true)
   expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
 })
+
+it.each(['offline', 'removed'])(
+  'does not commit when a lane becomes %s during open',
+  async (problem) => {
+    useLaneRevealStore.setState({ seq: 0, groupKey: null })
+    useRemoteLanesStore.setState({ filter: 'local' })
+    useSessionsStore.setState({ activeSessionId: 'mac' })
+    invoke.mockImplementation(async (channel) => {
+      if (channel !== 'hosts:openLane') return []
+      const hosts = structuredClone(mockRemoteHosts)
+      const host = hosts[MOCK_HOST_ID]
+      if (!host) throw new Error('fixture')
+      if (problem === 'offline') host.state = 'reconnecting'
+      else host.lanes = []
+      useRemoteLanesStore.setState({ hosts })
+      return mockRemoteInfo
+    })
+    expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(false)
+    expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+    // The click switched to the lane at once; its view now says why it did not open.
+    expect(useRemoteLanesStore.getState().filter).toBe(MOCK_HOST_ID)
+    expect(useLayoutStore.getState().page).toBeNull()
+    expect(useSessionsStore.getState().opening?.failure).toBe(
+      useExtensionUiStore.getState().toasts[0]?.message,
+    )
+    expect(useLaneRevealStore.getState().seq).toBe(0)
+    expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+  },
+)
