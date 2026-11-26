@@ -1,16 +1,9 @@
 import { tooltipProps } from '@/components/Tooltip'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
-import { formatDuration, formatRate, formatTokens } from '@/lib/format'
+import { formatDuration, formatTokens } from '@/lib/format'
 import { buildTranscriptRows, trailingUnfinishedAgents } from './items/transcriptRows'
-import {
-  genRateFrom,
-  recordGenSample,
-  resetGenSamples,
-  type GenRate,
-  type GenSample,
-} from './genRate'
 
 /**
  * Persistent "pi is working" strip: elapsed time and running token count for
@@ -21,10 +14,6 @@ import {
  * Tokens read `stats.tokens.total`, refreshed live on every `message_end` /
  * `tool_execution_end` (see shouldRefreshStatsOn in stores/sessions.ts) — it
  * climbs during the run rather than jumping once at the end.
- *
- * The `tok/s` figure is the model's throughput over the last stretch of
- * streaming (genRate.ts) and drops out while pi is running a tool, so the
- * number never describes a wait as a slow model.
  */
 /**
  * "These sub-agents never reported back" strip for the Claude provider.
@@ -82,9 +71,7 @@ export function WorkingIndicator({ sessionId }: { sessionId: string }): React.JS
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const agentStartedAt = useChatStore((s) => s.sessions[sessionId]?.agentStartedAt ?? null)
   const totalTokens = useChatStore((s) => s.sessions[sessionId]?.stats?.tokens.total)
-  const outputTokens = useChatStore((s) => s.sessions[sessionId]?.stats?.tokens.output)
   const [elapsedMs, setElapsedMs] = useState(0)
-  const speed = useGenRate(agentStartedAt, outputTokens)
 
   useEffect(() => {
     if (!agentStartedAt) return
@@ -107,58 +94,7 @@ export function WorkingIndicator({ sessionId }: { sessionId: string }): React.JS
             <span className="tabular-nums">{formatTokens(totalTokens)} tokens</span>
           </>
         )}
-        {speed && (
-          <>
-            <span className="text-text-tertiary">·</span>
-            <span
-              className="tabular-nums"
-              data-testid="working-speed"
-              {...tooltipProps({
-                label: `${formatRate(speed.tokensPerSecond)} tokens per second`,
-                description:
-                  `${formatTokens(speed.tokens)} generated over the last ` +
-                  `${Math.round(speed.spanMs / 1000)}s. Tool calls and waits are left out, ` +
-                  'so the figure disappears while pi is not generating.',
-              })}
-            >
-              {formatRate(speed.tokensPerSecond)} tok/s
-            </span>
-          </>
-        )}
       </div>
     </div>
   )
-}
-
-/**
- * The strip's throughput readout: cumulative output tokens in, a rate out.
- *
- * Readings come whenever `stats` moves AND once a second, because a stall is
- * only visible as time passing without a movement; the figure resets with the
- * run it describes (`agentStartedAt`, cleared on `agent_settled`).
- */
-function useGenRate(
-  agentStartedAt: number | null,
-  outputTokens: number | undefined,
-): GenRate | null {
-  const samples = useRef<GenSample[]>([])
-  const [rate, setRate] = useState<GenRate | null>(null)
-
-  useEffect(() => {
-    resetGenSamples(samples.current)
-    setRate(null)
-  }, [agentStartedAt])
-
-  useEffect(() => {
-    if (!agentStartedAt) return
-    const sample = (): void => {
-      if (outputTokens != null) recordGenSample(samples.current, Date.now(), outputTokens)
-      setRate(genRateFrom(samples.current, Date.now()))
-    }
-    sample()
-    const interval = setInterval(sample, 1000)
-    return () => clearInterval(interval)
-  }, [agentStartedAt, outputTokens])
-
-  return rate
 }

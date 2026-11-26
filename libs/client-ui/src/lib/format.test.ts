@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatTokens, formatDuration, formatBytes, formatRate } from './format'
+import { formatTokens, formatDuration, formatBytes } from './format'
 
 describe('formatTokens', () => {
   it.each([
@@ -120,27 +120,6 @@ describe('formatBytes', () => {
     // bounded, so a label repainted on every delta can't reflow its row.
     for (let n = 0; n <= 4_000_000; n += 4093) {
       expect(formatBytes(n).length).toBeLessThanOrEqual(9)
-    }
-  })
-})
-
-describe('formatRate', () => {
-  it('holds two significant digits at every scale', () => {
-    expect(formatRate(412)).toBe('412')
-    expect(formatRate(62.4)).toBe('62')
-    expect(formatRate(8.42)).toBe('8.4')
-    expect(formatRate(0.42)).toBe('0.42')
-  })
-
-  it('never invents speed from a rate that is not there', () => {
-    expect(formatRate(0)).toBe('0')
-    expect(formatRate(-5)).toBe('0')
-    expect(formatRate(Number.NaN)).toBe('0')
-  })
-
-  it('keeps the width bounded so a repainted figure cannot reflow its row', () => {
-    for (const rate of [0.01, 0.9, 1, 9.99, 10, 999]) {
-      expect(formatRate(rate).length).toBeLessThanOrEqual(4)
     }
   })
 })
