@@ -96,6 +96,8 @@ const json = (path: string, value: unknown) =>
 export interface LocalDaemonOptions {
   /** Writes `owner-standby.json`: the daemon serves owner calls only, as before a migration commit. */
   standby?: boolean
+  /** Run the real phosphor tool inside the synthetic model. */
+  agentOps?: boolean
   repositories?:
     | string[]
     | ((
@@ -155,7 +157,12 @@ async function writeDaemonWorld(layout: DaemonLayout, options: LocalDaemonOption
     version: 1,
     pi: {
       node: process.execPath,
-      executable: join(project, 'apps/host/src/__fixtures__/fake-pi.cjs'),
+      executable: join(
+        project,
+        options.agentOps
+          ? 'apps/desktop/e2e/fixtures/host-ops-pi.cjs'
+          : 'apps/host/src/__fixtures__/fake-pi.cjs',
+      ),
     },
     repositories:
       typeof options.repositories === 'function'

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { createServer } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
+import { directoryRpc } from './fixture-directory'
 import { askToPurge, seedPeer } from './seed-peer'
 import { createApp, type AppDeps } from '../../control/src/app'
 import { parseConfig } from '../../control/src/config'
@@ -65,7 +66,7 @@ function webSessionRpc(
 }
 
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
-export async function browserFixture(production = false) {
+export async function browserFixture(production = false, agentOps = false) {
   const root = await createRoot()
   const cleanups: (() => Promise<unknown>)[] = [() => removeRoot(root)]
   const close = async () => {
@@ -353,7 +354,14 @@ export async function browserFixture(production = false) {
       second = join(root, 'other'),
       agent = join(root, 'agent'),
       conf = join(root, 'config')
-    for (const dir of [repo, second, agent, join(conf, 'identity'), join(root, 'bin')])
+    for (const dir of [
+      repo,
+      second,
+      agent,
+      join(root, 'agent-added-folder'),
+      join(conf, 'identity'),
+      join(root, 'bin'),
+    ])
       await mkdir(dir, { recursive: true, mode: 0o700 })
     await writeFile(join(repo, 'remote.txt'), 'HOST_A_ONLY synthetic file\n')
     await writeFile(join(second, 'remote.txt'), 'HOST_B_ONLY synthetic file\n')
@@ -396,7 +404,12 @@ export async function browserFixture(production = false) {
         version: 1,
         pi: {
           node: process.execPath,
-          executable: resolve(project, 'apps/host/src/__fixtures__/fake-pi.cjs'),
+          executable: resolve(
+            project,
+            agentOps
+              ? 'apps/desktop/e2e/fixtures/host-ops-pi.cjs'
+              : 'apps/host/src/__fixtures__/fake-pi.cjs',
+          ),
         },
         repositories: [repo, second],
         control: { url: controlOrigin },
@@ -487,38 +500,6 @@ export async function browserFixture(production = false) {
   }
 }
 
-/** Directory state behind the real Control routes. Omitted reach models pre-upgrade control. */
-function directoryRpc(
-  name: 'control_machines' | 'control_machine_reach_list' | 'control_machine_reach_set',
-  args: Record<string, unknown>,
-  owner: string,
-  machine: MachineView,
-  state: { machineReach?: boolean },
-) {
-  switch (name) {
-    case 'control_machines':
-      return {
-        machines:
-          args.p_user_id === owner ? [{ ...machine, lastSeenAt: new Date().toISOString() }] : [],
-        serverTime: new Date().toISOString(),
-      }
-    case 'control_machine_reach_list':
-      return state.machineReach === undefined || args.p_user !== owner
-        ? []
-        : [{ id: machine.id, machineReach: state.machineReach, machineGrants: true }]
-    case 'control_machine_reach_set':
-      if (
-        state.machineReach === undefined ||
-        args.p_host !== machine.id ||
-        args.p_user !== owner ||
-        typeof args.p_enabled !== 'boolean'
-      )
-        return { outcome: 'not-found' }
-      state.machineReach = args.p_enabled
-      return { outcome: 'set', machineReach: state.machineReach }
-  }
-}
-
 /** Drops the Host's live sockets, or keeps it unreachable until released (a phone waking offline). */
 function hostGate(sockets: Set<Socket>) {
   const gate = {
@@ -551,11 +532,13 @@ async function stop(child: ChildProcess) {
   }
 }
 
-export const test = base.extend<{ stack: Awaited<ReturnType<typeof browserFixture>> }>({
-  // Playwright requires a destructured first argument even with no fixture dependencies.
-  // eslint-disable-next-line no-empty-pattern
-  stack: async ({}, use) => {
-    const stack = await browserFixture()
+export const test = base.extend<{
+  stack: Awaited<ReturnType<typeof browserFixture>>
+  agentOps: boolean
+}>({
+  agentOps: [false, { option: true }],
+  stack: async ({ agentOps }, use) => {
+    const stack = await browserFixture(false, agentOps)
     try {
       await use(stack)
     } finally {
