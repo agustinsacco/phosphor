@@ -124,6 +124,24 @@ describe('reach directory', () => {
     expect(calls).toHaveLength(count)
   })
 
+  it('honors Retry-After across directory calls without retrying a 429', async () => {
+    const clock = { now: Date.now() }
+    let count = 0
+    const directory = createReachDirectory({
+      control: reachControl, now: () => clock.now,
+      fetch: async () => ++count === 1
+        ? Response.json({}, { status: 429, headers: { 'Retry-After': '2' } })
+        : Response.json((listing([]) as { body: unknown }).body),
+    })
+    expect(await directory.read()).toEqual({ available: false, reason: 'rate-limited' })
+    clock.now += 1999
+    expect(await directory.read()).toEqual({ available: false, reason: 'rate-limited' })
+    expect(count).toBe(1)
+    clock.now++
+    expect(await directory.read()).toMatchObject({ available: true })
+    expect(count).toBe(2)
+  })
+
   it('answers signed-out without asking control before enrollment', async () => {
     const { directory, calls, signedIn } = setup(() => listing([]))
     signedIn.value = false

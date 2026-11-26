@@ -16,6 +16,7 @@ import {
   type DirectoryEntryOverrides,
   type Sibling,
 } from './__fixtures__/siblings'
+import { createHostResolver } from '../ops/remote'
 import { FEATURE, createMachineReach, createReach, reachOpsResult, reachRemote } from './index'
 
 const read = { op: 'lane.list', args: {} }
@@ -68,6 +69,27 @@ describe('machine reach', () => {
     expect(bee2.sockets).toHaveLength(1)
     await reach.close()
     expect(bee2.sockets[0]!.client.isOpen()).toBe(false)
+  })
+
+  it('sends with the resolved snapshot and lists capability without probing', async () => {
+    const bee2 = sibling('bee2')
+    const { reach, calls } = setup([bee2])
+    const resolver = createHostResolver({ selfIds: () => [SELF.id], directory: reach.directory })
+    const budget = { now: Date.now, deadlineAt: Date.now() + 20_000, signal: new AbortController().signal }
+    try {
+      const resolved = await resolver.resolve([bee2.label], budget)
+      if (!resolved.ok || !('hosts' in resolved)) throw new Error('Missing machine')
+      const [host] = resolved.hosts
+      expect(host?.machine).toMatchObject({ catalogOps: 'unknown', hostVersion: '0.3.0' })
+      expect(bee2.sockets).toHaveLength(0)
+      await expect(reachRemote(reach).run(host!.id, read, { ...budget, target: host!.machine })).resolves.toEqual(LANE_LIST_OK)
+      expect(calls.map(({ path }) => path)).toEqual([CONTROL_MACHINE_ROUTES.hostMachines, CONTROL_MACHINE_ROUTES.hostMachineGrants])
+      const directory = await reach.directory()
+      expect(directory).toMatchObject({ available: true, machines: [{ catalogOps: true }] })
+      expect(bee2.sockets).toHaveLength(1)
+    } finally {
+      await reach.close()
+    }
   })
 
   it.each([
