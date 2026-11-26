@@ -25,7 +25,7 @@ export interface ReachMachine {
   readonly online: boolean
   readonly hostVersion: string | null
   readonly catalogOps?: boolean | 'unknown'
-  /** Ops supported and reach on at both ends. */
+  /** Online and eligible for reach in the directory, before contacting the Host. */
   readonly ready: boolean
   readonly why?: 'offline' | 'not-enrolled' | 'reach-off' | 'stale-heartbeat'
 }

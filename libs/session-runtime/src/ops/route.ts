@@ -9,6 +9,7 @@
  * ("Machines").
  */
 import { randomUUID } from 'node:crypto'
+import { parseRemoteLaneKey } from '@phosphor/shared/remote-host'
 import { normalizeLabel } from '@phosphor/shared/control-api'
 import {
   OPS_LIMITS,
@@ -30,7 +31,7 @@ import {
   type Routed,
 } from './route-batch'
 import type { OpDeadline, OpPrincipal, OpsBinding } from './types'
-import { batchResult, cursorForHost, hasHostCursor } from './route-result'
+import { batchResult } from './route-result'
 
 type Remote = NonNullable<OpsBinding['remote']>
 
@@ -77,14 +78,15 @@ export function routeSelection(
   hosts?: HostSelection,
   isSelf?: (hostId: string) => boolean,
 ): { hosts?: HostSelection; laneHost?: string; batch: boolean; local?: boolean } | Refusal {
-  const laneTarget = LANE_TARGET_OPS.has(request.op) ? request.args.target : undefined
   const ref =
     request.op === 'audit.list'
       ? undefined
-      : typeof laneTarget === 'string'
-        ? laneTarget
+      : LANE_TARGET_OPS.has(request.op)
+        ? typeof request.args.target === 'string'
+          ? request.args.target
+          : undefined
         : laneRefArg(request.op, request.args)
-  const laneHost = ref === undefined ? undefined : /^host:([^/]+)\/lane:[^/]+$/.exec(ref)?.[1]
+  const laneHost = ref === undefined ? undefined : parseRemoteLaneKey(ref)?.hostId
   const batch = hosts === 'all' || (hosts?.length ?? 0) > 1
   if (batch && request.page !== undefined)
     return {
@@ -93,12 +95,7 @@ export function routeSelection(
     }
   if (batch && ref !== undefined)
     return { code: 'bad-request', text: 'A lane target applies to one host. Specify one --host.' }
-  if (hasHostCursor(request.page) && !hosts && !laneHost)
-    return {
-      code: 'bad-request',
-      text: 'This page belongs to a remote host. Continue with its --host.',
-    }
-  if (!laneHost || ref === undefined) return { hosts, batch }
+  if (!laneHost) return { hosts, batch }
   const local = laneHost === (binding.machineId ?? 'local') || isSelf?.(laneHost) === true
   if (principal.kind === 'machine')
     return local
@@ -137,22 +134,15 @@ export async function routeTargets(
 }
 
 /** The request each target receives: attribution only, never authority, and never the caller's confirm. */
-function forwarded(j: Judged, page: string | undefined, batch?: OpsBatchRef): OpsRunRequest {
+function forwarded(j: Judged, batch?: OpsBatchRef): OpsRunRequest {
   const title = j.askingTitle
   const actor: OpsActor = {
     kind: 'agent',
     ...(j.askingLane !== undefined ? { lane: j.askingLane } : {}),
     ...(title !== undefined && normalizeLabel(title) === title ? { title } : {}),
   }
-  const r = j.request
-  return {
-    op: r.op,
-    args: r.args,
-    actor,
-    ...(r.reason !== undefined ? { reason: r.reason } : {}),
-    ...(batch ? { batch } : {}),
-    ...(page !== undefined ? { page } : {}),
-  }
+  const { actor: _actor, confirm: _confirm, batch: _batch, ...request } = j.request
+  return { ...request, actor, ...(batch ? { batch } : {}) }
 }
 
 async function reach(
@@ -194,20 +184,15 @@ export async function routeOp(
   const remote = binding.remote
   if (!remote) return { code: 'unsupported', text: 'This machine cannot reach other machines.' }
   const send = (host: RoutedHost, request: OpsRunRequest) => reach(remote, host, request, budget)
-  const page = targets[0] ? cursorForHost(j.request.page, targets[0].id) : j.request.page
-  if (typeof page === 'object') return page
   const confirm = j.request.confirm
   if (confirm) {
-    const again = await resubmitBatch(batches, j, confirm, send, (ref) => forwarded(j, page, ref))
+    const again = await resubmitBatch(batches, j, confirm, send, (ref) => forwarded(j, ref))
     if (!again) return EXPIRED
     return { result: batchResult(j, again.hosts, again.results, again.batch), decision: 'approved' }
   }
   const batchId = batch ? randomUUID() : undefined
   const results = await mapLimit(targets, OPS_LIMITS.batchConcurrency, (host, index) =>
-    send(
-      host,
-      forwarded(j, page, batchId ? { id: batchId, index, size: targets.length } : undefined),
-    ),
+    send(host, forwarded(j, batchId ? { id: batchId, index, size: targets.length } : undefined)),
   )
   const first: BatchTarget[] = targets.map((host, i) => {
     const r = results[i]!

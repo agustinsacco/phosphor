@@ -63,17 +63,21 @@ export const DIRECTORY_REFUSALS: Readonly<Record<ReachUnavailable, Failure>> = {
   ),
 }
 
-function notReady(machine: ReachMachine): Failure {
+function notReady(machine: ReachMachine, op: string): Failure {
   if (machine.why === 'reach-off')
     return refused(
       'forbidden',
       `Machine reach is off on ${machine.label}. Turn it on under Machines.`,
     )
-  if (machine.why === 'not-enrolled')
+  if (machine.why === 'not-enrolled') {
+    const host = machine.hostVersion
+      ? `${machine.label} runs Host ${machine.hostVersion}`
+      : `${machine.label} runs a Host`
     return refused(
       'unsupported',
-      `${machine.label} is not enrolled for reach. Update that Host and enable machine reach.`,
+      `${host}, which does not serve ${op} over reach. It is not enrolled for reach. Update that Host and enable machine reach.`,
     )
+  }
   if (machine.why === 'stale-heartbeat')
     return refused('offline', `${machine.label} has a stale heartbeat. Check that Host is running.`)
   return refused('offline', `${machine.label} is offline.`)
@@ -110,7 +114,7 @@ export function createMachineReach(ports: MachineReachPorts): Reach {
         machine = listing.machines.find((entry) => entry.id === hostId)
       }
       if (!machine) return refused('bad-request', 'No machine on your account has that id.')
-      if (!machine.ready) return notReady(machine)
+      if (!machine.ready) return notReady(machine, request.op)
       return pool.run(machine, request, options)
     },
     close() {
@@ -164,7 +168,7 @@ export function reachRemote(
           signal: options.signal,
           deadlineAt: options.deadlineAt,
           ...(options.target ? { target: options.target } : {}),
-        ...(options.onRemoteWrite ? { onRemoteWrite: options.onRemoteWrite } : {}),
+          ...(options.onRemoteWrite ? { onRemoteWrite: options.onRemoteWrite } : {}),
         }),
       )
     },

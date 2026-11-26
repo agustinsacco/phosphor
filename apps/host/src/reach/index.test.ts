@@ -124,7 +124,7 @@ describe('machine reach', () => {
     [
       { machineGrants: false },
       'unsupported',
-      'bee2 is not enrolled for reach. Update that Host and enable machine reach.',
+      expect.stringContaining('It is not enrolled for reach.'),
     ],
     [{ state: 'stopping' }, 'offline', 'bee2 is offline.'],
   ] as const)(

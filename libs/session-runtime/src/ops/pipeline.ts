@@ -15,13 +15,7 @@ import {
 } from '@phosphor/shared/host-protocol-ops'
 import { OP_CATALOG, type CatalogSpec } from '@phosphor/shared/ops-catalog'
 import type { AuditDecision, LaneEffect, OpFacts } from '@phosphor/shared/ops'
-import {
-  inverse,
-  completed,
-  afterAudit,
-  confirmationArgs,
-  withToast,
-} from './completion'
+import { inverse, completed, afterAudit, confirmationArgs, withToast } from './completion'
 import type { UndoRecord } from './audit'
 import type { LaneDeferredQueue } from './deferred'
 import { placeDeferred, reloadPlan } from './pipeline-deferred'
@@ -41,18 +35,12 @@ import { LANE_CREATING_OPS, type OpLimits } from './limits'
 import { policyVerdict } from './policy'
 import { askingSession, confirmOrigin, isUnattended } from './principals'
 import { laneHostConflict, routeOp, routeRefusal, routeSelection, routeTargets } from './route'
-import { clipBytes, hasHostCursor } from './route-result'
+import { clipBytes } from './route-result'
 import { createRouteBatches, type RouteBatches } from './route-batch'
 import { builtinHandlers, confirmItems, OpRefusal } from './builtins'
 import { REDEMPTION } from './confirm-message'
 import type { OpRunContext, OpsDispatcherDeps } from './ports'
-import type {
-  OpHandler,
-  OpHandlerResult,
-  OpPrincipal,
-  OpsBinding,
-  OpDeadline,
-} from './types'
+import type { OpHandler, OpHandlerResult, OpPrincipal, OpsBinding, OpDeadline } from './types'
 
 /** The pipeline's answer: the wire result plus what only a lane's own tool receives. */
 export interface OpOutcome {
@@ -271,18 +259,18 @@ async function executeRouted(
   const refusal = routeRefusal(env.binding, env.limits, j)
   if (refusal) return refuse(env, j, refusal)
   const confirm = j.request.confirm
-  // A pending batch already holds the machines the user approved.
-  const targets =
-    confirm && env.batches.has(confirm.confirmId)
-      ? []
-      : await routeTargets(env.deps, selection.hosts, budget)
-  const conflict =
-    targets !== 'self' && !('code' in targets) && targets.length === 0
-      ? null
-      : laneHostConflict(selection.laneHost, targets, selection.local)
-  if (conflict) return refuse(env, j, conflict)
-  if (targets === 'self') return null
-  if ('code' in targets) return refuse(env, j, targets)
+  // A pending batch already holds the approved machines. A qualified ref still
+  // has to agree with an explicitly named host before we redeem the approval.
+  const remembered = confirm !== undefined && env.batches.has(confirm.confirmId)
+  const checkHost = selection.laneHost !== undefined && selection.hosts[0] !== selection.laneHost
+  const resolved =
+    remembered && !checkHost ? null : await routeTargets(env.deps, selection.hosts, budget)
+  if (resolved !== null) {
+    const conflict = laneHostConflict(selection.laneHost, resolved, selection.local)
+    if (conflict) return refuse(env, j, conflict)
+    if (resolved === 'self') return null
+    if ('code' in resolved) return refuse(env, j, resolved)
+  }
   const blocked = confirm ? await redeem(env, j, confirm) : null
   if (blocked) return blocked
   const routed = await routeOp(
@@ -290,7 +278,7 @@ async function executeRouted(
     env.deps,
     env.batches,
     j,
-    targets,
+    resolved ?? [],
     budget,
     selection.batch,
   )
@@ -331,8 +319,6 @@ async function execute(
       )
     : null
   if (routed) return routed
-  if (hasHostCursor(request.page))
-    return denied('bad-request', 'This page belongs to a remote host. Continue with its --host.')
   // An audit filter names a historical ref, not an execution target. A gap has no target
   // to discover; let the usual kill/never/gap checks decide without probing disk.
   const args = request.op === 'audit.list' || env.binding.gaps[spec.name] ? {} : request.args

@@ -45,6 +45,12 @@ export type LegacyHostCapability = (typeof LEGACY_HOST_CAPABILITIES)[number]
 export const remoteLaneKey = (hostId: string, laneId: string): string =>
   `host:${hostId}/lane:${laneId}`
 
+/** The two parts of a canonical lane ref; a bare lane id is not a remote key. */
+export function parseRemoteLaneKey(ref: string): { hostId: string; laneId: string } | undefined {
+  const match = /^host:([^/]+)\/lane:([^/]+)$/.exec(ref)
+  return match ? { hostId: match[1]!, laneId: match[2]! } : undefined
+}
+
 /** Local execution remains independent of host enrollment and cloud login. */
 export type HostTarget =
   { readonly kind: 'local' } | { readonly kind: 'remote'; readonly hostId: string }
