@@ -392,6 +392,10 @@ it.each(['exhausted', 'prefix'] as const)(
 // checking for a lane that was never created.
 it.each([
   ['lane-create-failed', `${MOCK_HOST_ID} couldn't start this lane.`],
+  [
+    'Git took too long to create the worktree',
+    'Git took too long to create the worktree. Your draft is kept.',
+  ],
   ['lane-limit', `${MOCK_HOST_ID} is at its lane limit or too busy.`],
 ])('keeps the text on the placeholder and names a %s creation outcome', async (code, message) => {
   useWorktreesStore.setState({ preferWorktree: false, branchPrefix: 'phosphor/' })
