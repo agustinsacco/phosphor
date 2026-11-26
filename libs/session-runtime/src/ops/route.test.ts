@@ -5,6 +5,9 @@ import {
   type OpsRunRequest,
   type OpsRunResult,
 } from '@phosphor/shared/host-protocol-ops'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
+import { parseOpArgv } from '@phosphor/shared/ops-cli'
+import { createOpsDispatcher } from './dispatcher'
 import { createHarness, DIGEST, OWN, type HarnessOptions } from './__fixtures__/dispatcher-harness'
 import { clipBytes } from './route-result'
 
@@ -227,24 +230,38 @@ describe('--host fan-out', () => {
     expect(r.sent).toMatchObject([{ hostId: 'bee2', request: lane }])
   })
 
-  it('passes one deadline and does not dispatch the second wave after it expires', async () => {
+  it('passes one catalog deadline and does not dispatch the second wave after it expires', async () => {
     vi.useFakeTimers()
     try {
       const deadlines: number[] = []
       const signals: AbortSignal[] = []
       const h = harness({
         run: async (_id, _request, options) => {
-          if (options) {
-            deadlines.push(options.deadlineAt)
-            signals.push(options.signal)
-          }
+          deadlines.push(options.deadlineAt)
+          signals.push(options.signal)
           await new Promise((resolve) => setTimeout(resolve, 40))
           return ok('late')
         },
       })
-      const pending = h.tool({ ...list, hosts: ['a', 'b', 'c', 'd', 'e'] }, { deadlineMs: 20 })
+      const dispatcher = createOpsDispatcher(h.binding, {
+        ...h.deps,
+        catalog: OP_CATALOG.map((spec) =>
+          spec.name === list.op ? { ...spec, deadlineMs: 20 } : spec,
+        ),
+        parseArgv: (argv) => parseOpArgv(argv),
+      })
+      const pending = dispatcher.runFromTool('s1', {
+        v: 1,
+        id: 'routed-deadline',
+        argv: ['artifact', 'list', '--host', 'a,b,c,d,e'],
+        deadlineMs: 600_000,
+      })
       await vi.advanceTimersByTimeAsync(50)
-      expect(await pending).toMatchObject({ code: 'timeout' })
+      expect(await pending).toMatchObject({
+        op: 'artifact.list',
+        code: 'timeout',
+        text: expect.stringContaining('execution after 0.02 seconds'),
+      })
       expect(deadlines).toEqual(Array(4).fill(h.clock.now + 20))
       expect(new Set(signals).size).toBe(1)
       expect(signals[0]?.aborted).toBe(true)
