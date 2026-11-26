@@ -71,7 +71,8 @@ it('answers a Host refusal in band and needs a lane', async () => {
     error: { code: 'unknown-lane', message: 'x' },
   } as never)
   await expect(h.files['files.read']!({ path: 'a' }, ctx())).rejects.toMatchObject({
-    code: 'unavailable',
+    code: 'bad-request',
+    message: 'No such lane on this machine.',
   })
   await expect(
     h.files['files.list']!({ path: '.' }, ctx({ lane: undefined })),

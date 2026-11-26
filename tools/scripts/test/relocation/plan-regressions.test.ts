@@ -51,16 +51,16 @@ describe('relocation plan regressions', () => {
     expect(plan.reports).toEqual([])
   })
 
-  it('rewrites the real codex usage health mock relative to its new test home', () => {
+  it('rewrites the real codex usage invoker health mock relative to its new test home', () => {
     const root = process.cwd()
     const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
       .split('\0')
       .filter(Boolean)
     const plan = buildPlan({ root, files, tests: listTestFiles(root) })
     const edit = plan.importerEdits.find(
-      ({ file }) => file === 'apps/desktop/electron/pi/codex-usage.test.ts',
+      ({ file }) => file === 'apps/desktop/electron/pi/codex-usage.invoker.test.ts',
     )!
-    expect(edit.to).toBe('apps/desktop/test/main/pi/codex-usage.test.ts')
+    expect(edit.to).toBe('apps/desktop/test/main/pi/codex-usage.invoker.test.ts')
     expect(edit.edits).toContainEqual(
       expect.objectContaining({
         from: './health',

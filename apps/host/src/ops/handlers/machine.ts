@@ -56,41 +56,8 @@ export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string
       }),
     ),
     'machine.usage': machineUsage(deps),
-    'machine.commands': op(async (args, ctx) => {
-      const laneId = ctx.lane && laneIdOfRef(ctx.lane.ref)
-      const repoId =
-        args.project === undefined
-          ? laneId
-            ? deps.store.getLane(laneId)?.repositoryId
-            : undefined
-          : projectId(deps, args.project, ctx)
-      return dataResult(
-        await resourceCall(
-          deps,
-          'machine.commands',
-          repoId ? { repositoryId: repoId } : {},
-          ctx.signal,
-        ),
-      )
-    }),
-    'machine.refreshEnvironment': op(async () => {
-      const shell = deps.shellEnvironment
-      if (!shell)
-        throw new OpRefusal(
-          'unsupported',
-          'Shell refresh is unavailable on this binding: it does not read a login-shell environment.',
-        )
-      const refreshed = await shell.refresh()
-      if (!refreshed)
-        throw new OpRefusal(
-          'unavailable',
-          'Could not refresh the login-shell environment. Lanes keep the last one that worked.',
-        )
-      return {
-        text: 'Read the login-shell environment again. New lanes start with it.',
-        data: { shellEnvironment: 'refreshed' },
-      }
-    }),
+    'machine.commands': machineCommands(deps),
+    'machine.refreshEnvironment': refreshEnvironment(deps),
     'service.pause': op<{ action: 'abort-now' | 'cancel' }>(({ action }, ctx) => {
       if (ctx.principal.kind !== 'surface')
         throw new OpRefusal('forbidden', 'Only a person can control this update.')
@@ -111,6 +78,41 @@ export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string
       return runServiceUpdate(update)
     }),
   }
+}
+
+/** Commands for the named project, else the asking lane's repository, else the machine. */
+function machineCommands(deps: DaemonHandlerDeps) {
+  return op(async (args, ctx) => {
+    const laneId = ctx.lane && laneIdOfRef(ctx.lane.ref)
+    const repoId =
+      args.project === undefined
+        ? laneId
+          ? deps.store.getLane(laneId)?.repositoryId
+          : undefined
+        : projectId(deps, args.project, ctx)
+    const params = repoId ? { repositoryId: repoId } : {}
+    return dataResult(await resourceCall(deps, 'machine.commands', params, ctx.signal))
+  })
+}
+
+function refreshEnvironment(deps: DaemonHandlerDeps) {
+  return op(async () => {
+    const shell = deps.shellEnvironment
+    if (!shell)
+      throw new OpRefusal(
+        'unsupported',
+        'Shell refresh is unavailable on this binding: it does not read a login-shell environment.',
+      )
+    if (!(await shell.refresh()))
+      throw new OpRefusal(
+        'unavailable',
+        'Could not refresh the login-shell environment. Lanes keep the last one that worked.',
+      )
+    return {
+      text: 'Read the login-shell environment again. New lanes start with it.',
+      data: { shellEnvironment: 'refreshed' },
+    }
+  })
 }
 
 function machineUsage(deps: DaemonHandlerDeps) {
