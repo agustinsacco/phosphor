@@ -2,7 +2,7 @@ import { basename } from 'node:path'
 import type { CreateSessionOptions, LiveSessionInfo, SessionPush } from '@shared/models'
 import { RATE_LIMIT_STATUS_KEY, accountExhaustedUntil } from '@shared/claude-limits'
 import type { RuntimeLog } from '../file-log'
-import { readBudgetState, syncContextBudget } from './context-budget'
+import { forgetStagedBudget, readBudgetState, syncContextBudget } from './context-budget'
 import { verifyStartupAccount } from './session-account'
 import { healMissingSessionCwd } from './session-cwd'
 import { bindSessionEvents, type SessionEventRuntime } from './session-events'
@@ -180,6 +180,8 @@ async function prepareRpc(
       accountId,
     )) ?? (await readBudgetState(session.client))
   const readyAt = performance.now()
+  // A fresh process always stages its budget; the memo only spares prompt preflight.
+  forgetStagedBudget(session.client)
   await syncContextBudget(session.client, runtime.budget.read(), state)
   return readyAt
 }
