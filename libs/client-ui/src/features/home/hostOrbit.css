@@ -42,9 +42,14 @@
   animation: px-beacon-orbit calc(var(--px-beacon-duration) * 5) linear infinite;
 }
 
-/* The button tiles the ring (up to 32px), so a crowded ring stays easy to hit. */
+/*
+ * The button tiles the ring: its width is the gap between dots (the ring's length,
+ * 2.51 dial widths, over the count), up to a 44px touch target. Tiles never overlap,
+ * so a tap lands on the dot under it. A crowded ring has smaller targets, and a touch
+ * only previews until a second tap, so a near miss names the lane before it opens.
+ */
 .host-orbit-dot {
-  --orbit-hit: clamp(12px, calc(251cqw / var(--orbit-count)), 32px);
+  --orbit-hit: clamp(12px, calc(251cqw / var(--orbit-count)), 44px);
   position: absolute;
   z-index: 1;
   display: grid;
@@ -54,6 +59,11 @@
   transform: translate(-50%, -50%);
   border-radius: 50%;
   cursor: pointer;
+}
+/* Out-ranks the shell's 44px floor for touch buttons, which would stack the tiles. */
+:is([data-form-factor='compact'], .browser-shell) .host-orbit .host-orbit-dot[data-lane-id] {
+  min-width: 0;
+  min-height: 0;
 }
 .host-orbit-dot:focus-visible {
   border-radius: 50%;

@@ -320,6 +320,8 @@ there instead, and the machine's name sits under the ring with its connection
 state while it is not ready. The orbit turns only while a lane is working, and
 reduced motion stops it. A mouse click opens the lane. A touch has no hover, so a
 first tap previews and offers Open, and a second tap on the same dot opens it.
+Each dot's target tiles the ring, up to 44px, so a crowded ring's targets shrink
+rather than overlap.
 The ring is one tab stop: arrows walk it and wrap, Home and End jump to its ends,
 Enter opens. It does not list lanes or offer their menus: the sidebar, or the
 browser's navigation and Lanes page, does. While the lanes load the centre says

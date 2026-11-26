@@ -49,7 +49,9 @@ const core = () => el.querySelector('.host-orbit-core')!.textContent
 function pointer(type: string, target: Element, pointerType: string, related?: Element): void {
   const event = new MouseEvent(type, { bubbles: true, cancelable: true, relatedTarget: related })
   Object.defineProperty(event, 'pointerType', { value: pointerType })
-  act(() => target.dispatchEvent(event))
+  act(() => {
+    target.dispatchEvent(event)
+  })
 }
 function tap(target: Element, pointerType = 'touch'): void {
   pointer('pointerdown', target, pointerType)
@@ -155,6 +157,44 @@ it('previews on a first tap, opens on a second tap or Open, and Escape lets go',
     dot('Builds').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
   })
   expect([...el.querySelectorAll('button')].some((b) => b.textContent === 'Open')).toBe(false)
+})
+
+const key = (target: Element, name: string) =>
+  act(() => {
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }))
+  })
+
+it('steps from where the focused lane sits now after the ring re-sorts', () => {
+  render()
+  act(() => dot('Old lane').focus())
+  // Old lane starts asking: it moves to twelve o'clock, ahead of the other two.
+  act(() =>
+    host((view) => {
+      view.lanes[0] = { ...view.lanes[0]!, activity: 'needs-input' }
+    }),
+  )
+  expect(dots()[0]).toBe(dot('Old lane'))
+  expect(document.activeElement).toBe(dot('Old lane'))
+  expect(dot('Old lane').tabIndex).toBe(0)
+  key(dot('Old lane'), 'ArrowRight')
+  expect(document.activeElement).toBe(dots()[1])
+})
+
+it('lets the keyboard name its lane over a resting mouse', () => {
+  render()
+  pointer('pointerover', dot('Old lane'), 'mouse')
+  act(() => dots()[0]!.focus())
+  key(dots()[0]!, 'ArrowRight')
+  expect(core()).toContain('Builds things')
+})
+
+it('opens on Enter after a touch that scrolled away', () => {
+  render()
+  act(() => dot('Builds').focus())
+  pointer('pointerdown', dot('Builds'), 'touch')
+  pointer('pointercancel', dot('Builds'), 'touch')
+  act(() => dot('Builds').click())
+  expect(navigate).toHaveBeenCalledWith(opened('builds'))
 })
 
 it('rests quietly when nothing is happening', () => {

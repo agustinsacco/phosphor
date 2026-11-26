@@ -12,18 +12,26 @@ function laneAt(target: EventTarget | null): string | null {
  * A mouse previews on hover and opens on click. A touch has no hover, so its first tap
  * previews (the centre offers Open) and a second tap on the same dot opens. The ring is
  * one tab stop; arrows walk it and wrap, Home and End jump to its ends.
+ *
+ * Lanes re-sort as their state changes, so every position is a lane id, never an index:
+ * an arrow steps from where the focused lane sits now, not where it sat when focused.
  */
 export function useOrbitRing(shown: readonly OrbitLane[], open: (laneId: string) => void) {
   const [hovered, setHovered] = useState<string | null>(null)
   const [focused, setFocused] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
-  const [cursor, setCursor] = useState(0)
+  const [cursor, setCursor] = useState<string | null>(null)
   const pointer = useRef<string | null>(null)
   const dots = useRef<Array<HTMLButtonElement | null>>([])
-  const tabStop = Math.min(cursor, Math.max(shown.length - 1, 0))
+  const indexOf = (id: string | null) => shown.findIndex((entry) => entry.lane.laneId === id)
+  const tabStop = Math.max(indexOf(cursor), 0)
   const handlers: HTMLAttributes<HTMLDivElement> = {
     onPointerDown: (e) => {
       pointer.current = e.pointerType
+    },
+    // A scroll that starts on the ring cancels the tap; the next Enter must still open.
+    onPointerCancel: () => {
+      pointer.current = null
     },
     onPointerOver: (e) => {
       if (e.pointerType === 'mouse') setHovered(laneAt(e.target))
@@ -33,12 +41,7 @@ export function useOrbitRing(shown: readonly OrbitLane[], open: (laneId: string)
       const id = laneAt(e.target)
       if (!id) return
       setFocused(id)
-      setCursor(
-        Math.max(
-          0,
-          shown.findIndex((entry) => entry.lane.laneId === id),
-        ),
-      )
+      setCursor(id)
     },
     onBlur: (e) => {
       if (e.currentTarget.contains(e.relatedTarget as Node | null)) return
@@ -55,15 +58,18 @@ export function useOrbitRing(shown: readonly OrbitLane[], open: (laneId: string)
       else open(id)
     },
     onKeyDown: (e) => {
+      pointer.current = null
       if (e.key === 'Escape' && picked) {
         e.stopPropagation()
         setPicked(null)
         return
       }
-      const index = laneAt(e.target) ? orbitStep(e.key, tabStop, shown.length) : null
+      const from = indexOf(laneAt(e.target))
+      const index = from < 0 ? null : orbitStep(e.key, from, shown.length)
       if (index === null) return
       e.preventDefault()
-      setCursor(index)
+      // The keyboard took over: a resting mouse no longer names the lane in the centre.
+      setHovered(null)
       dots.current[index]?.focus()
     },
   }
