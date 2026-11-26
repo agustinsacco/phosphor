@@ -139,6 +139,7 @@ describe('HomeModelPicker', () => {
 
     act(() => catalogue({}))
     expect(list?.textContent).toContain('Model One')
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('model-search')
     act(() => catalogue({ status: 'loading' }))
     expect(list?.textContent).toContain('Refreshing…')
     expect(list?.textContent).toContain('Model One')
@@ -207,6 +208,26 @@ describe('HomeModelPicker', () => {
     expect(retry).toBeDefined()
     act(() => retry!.click())
     expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries an empty config fallback in the open menu, then shows a completed empty list', async () => {
+    const refreshCatalogue = useModelCatalogueStore.getInitialState().refresh
+    catalogue({ status: 'idle', models: [], refresh: refreshCatalogue })
+    invoke.mockImplementation(async (channel) => {
+      if (channel === 'pi:catalogueModels') return { models: [], source: 'config' }
+      return channel === 'pi:subscriptionAuth' ? [] : {}
+    })
+    await act(async () => refreshCatalogue())
+    await draw(<HomeModelPicker />)
+    await act(async () => chip().click())
+    const list = document.querySelector('[data-testid="model-list"]')!
+    expect(list.textContent).toContain('Could not read models.')
+    expect(list.textContent).not.toContain('No models configured')
+    const retry = [...list.querySelectorAll('button')].find((b) => b.textContent === 'Retry')!
+    invoke.mockResolvedValueOnce({ models: [], source: 'pi' })
+    await act(async () => retry.click())
+    expect(list.textContent).toContain('No models configured')
+    expect(list.textContent).not.toContain('Retry')
   })
 
   it('offers Sign in on This Mac when pi has no models: Settings → Accounts', async () => {

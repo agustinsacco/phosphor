@@ -118,6 +118,31 @@ it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
     )
     expect(list.textContent).toContain('Recovered model')
     expect(list.textContent).not.toContain('Loading models…')
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('model-search')
+  },
+)
+
+it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
+  'retries an empty config fallback in the open Host menu ($formFactor)',
+  async (platform) => {
+    degraded = true
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <Picker />
+        </PlatformProvider>,
+      ),
+    )
+    act(() => el.querySelector<HTMLButtonElement>('[data-testid="remote-model-picker"]')!.click())
+    const list = document.querySelector('[data-testid="model-list"]')!
+    expect(list.textContent).toContain('Could not read models.')
+    const retry = [...list.querySelectorAll('button')].find((b) => b.textContent === 'Retry')!
+    readModels = async () => ({ models: [] })
+    await act(async () => retry.click())
+    expect(attempts).toBe(2)
+    expect(list.textContent).toContain('No signed-in model')
+    expect(list.textContent).not.toContain('Could not read models.')
+    expect(list.textContent).not.toContain('Retry')
   },
 )
 
