@@ -21,7 +21,8 @@ globalThis.ResizeObserver = class {
 const { installMockPhosphor } = await import('@/dev/mockPhosphor')
 installMockPhosphor()
 const { useChatStore } = await import('@/stores/chat')
-const { forgetRemoteSession, useSessionsStore } = await import('@/stores/sessions')
+const { bootstrapSession, forgetRemoteSession, useSessionsStore } =
+  await import('@/stores/sessions')
 const { navigateToLane, useRemoteLanesStore } = await import('@/stores/remoteLanes')
 const { runLaneAction } = await import('@/platform/serviceLaneControl')
 const { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
@@ -71,12 +72,15 @@ const piCommand = vi.spyOn(window.phosphor, 'piCommand')
 const reads = (type: RpcCommand['type']) =>
   piCommand.mock.calls.filter(([, command]) => command.type === type).length
 
+/** The Host's connection is gone: every read fails. */
+let hostDown = false
 /** A Host that answers like the real one: nothing about the lane's pi until it runs. */
 function answerLikeHost(): void {
   piCommand.mockImplementation((_id, command) => {
     const running = !lane()?.activity || !['stopped', 'failed'].includes(lane()!.activity)
     const answer = (reply: Partial<RpcResponse>) =>
       Promise.resolve({ type: 'response', command: command.type, ...reply } as never)
+    if (hostDown) return answer({ success: false, error: 'Host unavailable.' })
     if (command.type === 'get_messages') return answer({ success: true, data: { messages: [] } })
     if (!running) return answer({ success: false, error: 'Lane is stopped.' })
     if (command.type === 'get_state') return answer({ success: true, data: META })
@@ -97,6 +101,11 @@ function stoppedHost(local: boolean): void {
   useRemoteLanesStore.setState({ hosts })
   useSessionsStore.setState({ live: {} })
   useChatStore.setState({ sessions: {} })
+}
+function setHost(state: 'ready' | 'reconnecting', connectionToken: string): void {
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  Object.assign(hosts[MOCK_HOST_ID]!, { state, connectionToken })
+  useRemoteLanesStore.setState({ hosts })
 }
 function setActivity(activity: HostLaneView['activity']): void {
   const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
@@ -127,6 +136,7 @@ function render(platform: (typeof SHELLS)[number][1]): void {
 const chip = () => el.querySelector<HTMLButtonElement>('[data-testid=model-chip]')
 
 beforeEach(() => {
+  hostDown = false
   piCommand.mockReset()
   answerLikeHost()
   el = document.createElement('div')
@@ -235,6 +245,62 @@ describe('re-reading a lane whose pi comes up', () => {
     expect(reads('get_state') - afterFirst).toBe(1)
     await settle()
     expect(reads('get_state') - afterFirst).toBe(2)
+  })
+
+  it('reads again when the Host is back, if the start’s reads failed', async () => {
+    stoppedHost(false)
+    await openLane()
+    render(DESKTOP_PLATFORM)
+    // The client sees the start, then loses the Host before the reads land.
+    hostDown = true
+    act(() => setActivity('idle'))
+    await settle()
+    expect(chip()?.disabled).toBe(true)
+    act(() => setHost('reconnecting', 'mock-connection-1'))
+    hostDown = false
+    // A reconnect replays no start: the lane already ran in the last snapshot.
+    act(() => setHost('ready', 'mock-connection-2'))
+    await settle()
+    expect(chip()?.disabled).toBe(false)
+    expect(chip()?.textContent).toBe(OPUS.name)
+
+    // A lane whose reads all landed is not read again on a reconnect.
+    const before = reads('get_state')
+    act(() => setHost('reconnecting', 'mock-connection-2'))
+    act(() => setHost('ready', 'mock-connection-3'))
+    await settle()
+    expect(reads('get_state')).toBe(before)
+  })
+
+  it('shares one read between adoption, a stream reset and the start', async () => {
+    stoppedHost(true)
+    await openLane()
+    const before = { state: reads('get_state'), models: reads('get_available_models') }
+    await act(async () => {
+      setActivity('idle')
+      // The stream reset that pi's start sends bootstraps the lane too.
+      await Promise.all([bootstrapSession(SESSION), bootstrapSession(SESSION)])
+    })
+    await settle()
+    expect(reads('get_state') - before.state).toBe(1)
+    expect(reads('get_available_models') - before.models).toBe(1)
+    expect(useChatStore.getState().sessions[SESSION]?.meta?.model?.id).toBe(OPUS.id)
+  })
+
+  it('reads afresh for a caller that needs a new identity, after the read in flight', async () => {
+    stoppedHost(true)
+    await openLane()
+    const before = reads('get_state')
+    await act(async () => {
+      // The start's read is in flight; a plain caller joins it, a fresh one waits for it.
+      setActivity('idle')
+      const shared = bootstrapSession(SESSION)
+      const fresh = bootstrapSession(SESSION, { fresh: true })
+      expect(reads('get_state') - before).toBe(1)
+      await Promise.all([shared, fresh])
+    })
+    await settle()
+    expect(reads('get_state') - before).toBe(2)
   })
 
   it('ignores a lane closed before its pi comes up', async () => {
