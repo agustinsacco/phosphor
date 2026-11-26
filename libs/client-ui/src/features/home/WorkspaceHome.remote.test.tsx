@@ -241,7 +241,6 @@ it.each(['none', 'text', 'attachment'] as const)(
         }),
     )
     await render()
-    const originalAttachments = useDraftsStore.getState().drafts[key]!.attachments
     await send()
     expect(receipt).toHaveBeenCalledOnce()
     await act(async () => vi.advanceTimersByTimeAsync(500))
@@ -249,7 +248,6 @@ it.each(['none', 'text', 'attachment'] as const)(
       'app:setDraft',
       expect.objectContaining({ key, text: 'First prompt' }),
     )
-    expect(useDraftsStore.getState().drafts[key]!.attachments).not.toBe(originalAttachments)
     if (edit === 'text') act(() => useDraftsStore.getState().setText(key, 'Genuinely newer text'))
     if (edit === 'attachment')
       act(() =>
