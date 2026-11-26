@@ -107,7 +107,7 @@ export function ConfigFileEditor({
 
   return (
     <ModalOverlay onClose={onClose} backdrop="strong" z={50}>
-      <div className="border-border bg-bg flex h-[70vh] w-[720px] max-w-[92vw] flex-col overflow-hidden rounded-xl border shadow-2xl">
+      <div className="border-border bg-bg flex h-[70vh] w-[720px] max-w-[92vw] flex-col overflow-hidden rounded-lg border shadow-2xl">
         <div className="border-border flex items-center gap-2 border-b px-4 py-2.5">
           <span className="flex-1 truncate font-mono text-base">{path}</span>
           {error && <span className="text-danger text-sm">{error}</span>}

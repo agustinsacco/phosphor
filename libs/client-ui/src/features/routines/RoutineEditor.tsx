@@ -281,7 +281,7 @@ export function RoutineEditor({
         role="dialog"
         aria-modal="true"
         aria-labelledby="routine-editor-title"
-        className="bg-bg border-border flex max-h-[90vh] w-[min(720px,92vw)] flex-col overflow-hidden rounded-xl border shadow-xl"
+        className="bg-bg border-border flex max-h-[90vh] w-[min(720px,92vw)] flex-col overflow-hidden rounded-lg border shadow-xl"
       >
         <div className="border-border flex items-start gap-3 border-b px-6 py-4">
           <div className="min-w-0 flex-1">

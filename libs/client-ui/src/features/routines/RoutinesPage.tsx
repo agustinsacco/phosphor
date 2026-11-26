@@ -364,7 +364,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 </p>
               ))}
             {!unavailable && !list.length && (
-              <div className="border-border rounded-xl border p-6">
+              <div className="border-border rounded-lg border p-6">
                 <h2 className="text-xl font-semibold">Save a task. Give it a schedule.</h2>
                 <p className="text-text-secondary mb-4 mt-2">
                   Each run creates a fresh lane with its own transcript. Start from scratch or adapt
@@ -539,7 +539,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
             role="dialog"
             aria-modal="true"
             aria-label="Continue routine lane"
-            className="bg-bg border-border w-[min(540px,90vw)] rounded-xl border p-5"
+            className="bg-bg border-border w-[min(540px,90vw)] rounded-lg border p-5"
           >
             <h2 className="text-xl font-semibold">
               {activeRun(continuing) ? 'Open this running lane?' : 'Continue this routine lane?'}
@@ -582,7 +582,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
             role="alertdialog"
             aria-modal="true"
             aria-label="Delete routine"
-            className="bg-bg border-border w-[min(520px,90vw)] rounded-xl border p-5"
+            className="bg-bg border-border w-[min(520px,90vw)] rounded-lg border p-5"
           >
             <h2 className="text-xl font-semibold">Delete “{deleting.name}”?</h2>
             <p className="text-text-secondary my-3">
@@ -622,7 +622,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
             role="dialog"
             aria-modal="true"
             aria-label="Import routine"
-            className="bg-bg border-border w-[min(600px,90vw)] rounded-xl border p-5"
+            className="bg-bg border-border w-[min(600px,90vw)] rounded-lg border p-5"
           >
             <h2 className="text-xl font-semibold">Import routine</h2>
             <p className="text-text-secondary my-3">

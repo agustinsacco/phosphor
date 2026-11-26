@@ -16,4 +16,4 @@
  * (a scroller with `overflow-y: auto` resolves its `overflow-x` to `auto`).
  */
 export const USER_BUBBLE_CLASS =
-  'bg-user-bubble max-w-[85%] break-words rounded-xl px-4 py-2.5 text-lg'
+  'bg-user-bubble max-w-[85%] break-words rounded-lg px-4 py-2.5 text-lg'

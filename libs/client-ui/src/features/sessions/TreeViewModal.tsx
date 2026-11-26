@@ -317,7 +317,7 @@ export function TreeViewModal({
         )}
 
         {selected && (
-          <div className="border-border bg-surface-raised absolute bottom-4 right-4 w-96 rounded-xl border p-4 shadow-xl">
+          <div className="border-border bg-surface-raised absolute bottom-4 right-4 w-96 rounded-lg border p-4 shadow-xl">
             <div className="flex items-start justify-between gap-2">
               <div className="text-sm font-semibold font-mono uppercase tracking-wide">
                 {selected.kind === 'user' ? 'User message' : selected.kind}
