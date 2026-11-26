@@ -13,7 +13,7 @@ test('remote home contains a long lane list and keeps creation reachable in a sh
     await selectMachine(h, 'bee1')
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await h.app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0]!.setContentSize(1024, 540),
+      BrowserWindow.getAllWindows()[0]!.setContentSize(1440, 540),
     )
     const home = h.page.locator('.remote-workspace-page')
     await expect(home).toBeVisible()
@@ -28,6 +28,13 @@ test('remote home contains a long lane list and keeps creation reachable in a sh
     await expect(h.page.getByRole('button', { name: 'Start lane', exact: true })).toBeInViewport()
     const list = home.locator('.remote-workspace-intro')
     expect(await list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+    // The scroller spans the page, so its scrollbar sits at the window's edge, not
+    // beside the centred column.
+    const edges = await list.evaluate((element) => ({
+      scroller: element.getBoundingClientRect().right,
+      page: element.closest('.remote-workspace-page')!.getBoundingClientRect().right,
+    }))
+    expect(edges.scroller).toBeGreaterThanOrEqual(edges.page - 1)
     await h.page.screenshot({ path: info.outputPath('remote-home-short-dark.png') })
   } finally {
     await h.close()
