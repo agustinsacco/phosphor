@@ -16,6 +16,7 @@ import { TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { RemoteWorkspaceOptions } from './RemoteWorkspaceOptions'
 import type { LaneSelectMode } from './LaneSelectionRows'
 import { RemoteLaneList } from './RemoteLaneList'
+import { LaneCreateRows } from './LaneCreateRows'
 import { useRemotePullRequests } from './remotePullRequests'
 import { orderedRemoteLanes, type RemoteLaneGroup } from './groupRemoteLanes'
 import { remoteLaneGroupKey } from './laneReveal'
@@ -85,6 +86,7 @@ export function RemoteRepositoryGroup({
       rows={
         <GroupLanes
           hostId={hostId}
+          repositoryId={repositoryId}
           lanes={visible}
           ready={ready}
           query={search.query}
@@ -169,32 +171,37 @@ function LastKnown(): React.JSX.Element {
 /** The group's rows; with `select`, each row carries its box in this group's selection. */
 function GroupLanes({
   hostId,
+  repositoryId,
   lanes,
   ready,
   query,
   select,
 }: {
   hostId: string
+  repositoryId: string
   lanes: HostLaneView[]
   ready: boolean
   query: string
   select?: FolderRowsSelection
 }): React.JSX.Element {
   return (
-    <RemoteLaneList
-      hostId={hostId}
-      lanes={lanes}
-      ready={ready}
-      disabled={!!query || !!select?.selecting}
-      row={(lane) => ({
-        select: select && {
-          selected: select.selected.includes(lane.laneId),
-          selecting: select.selecting,
-          blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
-          onToggle: (shiftKey) => toggleLane(select.group, select.order, lane.laneId, shiftKey),
-        },
-      })}
-    />
+    <>
+      <LaneCreateRows hostId={hostId} repositoryId={repositoryId} />
+      <RemoteLaneList
+        hostId={hostId}
+        lanes={lanes}
+        ready={ready}
+        disabled={!!query || !!select?.selecting}
+        row={(lane) => ({
+          select: select && {
+            selected: select.selected.includes(lane.laneId),
+            selecting: select.selecting,
+            blocked: canDeleteRemoteLane(hostId, lane) ? undefined : TAKE_CONTROL_FIRST,
+            onToggle: (shiftKey) => toggleLane(select.group, select.order, lane.laneId, shiftKey),
+          },
+        })}
+      />
+    </>
   )
 }
 

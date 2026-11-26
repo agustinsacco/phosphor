@@ -26,7 +26,14 @@ import type { StartingChat as StartingChatState } from '@/stores/startingChat'
  * by hand; a shared wrapper would put a component boundary inside the
  * transcript's virtualised list for the sake of one echo.
  */
-export function StartingChat({ starting }: { starting: StartingChatState }): React.JSX.Element {
+export function StartingChat({
+  starting,
+  children,
+}: {
+  starting: StartingChatState
+  /** Replaces the status line: a New lane placeholder's own status or failure. */
+  children?: React.ReactNode
+}): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto overflow-x-hidden pt-4">
@@ -57,12 +64,14 @@ export function StartingChat({ starting }: { starting: StartingChatState }): Rea
         a hang. This is the label `startLabel` always produced and never
         showed anyone.
       */}
-      <div className="flex items-center justify-center gap-2 pb-8 pt-4">
-        <PhosphorLoader decorative />
-        <span className="text-text-secondary text-base" data-testid="starting-chat-phase">
-          {starting.phase === 'branching' ? 'Creating branch…' : 'Starting session…'}
-        </span>
-      </div>
+      {children ?? (
+        <div className="flex items-center justify-center gap-2 pb-8 pt-4">
+          <PhosphorLoader decorative />
+          <span className="text-text-secondary text-base" data-testid="starting-chat-phase">
+            {starting.phase === 'branching' ? 'Creating branch…' : 'Starting session…'}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

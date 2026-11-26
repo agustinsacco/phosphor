@@ -7,6 +7,8 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { locationMachine, type Location } from '@/navigation/location'
 import { useDefaultMachine } from './useDefaultMachine'
+import { laneCreate, showLaneCreate, useLaneCreatesStore } from '@/stores/laneCreates'
+import type { Navigation } from '@/navigation/Navigation'
 import {
   guardHostDrafts,
   unsavedDraftHost,
@@ -17,6 +19,17 @@ const draftToLeave = (from: Location, to: Location): string | null =>
   from.to === 'page' && from.page === 'settings' && !(to.to === 'page' && to.page === 'settings')
     ? unsavedDraftHost()
     : null
+
+/**
+ * A New lane placeholder's route shows it, as Desktop's opening view does;
+ * false when the route is not one, or its create is gone.
+ */
+function showCreateRoute(location: Location): boolean {
+  const create = location.to === 'new' ? location.create : undefined
+  if (!create || !laneCreate(create)) return false
+  if (useSessionsStore.getState().opening?.create !== create) showLaneCreate(create)
+  return true
+}
 
 export function useBrowserNavigation() {
   const [history] = useState(() => {
@@ -46,7 +59,7 @@ export function useBrowserNavigation() {
     if (!remoteEnabled) return
     const machine = locationMachine(location)
     applying.current = true
-    if (location.to !== 'lane') {
+    if (location.to !== 'lane' && !showCreateRoute(location)) {
       // Native activate(null) persists app:setLastSession; browser home has no local resume target.
       useSessionsStore.getState().claimNav()
       useSessionsStore.setState({ activeSessionId: null, opening: null })
@@ -170,4 +183,17 @@ export function useBrowserNavigation() {
     }
   }, [history])
   return { location, navigate, pending }
+}
+
+/**
+ * A placeholder put on screen by a send or a row owns the URL, as an activated
+ * lane does (`showCreateRoute` is the other direction).
+ */
+export function useLaneCreateRoute({ navigate }: Pick<Navigation, 'navigate'>): void {
+  const create = useSessionsStore((s) => s.opening?.create)
+  const machine = useLaneCreatesStore((s) => (create ? s.creates[create]?.hostId : undefined))
+  // History skips a route it is already on, so a route-shown placeholder adds no entry.
+  useEffect(() => {
+    if (create && machine) navigate({ to: 'new', machine, create })
+  }, [create, machine, navigate])
 }

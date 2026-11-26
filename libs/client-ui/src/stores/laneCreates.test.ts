@@ -68,7 +68,6 @@ function submit(text: string, branch = true): void {
     branch,
     text,
     attachments: [],
-    onWarning: () => {},
   })
 }
 
@@ -92,10 +91,16 @@ function created(run: (typeof runs)[number], laneId: string, sessionId: string):
   run.hooks.created?.(info)
 }
 
-function addSnapshotLane(laneId: string, branch: string | null): void {
+function addSnapshotLane(laneId: string | string[], branch: string | null): void {
   const host = structuredClone(useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!)
-  const lane: HostLaneView = { ...host.lanes[0]!, laneId, repositoryId: REPO, branch }
-  host.lanes = [...host.lanes, lane]
+  const ids = Array.isArray(laneId) ? laneId : [laneId]
+  const added = ids.map((id): HostLaneView => ({
+    ...host.lanes[0]!,
+    laneId: id,
+    repositoryId: REPO,
+    branch,
+  }))
+  host.lanes = [...host.lanes, ...added]
   useRemoteLanesStore.setState({
     hosts: { ...useRemoteLanesStore.getState().hosts, [MOCK_HOST_ID]: host },
   })
@@ -204,8 +209,8 @@ it('an unbranched unknown receipt reconciles only with exactly one unseen lane',
   const id = creates()[0]!.id
   runs[0]!.reject(new Error('timeout'))
   await vi.waitFor(() => expect(creates()[0]?.unknown).toBe(true))
-  addSnapshotLane('lane-a', null)
-  addSnapshotLane('lane-b', null)
+  // Two new lanes in the folder at once: which is this one is unknowable.
+  addSnapshotLane(['lane-a', 'lane-b'], null)
   expect(reconcileLaneCreate(id)).toBeUndefined()
   expect(creates()).toHaveLength(1)
   // Ambiguous: the draft goes back to Home, still warned.

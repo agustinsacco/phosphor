@@ -4,6 +4,7 @@ import { remoteBranchName } from './remoteBranchName'
 import { ipcErrorText } from '@shared/errors'
 import { rememberRemoteModel } from '@/stores/remoteModelPicks'
 import type { RemoteLaneCreate } from '@shared/ipc'
+import type { LiveSessionInfo } from '@shared/models'
 import type { PendingAttachment } from '@/features/chat/attachments'
 import { composePrompt, toImageContents } from '@/features/chat/attachments'
 import { useSessionsStore } from '@/stores/sessions'
@@ -11,6 +12,16 @@ import { useRemoteLanesStore, canControlSession, adoptRemoteLane } from '@/store
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import { piCallOk } from '@/lib/rpc'
 import { requestSwarm } from '@/lib/swarm'
+
+/** What a background create (`submitRemoteHome`) follows while it runs. */
+export interface LaneCreateHooks {
+  /** The navigation the adopt activates for; -1 never takes the screen. Default: claimed now. */
+  nav?: number
+  /** Each fresh branch name asked for, before its request goes out. */
+  trying?: (branch: string) => void
+  /** The Host made the lane; from here a failure is no longer a failed create. */
+  created?: (info: LiveSessionInfo) => void
+}
 
 /** Only a definitive fresh-branch refusal may retry. Uncertain receipts keep the draft. */
 export async function startRemoteChat(
@@ -20,18 +31,19 @@ export async function startRemoteChat(
   attachments: PendingAttachment[],
   accepted: () => void,
   swarm = false,
+  hooks: LaneCreateHooks = {},
 ): Promise<void> {
   const host = useRemoteLanesStore.getState().hosts[hostId]
   if (host?.state !== 'ready' || !host.capabilities.includes('sessions.control')) throw new Error()
-  const nav = useSessionsStore.getState().claimNav()
+  const nav = hooks.nav ?? useSessionsStore.getState().claimNav()
   const create = async () => {
     for (let attempt = 1; attempt <= 5; attempt++) {
+      const branch = input.worktree?.fresh ? remoteBranchName(text, attempt) : undefined
+      if (branch) hooks.trying?.(branch)
       try {
         return await window.phosphor.invoke('hosts:createLane', hostId, {
           ...input,
-          ...(input.worktree?.fresh
-            ? { worktree: { branch: remoteBranchName(text, attempt), fresh: true } }
-            : {}),
+          ...(branch ? { worktree: { branch, fresh: true } } : {}),
         })
       } catch (error) {
         if (!input.worktree?.fresh || ipcErrorText(error) !== 'branch-exists') throw error
@@ -44,6 +56,7 @@ export async function startRemoteChat(
     rememberRemoteModel(hostId, { id: input.model, provider: input.provider })
   await adoptRemoteLane(info, nav)
   if (!info.laneId) throw new Error()
+  hooks.created?.(info)
   if (host.local) {
     await refreshHostsSnapshot()
     await ensureServiceLaneControl(hostId, info.laneId)

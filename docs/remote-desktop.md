@@ -167,16 +167,27 @@ that machine's configured repositories, not a local folder.
 
 The repository + opens that Host's home composer with the repository selected.
 Sidebar New under a Host filter uses its last-used available repository, or the
-first configured one. There is no New-lane modal. Submitting creates and opens
-the lane, acquires control if needed, then sends the prompt. Only a confirmed
-prompt clears the draft; failure keeps it.
+first configured one. There is no New-lane modal. Submitting never waits on the
+Host: on the same frame the composer clears, a starting placeholder lane
+(`stores/laneCreates.ts`) heads its folder in every lane list with the prompt as
+its title, and the main view switches to it (`LaneCreateView`: the message as it
+will sit in the transcript, under the Phosphor loader). The browser routes it as
+`/new/<machine>/<create>`. The create, adopt, takeover, Swarm and first prompt run
+in the background, the same on Desktop and in the browser; the user can press +
+and start more at once, each with its own placeholder, or go anywhere. A create
+never takes the screen: only if its placeholder is still on screen when the prompt
+is sent does it become that lane in place. The placeholder row gives way to the
+lane's row as soon as the Host snapshot lists it. The sent text and attachments
+stay with the placeholder until the create settles. If the Host made the lane but
+a later step failed (control, Swarm, the prompt), the text waits in that lane's
+composer instead.
 
 Isolation follows This Mac's worktree preference and branch-naming rule. Generated
 Host branches trim only the slug to fit the 100-character flattened limit; an
 oversized prefix fails before sending. Desktop requests `worktree.fresh: true`,
 trying the base name once, then retrying only confirmed `branch-exists` refusals
-with `-2` through `-5`. Exhaustion shows “Couldn't find a free branch name on <machine>.” and keeps the
-draft. Unknown outcomes never trigger a branch retry. The Host's new-only guarantee
+with `-2` through `-5`. Exhaustion shows “Couldn't find a free branch name on <machine>.” on the
+placeholder. Unknown outcomes never trigger a branch retry. The Host's new-only guarantee
 and older-Host compatibility are in [Creating lanes](host.md#creating-lanes).
 
 A creation that did not succeed crosses IPC as a fixed code, never the Host's text
@@ -185,7 +196,14 @@ failed receipt or a frame that was never sent, the composer says the machine
 couldn't start the lane; a `too-many-requests` refusal says it is at its lane limit
 or too busy. An unknown receipt, a dropped connection, or a request main refuses
 before or after sending (missing control capability, an invalid frame, a changed
-connection) says the Host could not confirm it. Every case keeps the draft.
+connection) says the Host could not confirm it. The failed placeholder says why,
+with **Edit and retry** (the text, attachments and Swarm choice back in the New
+lane composer) and **Dismiss**; one the user has left also raises a toast. An
+uncertain create is first looked for in the Host snapshot: a new lane in its
+folder carrying a branch it asked for, or, when it asked for none, the only new
+lane there since Enter. A lane found replaces the placeholder and receives the
+text, so a retry never makes a duplicate; otherwise the placeholder keeps saying
+to check the lane before retrying.
 
 An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 
@@ -526,7 +544,7 @@ exists, so a new Host lane offers no Rules readout. The Swarm switch records its
 as on This Mac. After `hosts:createLane` the client turns Swarm on in the new
 lane (`get_commands`, then `/phosphor-swarm on`) before it sends the first
 prompt. If the Host's pi lacks pi-subagents or refuses, the lane exists but gets
-no first message, and the draft and its choice are kept with a warning.
+no first message, and its text waits in that lane's composer with a warning.
 
 One rule decides which Host models can be picked, for the new-lane picker and
 for a Host lane's model menu alike (`hostModelUnavailability`). Both list what

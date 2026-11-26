@@ -120,6 +120,8 @@ export interface OpeningLane {
   lane?: { hostId: string; laneId: string }
   /** Why the open failed. The view stays, with Retry, until the user goes elsewhere. */
   failure?: string
+  /** A New lane create (`laneCreates.ts`) whose placeholder this is. */
+  create?: string
 }
 
 /**

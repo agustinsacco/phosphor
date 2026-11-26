@@ -13,6 +13,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachineCataloguesStore, machineCatalogueKey } from '@/stores/machineCatalogues'
 import { useDraftsStore, homeDraftKey, clearDraftMemory } from '@/stores/drafts'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
+import { useLaneCreatesStore } from '@/stores/laneCreates'
 import { useRemoteModelPicks } from '@/stores/remoteModelPicks'
 import { startRemoteChat } from './startRemoteChat'
 
@@ -50,6 +51,7 @@ beforeEach(() => {
   })
   useRemoteModelPicks.setState({ last: {}, thinking: {} })
   useHomeSubmissionsStore.setState({ pending: {} })
+  useLaneCreatesStore.setState({ creates: {} })
   clearDraftMemory()
   useDraftsStore.getState().setText(key, 'Task for this Host')
   vi.mocked(startRemoteChat)
@@ -88,7 +90,7 @@ async function send(): Promise<void> {
     button.click()
   })
 }
-it('submits the Host-scoped draft and guards another send until acceptance', async () => {
+it('submits the Host-scoped draft and clears the composer at once', async () => {
   await render()
   expect(el.textContent).toContain('Available model')
   await send()
@@ -103,6 +105,8 @@ it('submits the Host-scoped draft and guards another send until acceptance', asy
     'Task for this Host',
     [],
     expect.any(Function),
+    false,
+    expect.objectContaining({ nav: -1 }),
   )
   await send()
   expect(startRemoteChat).toHaveBeenCalledOnce()
@@ -154,13 +158,18 @@ it('keeps a newer draft when the old prompt receipt completes after unmount', as
   expect(useDraftsStore.getState().drafts[key]?.text).toBe('Next task')
   expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
 })
-it('keeps the draft and releases the claim after an uncertain receipt', async () => {
+it('keeps the text on the failed placeholder after an uncertain receipt', async () => {
   await render()
   await send()
   await act(async () => reject(new Error('disconnected')))
-  expect(useDraftsStore.getState().drafts[key]?.text).toBe('Task for this Host')
-  expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
-  expect(el.textContent).toContain('The Host could not confirm this.')
+  // The composer cleared at Enter; what was sent waits on the placeholder for Edit and retry.
+  expect(useDraftsStore.getState().drafts[key]?.text ?? '').toBe('')
+  expect(Object.values(useLaneCreatesStore.getState().creates)).toEqual([
+    expect.objectContaining({
+      text: 'Task for this Host',
+      failure: expect.stringContaining('The Host could not confirm this.'),
+    }),
+  ])
 })
 
 it('uses the remembered repository shared with the Desktop remote composer', async () => {
@@ -183,6 +192,8 @@ it('uses the remembered repository shared with the Desktop remote composer', asy
     expect.any(String),
     [],
     expect.any(Function),
+    false,
+    expect.objectContaining({ nav: -1 }),
   )
   await act(async () => complete())
 })
@@ -214,6 +225,8 @@ it('sends an image-only browser draft through the shared remote attachment path'
     '',
     attachments,
     expect.any(Function),
+    false,
+    expect.objectContaining({ nav: -1 }),
   )
   await act(async () => complete())
 })
@@ -230,6 +243,8 @@ it('sends a browser file draft through the shared remote attachment path', async
     expect.any(String),
     [{ kind: 'file', name: 'notes.txt', path: '', size: 4, data: 'dGVzdA==' }],
     expect.any(Function),
+    false,
+    expect.objectContaining({ nav: -1 }),
   )
   expect(el.textContent).not.toContain('Only images can be attached in this browser')
   await act(async () => complete())
@@ -263,7 +278,8 @@ it('does not show a previous Host failure or its draft in a new Host composer', 
   expect(el.querySelector('textarea')?.value).toBe('')
   await act(async () => reject(new Error('late failure')))
   expect(el.textContent).not.toContain('The Host could not confirm this.')
-  expect(useDraftsStore.getState().drafts[key]?.text).toBe('Task for this Host')
+  expect(el.querySelector('textarea')?.value).toBe('')
+  expect(Object.values(useLaneCreatesStore.getState().creates)[0]?.hostId).toBe(MOCK_HOST_ID)
 })
 
 it('validates remembered repository IDs before using a removed repository', async () => {
@@ -277,6 +293,8 @@ it('validates remembered repository IDs before using a removed repository', asyn
     expect.any(String),
     [],
     expect.any(Function),
+    false,
+    expect.objectContaining({ nav: -1 }),
   )
   await act(async () => complete())
 })

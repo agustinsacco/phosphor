@@ -1,10 +1,9 @@
 import { useHostTraits } from '@/platform/machineTraits'
 import { useWorktreesStore } from '@/stores/worktrees'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRemoteModel } from '@/features/machines/useRemoteModel'
 import type { PendingAttachment } from '@/features/chat/attachments'
 import { useDraftsStore } from '@/stores/drafts'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { rememberRemoteRepository, useRemoteComposer } from './remoteComposer'
 import { submitRemoteHome } from './submitRemoteHome'
@@ -28,21 +27,14 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   const text = draft?.text ?? ''
   const attachments = draft?.attachments ?? EMPTY_ATTACHMENTS
   const swarm = draft?.swarm ?? false
-  const busy = useHomeSubmissionsStore((s) => !!s.pending[draftKey])
   const [warning, setWarning] = useState<string | null>(null)
-  const mounted = useRef(false)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-    }
-  }, [])
   const ready = host?.state === 'ready' && host.capabilities.includes('sessions.control')
   const canSend =
     ready && !!repositoryId && !!selection.model && (!!text.trim() || !!attachments.length)
   const send = async (): Promise<void> => {
-    if (!canSend || !selection.model || useHomeSubmissionsStore.getState().pending[draftKey]) return
+    if (!canSend || !selection.model) return
     setWarning(null)
+    // The composer clears at once; the create runs on behind its placeholder lane.
     await submitRemoteHome({
       hostId,
       draftKey,
@@ -56,9 +48,6 @@ export function useRemoteStart(hostId: string, draftKey: string) {
         model: selection.model.id,
         thinkingLevel: selection.thinking,
       },
-      onWarning: (message) => {
-        if (mounted.current) setWarning(message)
-      },
     })
   }
   return {
@@ -69,7 +58,6 @@ export function useRemoteStart(hostId: string, draftKey: string) {
     text,
     attachments,
     swarm,
-    busy,
     canBranch,
     isolate: sameMachine && canBranch && repositoryId ? preferWorktree : undefined,
     warning,
