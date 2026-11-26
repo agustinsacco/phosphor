@@ -227,7 +227,10 @@ describe('--host fan-out', () => {
         { deadlineMs: 20 },
       )
       await vi.advanceTimersByTimeAsync(50)
-      expect(await result).toMatchObject({ code: 'timeout', text: expect.stringContaining('unconfirmed') })
+      expect(await result).toMatchObject({
+        code: 'timeout',
+        text: expect.stringContaining('unconfirmed'),
+      })
     } finally {
       vi.useRealTimers()
     }
