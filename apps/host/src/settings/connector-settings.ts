@@ -150,6 +150,7 @@ export async function changeConnectorSettings(
       HOST_FILE_POLICY,
     )
   })
+  state.options.changed?.({ kind: 'connectors', repositoryId: before.repositoryId })
 }
 
 /** Internal ops entry only. Resolve scope and validate against the same Host patch grammar as the UI. */

@@ -141,6 +141,7 @@ function runArchives(options: AdministrationOptions) {
     stop: options.binding.deleteStop,
     sessions: options.binding.sessions,
     forget: options.live.forget,
+    changed: (laneId) => options.live.lanesTopic.resourceChanged({ kind: 'archives', laneId }),
     terminals,
     attachments: options.attachments,
     announce: (id) => {
@@ -167,6 +168,7 @@ export function createRunAdministration(options: AdministrationOptions) {
     ? createProviderLogins(context, terminals, undefined, accounts, invalidateCatalogue)
     : undefined
   const settings = createMachineSettings({
+    changed: options.live.lanesTopic.resourceChanged,
     context: featureContext,
     invalidateCatalogue,
     configPath: options.configPath,

@@ -35,6 +35,7 @@ export function setFolderDirective(
       () => authorized() && state.workspace(id) === cwd,
       HOST_FILE_POLICY,
     )
+    state.options.changed?.({ kind: 'settings', repositoryId: id })
     return cwd
   })
 }
