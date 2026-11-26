@@ -64,3 +64,12 @@ it('resolves reads against only the asking lane through the Host feature', async
     expect.any(AbortSignal),
   )
 })
+
+
+it('keeps a bundle unchanged when a second create collides with it', async () => {
+  const { run } = fixture()
+  await run('skill.create', { ...target, description: 'First', content: 'Keep me' })
+  await expect(run('skill.create', { ...target, description: 'Second', content: 'Replace me' }))
+    .rejects.toThrow('already exists')
+  expect(await readFile(join(repo, '.pi/skills/demo/SKILL.md'), 'utf8')).toContain('Keep me')
+})

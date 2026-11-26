@@ -100,3 +100,13 @@ it('refuses a conversation still on disk, an unknown artifact and a malformed ke
     refusal('bad-request', ARTIFACT_REMOVE_REFUSALS.key),
   )
 })
+
+
+it('does not remove a sibling artifact when the key names a missing artifact', async () => {
+  const { file, sessionId } = await sessionWithArtifact()
+  rmSync(file)
+  await expect(removeArtifact(deps, `${sessionId}/missing`)).rejects.toMatchObject({
+    code: 'bad-request',
+  })
+  expect(index(sessionId)?.artifacts.notes).toBeDefined()
+})
