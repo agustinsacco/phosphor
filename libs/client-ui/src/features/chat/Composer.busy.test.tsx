@@ -209,6 +209,38 @@ it('accepts a follow-up draft on a live Host before the first prompt is acknowle
   expect(prompts(pi)).toEqual(sent)
 })
 
+it('Stop immediately restores every undispatched send and none dispatches after the first receipt', async () => {
+  hostLane('working')
+  useChatStore.getState().applyEvent(id, { type: 'agent_start' })
+  const first = deferred<RpcResponse>()
+  const pi = vi.spyOn(window.phosphor, 'piCommand').mockReturnValueOnce(first.promise)
+  const store = useDraftsStore.getState()
+  const image = { kind: 'image', name: 'held.png', data: 'AAAA', mimeType: 'image/png' } as const
+  const file = { kind: 'file', name: 'held.txt', size: 3, path: '/repo/held.txt' } as const
+  await draw()
+  try {
+    await enter()
+    act(() => store.patch(hostKey, { text: 'second', attachments: [image] }))
+    await enter({ altKey: true })
+    act(() => store.patch(hostKey, { text: 'third', attachments: [file] }))
+    await enter()
+    act(() => store.setText(hostKey, 'new edit'))
+    expect(prompts(pi)).toHaveLength(1)
+    expect(button('Stop')).toBeDefined()
+    await act(async () => button('Stop')?.click())
+    expect(pi).toHaveBeenCalledWith(id, { type: 'abort' })
+    expect(container.querySelector('textarea')?.value).toBe('second\nthird\nnew edit')
+    expect(store.get(hostKey).attachments).toMatchObject([image, file])
+    expect(container.querySelector('[data-testid="queue-chips"]')?.textContent).not.toContain(
+      'second',
+    )
+  } finally {
+    await act(async () => first.resolve({ type: 'response', command: 'prompt', success: true }))
+  }
+  expect(prompts(pi)).toHaveLength(1)
+  expect(container.querySelector('[data-testid="queue-chips"]')).toBeNull()
+})
+
 it('Queue follow-up treats a shell-looking draft as a message, not an immediate bash command', async () => {
   delegatedLane()
   act(() => useDraftsStore.getState().setText(sessionDraftKey(undefined, id), '!pwd'))
