@@ -26,7 +26,9 @@ const draftToLeave = (from: Location, to: Location): string | null =>
  */
 function showCreateRoute(location: Location): boolean {
   const create = location.to === 'new' ? location.create : undefined
-  if (!create || !laneCreate(create)) return false
+  const placeholder = create ? laneCreate(create) : undefined
+  if (!create || placeholder?.hostId !== locationMachine(location) || placeholder?.retired)
+    return false
   if (useSessionsStore.getState().opening?.create !== create) showLaneCreate(create)
   return true
 }
@@ -95,11 +97,9 @@ export function useBrowserNavigation() {
         current.lane.laneId === entry.laneId
       )
         return
-      history.navigate({
-        to: 'lane',
-        lane: { hostId: entry.target.hostId, laneId: entry.laneId },
-        pane: 'chat',
-      })
+      // A placeholder becoming its lane replaces its URL, so Back skips the dead one.
+      const lane = { hostId: entry.target.hostId, laneId: entry.laneId }
+      history.navigate({ to: 'lane', lane, pane: 'chat' }, current.to === 'new' && !!current.create)
     })
     const offLayout = useLayoutStore.subscribe((state, previous) => {
       if (applying.current) return

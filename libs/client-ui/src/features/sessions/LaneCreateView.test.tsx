@@ -7,6 +7,7 @@ import { NavigationProvider } from '@/navigation/Navigation'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useLaneCreatesStore, type LaneCreate } from '@/stores/laneCreates'
+import { takeLaneCreateDraft } from '@/stores/laneCreateState'
 import { homeDraftKey, useDraftsStore, clearDraftMemory } from '@/stores/drafts'
 import { CompactNew } from '@/shell/compact/CompactNew'
 import { OpeningLane } from './OpeningLane'
@@ -37,7 +38,15 @@ beforeEach(() => {
     invoke: vi.fn(() => new Promise(() => {})),
     piCommand: vi.fn(),
     onSessionPush: () => () => {},
+    onVoiceStatus: () => () => {},
   })
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    },
+  )
   navigate.mockReset()
   clearDraftMemory()
   useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts), filter: MOCK_HOST_ID })
@@ -83,6 +92,8 @@ it('shows the sent message with the loader while the lane starts', () => {
 })
 
 it('says why a create failed, with Edit and retry and Dismiss', () => {
+  useDraftsStore.getState().setText(key, 'Fix the parser')
+  takeLaneCreateDraft(create.id, key)
   useLaneCreatesStore.setState({
     creates: { [create.id]: { ...create, failure: 'At its limit.' } },
   })

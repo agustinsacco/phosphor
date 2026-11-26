@@ -66,8 +66,16 @@ function documentBytes(attachments: PendingAttachment[]): number {
   return bytes
 }
 
-/** Clear the draft now; only memory holds its recovery copy and reserved document budget. */
-export function takeSubmittedDraft(key: DraftKey, restoreKey = () => key) {
+/**
+ * Clear the draft now; only memory holds its recovery copy and reserved document budget.
+ * `append` restores after what the destination holds, a blank line apart; by
+ * default it goes first. Documents that no longer fit the cap stay out, with a warning.
+ */
+export function takeSubmittedDraft(
+  key: DraftKey,
+  restoreKey = () => key,
+  { append = false }: { append?: boolean } = {},
+) {
   const drafts = useDraftsStore.getState()
   const draft = drafts.get(key)
   const generation = memoryGeneration
@@ -76,6 +84,7 @@ export function takeSubmittedDraft(key: DraftKey, restoreKey = () => key) {
   submittedFileBytes += bytes
   drafts.clear(key)
   return {
+    draft,
     current,
     finish(accepted: boolean) {
       if (!current()) return
@@ -87,10 +96,20 @@ export function takeSubmittedDraft(key: DraftKey, restoreKey = () => key) {
       )
       const destination = restoreKey()
       const next = drafts.get(destination)
-      drafts.patch(destination, {
-        text: [draft.text, next.text].filter(Boolean).join('\n'),
-        attachments: [...restored, ...next.attachments],
-      })
+      const text = (append ? [next.text, draft.text] : [draft.text, next.text])
+        .filter(Boolean)
+        .join(append ? '\n\n' : '\n')
+      const restore = (files: PendingAttachment[]) =>
+        drafts.patch(destination, {
+          text,
+          attachments: append ? [...next.attachments, ...files] : [...files, ...next.attachments],
+        })
+      try {
+        restore(restored)
+      } catch (error) {
+        restore(restored.filter((a) => a.kind !== 'file' || a.data === undefined))
+        useExtensionUiStore.getState().pushToast(ipcErrorText(error), 'warning')
+      }
     },
   }
 }

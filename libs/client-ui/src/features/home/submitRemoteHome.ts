@@ -1,19 +1,18 @@
 import { ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
 import { ipcErrorText } from '@shared/errors'
 import type { RemoteLaneCreate } from '@shared/ipc'
-import type { PendingAttachment } from '@/features/chat/attachments'
-import { useDraftsStore } from '@/stores/drafts'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { machineLabel } from '@/stores/remoteLanes'
 import {
   beginLaneCreate,
   failLaneCreate,
-  fileOnLane,
   finishLaneCreate,
   laneCreate,
   laneCreateShown,
   laneCreated,
   noteLaneCreateBranch,
+  refuseLaneCreateBranch,
+  type LaneCreate,
 } from '@/stores/laneCreates'
 import { startRemoteChat } from './startRemoteChat'
 import { remoteBranchName } from './remoteBranchName'
@@ -22,12 +21,8 @@ interface Submission {
   hostId: string
   draftKey: string
   input: RemoteLaneCreate
-  /** Authorize delegation before the first prompt; the lane is never prompted without it. */
-  swarm?: boolean
   /** False when the Host says git does not track the folder: no worktree to ask for. */
   branch: boolean
-  text: string
-  attachments: PendingAttachment[]
 }
 
 /** Refusals that mean the Host made no lane. Any other code may have made one. */
@@ -69,33 +64,33 @@ function createWarning(code: string, machine: string): string {
  * reports outside git asks for none; it runs in place, unbranched.
  */
 export function submitRemoteHome(s: Submission): Promise<void> {
-  const id = beginLaneCreate({
+  // The draft is read here, at Enter, and taken in the same tick: a second Enter finds it empty.
+  const create = beginLaneCreate({
     hostId: s.hostId,
     repositoryId: s.input.repositoryId,
     draftKey: s.draftKey,
-    title: s.text || 'New lane',
-    text: s.text,
-    attachments: s.attachments,
-    swarm: !!s.swarm,
   })
-  useDraftsStore.getState().clear(s.draftKey)
-  return runLaneCreate(id, s)
+  return create ? runLaneCreate(create, s) : Promise.resolve()
 }
 
-async function runLaneCreate(id: string, s: Submission): Promise<void> {
+async function runLaneCreate(
+  { id, text, attachments, swarm }: LaneCreate,
+  s: Submission,
+): Promise<void> {
   try {
     await startRemoteChat(
       s.hostId,
       s.branch
-        ? { ...s.input, worktree: { branch: remoteBranchName(s.text), fresh: true } }
+        ? { ...s.input, worktree: { branch: remoteBranchName(text), fresh: true } }
         : s.input,
-      s.text,
-      s.attachments,
+      text,
+      attachments,
       () => {},
-      !!s.swarm,
+      swarm,
       {
         nav: -1,
         trying: (branch) => noteLaneCreateBranch(id, branch),
+        refused: (branch) => refuseLaneCreateBranch(id, branch),
         created: (info) => laneCreated(id, info),
       },
     )
@@ -109,15 +104,10 @@ async function runLaneCreate(id: string, s: Submission): Promise<void> {
       failure instanceof ServiceLaneControlRefused
         ? failure.message
         : createWarning(code, machineLabel(s.hostId))
-    if (create.laneId) {
-      // The lane exists; only what followed failed. Its text waits in its own composer.
-      fileOnLane(create, create.laneId)
-      finishLaneCreate(id)
-      useExtensionUiStore.getState().pushToast(message, 'warning')
-      return
-    }
     const shown = laneCreateShown(id)
-    failLaneCreate(id, message, !DEFINITE.has(code))
-    if (!shown) useExtensionUiStore.getState().pushToast(message, 'warning')
+    // The lane exists; only what followed failed. Its text waits on its own composer.
+    if (create.laneId) finishLaneCreate(id, true)
+    else failLaneCreate(id, message, !DEFINITE.has(code))
+    if (!shown || create.laneId) useExtensionUiStore.getState().pushToast(message, 'warning')
   }
 }

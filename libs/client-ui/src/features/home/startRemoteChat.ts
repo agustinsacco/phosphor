@@ -19,7 +19,9 @@ export interface LaneCreateHooks {
   nav?: number
   /** Each fresh branch name asked for, before its request goes out. */
   trying?: (branch: string) => void
-  /** The Host made the lane; from here a failure is no longer a failed create. */
+  /** A name the Host refused as taken: whatever lane carries it is not this create's. */
+  refused?: (branch: string) => void
+  /** The Host made the lane, before it is adopted; from here a failure is no longer a failed create. */
   created?: (info: LiveSessionInfo) => void
 }
 
@@ -46,7 +48,8 @@ export async function startRemoteChat(
           ...(branch ? { worktree: { branch, fresh: true } } : {}),
         })
       } catch (error) {
-        if (!input.worktree?.fresh || ipcErrorText(error) !== 'branch-exists') throw error
+        if (!branch || ipcErrorText(error) !== 'branch-exists') throw error
+        hooks.refused?.(branch)
       }
     }
     throw new Error('branch-name-exhausted')
@@ -54,9 +57,9 @@ export async function startRemoteChat(
   const info = await create()
   if (input.model && input.provider)
     rememberRemoteModel(hostId, { id: input.model, provider: input.provider })
-  await adoptRemoteLane(info, nav)
   if (!info.laneId) throw new Error()
   hooks.created?.(info)
+  await adoptRemoteLane(info, nav)
   if (host.local) {
     await refreshHostsSnapshot()
     await ensureServiceLaneControl(hostId, info.laneId)

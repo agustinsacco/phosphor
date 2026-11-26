@@ -16,7 +16,8 @@ export function LaneCreateRows({
   repositoryId,
 }: {
   hostId: string
-  repositoryId: string
+  /** Absent: the Host's, in every folder (its lanes are not listed while it is down). */
+  repositoryId?: string
 }): React.JSX.Element | null {
   const { navigate } = useNavigation()
   const creates = useLaneCreatesStore((s) => s.creates)

@@ -9,8 +9,7 @@ import { forgetRemoteSession, useSessionsStore } from '@/stores/sessions'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { useSkillsStore } from '@/stores/skills'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
-import { useLaneCreatesStore } from '@/stores/laneCreates'
+import { clearLaneCreates } from '@/stores/laneCreates'
 import { useMachinesStore } from '@/stores/machines'
 import { useLaneMoveStore } from '@/stores/laneMove'
 import { clearBrowserMemory } from './browserMemory'
@@ -30,8 +29,7 @@ export function clearCompactUi(): void {
   clearRoutineMemory()
   useMachineCataloguesStore.setState({ catalogues: {} })
   useSkillsStore.setState({ byWorkspace: {}, loading: {}, error: {}, selectedDir: null })
-  useHomeSubmissionsStore.setState({ pending: {} })
-  useLaneCreatesStore.setState({ creates: {} })
+  clearLaneCreates()
   useExtensionUiStore.setState({ toasts: [] })
   useNotificationsStore.setState({ items: [], open: false })
   useMachinesStore.setState({ view: { kind: 'list' }, adding: false })

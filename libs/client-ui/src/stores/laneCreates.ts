@@ -1,93 +1,73 @@
-import { create } from 'zustand'
 import type { HostLaneView } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
-import { hostResourceKey } from '@shared/remote-host'
-import type { PendingAttachment } from '@/features/chat/attachments'
+import { hostResourceKey, remoteLaneKey } from '@shared/remote-host'
 import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
 import { rememberRemoteRepository } from '@/features/home/remoteComposer'
 import { useDraftsStore, type DraftKey } from './drafts'
+import { useExtensionUiStore } from './extensionUi'
+import { refreshHostsSnapshot } from './hostsSnapshotRead'
 import { useLayoutStore } from './layout'
+import { useMachinesStore } from './machines'
 import { alignLaneMachineFilter, navigateToLane, useRemoteLanesStore } from './remoteLanes'
 import { useSessionsStore } from './sessions'
+import {
+  claimLane,
+  dropLaneCreate,
+  laneCreate,
+  laneCreateShown,
+  leaveLaneCreate,
+  patchLaneCreate,
+  settleLaneCreateDraft,
+  takeLaneCreateDraft,
+  useLaneCreatesStore,
+  type LaneCreate,
+} from './laneCreateState'
 
-/**
- * A Host lane the user asked for from a New lane composer, before (or
- * without) the Host confirming it. The composer clears at Enter and this
- * holds what was sent until the create is settled: its row sits at the top of
- * its folder, starting, and `LaneCreateView` shows the message. Several run at
- * once. Window-local and in memory; an owner reset drops them all.
- */
-export interface LaneCreate {
-  /** Client-side, per window; the Host never sees it. */
-  id: string
-  hostId: string
-  repositoryId: string
-  /** The composer the text came from; Edit and retry puts it back there. */
-  draftKey: DraftKey
-  title: string
-  text: string
-  attachments: PendingAttachment[]
-  swarm: boolean
-  /** Fresh branch names asked for: how an uncertain receipt finds its lane. */
-  branches: string[]
-  /** The folder's lanes when the create began; a lane not among them may be this one. */
-  seen: string[]
-  /** Set once the Host made the lane. */
-  laneId?: string
-  sessionId?: string
-  /** Why it failed; the placeholder stays with Edit and retry and Dismiss. */
-  failure?: string
-  /** The Host may have made the lane anyway, so it is looked for before any retry. */
-  unknown?: boolean
-}
+export { laneCreate, laneCreateShown, useLaneCreatesStore, type LaneCreate }
 
-export const useLaneCreatesStore = create<{ creates: Record<string, LaneCreate> }>(() => ({
-  creates: {},
-}))
+/** A create can take two minutes on a big repository; its lane may be listed a while later. */
+const CHECK_EVERY_MS = 10_000
+const CHECK_FOR_MS = 180_000
+const UNCONFIRMED =
+  'The Host could not confirm this lane. If the lane shows up later, it was created.'
 
 let sequence = 0
 
-export const laneCreate = (id: string): LaneCreate | undefined =>
-  useLaneCreatesStore.getState().creates[id]
-
-export const laneCreateShown = (id: string): boolean =>
-  useSessionsStore.getState().opening?.create === id
-
-function patch(id: string, change: Partial<LaneCreate>): void {
-  useLaneCreatesStore.setState((s) => {
-    const current = s.creates[id]
-    return current ? { creates: { ...s.creates, [id]: { ...current, ...change } } } : {}
-  })
-}
-
-function drop(id: string): void {
-  useLaneCreatesStore.setState((s) => {
-    const { [id]: _gone, ...creates } = s.creates
-    return { creates }
-  })
-}
-
-/** Leaves the placeholder's view if it is on screen; the screen underneath shows. */
-function leave(id: string): void {
-  useSessionsStore.setState((s) => (s.opening?.create === id ? { opening: null } : {}))
-}
-
-/** Records the create and switches to its placeholder, in the same tick as Enter. */
-export function beginLaneCreate(start: Omit<LaneCreate, 'id' | 'branches' | 'seen'>): string {
+/**
+ * Takes the composer's draft and switches to its placeholder, in the same tick
+ * as Enter. Undefined when the draft is empty (a second Enter already took it).
+ */
+export function beginLaneCreate(start: {
+  hostId: string
+  repositoryId: string
+  draftKey: DraftKey
+}): LaneCreate | undefined {
+  const draft = useDraftsStore.getState().get(start.draftKey)
+  const text = draft.text.trim()
+  if (!text && !draft.attachments.length) return
   const id = `create-${++sequence}`
+  takeLaneCreateDraft(id, start.draftKey)
   const lanes = useRemoteLanesStore.getState().hosts[start.hostId]?.lanes ?? []
   const seen = lanes.filter((l) => l.repositoryId === start.repositoryId).map((l) => l.laneId)
-  useLaneCreatesStore.setState((s) => ({
-    creates: { ...s.creates, [id]: { ...start, id, branches: [], seen } },
-  }))
+  const create: LaneCreate = {
+    ...start,
+    id,
+    title: text || 'New lane',
+    text,
+    attachments: draft.attachments,
+    swarm: !!draft.swarm,
+    branches: [],
+    seen,
+  }
+  useLaneCreatesStore.setState((s) => ({ creates: { ...s.creates, [id]: create } }))
   showLaneCreate(id)
-  return id
+  return create
 }
 
 /** Puts a placeholder on screen, in both shells: no page in the way, its machine in view. */
 export function showLaneCreate(id: string): void {
   const create = laneCreate(id)
-  if (!create) return
+  if (!create || create.retired) return
   useLayoutStore.getState().setPage(null)
   alignLaneMachineFilter(create.hostId)
   useSessionsStore.getState().beginOpening({
@@ -101,68 +81,117 @@ export function showLaneCreate(id: string): void {
 
 export function noteLaneCreateBranch(id: string, branch: string): void {
   const create = laneCreate(id)
-  if (create) patch(id, { branches: [...create.branches, branch] })
+  if (create) patchLaneCreate(id, { branches: [...create.branches, branch] })
 }
 
-/** The Host made the lane: its real row, once listed, is the selection. */
+export function refuseLaneCreateBranch(id: string, branch: string): void {
+  const create = laneCreate(id)
+  if (create) patchLaneCreate(id, { branches: create.branches.filter((b) => b !== branch) })
+}
+
+/** The Host made the lane: its row, once listed, replaces the placeholder's. */
 export function laneCreated(id: string, info: LiveSessionInfo): void {
   const create = laneCreate(id)
   if (!create || !info.laneId) return
-  patch(id, { laneId: info.laneId, sessionId: info.sessionId })
+  claimLane(create.hostId, info.laneId)
+  patchLaneCreate(id, { laneId: info.laneId, sessionId: info.sessionId })
   const lane = { hostId: create.hostId, laneId: info.laneId }
   useSessionsStore.setState((s) =>
     s.opening?.create === id ? { opening: { ...s.opening, lane } } : {},
   )
 }
 
-/** Done: the placeholder goes, and its lane takes the screen only if the user is still on it. */
-export function finishLaneCreate(id: string): void {
+const laneDraftKey = (create: LaneCreate, laneId: string): DraftKey =>
+  hostResourceKey({ kind: 'remote', hostId: create.hostId }, 'session', laneId)
+
+/**
+ * Done, sent or not: the placeholder goes, and its lane takes the screen only
+ * if the placeholder is still on it. `restore` puts what was sent on the lane's
+ * composer, after anything typed there meanwhile.
+ */
+export function finishLaneCreate(id: string, restore = false): void {
   const create = laneCreate(id)
   if (!create) return
   const shown = laneCreateShown(id)
-  drop(id)
-  if (!shown) return
-  if (create.sessionId && useSessionsStore.getState().live[create.sessionId]) {
+  settleLaneCreateDraft(
+    id,
+    restore && create.laneId ? laneDraftKey(create, create.laneId) : undefined,
+  )
+  if (shown && create.sessionId && useSessionsStore.getState().live[create.sessionId]) {
     useSessionsStore.getState().activate(create.sessionId)
     void refreshRemoteArtifacts(create.sessionId)
-  } else leave(id)
-}
-
-/** What was sent goes to the lane's own composer, never into a second create. */
-export function fileOnLane(create: LaneCreate, laneId: string): void {
-  const key = hostResourceKey({ kind: 'remote', hostId: create.hostId }, 'session', laneId)
-  useDraftsStore.getState().patch(key, { text: create.text, attachments: create.attachments })
+  }
+  dropLaneCreate(id)
 }
 
 export function failLaneCreate(id: string, failure: string, unknown: boolean): void {
-  patch(id, { failure, unknown })
-  if (unknown) reconcileLaneCreate(id)
+  if (!unknown) patchLaneCreate(id, { failure })
+  else {
+    patchLaneCreate(id, { unknown: true, checking: true })
+    if (!reconcileLaneCreate(id)) keepChecking(id, Date.now() + CHECK_FOR_MS)
+  }
+}
+
+/** Fresh snapshot reads until the lane is listed or the window closes; never a second create. */
+function keepChecking(id: string, until: number): void {
+  setTimeout(() => {
+    if (!laneCreate(id)?.checking) return
+    if (Date.now() >= until) {
+      patchLaneCreate(id, { checking: false, failure: UNCONFIRMED })
+      if (!laneCreateShown(id)) useExtensionUiStore.getState().pushToast(UNCONFIRMED, 'warning')
+      return
+    }
+    void refreshHostsSnapshot()
+      .catch(() => undefined)
+      .then(() => {
+        if (!reconcileLaneCreate(id)) keepChecking(id, until)
+      })
+  }, CHECK_EVERY_MS)
+}
+
+/** Lanes new in the create's folder since Enter that no create is known to have made. */
+function unclaimedLanes(create: LaneCreate): HostLaneView[] {
+  const { claimed } = useLaneCreatesStore.getState()
+  return (useRemoteLanesStore.getState().hosts[create.hostId]?.lanes ?? []).filter(
+    (l) =>
+      l.repositoryId === create.repositoryId &&
+      !create.seen.includes(l.laneId) &&
+      !claimed[remoteLaneKey(create.hostId, l.laneId)],
+  )
+}
+
+/** The lane an uncertain create made, only when nothing else can explain it. */
+function foundLane(create: LaneCreate): string | undefined {
+  const creates = Object.values(useLaneCreatesStore.getState().creates).filter(
+    (c) => c.hostId === create.hostId && c.repositoryId === create.repositoryId,
+  )
+  const asked = new Set(creates.flatMap((c) => c.branches))
+  const unclaimed = unclaimedLanes(create)
+  const found = create.branches.length
+    ? unclaimed.filter((l) => l.branch !== null && create.branches.includes(l.branch))
+    : unclaimed.filter((l) => l.branch === null || !asked.has(l.branch))
+  // Unbranched: only one create here could have made an unbranched lane.
+  const unresolved = creates.filter(
+    (c) => !c.branches.length && !c.laneId && !(c.failure && !c.unknown),
+  )
+  if (found.length !== 1 || (!create.branches.length && unresolved.length !== 1)) return
+  return found[0]!.laneId
 }
 
 /**
- * An uncertain create whose lane the Host lists after all: by a branch it was
- * asked for, or, unbranched, as the only lane in its folder that is new since
- * Enter and no other create's. Replaced by that lane; its text goes there.
+ * An uncertain create whose lane the Host lists after all: it holds the lane
+ * and is replaced by it, its text in that lane's composer. A retired one only
+ * holds the lane. Returns the lane found.
  */
 export function reconcileLaneCreate(id: string): string | undefined {
   const create = laneCreate(id)
   if (!create?.unknown) return
-  const creates = Object.values(useLaneCreatesStore.getState().creates)
-  const claimed = new Set(creates.map((c) => c.laneId))
-  const unseen = (useRemoteLanesStore.getState().hosts[create.hostId]?.lanes ?? []).filter(
-    (l) =>
-      l.repositoryId === create.repositoryId &&
-      !create.seen.includes(l.laneId) &&
-      !claimed.has(l.laneId),
-  )
-  const found = create.branches.length
-    ? unseen.filter((l) => l.branch !== null && create.branches.includes(l.branch))
-    : unseen
-  if (found.length !== 1) return
-  const laneId = found[0]!.laneId
+  const laneId = foundLane(create)
+  if (!laneId) return
+  claimLane(create.hostId, laneId)
   const shown = laneCreateShown(id)
-  fileOnLane(create, laneId)
-  drop(id)
+  settleLaneCreateDraft(id, create.retired ? undefined : laneDraftKey(create, laneId))
+  dropLaneCreate(id)
   if (shown) void navigateToLane({ hostId: create.hostId, laneId })
   return laneId
 }
@@ -173,37 +202,63 @@ useRemoteLanesStore.subscribe((state, previous) => {
     if (create.unknown) reconcileLaneCreate(create.id)
 })
 
-/** Edit and retry: the text and attachments back in the New lane composer, the placeholder gone. */
+/**
+ * Edit and retry: what was sent goes back into the New lane composer, after
+ * anything typed there since. Not while the Host may still list the lane; an
+ * uncertain create keeps its claim afterwards, retired.
+ */
 export function editLaneCreate(id: string): void {
   const create = laneCreate(id)
-  if (!create || (create.unknown && reconcileLaneCreate(id))) return
+  if (!create?.failure || create.checking) return
   rememberRemoteRepository(create.hostId, create.repositoryId)
-  useDraftsStore.getState().patch(create.draftKey, {
-    text: create.text,
-    attachments: create.attachments,
-    swarm: create.swarm,
-  })
-  leave(id)
-  drop(id)
+  settleLaneCreateDraft(id, create.draftKey)
+  if (create.swarm) useDraftsStore.getState().patch(create.draftKey, { swarm: true })
+  if (!create.unknown) dropLaneCreate(id)
+  else {
+    patchLaneCreate(id, { retired: true })
+    leaveLaneCreate(id)
+  }
 }
 
 export function dismissLaneCreate(id: string): void {
-  leave(id)
-  drop(id)
+  dropLaneCreate(id)
 }
 
-/** A folder's placeholders, newest first, without those whose lane the Host now lists. */
+/** Owner reset or sign-out: nothing of the previous owner's sends stays in memory. */
+export function clearLaneCreates(keep: (create: LaneCreate) => boolean = () => false): void {
+  for (const create of Object.values(useLaneCreatesStore.getState().creates))
+    if (!keep(create)) dropLaneCreate(create.id)
+  if (!Object.keys(useLaneCreatesStore.getState().creates).length)
+    useLaneCreatesStore.setState({ claimed: {} })
+}
+
+useMachinesStore.subscribe((state, previous) => {
+  const hosts = useRemoteLanesStore.getState().hosts
+  // This Mac's service outlives remote sign-out, as the New lane composer's target does.
+  if (!state.remoteEnabled && previous.remoteEnabled)
+    clearLaneCreates((create) => !!hosts[create.hostId]?.local)
+  else if (state.machines !== previous.machines)
+    clearLaneCreates(
+      (create) =>
+        !!hosts[create.hostId]?.local ||
+        state.machines.some((m) => m.id === create.hostId) ||
+        !previous.machines.some((m) => m.id === create.hostId),
+    )
+})
+
+/** A folder's placeholders (or a Host's), newest first, without those whose lane is listed. */
 export function pendingLaneCreates(
   creates: Record<string, LaneCreate>,
   hostId: string,
-  repositoryId: string,
+  repositoryId: string | undefined,
   lanes: readonly HostLaneView[] = useRemoteLanesStore.getState().hosts[hostId]?.lanes ?? [],
 ): LaneCreate[] {
   return Object.values(creates)
     .filter(
       (c) =>
         c.hostId === hostId &&
-        c.repositoryId === repositoryId &&
+        !c.retired &&
+        (repositoryId === undefined || c.repositoryId === repositoryId) &&
         !(c.laneId && lanes.some((l) => l.laneId === c.laneId)),
     )
     .reverse()

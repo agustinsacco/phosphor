@@ -6,7 +6,6 @@ import { workspaceFileSource } from '@/features/chat/composer/useFileMentions'
 import type { PendingAttachment } from '@/features/chat/attachments'
 import { homeDraftKey, useDraftsStore, type Draft } from '@/stores/drafts'
 import { useStartingChatStore } from '@/stores/startingChat'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { workspaceCommandSource } from '@/stores/piCommands'
 import { HomeModelPicker } from './HomeModelPicker'
@@ -67,12 +66,7 @@ export function useLocalStart(
     busy: starting,
     canSubmit: !!text.trim() || images.length > 0,
     submit: async () => {
-      if (
-        (!text.trim() && !images.length) ||
-        useStartingChatStore.getState().starting ||
-        useHomeSubmissionsStore.getState().pending[draftKey]
-      )
-        return
+      if ((!text.trim() && !images.length) || useStartingChatStore.getState().starting) return
       setWarning(null)
       await submitLocalHome(workspacePath, text.trim(), images, swarm)
     },

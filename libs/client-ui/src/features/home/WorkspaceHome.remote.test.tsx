@@ -9,7 +9,6 @@ import { useSessionsStore } from '@/stores/sessions'
 import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useLaneCreatesStore } from '@/stores/laneCreates'
 import { hostResourceKey } from '@shared/remote-host'
 import { useWorktreesStore } from '@/stores/worktrees'
@@ -90,7 +89,6 @@ beforeEach(() => {
     },
   })
   useMachineCataloguesStore.setState({ catalogues: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
   useLaneCreatesStore.setState({ creates: {} })
   useMachinePagesStore.setState({ skillsMachine: null })
   useDraftsStore.setState({ drafts: {}, revisions: {} })
@@ -399,7 +397,6 @@ it.each(['exhausted', 'prefix'] as const)(
 it.each([
   ['lane-create-failed', `${MOCK_HOST_ID} couldn't start this lane.`],
   ['lane-limit', `${MOCK_HOST_ID} is at its lane limit or too busy.`],
-  ['Lane creation not confirmed.', 'The Host could not confirm this.'],
 ])('keeps the text on the placeholder and names a %s creation outcome', async (code, message) => {
   useWorktreesStore.setState({ preferWorktree: false, branchPrefix: 'phosphor/' })
   const original = invoke.getMockImplementation()
@@ -414,6 +411,19 @@ it.each([
   expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(1)
   expect(placeholder()?.failure).toContain(message)
   expect(receipt).not.toHaveBeenCalled()
+})
+
+it('an unconfirmed creation keeps checking with the Host instead of failing', async () => {
+  const original = invoke.getMockImplementation()
+  invoke.mockImplementation(async (channel, ...args) => {
+    if (channel === 'hosts:createLane') throw new Error('Lane creation not confirmed.')
+    return original?.(channel, ...args)
+  })
+  await render()
+  await send()
+  await vi.waitFor(() => expect(placeholder()?.checking).toBe(true))
+  expect(placeholder()?.failure).toBeUndefined()
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(1)
 })
 
 it('keeps a Host home reachable while This Mac’s home shows its setup', async () => {

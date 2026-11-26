@@ -18,7 +18,7 @@ export function CompactNew({
 }): React.JSX.Element {
   const { navigate } = useNavigation()
   const placeholder = useLaneCreatesStore((s) => (create ? s.creates[create] : undefined))
-  if (create && placeholder)
+  if (create && placeholder?.hostId === hostId && !placeholder.retired)
     return (
       <div className="relative h-full">
         <LaneCreateView id={create} />

@@ -12,7 +12,6 @@ import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachineCataloguesStore, machineCatalogueKey } from '@/stores/machineCatalogues'
 import { useDraftsStore, homeDraftKey, clearDraftMemory } from '@/stores/drafts'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useLaneCreatesStore } from '@/stores/laneCreates'
 import { useRemoteModelPicks } from '@/stores/remoteModelPicks'
 import { startRemoteChat } from './startRemoteChat'
@@ -50,7 +49,6 @@ beforeEach(() => {
     },
   })
   useRemoteModelPicks.setState({ last: {}, thinking: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
   useLaneCreatesStore.setState({ creates: {} })
   clearDraftMemory()
   useDraftsStore.getState().setText(key, 'Task for this Host')
@@ -112,7 +110,6 @@ it('submits the Host-scoped draft and clears the composer at once', async () => 
   expect(startRemoteChat).toHaveBeenCalledOnce()
   await act(async () => complete())
   expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
-  expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
 })
 it('keeps the same field and draft while a flaky Host reconnects, locked until it is back', async () => {
   await render()
@@ -156,19 +153,15 @@ it('keeps a newer draft when the old prompt receipt completes after unmount', as
   useDraftsStore.getState().setText(key, 'Next task')
   await act(async () => complete())
   expect(useDraftsStore.getState().drafts[key]?.text).toBe('Next task')
-  expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
 })
-it('keeps the text on the failed placeholder after an uncertain receipt', async () => {
+it('keeps the text on the placeholder, checking with the Host, after an uncertain receipt', async () => {
   await render()
   await send()
   await act(async () => reject(new Error('disconnected')))
-  // The composer cleared at Enter; what was sent waits on the placeholder for Edit and retry.
+  // The composer cleared at Enter; what was sent waits on the placeholder while the Host is asked.
   expect(useDraftsStore.getState().drafts[key]?.text ?? '').toBe('')
   expect(Object.values(useLaneCreatesStore.getState().creates)).toEqual([
-    expect.objectContaining({
-      text: 'Task for this Host',
-      failure: expect.stringContaining('The Host could not confirm this.'),
-    }),
+    expect.objectContaining({ text: 'Task for this Host', checking: true }),
   ])
 })
 
@@ -202,7 +195,6 @@ it('does not clear a new owner draft when the retired submission receipt arrives
   await render()
   await send()
   await render(<p>Signed out</p>)
-  useHomeSubmissionsStore.setState({ pending: {} })
   clearDraftMemory()
   useDraftsStore.getState().setText(key, 'New owner task')
   await act(async () => complete())
@@ -250,16 +242,13 @@ it('sends a browser file draft through the shared remote attachment path', async
   await act(async () => complete())
 })
 
-it('does not release a replacement owner submission when an old receipt settles', async () => {
+it('does not touch a replacement owner draft when an old receipt settles', async () => {
   await render()
   await send()
   await render(<p>Signed out</p>)
-  useHomeSubmissionsStore.setState({ pending: {} })
   clearDraftMemory()
   useDraftsStore.getState().setText(key, 'New owner task')
-  useHomeSubmissionsStore.getState().begin(key)
   await act(async () => complete())
-  expect(useHomeSubmissionsStore.getState().pending[key]).toBe(true)
   expect(useDraftsStore.getState().drafts[key]?.text).toBe('New owner task')
 })
 

@@ -10,8 +10,9 @@ import type { LaneCreate } from '@/stores/laneCreates'
 /**
  * A New lane placeholder on screen, the same in both shells (`OpeningLane` on
  * Desktop, `CompactNew` in the browser): the message as it will sit in the
- * transcript, under the opening view's loader. A failed create keeps the
- * message and says why, with Edit and retry and Dismiss.
+ * transcript, under the opening view's loader. An uncertain create says it is
+ * checking with the Host; a failed one keeps the message and says why, with
+ * Edit and retry and Dismiss.
  */
 export function LaneCreateView({
   id,
@@ -21,7 +22,8 @@ export function LaneCreateView({
   leaving?: boolean
 }): React.JSX.Element | null {
   const { navigate } = useNavigation()
-  const current = useLaneCreatesStore((s) => s.creates[id])
+  const stored = useLaneCreatesStore((s) => s.creates[id])
+  const current = stored?.retired ? undefined : stored
   // The create is dropped as its lane takes over; the view fades out as it was.
   const last = useRef<LaneCreate | undefined>(current)
   if (current) last.current = current
@@ -34,6 +36,7 @@ export function LaneCreateView({
     phase: 'starting' as const,
   }
   const failed = !!current?.failure
+  const status = current?.checking ? 'Checking with the Host…' : 'Starting lane…'
   return (
     <div
       data-testid="opening-lane"
@@ -72,7 +75,7 @@ export function LaneCreateView({
             </>
           ) : (
             <span className="text-text-secondary text-base" data-testid="starting-chat-phase">
-              Starting lane…
+              {status}
             </span>
           )}
         </div>

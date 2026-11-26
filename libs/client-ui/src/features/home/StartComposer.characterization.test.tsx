@@ -11,7 +11,6 @@ import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { clearDraftMemory, homeDraftKey, useDraftsStore } from '@/stores/drafts'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { LocalHomeComposer } from './LocalHomeComposer'
@@ -58,7 +57,6 @@ beforeEach(() => {
     hosts: { [MOCK_HOST_ID]: structuredClone(mockRemoteHosts[MOCK_HOST_ID]!) },
   })
   useMachineCataloguesStore.setState({ catalogues: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
   useStartingChatStore.setState({ starting: null, draft: null })
   useWorktreesStore.setState({ preferWorktree: true })
   clearDraftMemory()
@@ -104,13 +102,9 @@ it('local start composer puts its target row above a two-row input and hints bel
   expect(el.textContent).toContain('/ commands · @ files')
 })
 
-it('local start composer submits once and refuses while a start or submission is pending', async () => {
+it('local start composer submits once and refuses while a start is pending', async () => {
   useDraftsStore.getState().setText(localKey, 'Local task')
   await render(local())
-  useHomeSubmissionsStore.getState().begin(localKey)
-  await act(async () => submit().click())
-  expect(submitLocalHome).not.toHaveBeenCalled()
-  useHomeSubmissionsStore.setState({ pending: {} })
   act(() => useStartingChatStore.getState().begin({ workspacePath: WS, prompt: 'other' }))
   await act(async () => submit().click())
   expect(submitLocalHome).not.toHaveBeenCalled()

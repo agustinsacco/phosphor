@@ -196,7 +196,7 @@ it('an unknown receipt finds the lane by its branch instead of creating a duplic
   runs[0]!.hooks.trying?.('phosphor/maybe-made-it')
   runs[0]!.reject(new Error('timeout'))
   await vi.waitFor(() => expect(creates()[0]?.unknown).toBe(true))
-  expect(creates()[0]?.failure).toMatch(/Check the lane before retrying/)
+  expect(creates()[0]?.checking).toBe(true)
   addSnapshotLane('lane-found', 'phosphor/maybe-made-it')
   await vi.waitFor(() => expect(creates()).toHaveLength(0))
   // The text goes to the lane that exists, never to a fresh create.

@@ -176,11 +176,17 @@ will sit in the transcript, under the Phosphor loader). The browser routes it as
 in the background, the same on Desktop and in the browser; the user can press +
 and start more at once, each with its own placeholder, or go anywhere. A create
 never takes the screen: only if its placeholder is still on screen when the prompt
-is sent does it become that lane in place. The placeholder row gives way to the
-lane's row as soon as the Host snapshot lists it. The sent text and attachments
-stay with the placeholder until the create settles. If the Host made the lane but
-a later step failed (control, Swarm, the prompt), the text waits in that lane's
-composer instead.
+is sent, and no page covers it, does it become that lane in place. The lane is
+recorded as soon as the Host answers, before it is adopted, so the placeholder row
+gives way to the lane's row as soon as the Host snapshot lists it. The sent text
+and attachments stay with the placeholder until the create settles, with their
+documents still counted against the draft cap. If the Host made the lane but a
+later step failed or went unconfirmed (control, Swarm, the prompt), the text is
+added to that lane's composer instead. Every restore appends, a blank line after
+whatever the destination draft already holds, and never replaces it. Sign-out
+drops the placeholders of every machine but This Mac's service, and the browser's
+owner reset drops them all. A failed placeholder on This Mac's service stays
+listed while the service is down.
 
 Isolation follows This Mac's worktree preference and branch-naming rule. Generated
 Host branches trim only the slug to fit the 100-character flattened limit; an
@@ -196,14 +202,19 @@ failed receipt or a frame that was never sent, the composer says the machine
 couldn't start the lane; a `too-many-requests` refusal says it is at its lane limit
 or too busy. An unknown receipt, a dropped connection, or a request main refuses
 before or after sending (missing control capability, an invalid frame, a changed
-connection) says the Host could not confirm it. The failed placeholder says why,
-with **Edit and retry** (the text, attachments and Swarm choice back in the New
-lane composer) and **Dismiss**; one the user has left also raises a toast. An
-uncertain create is first looked for in the Host snapshot: a new lane in its
-folder carrying a branch it asked for, or, when it asked for none, the only new
-lane there since Enter. A lane found replaces the placeholder and receives the
-text, so a retry never makes a duplicate; otherwise the placeholder keeps saying
-to check the lane before retrying.
+connection) cannot be known to have failed. A definite failure's placeholder
+says why, with **Edit and retry** (the text, attachments and Swarm choice back in
+the New lane composer) and **Dismiss**; one the user has left also raises a toast.
+An uncertain one never creates again while its outcome is unknown: its
+placeholder says “Checking with the Host…” and reads a fresh `hosts:snapshot`
+about every 10 seconds for three minutes, since a create can take two. A lane
+the Host lists for it is adopted in its place, with the text in its composer. It
+matches by a branch the create asked for and the Host did not refuse as taken,
+or, when it asked for none, only if that is the one new lane in its folder and
+it is the one unbranched create there still unresolved. A lane any create is
+known to have made is never matched again. After the window the placeholder
+offers Edit and retry, noting that if the lane shows up later, it was created; a
+create retried that way keeps holding whatever lane turns up for it.
 
 An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 

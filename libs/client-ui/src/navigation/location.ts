@@ -19,10 +19,11 @@ export const PAGES = [
 export type Page = (typeof PAGES)[number]
 export type LaneKey = { hostId: string; laneId: string } | { sessionId: string }
 export type Location =
+  | { to: 'lanes'; machine?: string }
   | {
-      to: 'lanes' | 'new'
+      to: 'new'
       machine?: string
-      /** New only: a create's placeholder (`laneCreates.ts`), until its lane takes over. */
+      /** A create's placeholder (`laneCreates.ts`) on that machine, until its lane takes over. */
       create?: string
     }
   | { to: 'lane'; lane: LaneKey; pane?: LanePane }

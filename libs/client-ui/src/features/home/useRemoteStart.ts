@@ -38,10 +38,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
     await submitRemoteHome({
       hostId,
       draftKey,
-      text: text.trim(),
-      attachments,
       branch: canBranch && (!sameMachine || preferWorktree),
-      swarm,
       input: {
         repositoryId,
         provider: selection.model.provider,
