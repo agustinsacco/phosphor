@@ -156,7 +156,8 @@ const connectionChanged = (
     (id) =>
       state.hosts[id]?.state !== before.hosts[id]?.state ||
       state.hosts[id]?.connectionToken !== before.hosts[id]?.connectionToken ||
-      state.hosts[id]?.hostVersion !== before.hosts[id]?.hostVersion,
+      state.hosts[id]?.hostVersion !== before.hosts[id]?.hostVersion ||
+      state.hosts[id]?.cursor?.epoch !== before.hosts[id]?.cursor?.epoch,
   ) || Object.keys(before.hosts).some((id) => !(id in state.hosts))
 
 /** Shell-owned observation, independent of the Settings page and of any agent lane. */

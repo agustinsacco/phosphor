@@ -40,6 +40,7 @@ export interface UpdateRun {
   shownAt: number
   reached: UpdateStep
   waiting?: Waiting
+  interruptedLink?: 'offline' | 'returned'
   restartAt?: number
   wentOffline?: true
   finish?: UpdateFinish
@@ -141,8 +142,14 @@ function returned(
       settled: undefined,
       to: last.to,
     }
-  // A live transport can reconnect to the same daemon; only a new runtime epoch implies restart.
-  if (run.wentOffline && run.epoch && host.cursor?.epoch && host.cursor.epoch !== run.epoch)
+  // The lanes snapshot can reveal a new runtime epoch after the transport is ready.
+  const epoch = host.cursor?.epoch
+  if (
+    (run.interruptedLink || run.restartAt !== undefined) &&
+    run.epoch &&
+    epoch &&
+    epoch !== run.epoch
+  )
     return { ...reach(run, 'health', now), finish: 'rolled-back', settled: undefined }
   if (!run.wentOffline && version && version === run.from && restartDeadlinePassed(run, now))
     return { ...run, finish: 'apply' }
@@ -156,12 +163,19 @@ export function observeConnection(
   now: number,
 ): UpdateRun {
   if (run.finish && run.finish !== 'not-back') return run
-  if (host?.state === 'ready') return returned(run, entry, host, now)
-  // A quiet Host can pause and hand off between polls, before the job reports applying.
-  const pause = entry.status?.pause.kind
-  const activeOp = run.path === 'op' && (run.jobId || pause === 'pausing' || pause === 'paused')
-  if (activeOp || run.reached === 'paused' || run.path === 'task' || run.restartAt !== undefined)
+  if (host?.state === 'ready')
+    return returned(
+      run.interruptedLink === 'offline' ? { ...run, interruptedLink: 'returned' } : run,
+      entry,
+      host,
+      now,
+    )
+  if (run.path === 'task' || run.restartAt !== undefined)
     return run.wentOffline ? run : { ...reach(run, 'restarting', now), wentOffline: true }
+  // A fast update can drop the link before either poll sees the handoff, but so can a blip.
+  const pause = entry.status?.pause.kind
+  if (run.jobId || run.reached === 'paused' || pause === 'pausing' || pause === 'paused')
+    return run.interruptedLink === 'offline' ? run : { ...run, interruptedLink: 'offline' }
   return run
 }
 
@@ -187,7 +201,10 @@ export function holdUpdatePage(run: UpdateRun | undefined): boolean {
   return (
     !!run &&
     (run.finish === 'not-back' ||
-      (!run.settled && (run.reached === 'paused' || run.restartAt !== undefined)))
+      (!run.settled &&
+        (run.interruptedLink === 'offline' ||
+          run.reached === 'paused' ||
+          run.restartAt !== undefined)))
   )
 }
 

@@ -3,6 +3,7 @@ import type { HostConnectionView } from '@shared/ipc'
 import { readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
 import {
   deriveMachineUpdate,
+  holdUpdatePage,
   nextRun,
   observeConnection,
   observePause,
@@ -38,19 +39,35 @@ it('holds each reached step for 600ms and ignores reconnect flaps to the same pr
   expect(run.step).toBe('waiting')
   run = observePause(run, paused, 601)
   run = observeConnection(run, {}, { ...host, state: 'reconnecting' }, 602)
-  expect(run.reached).toBe('restarting')
-  expect(observeConnection(run, {}, { ...host, connectionToken: '2' }, 603)).toEqual(run)
-  for (const [now, step] of [
-    [1200, 'paused'],
-    [1800, 'restarting'],
-  ] as const) {
-    run = nextRun(run, now)
-    expect(run.step).toBe(step)
-  }
-  run = observeConnection(run, {}, { ...host, hostVersion: '2.0.0' }, 1801)
+  run = observeConnection(run, {}, { ...host, connectionToken: '2' }, 603)
+  expect(run.reached).toBe('paused')
+  expect(run.restartAt).toBeUndefined()
+  run = nextRun(run, 1200)
+  expect(run.step).toBe('paused')
+  run = observeConnection(
+    run,
+    {},
+    { ...host, hostVersion: '2.0.0', cursor: { epoch: 'next', seq: 0 } },
+    1201,
+  )
+  expect(nextRun(run, 1799).step).toBe('paused')
+  run = nextRun(run, 1800)
+  expect(run.step).toBe('restarting')
   run = nextRun(run, 2400)
   expect(run).toMatchObject({ step: 'health', finish: 'updated', to: '2.0.0' })
   expect(nextRun(run, 3000).settled).toBe(true)
+})
+
+it('recognizes a replacement runtime when its cursor arrives after the ready snapshot', () => {
+  const started = { ...startRun('op', {}, host, 0), jobId: 'update' }
+  const offline = observeConnection(started, {}, undefined, 1)
+  expect(holdUpdatePage(offline)).toBe(true)
+  expect(offline.restartAt).toBeUndefined()
+  expect(offline.wentOffline).toBeUndefined()
+  const ready = observeConnection(offline, {}, { ...host, connectionToken: '2' }, 2)
+  expect(holdUpdatePage(ready)).toBe(false)
+  const replaced = observeConnection(ready, {}, { ...host, cursor: { epoch: 'next', seq: 0 } }, 3)
+  expect(replaced).toMatchObject({ reached: 'health', finish: 'rolled-back', restartAt: 3 })
 })
 
 it('soft-times out and recovers on a new runtime running the original version', () => {

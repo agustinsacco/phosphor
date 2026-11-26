@@ -237,10 +237,12 @@ it.each([
   expect(container.textContent).toContain('/usr/bin')
   expect(container.textContent).not.toMatch(/Start service|service unavailable/)
   expect.soft(step()).toBe(phase)
+  invoke.mockClear()
   await act(async () => {
     connection({ state: 'ready', connectionToken: 'new-link' }) // Same epoch.
     changed?.({ ...status, pause })
   })
+  expect(invoke).toHaveBeenCalledWith('hosts:settingsRead', machine.id, 'advanced', undefined)
   if (draining) {
     expect.soft(text()).toContain('Stop turns and update now')
     expect.soft(text()).toContain('Cancel update')
@@ -291,14 +293,16 @@ it.each([
     expect(container.textContent).toContain('/usr/bin')
     expect(container.textContent).not.toMatch(/Start service|service unavailable/)
     await tick(1600)
-    expect(step()).toBe('Restart')
+    expect(step()).toBe(initiating ? 'Download and verify' : 'Wait for working lanes')
     expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:settingsRead')).toBe(false)
 
     pause = { kind: 'none' }
     await act(async () =>
       connection({ state: 'ready', hostVersion: '1.1.0', cursor: { epoch: 'second', seq: 0 } }),
     )
-    await tick(1500)
+    await tick(600)
+    expect(step()).toBe('Restart')
+    await tick(1200)
     expect(text()).toContain('Updated to 1.1.0')
   },
 )
@@ -316,11 +320,11 @@ it('keeps Advanced mounted when the local slot clears its pause and flaps betwee
     connection({ state: 'reconnecting' })
   })
   await tick(1600)
-  expect(step()).toBe('Restart')
+  expect(step()).toBe('Pause lanes')
   await act(async () => connection({ state: 'ready', connectionToken: 'flap' }))
   await act(async () => connection({ state: 'reconnecting' }))
   await tick(3000)
-  expect(step()).toBe('Restart')
+  expect(step()).toBe('Pause lanes')
   expect(container.textContent).toContain('/usr/bin')
   expect(container.textContent).not.toContain('Start service')
   expect(container.textContent).not.toContain('service unavailable')
@@ -337,6 +341,7 @@ it('keeps Advanced mounted when the local slot clears its pause and flaps betwee
   await act(async () =>
     connection({ state: 'ready', hostVersion: '1.1.0', cursor: { epoch: 'second', seq: 0 } }),
   )
+  expect(step()).toBe('Restart')
   await tick(1500)
   expect(text()).toContain('Updated to 1.1.0')
 })
