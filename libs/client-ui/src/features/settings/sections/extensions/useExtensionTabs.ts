@@ -1,3 +1,4 @@
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { holdUpdatePage } from '@/features/updates/machineUpdateState'
 import { useMachineUpdatesStore } from '@/stores/machineUpdates'
@@ -66,6 +67,7 @@ function useHostPackageRead(hostId: string | null, folder: string | null): void 
   const supported = usePlatform().machineSettings
   const connection = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const generation = useRemoteLanesStore(() => (hostId ? machineReadGeneration(hostId) : 0))
+  const revision = useHostResourceRevision(hostId, 'packages')
   const updating = useMachineUpdatesStore(
     (s) => hostId !== null && holdUpdatePage(s.byMachine[hostId]?.run),
   )

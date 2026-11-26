@@ -1,3 +1,4 @@
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { runAgentOp } from '@/features/agent-control/agentOps'
 import { serviceScope } from '@/stores/localServiceScope'
 import { usePlatform } from '@/platform/Platform'
@@ -52,6 +53,7 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
   const override = useMachinePagesStore((s) => s.artifactsMachine)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const machine = serviceScope(pageMachine(filter, override, true), hosts)
+  const revision = useHostResourceRevision(machine === 'local' ? null : machine === 'all' ? '*' : machine, 'artifacts')
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
   // Reload when a session opens, closes or changes on disk, so a session
@@ -84,7 +86,7 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
     return () => {
       current = false
     }
-  }, [liveIds, disk, removals, hosts])
+  }, [liveIds, disk, removals, hosts, revision])
 
   const rows = useMemo(
     () =>

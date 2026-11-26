@@ -1,3 +1,4 @@
+import { attachHostResourceChanges } from './hostResourceChanges'
 import { bindServiceLaneViews, laneControlPolicy } from '@/platform/serviceLaneControl'
 import { serviceScope } from './localServiceScope'
 import {
@@ -358,6 +359,7 @@ export function attachRemoteLanesListener(): () => void {
     }
   })
   reportFocus()
+  const offResources = attachHostResourceChanges()
   const offChanged = window.phosphor.onHostsChanged(() => void refresh())
   const offAttention = window.phosphor.onHostAttention((event) => {
     void refresh()
@@ -386,6 +388,7 @@ export function attachRemoteLanesListener(): () => void {
     active = false
     invalidateRemoteArtifactReads()
     offFocus()
+    offResources()
     offChanged()
     offAttention()
     offOpen()

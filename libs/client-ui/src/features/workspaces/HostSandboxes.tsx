@@ -1,3 +1,4 @@
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { useEffect, useState } from 'react'
 import { parseOpsJobData } from '@phosphor/shared/host-protocol-ops'
 import { Button } from '@/components/form'
@@ -27,6 +28,7 @@ function useSandboxActions(hostId: string) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [job, setJob] = useState('')
+  const revision = useHostResourceRevision(hostId, 'sandboxes')
   const generation = useRemoteLanesStore((s) => s.hosts[hostId]?.connectionToken)
   useEffect(() => {
     let current = true
@@ -43,7 +45,7 @@ function useSandboxActions(hostId: string) {
     return () => {
       current = false
     }
-  }, [hostId, generation, refresh])
+  }, [hostId, generation, refresh, revision])
 
   async function mutate(op: 'sandbox.create' | 'sandbox.rename' | 'sandbox.delete', row?: Sandbox) {
     setBusy(true)
