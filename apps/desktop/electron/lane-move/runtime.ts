@@ -14,7 +14,13 @@ export const localTransferRuntime: RuntimeProbe = async (models, cwd) => {
   let catalogue: Awaited<ReturnType<typeof listModelsViaRpc>> | null = null
   if (models && (stub || health?.ok)) {
     const invoker = await resolvePiInvoker('minimal-stub')
-    catalogue = await listModelsViaRpc(invoker.binaryPath, invoker.prefixArgs, invoker.env, cwd)
+    // Unreadable reads as no models: the move then says the model is unavailable.
+    catalogue = await listModelsViaRpc(
+      invoker.binaryPath,
+      invoker.prefixArgs,
+      invoker.env,
+      cwd,
+    ).catch(() => [])
   }
   return {
     piVersion: stub ? MIN_PI_VERSION : health?.ok ? (health.version ?? null) : null,
