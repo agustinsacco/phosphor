@@ -234,7 +234,7 @@ it('uses argument arrays, disables prompts on every git call, and never fetches'
   await (await prepare('no-network')).undo()
   expect(spy.mock.calls.length).toBeGreaterThan(0)
   for (const [_cwd, args, options] of spy.mock.calls) {
-    expect(options?.env).toEqual({ GIT_TERMINAL_PROMPT: '0' })
+    expect(options?.env).toEqual({ GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' })
     expect(args[0]).not.toBe('fetch')
   }
 })
@@ -282,7 +282,7 @@ it('leaves and logs an unregistered folder after a failed add', async () => {
     }),
   ).rejects.toThrow('The worktree could not be created.')
   expect(existsSync(join(root, '.phosphor', 'worktrees', 'unregistered'))).toBe(true)
-  expect(logs).toEqual([{ message: 'lane.worktree_undo_failed', data: {} }])
+  expect(logs.at(-1)).toEqual({ message: 'lane.worktree_undo_failed', data: {} })
 })
 
 it('refuses a branch created concurrently at the base without owning or deleting it', async () => {
@@ -468,7 +468,7 @@ it.each(['before-check', 'at-spawn'])(
       expect(spy.mock.calls.some(([, args]) => args[0] === 'worktree' && args[1] === 'add')).toBe(
         false,
       )
-    else expect(logs).toEqual([{ message: 'lane.worktree_undo_failed', data: {} }])
+    else expect(logs.at(-1)).toEqual({ message: 'lane.worktree_undo_failed', data: {} })
   },
 )
 it.each(['symlink', 'file'])(

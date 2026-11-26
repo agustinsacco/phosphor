@@ -12,22 +12,21 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
+import {
+  FAILED_CLEANUP_MS,
+  LaneFolderError,
+  worktreeGit,
+  worktreeGitDeadline,
+} from './worktree-git'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import {
   defaultBranchRefs,
   resolveDefaultBranch,
 } from '@phosphor/session-runtime/git/default-branch'
 
+export { LaneFolderError } from './worktree-git'
 export { gitTracking, gitTracksFolder } from '@phosphor/session-runtime/git/git-tracking'
 
-export class LaneFolderError extends Error {
-  constructor(
-    message: string,
-    readonly code?: 'branch-exists',
-  ) {
-    super(message)
-  }
-}
 export interface LaneFolder {
   cwd: string
   branch: string | null
@@ -40,21 +39,28 @@ export async function prepareLaneFolder(input: {
   root: string
   worktree: { readonly branch: string; readonly fresh?: true } | null
   log?: RuntimeLog
+  deadline?: number
 }): Promise<LaneFolder> {
   const { root, worktree, log } = input
-  const run = (args: string[]) => git(root, args, { env: { GIT_TERMINAL_PROMPT: '0' }, trim: true })
-  const optional = (args: string[]) => run(args).catch(() => '')
   if (worktree === null) {
-    const branch = await optional(['symbolic-ref', '--short', 'HEAD'])
+    const branch = await git(root, ['symbolic-ref', '--short', 'HEAD'], {
+      env: { GIT_TERMINAL_PROMPT: '0' },
+      trim: true,
+      allowFail: true,
+    })
     return { cwd: root, branch: isLaneBranchName(branch) ? branch : null, undo: async () => {} }
   }
+  const run = worktreeGit(root, input.deadline ?? worktreeGitDeadline(), log)
   const { branch } = worktree
   const refuse = (message: string): never => {
     throw new LaneFolderError(message)
   }
   if (
     !isLaneBranchName(branch) ||
-    (await optional(['check-ref-format', '--branch', branch])) !== branch
+    (await run(['check-ref-format', '--branch', branch], 128).catch((error: unknown) => {
+      if (error instanceof LaneFolderError) throw error
+      return ''
+    })) !== branch
   )
     refuse('That branch name is not valid.')
   const slug = branch.replaceAll('/', '-')
@@ -78,7 +84,7 @@ export async function prepareLaneFolder(input: {
       /* Logging cannot replace the original error. */
     }
   }
-  const undo = async () => {
+  const undo = async (run = worktreeGit(root)) => {
     if (!created) return
     if (worktree.fresh) {
       try {
@@ -135,7 +141,9 @@ export async function prepareLaneFolder(input: {
     }
   }
   try {
-    const defaultBranch = await resolveDefaultBranch(run)
+    const defaultBranch = await resolveDefaultBranch((args) =>
+      run(args, args[0] === 'symbolic-ref' ? 1 : undefined),
+    )
     if (branch === defaultBranch) {
       if (worktree.fresh) throw new LaneFolderError('That branch already exists.', 'branch-exists')
       refuse('The default branch stays in the main tree.')
@@ -158,9 +166,10 @@ export async function prepareLaneFolder(input: {
     }
     const exists = async (ref: string) => {
       try {
-        await run(['show-ref', '--verify', '--quiet', ref])
+        await run(['show-ref', '--verify', '--quiet', ref], 1)
         return true
-      } catch {
+      } catch (error) {
+        if (error instanceof LaneFolderError) throw error
         return false
       }
     }
@@ -192,6 +201,7 @@ export async function prepareLaneFolder(input: {
       try {
         await run(['update-ref', `refs/heads/${branch}`, baseCommit, '0'.repeat(baseCommit.length)])
       } catch (error) {
+        if (error instanceof LaneFolderError) throw error
         if (worktree.fresh && (await exists(`refs/heads/${branch}`)))
           throw new LaneFolderError('That branch already exists.', 'branch-exists')
         throw error
@@ -213,7 +223,7 @@ export async function prepareLaneFolder(input: {
       throw new Error('folder')
     return { cwd, branch, undo }
   } catch (error) {
-    await undo()
+    await undo(worktreeGit(root, performance.now() + FAILED_CLEANUP_MS)).catch(() => {})
     if (error instanceof LaneFolderError) throw error
     throw new LaneFolderError('The worktree could not be created.')
   }

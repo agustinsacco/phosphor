@@ -42,12 +42,12 @@ export interface GitOptions {
   isolateEnv?: boolean
   /** This call's output cap (default 64 MiB); past it the call throws before more is held. */
   maxBuffer?: number
-  /** Optional caller deadline/cancellation for bounded background reads. */
+  /** Optional per-call deadline/cancellation. */
   timeout?: number
   signal?: AbortSignal
 }
 
-const TIMEOUT_MS = 30_000
+export const GIT_TIMEOUT_MS = 30_000
 const MAX_BUFFER = 64 * 1024 * 1024
 
 const READ_ONLY = new Set([
@@ -80,7 +80,7 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
   try {
     const { stdout } = await execFileAsync('git', args, {
       cwd,
-      timeout: options.timeout ?? TIMEOUT_MS,
+      timeout: options.timeout ?? GIT_TIMEOUT_MS,
       signal: options.signal,
       maxBuffer: options.maxBuffer ?? MAX_BUFFER,
       ...(options.env || options.isolateEnv

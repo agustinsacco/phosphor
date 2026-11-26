@@ -47,6 +47,20 @@ function answeringReceipts(socket: FrameSocket, receipt: (laneId: string) => unk
     },
   }
 }
+function withCreateFailure(text: string, message: string | undefined): string {
+  if (message === undefined) return text
+  const frame = JSON.parse(text) as HostFrame
+  if (frame.type !== 'receipt' || frame.receipt.status !== 'done') return text
+  return JSON.stringify({
+    type: 'receipt',
+    receipt: {
+      requestId: frame.receipt.requestId,
+      status: 'failed',
+      error: { code: 'internal', message },
+    },
+  })
+}
+
 async function setup(options: SetupOptions = {}) {
   const owner = randomUUID(),
     clientId = randomUUID()
@@ -157,20 +171,7 @@ async function setup(options: SetupOptions = {}) {
       onMessage: (listener: (text: string) => void) =>
         pair.client.onMessage((text) => {
           if (delivery.hold(id, text)) delivery.pending.push(() => listener(text))
-          else if (options.createFailure !== undefined) {
-            const frame = JSON.parse(text) as HostFrame
-            if (frame.type !== 'receipt' || frame.receipt.status !== 'done') return listener(text)
-            listener(
-              JSON.stringify({
-                type: 'receipt',
-                receipt: {
-                  requestId: frame.receipt.requestId,
-                  status: 'failed',
-                  error: { code: 'internal', message: options.createFailure },
-                },
-              }),
-            )
-          } else listener(text)
+          else listener(withCreateFailure(text, options.createFailure))
         }),
     }
     return options.receipt ? answeringReceipts(client, options.receipt) : client

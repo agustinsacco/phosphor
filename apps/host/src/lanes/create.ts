@@ -1,6 +1,7 @@
 import type { WorkspaceLeases } from '../owner/lease'
 import type { LaneOp } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import { worktreeGitDeadline } from './worktree-git'
 import { gitTracksFolder, laneWorktreePath, prepareLaneFolder } from './worktree'
 import type { Controller, HostStore, StoredLane } from './store'
 
@@ -33,8 +34,9 @@ export async function createLane(
   const { op } = input
   // Clients offer "new branch" for every Host folder. Where git does not track the
   // folder, the lane runs in place, as This Mac does when it hides that toggle.
+  const deadline = op.worktree ? worktreeGitDeadline() : undefined
   const worktree = op.worktree && (await gitTracksFolder(input.root)) ? op.worktree : null
-  const create = () => startInFolder(ports, input, worktree)
+  const create = () => startInFolder(ports, input, worktree, deadline)
   if (!ports.leases) return create()
   const cwd = worktree ? laneWorktreePath(input.root, worktree.branch) : input.root
   return ports.leases.withUse(cwd, 'live-lane', create)
@@ -44,9 +46,15 @@ async function startInFolder(
   ports: Parameters<typeof createLane>[0],
   input: Parameters<typeof createLane>[1],
   worktree: NonNullable<typeof input.op.worktree> | null,
+  deadline: number | undefined,
 ) {
   const { op, controller } = input
-  const folder = await prepareLaneFolder({ root: input.root, worktree, log: ports.log })
+  const folder = await prepareLaneFolder({
+    root: input.root,
+    worktree,
+    log: ports.log,
+    ...(deadline === undefined ? {} : { deadline }),
+  })
   let sessionId: string | undefined
   let laneId: string | undefined
   try {

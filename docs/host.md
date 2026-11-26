@@ -1465,6 +1465,14 @@ command pipeline. The client's start composer always asks for a fresh worktree,
 branched from the lane's first message; it has no toggle to run in the
 repository's own checkout.
 
+Git worktree preparation shares a 95-second budget, with up to 90 seconds for
+`git worktree add` and a separate 10 seconds to clean up after failure. Other
+Git calls keep their 30-second cap. If Git times out, Desktop and the PWA say
+“Git took too long to create the worktree” and keep the draft. For diagnosis,
+`lane.worktree_git_failed` records the Git subcommand, exit code or timeout and
+known diagnostic text from a bounded stderr tail. It omits paths, refs and
+unrecognized output, including arbitrary hook output.
+
 A folder in no git repository has no worktrees. When git answers "not a git
 repository" for it, a worktree request runs the lane in the folder itself,
 unbranched, as This Mac does when it hides its "new branch" toggle; the branch

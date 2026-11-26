@@ -264,6 +264,11 @@ Host's marks.
 
 ## Lane receipt call
 
+A `lane.create` Git timeout uses the existing `failed` receipt, with `error.code`
+`internal` and `error.message` `Git took too long to create the worktree`. There
+is no new receipt field or code. Both clients pass through only that exact
+message for failed creates; other failure text stays generic.
+
 `lane.receipt {laneId}` is a read-only call under the existing `sessions.read`
 capability. It does not change hello, the capability list or protocol version.
 It returns a bounded `LaneReceipt` from `libs/shared/src/lane-receipt.ts`: title,
