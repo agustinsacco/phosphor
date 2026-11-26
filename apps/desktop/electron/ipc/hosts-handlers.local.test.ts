@@ -34,7 +34,12 @@ vi.mock('../hosts/manager', () => ({
   }),
 }))
 vi.mock('../hosts/socket', () => ({ openHostSocket: vi.fn(), e2eHostEndpoint: () => undefined }))
-vi.mock('./control-handlers', () => ({ controlClient: () => ({}), onMachinesChanged: vi.fn() }))
+vi.mock('../control/runtime', () => ({
+  controlClient: () => ({}),
+  onMachinesChanged: vi.fn(),
+  onRemoteAccountChange: () => () => {},
+  remoteAccountUserId: () => null,
+}))
 vi.mock('./handle', () => ({ handle: vi.fn(), setRemoteReadRouter: vi.fn() }))
 vi.mock('../hosts/remote-lanes', () => ({ createRemoteLanes: () => ({}) }))
 vi.mock('../hosts/attention', () => ({ createHostAttention: () => ({}) }))

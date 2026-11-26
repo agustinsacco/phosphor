@@ -1,7 +1,34 @@
 import { test, expect } from '@playwright/test'
 import { existsSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { accountControlFixture } from './fixtures/account-control'
+
+test('a remembered Desktop account stays idle until Machines is opened', async () => {
+  const h = await accountControlFixture()
+  try {
+    await h.closeDesktop()
+    const dir = join(h.userData, 'account')
+    await mkdir(dir, { recursive: true, mode: 0o700 })
+    const profile = join(dir, 'profile.json')
+    await writeFile(profile, JSON.stringify({ v: 1, user: { id: 'test', login: 'octo' } }))
+    // The fixture disables Keychain. A failed attempt to read the absent token
+    // clears the profile, so it must survive a local-only launch.
+    await h.relaunchDesktop()
+    const { page } = h
+    const footer = page.getByTestId('account-footer')
+    await expect(footer.getByRole('button', { name: 'Your account' })).toBeVisible()
+    expect(existsSync(profile)).toBe(true)
+    expect(h.calls).toHaveLength(0)
+
+    await page.getByRole('button', { name: 'Machines', exact: true }).click()
+    await expect(page.getByTestId('machines-page')).toBeVisible()
+    await expect(footer.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+    expect(existsSync(profile)).toBe(false)
+  } finally {
+    await h.close()
+  }
+})
 
 test('first-class footer signs in, opens the account popover and signs out without exposing credentials', async () => {
   const h = await accountControlFixture()

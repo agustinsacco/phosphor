@@ -1,5 +1,5 @@
 import { Notification } from 'electron'
-import { accountUserId, onAccountChange } from '../account'
+import { onRemoteAccountChange, remoteAccountUserId } from './runtime'
 import { broadcast } from '../broadcast'
 import type { createHostManager } from '../hosts/manager'
 import { piStubPath } from '../pi/stub'
@@ -17,7 +17,7 @@ export function bindLocalEnrollment(
   }
   directory(getLocalEnrolledId())
   const enroll = monitorLocalEnrollment({
-    user: accountUserId,
+    user: remoteAccountUserId,
     local: () => {
       const id = localId()
       const connection = id ? manager.connection(id) : undefined
@@ -31,7 +31,7 @@ export function bindLocalEnrollment(
         new Notification({ title: 'Phosphor enrollment', body }).show()
     },
   })
-  const offAccount = onAccountChange(enroll.changed)
+  const offAccount = onRemoteAccountChange(enroll.changed)
   // The projection changes on lane traffic too. Coalesce those callbacks instead of
   // copying every lane on every frame; current() still checks the socket before approval.
   let timer: ReturnType<typeof setTimeout> | undefined

@@ -9,9 +9,7 @@ import {
   readOwnerLock,
 } from '@phosphor/session-runtime/owner-lock/owner-lock'
 import { listSandboxFolders } from '@phosphor/session-runtime/sandboxes/folders'
-import { cipher } from '../../account'
 import { log } from '../../debug-log'
-import { loadOwnerKey } from '../../daemon/owner-key'
 import { daemonRoots } from '../../daemon/roots'
 import { listWorktrees } from '../../fs/git-worktrees'
 import { retainedWorkspaces } from '../../maintenance/conversations'
@@ -27,6 +25,7 @@ import { sandboxBase } from '../../sandbox-service'
 import { getClaudeAccountPrefs, getPrefs } from '../../store'
 import { e2eDaemonHook } from '../e2e-daemon'
 import { decideLocalRuntimeMode, type LocalDaemonAccess } from '../mode'
+import { ownerKeyAccess } from '../owner-key-access'
 import { localDaemonLocation } from '../transport'
 import type { CrashSide } from './commit'
 import type { GatePorts } from './gate'
@@ -56,7 +55,7 @@ const realpath = (path: string): string | null => {
 }
 
 /** Desktop's own access to its installed service: M1's roots and its sealed owner key. */
-function serviceAccess(userData: string): LocalDaemonAccess | null {
+function serviceAccess(): LocalDaemonAccess | null {
   if (!app.isPackaged) return null
   const roots = daemonRoots({
     isPackaged: true,
@@ -75,7 +74,7 @@ function serviceAccess(userData: string): LocalDaemonAccess | null {
   return {
     location: location.location,
     ownerKey: async () => {
-      const result = await loadOwnerKey({ dir: join(userData, 'daemon'), cipher: cipher() })
+      const result = await ownerKeyAccess.get()
       if (!result.ok) throw new Error(result.reason)
       return result.key
     },
@@ -121,7 +120,7 @@ async function readLock(): Promise<'free' | 'daemon'> {
 /** The gate's owner channel to This Mac's service, for the break-glass restore. */
 export function openServiceChannel(): Promise<OwnerChannel | null> {
   const hook = e2eDaemonHook()
-  const access = hook.on ? hook.access : serviceAccess(app.getPath('userData'))
+  const access = hook.on ? hook.access : serviceAccess()
   return access ? openOwnerChannel({ ...access, uid: process.getuid?.() }) : Promise.resolve(null)
 }
 
@@ -144,7 +143,7 @@ export function desktopGatePorts(postCommit: PostCommitSteps): GatePorts {
         migrationPermitted: permit.allowed,
         env: process.env,
       }),
-    access: hook.on ? hook.access : serviceAccess(userData),
+    access: hook.on ? hook.access : serviceAccess(),
     unreachable: unreachableAccess(userData),
     e2eDaemon: hook.on,
     openChannel: (access) => openOwnerChannel({ ...access, uid: process.getuid?.() }),

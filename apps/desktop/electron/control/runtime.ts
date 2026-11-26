@@ -1,8 +1,10 @@
 import { app } from 'electron'
+import type { AccountView } from '@shared/account'
 import {
   accountAccessToken,
   accountControlGeneration,
   accountSnapshot,
+  accountUserId,
   onAccountChange,
 } from '../account'
 import { supabaseTarget } from '../account/config'
@@ -33,15 +35,46 @@ function machinesChanged() {
   for (const listener of machineListeners) listener()
 }
 
+let remoteActive = false
+const remoteListeners = new Set<(view: AccountView) => void>()
+
+export function onRemoteAccountChange(listener: (view: AccountView) => void): () => void {
+  remoteListeners.add(listener)
+  return () => {
+    remoteListeners.delete(listener)
+  }
+}
+
+export const remoteAccountUserId = () => (remoteActive ? accountUserId() : null)
+
+function notifyRemote(view: AccountView) {
+  for (const listener of remoteListeners) listener(view)
+}
+
+/** Called by Machines. A remembered profile alone is not a request to unlock the account. */
+export function activateRemoteAccess(): void {
+  if (remoteActive) return
+  const view = accountSnapshot()
+  if (view.account.status !== 'signed-in') return
+  remoteActive = true
+  notifyRemote(view)
+}
+
 export function initControlRuntime(): void {
+  let signingIn = false
   const off = onAccountChange((view) => {
-    if (view.account.status !== 'signed-in') client.clearObservations()
+    const status = view.account.status
+    if (status !== 'signed-in') client.clearObservations()
+    const wasActive = remoteActive
+    remoteActive = status === 'signed-in' && (remoteActive || signingIn)
+    signingIn = status === 'signing-in'
+    if (remoteActive || wasActive) notifyRemote(view)
   })
   app.once('will-quit', off)
   const stop = createMachinesLive({
-    snapshot: accountSnapshot,
+    snapshot: () => (remoteActive ? accountSnapshot() : { account: { status: 'signed-out' } }),
     log: tappedLog,
-    subscribe: onAccountChange,
+    subscribe: onRemoteAccountChange,
     timers: liveTimers,
     broadcast: machinesChanged,
     realtime: (changed, joined) =>

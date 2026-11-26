@@ -28,7 +28,7 @@ export const machinesAccountGeneration = (): number => remoteGeneration
 let inFlight: Promise<void> | null = null
 let queued = false
 let judgeTimer: ReturnType<typeof setInterval> | undefined
-let signedIn = false
+let requested = false
 let detach: (() => void) | undefined
 let subscribers = 0
 const REMOTE_RESET = {
@@ -57,23 +57,29 @@ function syncJudge(): void {
   judge()
   if (useMachinesStore.getState().machines.length) judgeTimer = setInterval(judge, 5000)
 }
-function applyAccount(view: AccountView): void {
-  signedIn = view.account.status === 'signed-in'
-  const state = useMachinesStore.getState()
-  state.enableRemote(signedIn)
-}
-
-/** One store-owned subscription, independent of the Machines page. */
-export function attachMachinesListener(): () => void {
+/** One store-owned subscription. Desktop starts discovery when requested; the browser needs Hosts to open any lane. */
+export function attachMachinesListener(onDemand = false): () => void {
   if (subscribers++ === 0) {
     let pushed = false
     let active = true
+    let signingIn = false
+    requested = !onDemand || useLayoutStore.getState().page === 'machines'
+    const applyAccount = ({ account }: AccountView) => {
+      if (signingIn && account.status === 'signed-in') requested = true
+      signingIn = account.status === 'signing-in'
+      useMachinesStore.getState().enableRemote(account.status === 'signed-in')
+    }
+    const offPage = useLayoutStore.subscribe((next) => {
+      if (requested || next.page !== 'machines') return
+      requested = true
+      void useMachinesStore.getState().refresh()
+    })
     const offAccount = window.phosphor.onAccountChanged((view) => {
       pushed = true
       applyAccount(view)
     })
     const offMachines = window.phosphor.onMachinesChanged(() => {
-      void useMachinesStore.getState().refresh()
+      if (requested) void useMachinesStore.getState().refresh()
     })
     void window.phosphor
       .invoke('account:get')
@@ -85,7 +91,8 @@ export function attachMachinesListener(): () => void {
       active = false
       offAccount()
       offMachines()
-      signedIn = false
+      offPage()
+      requested = false
       useMachinesStore.getState().enableRemote(false)
     }
   }
@@ -109,10 +116,11 @@ export const useMachinesStore = create<MachinesState>((set, get) => ({
     queued = false
     set({ remoteEnabled: enabled, ...REMOTE_RESET })
     syncJudge()
-    if (enabled) void get().refresh()
+    if (enabled && requested) void get().refresh()
   },
   refresh: () => {
     if (!get().remoteEnabled) return Promise.resolve()
+    requested = true
     if (inFlight) {
       queued = true
       return inFlight

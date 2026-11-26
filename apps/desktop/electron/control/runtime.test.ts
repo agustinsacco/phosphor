@@ -120,8 +120,8 @@ it('wires live and realtime dependencies without replacing account authority', a
   const { liveTimers } = await import('./realtime')
   initControlRuntime()
   const live = state.live.mock.calls[0]![0]
-  expect(live.snapshot).toBe(state.snapshot)
-  expect(live.subscribe).toBe(state.subscribe)
+  expect(live.snapshot()).toEqual({ account: { status: 'signed-out' } })
+  expect(live.subscribe).not.toBe(state.subscribe)
   expect(live.timers).toBe(liveTimers)
   expect(live.log).toBe(state.log)
   const changed = vi.fn()

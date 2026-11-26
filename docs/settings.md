@@ -559,9 +559,10 @@ account**, which shows the signed-in profile with Sign out (Sign in with GitHub 
 signed out) in Desktop and the browser.
 It lets you add and manage Hosts on the Machines page
 ([remote-access.md](remote-access.md)). Local work never needs it.
-Launch reads the plain profile. A signed-out launch makes no control request
-and never reads the keychain. An encrypted credential is read only when its
-session file exists and a signed-in request needs a token.
+Desktop launch reads the plain profile without unlocking the saved account.
+Opening Machines or signing in starts remote Host discovery and live updates
+for that run. An encrypted credential is read only when a signed-in request
+needs a token. The local service's owner key is separate.
 
 - **GitHub through Supabase Auth**, with no email. Main runs PKCE: the system
   browser opens Supabase's authorize page, and Supabase sends it back to a

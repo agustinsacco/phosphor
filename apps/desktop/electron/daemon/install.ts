@@ -313,6 +313,7 @@ export interface DaemonInstall {
   start(): void
   /** Forward window focus: checks again once 30 minutes have passed. */
   focus(): void
+  retry(): void
   stop(): void
 }
 
@@ -351,6 +352,7 @@ export function createDaemonInstall(
     },
     start: () => watch?.start(),
     focus: () => watch?.focus(),
+    retry: () => watch?.retry(),
     stop: () => watch?.stop(),
   }
 }

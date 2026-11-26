@@ -27,12 +27,12 @@ describe('the enrolled machines projection', () => {
     off = undefined
     vi.useRealTimers()
   })
-  async function start(signedIn = true) {
+  async function start(signedIn = true, onDemand = false) {
     const { attachMachinesListener, useMachinesStore } = await import('./machines')
     invoke.mockResolvedValueOnce({
       account: { status: signedIn ? 'signed-in' : 'signed-out' },
     })
-    off = attachMachinesListener()
+    off = attachMachinesListener(onDemand)
     await Promise.resolve()
     return useMachinesStore
   }
@@ -45,6 +45,18 @@ describe('the enrolled machines projection', () => {
     expect(vi.getTimerCount()).toBe(0)
     expect(store.getState().remoteEnabled).toBe(false)
     second()
+  })
+  it('does not fetch for a remembered Desktop account until Machines is opened', async () => {
+    const { useLayoutStore } = await import('./layout')
+    const store = await start(true, true)
+    expect(store.getState().remoteEnabled).toBe(true)
+    signal()
+    expect(invoke.mock.calls).toEqual([['account:get']])
+    invoke.mockResolvedValueOnce({ ok: true, machines: [], serverTime: new Date().toISOString() })
+    useLayoutStore.getState().setPage('machines')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(invoke.mock.calls).toEqual([['account:get'], ['control:machines']])
+    useLayoutStore.getState().setPage(null)
   })
   it('coalesces signals during a request into one follow-up and ignores late signed-out data', async () => {
     const { MACHINE } = await import('@/features/machines/__fixtures__/control')
