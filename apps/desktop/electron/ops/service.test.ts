@@ -29,7 +29,7 @@ vi.mock('../prefs/backend', () => ({
   }),
 }))
 vi.mock('../store', () => ({
-  getPrefs: () => ({ pinnedSessions: h.pins }),
+  getPrefs: () => ({ pinnedSessions: h.pins, recentWorkspaces: [] }),
   setPinnedSessions: (pins: string[]) => {
     h.pins = pins
   },
@@ -340,4 +340,29 @@ it('never invents a lane ref while waiting for get_state', async () => {
     false,
   )
   expect(await tool(['whoami'])).toMatchObject({ status: 'denied', code: 'unavailable' })
+})
+
+it('maps a busy in-app lane to working and lists it as live', async () => {
+  const status = await tool(['machine', 'status'])
+  expect(status).toMatchObject({ status: 'ok', data: { liveLanes: 1 } })
+  const lanes = await tool(['lane', 'list', '--state', 'live'])
+  expect(lanes).toMatchObject({
+    status: 'ok',
+    data: [{ ref: 'local/session:disk-id', state: 'working' }],
+  })
+  const stopped = await tool(['lane', 'list', '--state', 'stopped'])
+  expect(stopped).toMatchObject({ status: 'ok', data: [] })
+})
+
+it('queries effective lane controls without applying pending changes', async () => {
+  expect(await tool(['model', 'set', 'p/new'])).toMatchObject({ status: 'ok' })
+  h.command.mockResolvedValueOnce({ success: true, data: { model: { provider: 'p', id: 'old' } } })
+  expect(await tool(['lane', 'controls'])).toMatchObject({
+    status: 'ok',
+    data: {
+      effective: { model: 'p/old' },
+      pending: [{ control: 'model', value: 'p/new' }],
+    },
+  })
+  expect(h.command.mock.calls).toEqual([['mine', { type: 'get_state' }]])
 })
