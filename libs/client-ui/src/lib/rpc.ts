@@ -14,11 +14,13 @@ import { isLanePiOp } from '@shared/host-protocol'
 async function commandWithControl<T extends RpcCommand['type']>(
   sessionId: string,
   command: Extract<RpcCommand, { type: T }>,
+  beforeDispatch?: () => void,
 ) {
   if (isLanePiOp(command)) {
     const claim = ensureSessionControl(sessionId)
     if (claim) await claim
   }
+  beforeDispatch?.()
   return window.phosphor.piCommand<T>(sessionId, command)
 }
 
@@ -112,13 +114,15 @@ export async function piCallAccepted<T extends RpcCommand['type']>(
  * Send a command and return its outcome without reporting it anywhere: the
  * explicit choice for a caller that shows a failure itself, next to what failed
  * (a `!command`'s bash item). An IPC failure reads like a refused command.
+ * `beforeDispatch` runs after control acquisition and can throw to prevent dispatch.
  */
 export async function piCallInline<T extends RpcCommand['type']>(
   sessionId: string,
   command: Extract<RpcCommand, { type: T }>,
+  beforeDispatch?: () => void,
 ): Promise<{ ok: true; data: RpcResponseDataMap[T] | undefined } | { ok: false; error: string }> {
   try {
-    const response = await commandWithControl<T>(sessionId, command)
+    const response = await commandWithControl<T>(sessionId, command, beforeDispatch)
     return response.success
       ? { ok: true, data: response.data }
       : { ok: false, error: response.error ?? `${command.type} failed` }

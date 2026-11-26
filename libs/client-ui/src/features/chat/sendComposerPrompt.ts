@@ -1,4 +1,5 @@
 import { ipcErrorText } from '@shared/errors'
+import type { RpcResponseDataMap } from '@shared/rpc'
 import { piCallInline } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
 import { takeSubmittedDraft, useDraftsStore } from '@/stores/drafts'
@@ -13,6 +14,7 @@ import { sessionTransitionPending } from '@/features/sessions/sessionTransition'
 type Submission = {
   sessionId: string
   draftKey: string
+  restoreDraftKey?: () => string
   remote: boolean
   remoteAttachments: boolean
   /** How the message goes while the lane is busy; Enter and Send steer. Unused while idle. */
@@ -20,39 +22,84 @@ type Submission = {
 }
 export const COMPACTING_DRAFT = 'Compaction in progress. Send your draft when it finishes.'
 
+type PromptSlot = { receipt: Promise<void>; cancel?: () => void }
 /** Keep a later send behind uploads, automatic resume, and the final prompt reply. */
-const pending = new Map<string, Promise<void>>()
+const pending = new Map<string, Set<PromptSlot>>()
 
-function promptSlot(key: string) {
-  const previous = pending.get(key)
+function promptSlot(sessionId: string, restore: () => void) {
+  const lane = pending.get(sessionId) ?? new Set<PromptSlot>()
+  const previous = [...lane].at(-1)?.receipt
+  let cancelled = false
   let done!: () => void
-  const tail = new Promise<void>((resolve) => {
+  const receipt = new Promise<void>((resolve) => {
     done = resolve
   })
-  pending.set(key, tail)
-  return {
-    previous,
-    release() {
-      if (pending.get(key) === tail) pending.delete(key)
-      done()
+  const slot: PromptSlot = {
+    receipt,
+    cancel() {
+      cancelled = true
+      release()
+      restore()
     },
   }
+  const release = () => {
+    if (!lane.delete(slot)) return
+    if (!lane.size) pending.delete(sessionId)
+    done()
+  }
+  lane.add(slot)
+  pending.set(sessionId, lane)
+  return {
+    previous,
+    release,
+    get cancelled() {
+      return cancelled
+    },
+    dispatch() {
+      slot.cancel = undefined
+    },
+  }
+}
+
+export function cancelHeldComposerPrompts(sessionId: string): void {
+  // Each restore prepends its text and attachments. Walk backwards to keep send order.
+  for (const slot of [...(pending.get(sessionId) ?? [])].reverse()) slot.cancel?.()
+}
+
+function recordAcceptedPrompt(
+  { sessionId, remote }: Submission,
+  message: string,
+  prompt: string,
+  bubble: string | undefined,
+  disposition: RpcResponseDataMap['prompt']['disposition'] | undefined,
+): void {
+  useWritingStore.getState().recordPrompt(message)
+  if (!bubble) return
+  const chat = useChatStore.getState()
+  // Older pi versions acknowledge extension commands without a disposition or any run events.
+  const legacyCommand =
+    remote &&
+    !disposition &&
+    chat.sessions[sessionId]?.commands.some(
+      (c) => c.source === 'extension' && `/${c.name}` === message.split(/\s/, 1)[0],
+    )
+  // A queued prompt enters the transcript when pi delivers it.
+  if (disposition === 'handled' || disposition === 'queued' || legacyCommand)
+    chat.promptHandled(sessionId, prompt)
 }
 
 /** Present the idle prompt before the first await, including before any file upload. */
 export async function sendComposerPrompt(opts: Submission) {
   const { sessionId, draftKey, remote } = opts
   const chat = useChatStore.getState()
-  const drafts = useDraftsStore.getState()
-  const draft = drafts.get(draftKey)
-  const message = draft.text.trim()
-  if (!message && !draft.attachments.length) return
+  const { text, attachments: submitted } = useDraftsStore.getState().get(draftKey)
+  const message = text.trim()
+  if (!message && !submitted.length) return
   if (chat.sessions[sessionId]?.isCompacting) return
   const busy = laneBusyNow(sessionId)
   // Idle pi starts this normally. If a turn began in the meantime, queue it
   // once rather than replaying its input hooks after a plain prompt refusal.
   const behavior = busy ? (opts.busyBehavior ?? 'steer') : 'followUp'
-  const submitted = draft.attachments
   const images = toImageContents(submitted)
   // The Host chooses final document paths. Show filenames until it returns those paths.
   const preview = composePrompt(
@@ -62,14 +109,20 @@ export async function sendComposerPrompt(opts: Submission) {
   const bubble = !busy
     ? chat.addUserMessage(sessionId, preview, images.length ? images : undefined)
     : undefined
-  const draftSubmission = takeSubmittedDraft(draftKey)
+  const draftSubmission = takeSubmittedDraft(draftKey, opts.restoreDraftKey)
   const chip = busy ? showPendingChip(sessionId, behavior, preview) : undefined
-  const slot = promptSlot(sessionId)
   let prompt = preview
+  const finish = (accepted: boolean) => {
+    chip?.remove()
+    if (bubble && !accepted) chat.promptHandled(sessionId, prompt)
+    draftSubmission.finish(accepted)
+  }
+  const slot = promptSlot(sessionId, () => finish(false))
+  const current = () => !slot.cancelled && draftSubmission.current()
   let accepted = false
   try {
     if (slot.previous) await slot.previous
-    if (!draftSubmission.current()) return
+    if (!current()) return
     if (!canControlSession(sessionId) || sessionTransitionPending(sessionId))
       throw new Error('Lane no longer ready to send.')
     if (remote && submitted.length) {
@@ -77,18 +130,26 @@ export async function sendComposerPrompt(opts: Submission) {
       if (submitted.length > 10) throw new Error('At most 10 attachments per message.')
       if (submitted.some((a) => a.kind === 'file'))
         prompt = composePrompt(message, await uploadPromptFiles(sessionId, submitted))
+      if (!current()) return
       if (bubble && prompt !== preview) chat.updatePendingPrompt(sessionId, bubble, prompt)
     }
-    if (!draftSubmission.current()) return
     if (useChatStore.getState().sessions[sessionId]?.isCompacting) throw new Error(COMPACTING_DRAFT)
     chat.setError(sessionId, null)
-    chip?.dispatch(prompt)
-    const response = await piCallInline(sessionId, {
-      type: 'prompt',
-      message: prompt,
-      ...(images.length ? { images } : {}),
-      streamingBehavior: behavior,
-    })
+    const response = await piCallInline(
+      sessionId,
+      {
+        type: 'prompt',
+        message: prompt,
+        ...(images.length ? { images } : {}),
+        streamingBehavior: behavior,
+      },
+      () => {
+        if (!current()) throw new Error('Prompt cancelled before dispatch.')
+        slot.dispatch()
+        chip?.dispatch(prompt)
+      },
+    )
+    if (!current()) return
     if (!response.ok) {
       chat.setError(
         sessionId,
@@ -99,24 +160,11 @@ export async function sendComposerPrompt(opts: Submission) {
       return
     }
     accepted = true
-    useWritingStore.getState().recordPrompt(message)
-    // Older pi versions acknowledge extension commands without a disposition or any run events.
-    const legacyCommand =
-      remote &&
-      !response.data?.disposition &&
-      chat.sessions[sessionId]?.commands.some(
-        (c) => c.source === 'extension' && `/${c.name}` === message.split(/\s/, 1)[0],
-      )
-    // A queued prompt, like a steer, enters the transcript when pi delivers it.
-    const disposition = response.data?.disposition
-    if (bubble && (disposition === 'handled' || disposition === 'queued' || legacyCommand))
-      chat.promptHandled(sessionId, prompt)
+    recordAcceptedPrompt(opts, message, prompt, bubble, response.data?.disposition)
   } catch (error) {
-    chat.setError(sessionId, ipcErrorText(error))
+    if (current()) chat.setError(sessionId, ipcErrorText(error))
   } finally {
     slot.release()
-    chip?.remove()
-    if (bubble && !accepted) chat.promptHandled(sessionId, prompt)
-    draftSubmission.finish(accepted)
+    if (!slot.cancelled) finish(accepted)
   }
 }

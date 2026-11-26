@@ -2,6 +2,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { isNewerVersion } from '@shared/version'
 import { useChatStore } from '@/stores/chat'
 import { piCallInline, piCallOk } from '@/lib/rpc'
+import { cancelHeldComposerPrompts } from '../sendComposerPrompt'
 
 /** The pi release that added `clear_queue`. Above `MIN_PI_VERSION`, on purpose. */
 export const CLEAR_QUEUE_MIN_PI = '0.84.4'
@@ -75,13 +76,14 @@ export async function unqueueMessage(
 }
 
 /**
- * Stop the running turn, handing `restore` what was queued behind it first.
+ * Stop the running turn, restoring unsent composer prompts and handing `restore` pi's queued text.
  *
  * pi's abort keeps both queues and its next turn delivers them, so Stop drains them first and
  * restores what pi drained. On a pi without `clear_queue`, or when the drain fails, it restores
  * the rendered queue and pi keeps its own. A failed abort is reported on the chat.
  */
 export async function stopRun(sessionId: string, restore: (text: string) => void): Promise<void> {
+  cancelHeldComposerPrompts(sessionId)
   const queues = useChatStore.getState().sessions[sessionId]?.queues
   const shown = [...(queues?.steering ?? []), ...(queues?.followUp ?? [])]
   if (shown.length > 0) {

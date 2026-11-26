@@ -436,7 +436,7 @@ describe('draft owner teardown', () => {
 })
 
 it.each([true, false])(
-  'retires the old hidden draft on a terminal receipt after rekey (accepted=%s)',
+  'clears the submitted draft immediately and restores a refusal to the current key (accepted=%s)',
   async (accepted) => {
     const { takeSubmittedDraft, useDraftsStore } = await import('./drafts')
     const store = useDraftsStore.getState()
@@ -444,18 +444,21 @@ it.each([true, false])(
     const to = 'session:/repo/lane.jsonl'
     store.setText(from, 'pending')
     await flush()
-    const submission = takeSubmittedDraft(from)
-    store.rekey(from, to)
-    await flush()
+    let key = from
+    const submission = takeSubmittedDraft(from, () => key)
     expect(store.get(from).text).toBe('')
-    expect(store.get(to).text).toBe('')
-    expect(invoke).not.toHaveBeenCalledWith('app:clearDraft', from)
-    expect(setCalls().at(-1)?.[1]).toMatchObject({ key: from, text: 'pending' })
+    expect(invoke).toHaveBeenCalledWith('app:clearDraft', from)
+    store.rekey(from, to)
+    key = to
+    store.setText(to, 'new edit')
+    await flush()
+    expect(setCalls().at(-1)?.[1]).toMatchObject({ key: to, text: 'new edit' })
     submission.finish(accepted)
     await flush()
-    expect(invoke).toHaveBeenCalledWith('app:clearDraft', from)
-    expect(store.get(to).text).toBe(accepted ? '' : 'pending')
-    if (!accepted) expect(setCalls().at(-1)?.[1]).toMatchObject({ key: to, text: 'pending' })
+    const text = accepted ? 'new edit' : 'pending\nnew edit'
+    expect(store.get(from).text).toBe('')
+    expect(store.get(to).text).toBe(text)
+    expect(setCalls().at(-1)?.[1]).toMatchObject({ key: to, text })
   },
 )
 
@@ -464,12 +467,12 @@ it('reports a rejected draft clear IPC visibly', async () => {
   const { useExtensionUiStore } = await import('./extensionUi')
   const store = useDraftsStore.getState()
   store.setText('session:x', 'sent')
-  const submission = takeSubmittedDraft('session:x')
   invoke.mockImplementation(async (channel: string) => {
     if (channel === 'app:clearDraft') throw new Error('Disk full')
   })
-  submission.finish(true)
+  const submission = takeSubmittedDraft('session:x')
   await flush()
+  submission.finish(true)
   expect(useExtensionUiStore.getState().toasts[0]).toMatchObject({
     kind: 'error',
     message: 'Could not clear draft: Disk full',

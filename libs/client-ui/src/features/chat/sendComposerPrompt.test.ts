@@ -258,7 +258,7 @@ it('holds a second prompt through the first prompt’s automatic resume and retr
   expect(atPi).toEqual(['PHX-message', 'second'])
 })
 
-it('retains both submitted texts and image blobs on Desktop until their own receipts', async () => {
+it('clears submitted texts and image blobs from disk, restoring only the refused send', async () => {
   hostLane('working')
   const firstReceipt = deferred<PromptResponse>()
   const secondReceipt = deferred<PromptResponse>()
@@ -273,9 +273,6 @@ it('retains both submitted texts and image blobs on Desktop until their own rece
         return true
       case 'app:setDraft': {
         const record = args[1] as ComposerDraftRecord
-        const kept = new Set(record.attachments.map((a) => a.blobId))
-        for (const a of disk.get(record.key)?.attachments ?? [])
-          if (a.blobId && !kept.has(a.blobId)) blobs.delete(a.blobId)
         disk.set(record.key, record)
         return
       }
@@ -296,19 +293,24 @@ it('retains both submitted texts and image blobs on Desktop until their own rece
   await flush()
   expect(savedImages()).toEqual(['AAAA'])
   const first = send(true, undefined, true)
+  expect(disk.has(KEY)).toBe(false)
+  expect(blobs.size).toBe(0)
   store.setText(KEY, 'second')
   attach('second.png', 'BBBB')
+  await flush()
+  expect(disk.get(KEY)?.text).toBe('second')
+  expect(savedImages()).toEqual(['BBBB'])
   const second = send(true, undefined, true)
   try {
     expect(store.get(KEY)).toEqual({ text: '', attachments: [] })
     await flush()
-    expect(disk.get(KEY)?.text).toBe('PHX-message\nsecond')
-    expect(savedImages()).toEqual(['AAAA', 'BBBB'])
+    expect(disk.has(KEY)).toBe(false)
+    expect(blobs.size).toBe(0)
     firstReceipt.resolve(accepted('queued'))
     await first
     await flush()
-    expect(disk.get(KEY)?.text).toBe('second')
-    expect(savedImages()).toEqual(['BBBB'])
+    expect(disk.has(KEY)).toBe(false)
+    expect(blobs.size).toBe(0)
   } finally {
     firstReceipt.resolve(accepted('queued'))
     secondReceipt.resolve(refused('refused'))

@@ -142,6 +142,8 @@ export function Composer({
       await sendComposerPrompt({
         sessionId,
         draftKey,
+        restoreDraftKey: () =>
+          composerDraftKey(useSessionsStore.getState().live[sessionId], sessionId),
         remote,
         remoteAttachments,
         busyBehavior: behavior,
