@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import type { RpcCommand } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { QueueChips } from './QueueChips'
+import { showPendingChip } from './pendingQueue'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -50,6 +51,41 @@ describe('QueueChips', () => {
   it('renders nothing when both queues are empty', () => {
     act(() => root!.render(<QueueChips sessionId="s1" />))
     expect(container!.querySelector('[data-testid="queue-chips"]')).toBeNull()
+  })
+
+  it('replaces a dispatched chip when the previous identical steer was consumed during preflight', () => {
+    queueSteering(['same'])
+    const chip = showPendingChip('s1', 'steer', 'same')
+    chip.dispatch('same')
+    act(() => root!.render(<QueueChips sessionId="s1" />))
+    try {
+      expect(container!.querySelector('[data-testid="queue-chips"]')?.children).toHaveLength(2)
+      // These can arrive in the same React render batch.
+      act(() => {
+        queueSteering([])
+        queueSteering(['same'])
+      })
+      expect(container!.querySelector('[data-testid="queue-chips"]')?.children).toHaveLength(1)
+      expect(container!.querySelector('button')).not.toBeNull()
+    } finally {
+      act(() => chip.remove())
+    }
+  })
+
+  it('does not bring a confirmed chip back when pi delivers it before the receipt', () => {
+    queueSteering([])
+    const chip = showPendingChip('s1', 'steer', 'send')
+    chip.dispatch('send')
+    act(() => root!.render(<QueueChips sessionId="s1" />))
+    try {
+      act(() => {
+        queueSteering(['send'])
+        queueSteering([])
+      })
+      expect(container!.querySelector('[data-testid="queue-chips"]')).toBeNull()
+    } finally {
+      act(() => chip.remove())
+    }
   })
 
   it('undoes the clicked steer by draining and re-queueing the rest', async () => {
