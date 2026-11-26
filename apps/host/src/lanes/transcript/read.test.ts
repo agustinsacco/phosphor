@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTranscriptCache } from './cache'
-import { readTranscript, type TranscriptFailureReason } from './read'
+import { readTranscript, readTranscriptWithComposer, type TranscriptFailureReason } from './read'
 
 vi.mock('node:fs', { spy: true })
 
@@ -211,14 +211,14 @@ describe('bounded transcript reader', () => {
 
   it('validates even a cache hit, skips its read, and refreshes recency', () => {
     expect(read()).toEqual({ kind: 'messages', messages })
-    for (let i = 0; i < 3; i++) cache.set(String(i), 'stamp', { messages: [] })
+    for (let i = 0; i < 3; i++) cache.set(String(i), 'stamp', { messages: [], composer: {} })
     vi.mocked(fs.readSync).mockClear()
     vi.mocked(fs.closeSync).mockClear()
     expect(read()).toEqual({ kind: 'messages', messages })
     expect(fs.readSync).not.toHaveBeenCalled()
     expect(fs.fstatSync).toHaveBeenCalledTimes(2)
     closed()
-    cache.set('fourth', 'stamp', { messages: [] })
+    cache.set('fourth', 'stamp', { messages: [], composer: {} })
     expect(read()).toEqual({ kind: 'messages', messages })
     expect(fs.readSync).not.toHaveBeenCalled()
   })
@@ -252,5 +252,23 @@ describe('bounded transcript reader', () => {
     })
     expect(read).toThrow('close failed')
     closed()
+  })
+
+  it('serves the saved composer from the same cache entry without exposing it in readTranscript', () => {
+    const thinkingLevel = 'high'
+    const change = { type: 'thinking_level_change', id: 't', parentId: 'message', thinkingLevel }
+    fs.appendFileSync(path, `\n${JSON.stringify(change)}`)
+    expect(read()).toEqual({ kind: 'messages', messages })
+    vi.mocked(fs.readSync).mockClear()
+    expect(
+      readTranscriptWithComposer({
+        sessionFile: path,
+        sessionsRoot: root,
+        laneId: 'lane',
+        cache,
+        onFailure,
+      }),
+    ).toEqual({ kind: 'messages', messages, composer: { thinkingLevel } })
+    expect(fs.readSync).not.toHaveBeenCalled()
   })
 })

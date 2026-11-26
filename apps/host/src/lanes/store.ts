@@ -18,6 +18,7 @@ import { validateRepositoryIdentity } from './store/identity'
 import { LANE_SELECT, writeLaneMarks } from './store/marks'
 import { LaneArchiveRows, pruneRemoved } from './store/archives'
 import { LanePauseRows } from './store/pauses'
+import { composerWindows } from './store/composer-window'
 import {
   laneFromRow,
   repositoryFromRow,
@@ -39,15 +40,14 @@ import {
   type StorePorts,
 } from './store/types'
 import * as receipts from './store/receipts'
-export * from './store/types'
 import { absolutePath, check, integer, text, uuid, validateController } from './validation'
+export * from './store/types'
 export { opHash } from './validation'
 export { validateRepositoryIdentity } from './store/identity'
 export { REMOVED_LANE_TTL_MS } from './store/archives'
 export function openStore(directory: string, uid: number | undefined, ports: StorePorts = {}) {
   return openStoreDatabase(directory, uid, ports, (db, options) => new HostStore(db, options))
 }
-
 /** SQLite is the ordering point. Every mutation obtains its write lock before reading. */
 export class HostStore {
   private readonly now: () => number
@@ -60,6 +60,7 @@ export class HostStore {
   readonly archives: LaneArchiveRows
   readonly folders: FolderRows
   readonly pauses: LanePauseRows
+  readonly composerWindows: ReturnType<typeof composerWindows>
   constructor(
     private readonly db: DatabaseSync,
     private readonly ports: StorePorts,
@@ -86,6 +87,7 @@ export class HostStore {
     this.archives = new LaneArchiveRows(db, this.now, limits.lanesPerHost)
     this.folders = new FolderRows(db)
     this.pauses = new LanePauseRows(db)
+    this.composerWindows = composerWindows(db)
   }
   private transaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE')

@@ -144,8 +144,10 @@ async function exportSkill(entry: LocatedSkill) {
 export function createSkillsFeature(
   context: FeatureContext,
   ports: MachinePorts = {},
+  bindModelWindow?: (read: ReturnType<typeof machineCatalogues>['modelWindow']) => void,
 ): HostFeature {
   const cache = machineCatalogues(context, ports)
+  bindModelWindow?.(cache.modelWindow)
   const readiness = probeQueue()
   const methods = [
     'machine.models',

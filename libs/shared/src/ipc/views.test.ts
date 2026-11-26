@@ -18,7 +18,12 @@ import type {
 import type { ServicePauseState } from '../host-protocol-owner'
 import type { LaneReceipt } from '../lane-receipt'
 import type { HostCapability } from '../remote-host'
-import type { RepositorySummary, LaneSummary, StreamCursor } from '../host-protocol'
+import type {
+  RepositorySummary,
+  LaneSummary,
+  StoppedComposer,
+  StreamCursor,
+} from '../host-protocol'
 import type { ControlErrorCode } from '../control-api'
 
 export type BaselineDesktopControlErrorCode = ControlErrorCode | 'signed-out' | 'offline'
@@ -57,6 +62,7 @@ export interface BaselineSessionTree {
 
 export type BaselineHostLaneView = Omit<LaneSummary, 'control' | 'pinned'> & {
   pinned?: boolean
+  stoppedComposer?: StoppedComposer
   control: {
     fence: number
     controller: { label: string; connected: boolean; self: boolean } | null

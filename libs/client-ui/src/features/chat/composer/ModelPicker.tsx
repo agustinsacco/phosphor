@@ -1,3 +1,4 @@
+import type { HostLaneView } from '@shared/ipc'
 import { useAgentHints } from '@/features/agent-control/useAgentHints'
 import { rememberRemoteThinking } from '@/stores/remoteModelPicks'
 import { useSessionHostLane } from '@/stores/remoteLanes'
@@ -46,9 +47,11 @@ const PICKER_ROW = 'relative flex min-w-0 max-w-full flex-1 items-center'
 function RecordedModelChip({
   hostId,
   model,
+  level,
 }: {
   hostId: string | null
   model: { provider: string; id: string } | null
+  level?: ThinkingLevel | undefined
 }): React.JSX.Element | null {
   const catalogue = useMachineCatalogue(hostId, false)
   const known = catalogue.models.find((m) => m.provider === model?.provider && m.id === model.id)
@@ -57,11 +60,40 @@ function RecordedModelChip({
     <ModelChip
       testId="model-chip"
       name={known?.name ?? model.id}
+      grouped={level !== undefined}
       title="Starts with the lane"
       active={false}
       onClick={() => {}}
       disabled
     />
+  )
+}
+
+function RecordedChips({
+  hostId,
+  lane,
+}: {
+  hostId: string | null
+  lane: HostLaneView | undefined
+}) {
+  const saved = laneWithoutPi(lane) ? lane?.stoppedComposer : undefined
+  return (
+    <>
+      <RecordedModelChip
+        hostId={hostId}
+        model={saved?.model ?? lane?.model ?? null}
+        level={saved?.thinkingLevel}
+      />
+      {saved?.thinkingLevel && (
+        <ThinkingChip
+          testId="thinking-chip"
+          active={false}
+          disabled
+          onClick={() => {}}
+          label={thinkingLabel(saved.thinkingLevel)}
+        />
+      )}
+    </>
   )
 }
 
@@ -91,7 +123,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   if (!meta || laneWithoutPi(hostLane?.lane))
     return (
       <div className={PICKER_ROW}>
-        <RecordedModelChip hostId={hostId} model={summaryModel ?? null} />
+        <RecordedChips hostId={hostId} lane={hostLane?.lane} />
       </div>
     )
 
