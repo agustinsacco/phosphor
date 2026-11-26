@@ -99,3 +99,39 @@ it('honors the owner catalog deadline and returns the canonical operation name o
     vi.useRealTimers()
   }
 })
+
+it('uses the read deadline when the catalog selects a read tier from the arguments', async () => {
+  vi.useFakeTimers()
+  try {
+    const h = createHarness({
+      flags: ['configFiles'],
+      handlers: {
+        'config.read': async (_args, ctx) => {
+          await new Promise<void>((resolve) =>
+            ctx.signal.addEventListener('abort', () => resolve(), { once: true }),
+          )
+          return { text: 'finished' }
+        },
+      },
+    })
+    const dispatcher = createOpsDispatcher(h.binding, {
+      ...h.deps,
+      parseArgv: (argv) => parseOpArgv(argv),
+    })
+    const request = dispatcher.runFromTool('s1', {
+      v: 1,
+      id: 'slow-read',
+      argv: ['config', 'read', 'settings'],
+      deadlineMs: 600_000,
+    })
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(await Promise.race([request, Promise.resolve('still running')])).toMatchObject({
+      op: 'config.read',
+      status: 'error',
+      code: 'timeout',
+      text: expect.stringContaining('execution after 30 seconds'),
+    })
+  } finally {
+    vi.useRealTimers()
+  }
+})
