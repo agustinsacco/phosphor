@@ -33,11 +33,18 @@ function fixture() {
       resolveProject: async () => [],
     },
   } as unknown as DaemonHandlerDeps)
-  const ctx = {
-    lane: { ref: 'host:self/lane:one', cwd: repo },
+  const ctx: Omit<OpHandlerContext, 'principal'> = {
+    lane: {
+      ref: 'host:self/lane:one',
+      cwd: repo,
+      sessionId: 'one',
+      title: 'Issuer',
+      busy: false,
+      controller: null,
+    },
     signal: new AbortController().signal,
     log: () => {},
-  } as Omit<OpHandlerContext, 'principal'>
+  }
   return {
     call,
     resourceChanged,

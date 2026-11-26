@@ -77,7 +77,6 @@ function features(
   settings: ReturnType<typeof createMachineSettings>,
   archives: HostArchives,
   skills: ReturnType<typeof createSkillsFeature>,
-  invalidateCatalogue: () => void,
 ) {
   return [
     settings.feature,
@@ -91,7 +90,6 @@ function features(
     createArtifactsFeature({ ...context, store: options.store }),
     // Shared skills land where this Host's pi reads global skills.
     createSkillInstallFeature(context, {
-      invalidateCatalogue,
       pi: options.cataloguePi ?? undefined,
       configPath: options.configPath,
       skillsRoot: join(settings.agentDir, 'skills'),
@@ -154,15 +152,19 @@ function runArchives(options: AdministrationOptions) {
 /** Bind administration to this run's existing runtime, path locks and terminal owner. */
 export function createRunAdministration(options: AdministrationOptions) {
   const { context, terminals, accounts } = options
+  let catalogueGeneration = 0
+  const invalidateCatalogue = () => {
+    catalogueGeneration++
+  }
   const featureContext: FeatureContext = {
     store: options.store,
     env: context.env,
     home: context.home,
+    resourceChanged: (change) => {
+      if (change.kind === 'skills') invalidateCatalogue()
+      options.live.lanesTopic.resourceChanged(change)
+    },
     log: (event, fields) => options.log('host', event, fields),
-  }
-  let catalogueGeneration = 0
-  const invalidateCatalogue = () => {
-    catalogueGeneration++
   }
   const providerLogins = terminals
     ? createProviderLogins(context, terminals, undefined, accounts, invalidateCatalogue)
@@ -194,7 +196,6 @@ export function createRunAdministration(options: AdministrationOptions) {
       agentDir: settings.agentDir,
       context: featureContext,
       resolveProject: skillsFeature.resolveProject,
-      invalidate: invalidateCatalogue,
     },
     archives,
     providerLogins,
@@ -216,8 +217,7 @@ export function createRunAdministration(options: AdministrationOptions) {
       // The merged-PR proof asks gh with the same environment as the PR reads.
       github: githubRunner(context.env),
     }),
-    features: () =>
-      features(options, featureContext, settings, archives, skillsFeature, invalidateCatalogue),
+    features: () => features(options, featureContext, settings, archives, skillsFeature),
   }
 }
 

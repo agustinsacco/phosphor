@@ -87,5 +87,5 @@ function useHostPackageRead(hostId: string | null, folder: string | null): void 
     return () => {
       cancelled = true
     }
-  }, [hostId, allowed, generation, folder])
+  }, [hostId, allowed, generation, folder, revision])
 }

@@ -130,14 +130,8 @@ describe('skills.install', () => {
   it('immediately lists a copied skill after installation without expiring the cache', async () => {
     let generation = 0
     const read = createSkillsFeature(context, { ...ports, generation: () => generation })
-    const installPorts = {
-      ...ports,
-      skillsRoot,
-      invalidateCatalogue: () => {
-        generation++
-      },
-    }
-    const install = createSkillInstallFeature(context, installPorts)
+    context.resourceChanged = () => generation++
+    const install = createSkillInstallFeature(context, { ...ports, skillsRoot })
     expect(await read.call('skills.list', {})).toEqual({ ok: true, data: { skills: [] } })
     expect(await install.call('skills.install', { bundle: bundle() }, allowed)).toMatchObject({
       data: { status: 'installed' },

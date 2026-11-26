@@ -1,5 +1,5 @@
 import type { HostCapability } from '@phosphor/shared/remote-host'
-import type { CallErrorCode } from '@phosphor/shared/host-protocol'
+import type { CallErrorCode, HostResourceChange } from '@phosphor/shared/host-protocol'
 import type { HostStore } from '../lanes/store'
 
 export type FeatureOutcome =
@@ -8,6 +8,7 @@ export interface FeatureContext {
   store: Pick<HostStore, 'getLane' | 'listRepositories'>
   env: NodeJS.ProcessEnv
   home: string
+  resourceChanged?(change: HostResourceChange): void
   log(event: string, fields: Record<string, string | number>): void
 }
 export interface HostFeature {
