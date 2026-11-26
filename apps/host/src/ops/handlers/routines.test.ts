@@ -175,3 +175,34 @@ it('offers saved output only on opted-in surface reads; transcript access checks
   )
   expect(lookup).not.toHaveBeenCalled()
 })
+
+it('walks all 51 runs at delivered offsets and requires a routine for history', async () => {
+  const runs = Array.from({ length: 51 }, (_, n) => ({
+    id: `11111111-1111-4111-8111-${String(n).padStart(12, '0')}`,
+    routineId: id,
+    scheduledAt: n,
+    startedAt: n,
+    endedAt: n,
+    status: 'finished',
+  }))
+  const call = vi.fn(async (_method: string, { offset }: { offset: number }) => ({
+    ok: true,
+    data: runs.slice(offset, offset + 50),
+  }))
+  const handlers = routineHandlers({
+    lanes: { calls: { call } },
+    store: { listLanes: () => [] },
+  } as unknown as DaemonHandlerDeps)
+  await expect(handlers['routine.history']!({}, {} as never)).rejects.toThrow(/routine id/i)
+  for (const op of ['routine.history', 'routine.activity']) {
+    const seen = []
+    let page: string | undefined
+    for (const next of ['20', '40', undefined]) {
+      const result = await handlers[op]!(op === 'routine.history' ? { id } : {}, { page } as never)
+      expect(result.next).toBe(next)
+      seen.push(...(result.data as typeof runs))
+      page = result.next
+    }
+    expect(seen).toEqual(runs)
+  }
+})

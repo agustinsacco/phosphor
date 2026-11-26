@@ -36,3 +36,18 @@ it('only restores the old folder order while the order this change set is curren
   rows.reverse()
   expect(folderUndoCurrent(deps, entry)).toBe(false)
 })
+
+it('walks 65 folders through canonical cursors without repeating or losing rows', async () => {
+  const folders = Array.from({ length: 65 }, (_, i) => ({ id: String(i), name: `Folder ${i}` }))
+  const list = folderHandlers({ ownerFolders: () => folders } as DaemonHandlerDeps)['folder.list']!
+  const seen = []
+  let page: string | undefined
+  for (const next of ['20', '40', '60', undefined]) {
+    const result = await list({}, { page } as never)
+    expect(result.next).toBe(next)
+    expect(result.text.split('\n')[0]).toBe('id | name | path')
+    seen.push(...(result.data as { folders: typeof folders }).folders)
+    page = result.next
+  }
+  expect(seen).toEqual(folders)
+})

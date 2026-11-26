@@ -1,0 +1,27 @@
+import { expect, it } from 'vitest'
+import * as results from './results'
+
+const text = '"😀\\'.repeat(1500)
+const columns = { id: (r: { id: number }) => r.id, title: (r: { title: string }) => r.title }
+
+it('fits quote-heavy UTF-8 rows as serialized JSON, and continues after the last delivered row', () => {
+  const rows = Array.from({ length: 5 }, (_, id) => ({ id, title: text }))
+  const ctx = { limit: 5 } as never
+  const first = results.pageInventory(rows, ctx, columns)
+  expect(first.data).toEqual(rows.slice(0, 1))
+  expect(first.next).toBe('1')
+  expect(Buffer.byteLength(JSON.stringify(first.data))).toBeLessThanOrEqual(12 * 1024)
+  const second = results.pageInventory(rows, { page: first.next } as never, columns)
+  expect(second.data).toEqual(rows.slice(1, 2))
+  expect(second.next).toBe('2')
+})
+
+it('delivers one oversized row with a visible omission marker and keeps projecting compact text', () => {
+  const rows = [{ id: 0, title: `Line 1\nLine 2 ${text.repeat(15)}` }, { id: 1, title: '' }]
+  const page = results.pageInventory(rows, {} as never, columns)
+  expect(page.data).toEqual([{ id: 0, title: expect.stringMatching(/…\(\+\d+ chars\)$/u) }])
+  expect(Buffer.byteLength(JSON.stringify(page.data))).toBeLessThanOrEqual(12 * 1024)
+  expect(page.next).toBe('1')
+  expect(page.text).toMatch(/^id \| title\n0 \| Line 1 Line 2 [^\n]+…$/u)
+  expect(Array.from(page.text.split(' | ').at(-1)!)).toHaveLength(80)
+})
