@@ -75,9 +75,13 @@ export function hostLaneNaming(
   }
 }
 
-/** The Host keeps a title small: a 4 KiB reply cap, no stderr, 30 s per attempt. */
+/**
+ * The Host keeps a title small: a 4 KiB reply cap, no stderr, 90 s per attempt.
+ * Naming runs in the background, and a loaded machine boots `pi -p` slowly:
+ * 30 s dropped real titles at 31-37 s.
+ */
 const HOST_PRINT = {
-  timeoutMs: 30_000,
+  timeoutMs: 90_000,
   stderr: 'ignore',
   maxOutputBytes: 4096,
   overflow: 'fail',

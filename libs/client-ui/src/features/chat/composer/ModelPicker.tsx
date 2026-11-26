@@ -31,7 +31,6 @@ import { useHostModelUnavailability } from '@/features/settings/machine/useHostM
 const NO_MODELS: Model[] = []
 
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element {
-  // Menu and in-flight selection feedback belong to the lane, too.
   return <SessionModelPicker key={sessionId} sessionId={sessionId} />
 }
 
@@ -117,7 +116,8 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   const { switchingTo, switchTo } = useSessionModelSwitch(sessionId, currentModel, remote, () =>
     hints.clear('model'),
   )
-  const { actions } = useSessionModelActions(sessionId)
+  const { actions, retry } = useSessionModelActions(sessionId)
+  const refreshing = useChatStore((s) => s.sessions[sessionId]?.modelsRefreshing ?? false)
   const failed = useChatStore((s) => s.sessions[sessionId]?.modelsFailed ?? false)
 
   if (!meta || laneWithoutPi(hostLane?.lane))
@@ -168,10 +168,7 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         }
       />
 
-      {/* Use the menu’s actual levels so the chip never opens an empty menu. */}
       {levelsToRender.length > 1 && (
-        // Its own anchor: the picker spans the footer's free width, so a
-        // menu placed against it opens under the model chip, not this one.
         <div className="relative shrink-0">
           <ThinkingChip
             testId="thinking-chip"
@@ -202,13 +199,15 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
             void switchTo(model)
           }}
           onClose={() => setOpen(null)}
-          loading={!modelsLoaded}
-          emptyText={failed ? MODELS_READ_FAILED : 'No models configured.'}
+          loading={!modelsLoaded || refreshing}
+          emptyText="No models configured."
+          error={failed ? MODELS_READ_FAILED : null}
+          onRetry={retry}
           unavailable={unavailable}
           className="w-[30rem] max-w-[92vw]"
         />
       )}
-      {(failed || (modelsLoaded && models.length === 0)) && (
+      {!refreshing && (failed || (modelsLoaded && models.length === 0)) && (
         <ModelActionButtons actions={actions} />
       )}
     </div>

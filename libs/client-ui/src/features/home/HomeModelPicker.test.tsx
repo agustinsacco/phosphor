@@ -130,11 +130,27 @@ describe('HomeModelPicker', () => {
     expect(thinkingChip()?.textContent).toBe('Low')
   })
 
-  it('holds the chip until the catalogue lands', async () => {
+  it('opens before the catalogue lands and refreshes a cached list in place', async () => {
     catalogue({ status: 'loading', models: [] })
     await draw(<HomeModelPicker />)
-    expect(chip().disabled).toBe(true)
-    expect(chip().dataset.loading).toBe('true')
+    act(() => chip().click())
+    const list = document.querySelector('[data-testid="model-list"]')
+    expect(list?.textContent).toContain('Loading models…')
+
+    act(() => catalogue({}))
+    expect(list?.textContent).toContain('Model One')
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('model-search')
+    act(() => catalogue({ status: 'loading' }))
+    expect(list?.textContent).toContain('Refreshing…')
+    expect(list?.textContent).toContain('Model One')
+    expect(document.querySelector<HTMLInputElement>('[data-testid="model-search"]')?.disabled).toBe(
+      false,
+    )
+
+    act(() => catalogue({ models: [MODELS[1]!] }))
+    expect(list?.textContent).not.toContain('Refreshing…')
+    expect(list?.textContent).toContain('Model Two')
+    expect(list?.textContent).not.toContain('Model One')
   })
 
   it('names a degraded catalogue and asks pi again when opened', async () => {
@@ -185,8 +201,33 @@ describe('HomeModelPicker', () => {
     catalogue({ status: 'error', models: [] })
     await draw(<HomeModelPicker />)
     expect(actions().map((b) => b.textContent)).toEqual(['Retry models'])
-    act(() => actions()[0]!.click())
+    act(() => chip().click())
+    const list = document.querySelector('[data-testid="model-list"]')!
+    expect(list.textContent).toContain('Could not read models.')
+    const retry = [...list.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+    expect(retry).toBeDefined()
+    act(() => retry!.click())
     expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
+  it('retries an empty config fallback in the open menu, then shows a completed empty list', async () => {
+    const refreshCatalogue = useModelCatalogueStore.getInitialState().refresh
+    catalogue({ status: 'idle', models: [], refresh: refreshCatalogue })
+    invoke.mockImplementation(async (channel) => {
+      if (channel === 'pi:catalogueModels') return { models: [], source: 'config' }
+      return channel === 'pi:subscriptionAuth' ? [] : {}
+    })
+    await act(async () => refreshCatalogue())
+    await draw(<HomeModelPicker />)
+    await act(async () => chip().click())
+    const list = document.querySelector('[data-testid="model-list"]')!
+    expect(list.textContent).toContain('Could not read models.')
+    expect(list.textContent).not.toContain('No models configured')
+    const retry = [...list.querySelectorAll('button')].find((b) => b.textContent === 'Retry')!
+    invoke.mockResolvedValueOnce({ models: [], source: 'pi' })
+    await act(async () => retry.click())
+    expect(list.textContent).toContain('No models configured')
+    expect(list.textContent).not.toContain('Retry')
   })
 
   it('offers Sign in on This Mac when pi has no models: Settings → Accounts', async () => {

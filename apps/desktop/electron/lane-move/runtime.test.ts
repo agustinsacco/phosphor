@@ -25,3 +25,8 @@ it('asks pi for available models in the destination workspace, not the home cata
   await localTransferRuntime(false, '/source')
   expect(probe).not.toHaveBeenCalled()
 })
+
+it('reads a pi RPC error as no models, never as pi error text', async () => {
+  probe.mockRejectedValueOnce(new Error('private pi error'))
+  expect((await localTransferRuntime(true, '/target/project')).models).toEqual([])
+})

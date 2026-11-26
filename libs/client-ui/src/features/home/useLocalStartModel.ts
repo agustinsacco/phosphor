@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ThinkingLevel } from '@shared/rpc'
 import { ALL_THINKING_LEVELS, clampThinkingLevel, supportedThinkingLevels } from '@shared/thinking'
 import { catalogueEmptyText, modelChipLabel, useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { MODELS_READ_FAILED } from '@/stores/machineCatalogues'
 import { useSignInAction } from '@/features/chat/useSignInAction'
 import type { StartModelSource } from './StartModelPicker'
 
@@ -46,6 +47,7 @@ export function useLocalStartModel({
   const levels = useMemo(() => (current ? supportedThinkingLevels(current) : []), [current])
   const loading = status === 'idle' || status === 'loading'
   const signIn = useSignInAction('local')
+  const retry = () => void useModelCatalogueStore.getState().refresh()
 
   return {
     testIdPrefix: 'home',
@@ -74,10 +76,11 @@ export function useLocalStartModel({
     // more attempt at pi. Cheap: main serves a good answer from its cache and
     // only re-spawns pi when what it holds is the fallback.
     onOpen: () => {
-      if (source === 'config') void useModelCatalogueStore.getState().refresh()
+      if (source === 'config' && status === 'ready') retry()
     },
     menu: {
       emptyText: catalogueEmptyText(status, providers),
+      ...(status === 'error' && { error: MODELS_READ_FAILED, onRetry: retry }),
       notice:
         source === 'config'
           ? 'pi’s catalogue could not be read — showing only what models.json declares. Retrying…'
@@ -86,7 +89,7 @@ export function useLocalStartModel({
     // The same actions as a Host's source: retry a failed read, sign in to get a model.
     actions:
       status === 'error'
-        ? [{ label: 'Retry models', run: () => void useModelCatalogueStore.getState().refresh() }]
+        ? [{ label: 'Retry models', run: retry }]
         : status === 'ready' && models.length === 0
           ? [signIn]
           : [],

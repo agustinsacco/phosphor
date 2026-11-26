@@ -82,8 +82,6 @@ export function ModelChip({
   agentHint?: string | undefined
   title?: string | undefined
   active: boolean
-  /** Home disables the chip until the catalogue lands: a click on a
-   *  half-known list writes a real mis-set, not a cosmetic one. */
   disabled?: boolean | undefined
   loading?: boolean | undefined
   onClick: () => void

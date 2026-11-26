@@ -23,7 +23,7 @@ export interface StartModelSource {
     tone: 'normal' | 'warning' | 'muted'
     title: string
   }
-  /** The list is still loading: the chip waits rather than write a half-known pick. */
+  /** The list is still loading or refreshing; existing choices remain usable. */
   loading: boolean
   /** The current model's levels; the thinking chip shows only when there is a choice. */
   levels: ThinkingLevel[]
@@ -34,6 +34,8 @@ export interface StartModelSource {
   onOpen?: () => void
   menu: {
     emptyText: string
+    error?: string | null | undefined
+    onRetry?: () => void
     notice?: string | undefined
     unavailable?: ReadonlyMap<string, { detail: string }> | undefined
   }
@@ -50,6 +52,7 @@ export interface StartModelSource {
 export function StartModelPicker({ source }: { source: StartModelSource }): React.JSX.Element {
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
   const { chip, levels, current } = source
+  const cold = source.loading && source.models.length === 0
   return (
     <div className="start-model-picker">
       <div className="relative flex min-w-0 max-w-full flex-1 items-center">
@@ -57,16 +60,17 @@ export function StartModelPicker({ source }: { source: StartModelSource }): Reac
           testId={`${source.testIdPrefix}-model-picker`}
           grouped={levels.length > 1}
           active={open === 'model'}
-          disabled={source.loading}
-          loading={source.loading}
+          loading={cold}
           onClick={() => {
             setOpen(open === 'model' ? null : 'model')
             if (open !== 'model') source.onOpen?.()
           }}
           title={chip.title}
           name={
-            source.loading ? (
-              <ModelChipSkeleton />
+            cold ? (
+              <span aria-label="Loading models" role="img">
+                <ModelChipSkeleton />
+              </span>
             ) : (
               <span
                 className={clsx(
@@ -97,6 +101,8 @@ export function StartModelPicker({ source }: { source: StartModelSource }): Reac
             onClose={() => setOpen(null)}
             loading={source.loading}
             emptyText={source.menu.emptyText}
+            error={source.menu.error}
+            onRetry={source.menu.onRetry}
             notice={source.menu.notice}
             unavailable={source.menu.unavailable}
             className="w-[30rem] max-w-[92vw]"
