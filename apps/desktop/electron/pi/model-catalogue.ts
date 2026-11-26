@@ -124,8 +124,8 @@ export async function requestAvailableModels(
     timeoutMs,
     'get_available_models timed out',
   )) as RpcResponse<RpcResponseDataMap['get_available_models']>
-  if (!response.success || !response.data)
-    throw new Error(response.error ?? 'get_available_models returned no data')
+  if (!response.success) throw new Error(response.error ?? 'get_available_models failed')
+  if (!response.data) throw new Error('get_available_models returned no data')
   return toCatalogueModels(response.data.models)
 }
 
