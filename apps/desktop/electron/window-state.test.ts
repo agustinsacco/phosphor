@@ -51,6 +51,19 @@ describe('restoreBounds', () => {
     })
   })
 
+  it('preserves a fully visible window spanning adjacent displays', () => {
+    const saved = { x: 1300, y: 60, width: 1200, height: 700 }
+    expect(restoreBounds({ ...saved, maximized: false }, [laptop, external], size)).toEqual(saved)
+  })
+
+  it('restores only size when the compositor does not report global positions', () => {
+    const saved = { x: 0, y: 0, width: 1800, height: 1100, maximized: false }
+    expect(restoreBounds(saved, [laptop, external], size, false)).toEqual({
+      width: 1800,
+      height: 1100,
+    })
+  })
+
   it('drops the position when that display is gone, and fits the size to what is left', () => {
     const saved = { x: 1700, y: 100, width: 1800, height: 1100, maximized: false }
     expect(restoreBounds(saved, [laptop], size)).toEqual({ width: 1512, height: 920 })
