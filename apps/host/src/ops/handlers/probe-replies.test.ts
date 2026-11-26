@@ -39,7 +39,7 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
-async function start(ports: MachinePorts = { pi }) {
+async function start(ports: MachinePorts = { pi }, serveCatalogue = true) {
   const feature = createSkillsFeature({ store, env: {}, home: directory, log }, ports)
   const state = await createOpsService({
     stateDirectory: join(directory, 'state'),
@@ -47,7 +47,9 @@ async function start(ports: MachinePorts = { pi }) {
     store,
     selfIds: () => [machineId],
     enrolledId: () => machineId,
-    lanes: { calls: createLaneCalls({ features: [feature] } as never) } as never,
+    lanes: {
+      calls: createLaneCalls({ features: serveCatalogue ? [feature] : [] } as never),
+    } as never,
     daemonLanes: {
       list: () => [],
       summary: () => null,
@@ -98,6 +100,16 @@ it.each([
     expect(log).toHaveBeenCalledWith('feature.failed', expect.objectContaining({ cause }))
   },
 )
+
+it('explains why commands are unavailable when the binding has no catalogue feature', async () => {
+  const { run } = await start({ pi }, false)
+  expect(await run('machine.commands')).toMatchObject({
+    status: 'denied',
+    code: 'unsupported',
+    text: 'machine.commands is unavailable on this binding: no Host feature serves it.',
+  })
+  expect(spawn).not.toHaveBeenCalled()
+})
 
 it('names the child timeout phase and accepts a later request', async () => {
   const { run } = await start()
