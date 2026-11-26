@@ -162,6 +162,8 @@ it.each([
   [['lane.read', 'x', '--part', 'private-input'], 'part', 'summary|messages|artifacts|prs|debug'],
   [['lane.read', 'x', '--messages', '101'], 'messages', '1–50'],
   [['routine.create', '--definition', '{"name":"example"}'], 'definition', 'instructions'],
+  [['archive.purge', '--ids', 'entry', '--all', 'true'], 'arguments', 'exactly one of ids, all'],
+  [['archive.purge', '--all', 'private-input'], 'all', 'true.'],
 ])('names the field and the constraint for %j', (argv, field, expected) => {
   const result = parseOpArgv(argv)
   expect(result).toMatchObject({ ok: false })
@@ -246,4 +248,17 @@ it.each([
   ['lane', 'read', '--help'],
 ])('parses %j as the same help topic', (...argv) => {
   expect(parseOpArgv(argv)).toMatchObject({ ok: true, op: 'help', args: { topic: 'lane.read' } })
+})
+
+it('does not discard help options or trailing operands when normalizing a two-word topic', () => {
+  expect(parseOpArgv(['help', 'lane', 'read', '--json'])).toMatchObject({
+    ok: true,
+    op: 'help',
+    args: { topic: 'lane.read' },
+    json: true,
+  })
+  expect(parseOpArgv(['help', 'lane', 'read', '--', 'extra'])).toMatchObject({
+    ok: false,
+    op: 'help',
+  })
 })
