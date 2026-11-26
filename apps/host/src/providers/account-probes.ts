@@ -10,6 +10,7 @@ import type { ClaudeStatus } from '@phosphor/shared/models'
 import { which } from '../machine/executables'
 import { probe } from '../machine/probe'
 
+export const ACCOUNT_USAGE_TIMEOUT_MS = 12_000
 const PROBE_PREFIX = 'phosphor-usage-'
 /** `mkdtemp` adds six characters; nothing else in the temp dir is this code's. */
 const PROBE_DIRECTORY = /^phosphor-usage-[A-Za-z0-9]{6}$/
@@ -23,7 +24,14 @@ async function usageProbe(file: string, env: NodeJS.ProcessEnv) {
   const abort = new AbortController()
   live.set(cwd, abort)
   try {
-    return await runUsageCommand(runPrintMode, file, env, cwd, abort.signal)
+    return await runUsageCommand(
+      (path, args, options) =>
+        runPrintMode(path, args, { ...options, timeoutMs: ACCOUNT_USAGE_TIMEOUT_MS }),
+      file,
+      env,
+      cwd,
+      abort.signal,
+    )
   } finally {
     live.delete(cwd)
     await rm(cwd, { recursive: true, force: true })

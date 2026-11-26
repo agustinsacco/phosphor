@@ -67,8 +67,9 @@ export const inventoryHandlers = {
   ),
   'machine.models': op(async (_a, c) => pageRows(await models(), c)),
   'machine.providers': op(async () => dataResult(await providers())),
-  'machine.commands': op(async (_a, c) => {
-    const result = await (await import('../pi/catalogue')).piCommands(c.lane?.cwd)
+  'machine.commands': op<{ project?: string }>(async (a, c) => {
+    const cwd = await project(a.project, c.lane?.cwd)
+    const result = await (await import('../pi/catalogue')).piCommands(cwd)
     if (result.error) throw new Error(result.error)
     return pageRows(result.commands, c)
   }),

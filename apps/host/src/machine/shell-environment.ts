@@ -20,6 +20,7 @@ export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
   let additions: Record<string, string> = {}
   let log: HostLog | undefined
   let unavailable = false
+  let capturedAt: number | undefined
   let inFlight: Promise<boolean> | undefined
 
   async function capture(): Promise<boolean> {
@@ -58,6 +59,7 @@ export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
         Object.entries(next.env).filter(([key, value]) => value !== base.env[key]),
       )
       current = next
+      capturedAt = Date.now()
       unavailable = false
       return true
     } catch {
@@ -69,6 +71,10 @@ export function createShellEnvironment(policy: Policy, timeoutMs = 15_000) {
   return {
     current: (): PiEnvironment => current,
     additions: () => additions,
+    status: () => ({
+      status: unavailable ? 'unavailable' : capturedAt === undefined ? 'not-captured' : 'cached',
+      ...(capturedAt === undefined ? {} : { ageMs: Math.max(0, Date.now() - capturedAt) }),
+    }),
     refresh() {
       return (inFlight ??= capture().finally(() => {
         inFlight = undefined

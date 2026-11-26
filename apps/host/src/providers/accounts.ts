@@ -43,6 +43,7 @@ export function createHostClaudeAccounts(options: {
     credentialEnvironment: () =>
       claudeAccountEnv(selectAccount(read(), { nowMs: Date.now() }).account),
     usage,
+    readMetadata: read,
     status,
     async authenticationReady(): Promise<boolean | null> {
       try {

@@ -30,7 +30,7 @@ beforeEach(async () => {
   vi.resetAllMocks()
   directory = await mkdtemp(join(tmpdir(), 'probe-replies-'))
   store = await openStore(join(directory, 'state'), uid, {})
-})
+}, 30_000)
 afterEach(async () => {
   vi.useRealTimers()
   service?.close()
@@ -42,27 +42,37 @@ afterEach(async () => {
 async function start(ports: MachinePorts = { pi }) {
   const feature = createSkillsFeature({ store, env: {}, home: directory, log }, ports)
   const state = await createOpsService({
-    stateDirectory: join(directory, 'state'), uid, store,
-    selfIds: () => [machineId], enrolledId: () => machineId,
+    stateDirectory: join(directory, 'state'),
+    uid,
+    store,
+    selfIds: () => [machineId],
+    enrolledId: () => machineId,
     lanes: { calls: createLaneCalls({ features: [feature] } as never) } as never,
     daemonLanes: {
-      list: () => [], summary: () => null,
-      sessionFor: (id) => id === laneId ? 's1' : null,
+      list: () => [],
+      summary: () => null,
+      sessionFor: (id) => (id === laneId ? 's1' : null),
     },
-    shellEnvironment: null, editing: {} as never,
-    command: async () => ({ success: true }), unattended: () => false, log,
+    shellEnvironment: null,
+    editing: {} as never,
+    command: async () => ({ success: true }),
+    unattended: () => false,
+    log,
   })
   service = state
   return {
     feature,
-    run: (op: string) => state.dispatcher.run({ kind: 'local', clientId: 'cli' }, { op, args: {} }),
+    run: (op: string, clientId = 'cli') =>
+      state.dispatcher.run({ kind: 'local', clientId }, { op, args: {} }),
   }
 }
 
 function worker(body: (child: ChildProcess) => void) {
   return () => {
     const child = Object.assign(new EventEmitter(), {
-      stdin: new PassThrough(), stdout: new PassThrough(), pid: undefined,
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      pid: undefined,
     }) as unknown as ChildProcess
     queueMicrotask(() => body(child))
     return child
@@ -72,28 +82,53 @@ function worker(body: (child: ChildProcess) => void) {
 it.each([
   { event: 'spawn', cause: 'spawn', text: /child failed to start/ },
   { event: 'decode', cause: 'decode', text: /protocol error/ },
-])('reports $cause failures through the op reply without leaking worker output', async ({ event, cause, text }) => {
-  spawn.mockImplementationOnce(worker((child) => {
-    if (event === 'spawn') child.emit('error', new Error('private fixture detail'))
-    else child.stdout?.emit('data', Buffer.from('private fixture detail\n'))
-  }))
-  const { run } = await start()
-  const reply = await run('machine.commands')
-  expect(reply).toMatchObject({ status: 'denied', code: 'unavailable', text })
-  expect(JSON.stringify(reply)).not.toContain('private fixture detail')
-  expect(log).toHaveBeenCalledWith('feature.failed', expect.objectContaining({ cause }))
-})
+])(
+  'reports $cause failures through the op reply without leaking worker output',
+  async ({ event, cause, text }) => {
+    spawn.mockImplementationOnce(
+      worker((child) => {
+        if (event === 'spawn') child.emit('error', new Error('private fixture detail'))
+        else child.stdout?.emit('data', Buffer.from('private fixture detail\n'))
+      }),
+    )
+    const { run } = await start()
+    const reply = await run('machine.commands')
+    expect(reply).toMatchObject({ status: 'denied', code: 'unavailable', text })
+    expect(JSON.stringify(reply)).not.toContain('private fixture detail')
+    expect(log).toHaveBeenCalledWith('feature.failed', expect.objectContaining({ cause }))
+  },
+)
 
 it('names the child timeout phase and accepts a later request', async () => {
   const { run } = await start()
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
-  const started = Promise.withResolvers<void>()
-  spawn.mockImplementationOnce(worker((child) => { child.emit('spawn'); started.resolve() }))
-    .mockImplementationOnce(worker((child) => child.stdout?.emit('data', Buffer.from('{"type":"response","id":"feature","success":true,"data":{"commands":[]}}\n'))))
+  let startWorker!: () => void
+  const started = new Promise<void>((resolve) => {
+    startWorker = resolve
+  })
+  spawn
+    .mockImplementationOnce(
+      worker((child) => {
+        child.emit('spawn')
+        startWorker()
+      }),
+    )
+    .mockImplementationOnce(
+      worker((child) =>
+        child.stdout?.emit(
+          'data',
+          Buffer.from('{"type":"response","id":"feature","success":true,"data":{"commands":[]}}\n'),
+        ),
+      ),
+    )
   const reply = run('machine.commands')
-  await started.promise
-  await vi.advanceTimersByTimeAsync(15_000)
-  expect(await reply).toMatchObject({ status: 'denied', code: 'unavailable', text: /timed out during pi reply after 15s/ })
+  await started
+  await vi.advanceTimersByTimeAsync(23_000)
+  expect(await reply).toMatchObject({
+    status: 'denied',
+    code: 'unavailable',
+    text: /timed out during pi reply after 23s/,
+  })
   expect(await run('machine.commands')).toMatchObject({ status: 'ok' })
 })
 
@@ -101,10 +136,26 @@ it('explains a full queue and a distinct queue expiration through op replies', a
   const { feature, run } = await start({ inspect: () => new Promise(() => {}) })
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] })
   const held = Array.from({ length: 7 }, () => feature.call('machine.providers', {}))
+  let admitted!: () => void
+  const called = new Promise<void>((resolve) => {
+    admitted = resolve
+  })
+  const call = feature.call.bind(feature)
+  vi.spyOn(feature, 'call').mockImplementationOnce((...args) => {
+    const waiting = call(...args)
+    admitted()
+    return waiting
+  })
   const waiting = run('machine.providers')
-  await vi.advanceTimersByTimeAsync(0)
-  expect(await run('machine.providers')).toMatchObject({ status: 'denied', text: /queue is full/ })
+  await called
+  expect(await run('machine.providers', 'second-cli')).toMatchObject({
+    status: 'denied',
+    text: /queue is full/,
+  })
   await vi.advanceTimersByTimeAsync(29_000)
-  expect(await waiting).toMatchObject({ status: 'denied', text: /timed out in the queue after 29s/ })
+  expect(await waiting).toMatchObject({
+    status: 'denied',
+    text: /timed out in the queue after 29s/,
+  })
   await Promise.all(held)
 })

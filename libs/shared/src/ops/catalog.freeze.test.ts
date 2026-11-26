@@ -152,9 +152,10 @@ claude.routing configure machine new-lanes - - - - edd52ffb3c32267944a7157a2956b
 claude.reorder configure machine new-lanes - - - - d41d6ee7ba1c9a3889a121b976831960390a0bd8efffa6b1cb3fdda62636b7ab
 machine.status read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 machine.doctor read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+machine.refreshEnvironment configure machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 machine.models read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 machine.providers read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
-machine.commands read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+machine.commands read machine now - - - - c57e5987bdbbc8d6bf059cc32f8702b76da3f75ff2e38e6a4d7e9bfebb8d2f48
 machine.usage read machine now - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 service.update destructive machine now - - - job 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 service.pause never machine now - surface local - 58b0ac567e7d7cddafe40ed512d78d6d4c95ac9b95f76170f97764185435a4b7
@@ -235,4 +236,12 @@ it('names each op once; help, positionals and redactions describe the actual arg
     for (const key of [...(op.positional ?? []), ...(op.sensitive ?? [])])
       expect(Object.hasOwn(op.args.properties, key), `${op.name}.${key}`).toBe(true)
   }
+})
+
+it('freezes the workspace lane selector separately from revisions and PR URLs', () => {
+  expect(OP_CATALOG.filter((op) => op.laneArg === 'target').map((op) => op.name)).toEqual(
+    `files.list files.read files.search files.write files.create files.mkdir files.trash files.rename files.transfer
+     git.info git.status git.diff git.show git.branches git.worktrees git.fetch git.pull git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge
+     pr.list pr.status pr.detail`.split(/\s+/),
+  )
 })

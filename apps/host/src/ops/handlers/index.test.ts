@@ -80,10 +80,17 @@ it('projects health without refreshing, and refreshes only on the configure op',
   })
   const ctx = { principal: { kind: 'local', clientId: 'cli' } } as never
   expect(await handlers['machine.doctor']!({}, ctx)).toMatchObject({
-    data: { pi: 'ready', control: 'not-enrolled', service: { kind: 'none' }, shellEnvironment: { status: 'cached', ageMs: 42 } },
+    data: {
+      pi: 'ready',
+      control: 'not-enrolled',
+      service: { kind: 'none' },
+      shellEnvironment: { status: 'cached', ageMs: 42 },
+    },
   })
   expect(refreshed).toBe(0)
-  expect(await handlers['machine.refreshEnvironment']!({}, ctx)).toMatchObject({ data: { shellEnvironment: 'refreshed' } })
+  expect(await handlers['machine.refreshEnvironment']!({}, ctx)).toMatchObject({
+    data: { shellEnvironment: 'refreshed' },
+  })
   expect(refreshed).toBe(1)
   expect(await domainHandlers(deps)['machine.doctor']!({}, ctx)).toMatchObject({
     data: { shellEnvironment: { status: 'not-used' } },
@@ -130,9 +137,7 @@ it('reports the machine’s lanes, version and pause, and its inventory through 
     pause: { kind: 'none' },
   })
   await handlers['machine.models']!({}, ctx)
-  expect(call.mock.calls).toEqual([
-    ['machine.models', {}],
-  ])
+  expect(call.mock.calls).toEqual([['machine.models', {}]])
 })
 
 it('advertises service.pause and serves only a human action during a live pause', async () => {

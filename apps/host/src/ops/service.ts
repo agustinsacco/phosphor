@@ -305,6 +305,7 @@ export interface RunOpsPorts extends Pick<
   | 'management'
   | 'settingsOps'
   | 'shellEnvironment'
+  | 'machineHealth'
   | 'editing'
   | 'enrolledId'
   | 'remote'

@@ -54,6 +54,7 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly lanes: LaneService
   /** The login-shell capture on a local-mode daemon; null on a headless Host. */
   readonly shellEnvironment: HostShellEnvironment | null
+  readonly machineHealth?: () => { pi: string; control: string }
   /** Control's machine directory (X3 reach); absent: this machine reaches no other. */
   readonly directory?: Reach['directory']
   readonly log: RuntimeLog

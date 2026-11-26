@@ -173,7 +173,7 @@ export function settingsHandlers(deps: DaemonHandlerDeps) {
     ...agentHandlers(deps),
     ...instructionHandlers(deps),
     'claude.accounts': op(async () =>
-      dataResult((await readSection(deps, 'providers')).providers?.accounts ?? []),
+      dataResult(await settingsOps(deps).settings.accountMetadata()),
     ),
     'claude.routing': op(async (a, c) => {
       const snapshot = await readSection(deps, 'providers', undefined, c.signal)

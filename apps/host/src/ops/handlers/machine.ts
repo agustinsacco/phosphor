@@ -4,21 +4,19 @@ import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import { runServiceUpdate } from '../service-update'
 import { HOST_VERSION } from '../../version'
 import type { DaemonHandlerDeps } from './index'
+import { parseMachineProviders } from '@phosphor/shared/host-protocol-machine'
+import { projectId, settingsOps } from './settings-access'
+import { resourceCall } from './resources-call'
 import { laneCall } from './lane-target'
+import { laneIdOfRef } from '../lane-ref'
+import { CLAUDE_CLI_PROVIDER } from '../../machine/providers'
 
 /** Catalog op → the lane service's machine call, which reads pi's own inventory. */
 const INVENTORY = {
   'machine.models': 'machine.models',
   'machine.providers': 'machine.providers',
-  'machine.commands': 'machine.commands',
-  'machine.usage': 'machine.claudeUsage',
 } as const
 
-/**
- * The machine's own ops. `machine.doctor` refreshes the daemon's login-shell
- * environment, which new lanes then start with; a failed capture keeps the
- * last good one. `service.update` stages, pauses every lane, then applies.
- */
 export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   const inventory = Object.fromEntries(
     Object.entries(INVENTORY).map(([name, method]) => [
@@ -50,23 +48,48 @@ export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string
           : {}),
       })
     }),
-    'machine.doctor': op(async () => {
+    'machine.doctor': op(() =>
+      dataResult({
+        ...(deps.machineHealth?.() ?? { pi: 'unknown', control: 'unknown' }),
+        service: deps.pauseState?.() ?? { kind: 'none' },
+        shellEnvironment: deps.shellEnvironment?.status() ?? { status: 'not-used' },
+      }),
+    ),
+    'machine.usage': machineUsage(deps),
+    'machine.commands': op(async (args, ctx) => {
+      const laneId = ctx.lane && laneIdOfRef(ctx.lane.ref)
+      const repoId =
+        args.project === undefined
+          ? laneId
+            ? deps.store.getLane(laneId)?.repositoryId
+            : undefined
+          : projectId(deps, args.project, ctx)
+      return dataResult(
+        await resourceCall(
+          deps,
+          'machine.commands',
+          repoId ? { repositoryId: repoId } : {},
+          ctx.signal,
+        ),
+      )
+    }),
+    'machine.refreshEnvironment': op(async () => {
       const shell = deps.shellEnvironment
       if (!shell)
-        return {
-          text: 'This machine does not read a login-shell environment.',
-          data: { shellEnvironment: 'not-used' },
-        }
+        throw new OpRefusal(
+          'unsupported',
+          'Shell refresh is unavailable on this binding: it does not read a login-shell environment.',
+        )
       const refreshed = await shell.refresh()
-      return refreshed
-        ? {
-            text: 'Read the login-shell environment again. New lanes start with it.',
-            data: { shellEnvironment: 'refreshed' },
-          }
-        : {
-            text: 'Could not read the login-shell environment. Lanes keep the last one that worked.',
-            data: { shellEnvironment: 'unavailable' },
-          }
+      if (!refreshed)
+        throw new OpRefusal(
+          'unavailable',
+          'Could not refresh the login-shell environment. Lanes keep the last one that worked.',
+        )
+      return {
+        text: 'Read the login-shell environment again. New lanes start with it.',
+        data: { shellEnvironment: 'refreshed' },
+      }
     }),
     'service.pause': op<{ action: 'abort-now' | 'cancel' }>(({ action }, ctx) => {
       if (ctx.principal.kind !== 'surface')
@@ -88,4 +111,52 @@ export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string
       return runServiceUpdate(update)
     }),
   }
+}
+
+function machineUsage(deps: DaemonHandlerDeps) {
+  return op(async (_args, ctx) => {
+    const settings = settingsOps(deps).settings
+    const [accountsResult, providersResult, codexResult] = await Promise.allSettled([
+      settings.usageAccounts(ctx.signal),
+      resourceCall(deps, 'machine.providers', {}, ctx.signal),
+      settings.codexUsage?.(),
+    ])
+    const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value : []
+    const rawProviders =
+      providersResult.status === 'fulfilled'
+        ? (providersResult.value as { providers?: unknown }).providers
+        : undefined
+    const codex = codexResult.status === 'fulfilled' ? codexResult.value : undefined
+    const readiness = parseMachineProviders(rawProviders) ?? []
+    if (codex?.ok && !readiness.some((p) => p.id === 'openai-codex'))
+      readiness.push({ id: 'openai-codex', name: 'Codex', status: 'ready' })
+    const providers = readiness.map((provider) => ({
+      ...provider,
+      usage:
+        provider.id === CLAUDE_CLI_PROVIDER && accounts.length > 0
+          ? 'see Claude accounts'
+          : provider.id === 'openai-codex' && codex?.ok
+            ? codex.snapshot
+            : 'usage not available',
+    }))
+    const text = [
+      ...accounts.map(
+        (a) =>
+          `${a.label}: ${a.status === 'ok' ? a.windows.map((w) => `${w.label} ${w.percentUsed}%`).join(', ') : a.reason}`,
+      ),
+      ...providers.map(
+        (p) =>
+          `${p.name}: ${p.status} (${typeof p.usage === 'string' ? p.usage : p.usage.windows.map((w) => `${w.label} ${w.percentUsed}%`).join(', ') || 'usage available'})`,
+      ),
+      ...(accountsResult.status === 'rejected' ? ['Claude account metadata is unavailable.'] : []),
+      ...(providersResult.status === 'rejected' ? ['Provider readiness could not be read.'] : []),
+    ].join('\n')
+    if (
+      !codex?.ok &&
+      !accounts.some((a) => a.status === 'ok') &&
+      !providers.some((p) => p.id !== CLAUDE_CLI_PROVIDER && p.status !== 'unknown')
+    )
+      throw new OpRefusal('unavailable', `No provider usage could be read. ${text}`.trim())
+    return { text, data: { accounts, providers } }
+  })
 }

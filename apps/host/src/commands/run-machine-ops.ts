@@ -112,6 +112,14 @@ export async function bindRunOps(
     live,
     command: started.laneCommand,
     shellEnvironment: started.machine.shellEnvironment ?? null,
+    machineHealth: () => ({
+      pi: started.machine.pi ? 'ready' : 'unavailable',
+      control: !ops.enrolled.current
+        ? 'not-enrolled'
+        : ops.enrolled.current.authority.snapshot()
+          ? 'last-heartbeat-accepted'
+          : 'not-ready',
+    }),
     editing: {
       runtime,
       sessionsRoot: piSessionsRoot(context.env, context.home),

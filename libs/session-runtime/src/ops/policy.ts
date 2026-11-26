@@ -95,7 +95,8 @@ export function policyDecision(check: Omit<PolicyCheck, 'governed'>): PolicyDeci
   const byTier = check.policy.tiers?.[check.tier]
   const otherLane = check.scope === 'other-lane' && check.tier !== 'read'
   const otherLaneWrite = otherLane && check.laneArg === 'target'
-  const codeConnector = check.tier === 'destructive' && (check.op === 'mcp.add' || check.op === 'mcp.update')
+  const codeConnector =
+    check.tier === 'destructive' && (check.op === 'mcp.add' || check.op === 'mcp.update')
   const base = stricterDecision(
     otherLaneWrite ? 'ask' : defaultDecision(check.tier),
     byTier ?? 'allow',

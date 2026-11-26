@@ -7,6 +7,7 @@ import {
   count,
   domain,
   object,
+  path,
   ref,
   text,
   optional,
@@ -29,10 +30,20 @@ const search = object({
 })
 export const machineOps = [
   read('machine.status', 'Show machine and Phosphor service status.', 'read'),
-  read('machine.doctor', 'Check machine and Phosphor service health.', 'read'),
+  read('machine.doctor', 'Show cached machine and Phosphor service health.', 'read'),
+  machine(
+    'machine.refreshEnvironment',
+    'Refresh the login-shell environment for new lanes.',
+    'configure',
+  ),
   inventory('machine.models', 'List available models.', 'read'),
   inventory('machine.providers', 'List available providers.', 'read'),
-  inventory('machine.commands', 'List available commands.', 'read'),
+  inventory(
+    'machine.commands',
+    'List available commands.',
+    'read',
+    object({ project: optional(path) }),
+  ),
   inventory('machine.usage', 'Read provider usage.', 'read'),
   machine(
     'service.update',
