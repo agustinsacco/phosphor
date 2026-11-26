@@ -24,7 +24,7 @@ installMockPhosphor()
 const { useChatStore } = await import('@/stores/chat')
 const { composerDraftKey, useDraftsStore } = await import('@/stores/drafts')
 const { useSessionsStore } = await import('@/stores/sessions')
-const { machineLabel, useRemoteLanesStore } = await import('@/stores/remoteLanes')
+const { machineLabel, REMOTE_NOT_READY, useRemoteLanesStore } = await import('@/stores/remoteLanes')
 const { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
 const { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider, WIDE_BROWSER_PLATFORM } =
   await import('@/platform/Platform')
@@ -73,7 +73,7 @@ describe.each(SHELLS)('a lane on a starting machine on %s', (_shell, platform) =
   it.each([
     ['This Mac’s service', true],
     ['a remote Host', false],
-  ])('on %s waits with the starting copy and sends nothing', (_machine, local) => {
+  ])('on %s waits locked and sends nothing', (_machine, local) => {
     startingService(local)
     const piCommand = vi.spyOn(window.phosphor, 'piCommand')
     const invoke = vi.spyOn(window.phosphor, 'invoke')
@@ -87,11 +87,16 @@ describe.each(SHELLS)('a lane on a starting machine on %s', (_shell, platform) =
     )
     expect(el.textContent).not.toContain('Read-only')
     expect(el.textContent).not.toContain('Take control')
-    expect(el.textContent).toContain(`Starting ${machineLabel(MOCK_HOST_ID)}…`)
-    expect(el.querySelector('[role=status] .phosphor-loader')).not.toBeNull()
+    // Only This Mac's service has a boot window. An enrolled Host that grants nothing
+    // is unavailable, not starting: it would otherwise spin forever.
+    const starting = `Starting ${machineLabel(MOCK_HOST_ID)}…`
+    if (local) expect(el.textContent).toContain(starting)
+    else expect(el.textContent).toContain(REMOTE_NOT_READY)
+    if (!local) expect(el.textContent).not.toContain(starting)
+    expect(!!el.querySelector('[role=status] .phosphor-loader')).toBe(local)
     const fieldset = el.querySelector('fieldset')
     expect(fieldset?.disabled).toBe(true)
-    expect(fieldset?.getAttribute('aria-busy')).toBe('true')
+    expect(fieldset?.getAttribute('aria-busy') ?? null).toBe(local ? 'true' : null)
 
     const input = el.querySelector<HTMLTextAreaElement>('[data-composer-input]')!
     act(() => {

@@ -205,3 +205,37 @@ it('holds a pending command through a ready that grants nothing, then replays it
     t.connection.close()
   }
 })
+
+/*
+ * The booting service has no lane adapter and refuses every lane subscription, which
+ * disposes an open lane's handle. An open lane keeps its watch for the capable ready.
+ */
+it('defers lane watches through a ready that grants nothing, then resubscribes', async () => {
+  const caps = ['sessions.read', 'sessions.control']
+  const laneSubscribes = (socket: Fake) =>
+    socket.sent.filter(
+      (f): f is { type: 'subscribe'; topic: string } =>
+        f.type === 'subscribe' && (f as { topic?: string }).topic === 'lane',
+    )
+  const t = setup()
+  try {
+    await t.handshake(caps)
+    const listener = vi.fn()
+    t.connection.watchLane(hostId, listener)
+    expect(laneSubscribes(t.last())).toHaveLength(1)
+    t.last().drop(1001)
+    await vi.advanceTimersByTimeAsync(1000)
+    await t.handshake([])
+    expect(laneSubscribes(t.last())).toEqual([])
+    // A lane opened during the boot window waits too.
+    t.connection.watchLane(hostId, listener)
+    expect(laneSubscribes(t.last())).toEqual([])
+    t.last().drop(1001)
+    await vi.advanceTimersByTimeAsync(1000)
+    await t.handshake(caps)
+    expect(laneSubscribes(t.last())).toHaveLength(2)
+    expect(listener).not.toHaveBeenCalled()
+  } finally {
+    t.connection.close()
+  }
+})
