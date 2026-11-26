@@ -176,3 +176,27 @@ it.each(['empty', 'self', 'other'])(
     )
   },
 )
+
+it('sends the first prompt for a background create that never takes the screen', async () => {
+  const trying = vi.fn()
+  const created = vi.fn()
+  await startRemoteChat(
+    MOCK_HOST_ID,
+    { ...input, worktree: { branch: 'phosphor/bg', fresh: true } },
+    'Background',
+    [],
+    accepted,
+    false,
+    { nav: -1, trying, created },
+  )
+  // Only activation follows navigation; takeControl, snapshot and the send do not.
+  expect(adopt).toHaveBeenCalledWith(mockRemoteInfo, -1)
+  expect(trying).toHaveBeenCalledWith('phosphor/background')
+  expect(created).toHaveBeenCalledWith(mockRemoteInfo)
+  expect(pi).toHaveBeenCalledWith(mockRemoteInfo.sessionId, {
+    type: 'prompt',
+    message: 'Background',
+    images: [],
+  })
+  expect(accepted).toHaveBeenCalledOnce()
+})
