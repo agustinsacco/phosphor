@@ -43,7 +43,9 @@ beforeEach(() => {
     filter: MOCK_HOST_ID,
   })
 })
-afterEach(() => {
+afterEach(async () => {
+  // Settle opens a test left running: the open dedupe outlives a test.
+  await act(async () => opens.forEach((open) => open.reject(new Error('teardown'))))
   act(() => root?.unmount())
   document.body.innerHTML = ''
   vi.unstubAllGlobals()
@@ -89,4 +91,20 @@ it('a failed open shows its reason and Retry in the same view, opening again', a
   await act(async () => retry.click())
   await vi.waitFor(() => expect(opens).toHaveLength(2))
   expect(el.querySelector('[data-testid="opening-lane"]')?.getAttribute('aria-busy')).toBe('true')
+})
+
+it('a failed open whose view lost its claim still offers Retry, never a bare spinner', async () => {
+  const el = await render()
+  await vi.waitFor(() => expect(opens).toHaveLength(1))
+  await act(async () => opens[0]!.reject(new Error('down')))
+  await vi.waitFor(() => expect(el.querySelector('[role="alert"]')).not.toBeNull())
+  // Another navigation claimed and dropped the failure without opening anything.
+  act(() => useSessionsStore.getState().claimNav())
+  act(() => useSessionsStore.setState({ opening: null }))
+  const view = el.querySelector('[data-testid="opening-lane"]')
+  expect(view?.getAttribute('aria-busy')).toBe('false')
+  const retry = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+  expect(retry).toBeDefined()
+  await act(async () => retry!.click())
+  await vi.waitFor(() => expect(opens).toHaveLength(2))
 })
