@@ -859,8 +859,9 @@ never falls back to deleting.
 ## Deleting lanes
 
 One Host lane row (`features/sessions/RemoteLaneRow`) and one menu serve every
-surface: Desktop's sidebar, the browser's navigation and Lanes page, Host home and the
-machine preview. `laneActions` builds the menu as a pure list in This Mac's
+surface: Desktop's sidebar, the browser's navigation and Lanes page, and the
+machine preview. Host home shows an orbit of lanes, not rows
+([web client](web-client.md#host-home-orbit)). `laneActions` builds the menu as a pure list in This Mac's
 order and labels, from the context `hostLaneContext` maps (Open, Move up and
 Move down where the row sits in an ordered list, Rename…, Make routine…, Pin,
 Lane marker…, Open pull request when the lane has one, Take or Release control,

@@ -5,7 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { HostConnectionView } from '@shared/ipc'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
-import { HostHome } from '@/features/home/HostHome'
 import { useRemoteComposer } from '@/features/home/remoteComposer'
 import { OnThisMachine } from '@/features/machines/OnThisMachine'
 import { NavigationProvider } from '@/navigation/Navigation'
@@ -19,9 +18,10 @@ import { RemoteLanes } from './RemoteLanes'
 /*
  * Every surface that lists Host lanes renders one row with one menu and one group header.
  * The browser's list and Host home used to render a navigation-only row: no menu, no delete.
+ * Host home now shows an orbit of lanes instead of a list (`HostOrbit.test.tsx`).
  */
 
-const SURFACES = ['desktop', 'browser', 'home', 'machine'] as const
+const SURFACES = ['desktop', 'browser', 'machine'] as const
 type Surface = (typeof SURFACES)[number]
 const SECOND = '0000000000000002'
 const READER_MENU = [
@@ -63,7 +63,6 @@ function lane(): HostConnectionView['lanes'][number] {
 }
 function surface(name: Surface): React.ReactNode {
   if (name === 'desktop') return <RemoteLanes />
-  if (name === 'home') return <HostHome hostId={MOCK_HOST_ID} />
   if (name === 'machine') return <OnThisMachine hostId={MOCK_HOST_ID} />
   return <CompactLanes />
 }
@@ -146,7 +145,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-it.each(['desktop', 'browser', 'home'] as const)(
+it.each(['desktop', 'browser'] as const)(
   '%s groups known repositories in snapshot order and preserves unknown-folder lanes',
   (name) => {
     host((view) => {
@@ -277,7 +276,7 @@ it.each(['desktop', 'browser'] as const)(
   },
 )
 
-it.each(['desktop', 'browser', 'home'] as const)(
+it.each(['desktop', 'browser'] as const)(
   '%s group header has search, workspace options with lane selection, and a new lane',
   (name) => {
     render(name)

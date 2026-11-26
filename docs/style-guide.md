@@ -201,7 +201,8 @@ that launch. No CDN, font installation requirement, or preference reset.
 
 **Responsive density:** feature pages share `PageShell`/`PageBody`, including their
 heading, width (56rem maximum), gutters and scroll containment. Remote creation
-uses one `RemoteWorkspacePage` in both clients, capped at 48rem, around the same
+uses one `RemoteWorkspacePage` in both clients, its column capped at 48rem inside
+one page-wide scroller, with the Host's orbit above the same
 `StartComposer` This Mac uses.
 Browser navigation is a bottom tab bar below 900px and a 256px sidebar above
 it, the width of Desktop's default sidebar. Phone type follows the iOS Dynamic
