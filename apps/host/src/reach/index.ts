@@ -164,6 +164,7 @@ export function reachRemote(
           signal: options.signal,
           deadlineAt: options.deadlineAt,
           ...(options.target ? { target: options.target } : {}),
+        ...(options.onRemoteWrite ? { onRemoteWrite: options.onRemoteWrite } : {}),
         }),
       )
     },

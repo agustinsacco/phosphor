@@ -290,7 +290,7 @@ async function attempt(
   pool: Pool,
   target: ReachTarget,
   request: OpsRunRequest,
-  options: { readonly write: boolean; readonly signal: AbortSignal; readonly deadlineAt?: number },
+  options: ReachBudget & { readonly write: boolean; readonly signal: AbortSignal },
 ): Promise<Attempt> {
   const stopped = refused('timeout', `Stopped before reaching ${target.label}.`)
   if (options.signal.aborted) return { result: stopped }
@@ -318,6 +318,7 @@ async function attempt(
             `${target.label} did not confirm the change. Check it before you try again.`,
           )
         : refused('timeout', `${target.label} did not answer in time.`)
+      if (options.write) options.onRemoteWrite?.()
       const answer = await abortable(
         opsRun(conn, request, { write: options.write }).then((r) => {
           if (
@@ -387,7 +388,6 @@ export function createReachPool(ports: ReachPoolPorts) {
         ? { catalogOps: view.ops === true, hostVersion: view.hostVersion ?? null }
         : {}
     },
-    /** How many sibling connections are open now. */
     size: () => pool.entries.size,
     close() {
       for (const entry of [...pool.entries.values()]) drop(pool, entry)

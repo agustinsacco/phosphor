@@ -12,6 +12,7 @@ export type ReachControlStage =
 export interface ReachBudget {
   readonly signal?: AbortSignal
   readonly deadlineAt?: number
+  readonly onRemoteWrite?: () => void
 }
 
 /** Why no machine list is available at all. */

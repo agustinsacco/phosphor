@@ -250,13 +250,19 @@ async function runFromTool(
   const deadlineAt = core.now() + deadline
   let settle: (reply: OpReplyEnvelope) => void = () => undefined
   const early = new Promise<OpReplyEnvelope>((resolve) => (settle = resolve))
+  let writeDispatched = false
   const timer = setTimeout(() => {
     core.deps.log('ops', 'op timed out', { op, phase, deadlineMs: deadline })
+    const advice = writeDispatched
+      ? 'A remote change may be unconfirmed; check its host before retrying.'
+      : phase === 'queue'
+        ? 'Wait for the earlier operation to finish, then retry.'
+        : 'Check the result before retrying a change.'
     settle(
       failed(
         'timeout',
         id,
-        `Phosphor timed out during ${phase} after ${deadline / 1000} seconds. ${phase === 'queue' ? 'Wait for the earlier operation to finish, then retry.' : 'Check the result before retrying a change.'}`,
+        `Phosphor timed out during ${phase} after ${deadline / 1000} seconds. ${advice}`,
       ),
     )
     controller.abort()
@@ -265,6 +271,9 @@ async function runFromTool(
     once: true,
   })
   const extras = {
+    onRemoteWrite: () => {
+      writeDispatched = true
+    },
     ...(envelope.facts ? { facts: envelope.facts } : {}),
     ...(parsed.hosts ? { hosts: parsed.hosts } : {}),
   }

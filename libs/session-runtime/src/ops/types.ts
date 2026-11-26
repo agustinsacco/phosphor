@@ -17,7 +17,7 @@ import type {
 } from '@phosphor/shared/ops'
 import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import type { OpsChangedEvent } from '@phosphor/shared/ipc'
-import type { ReachMachine } from './reach'
+import type { ReachBudget, ReachMachine } from './reach'
 import type { AuditLog } from './audit'
 import type { RuntimeLog } from '../file-log'
 
@@ -143,7 +143,7 @@ export interface BrainOpsPort {
 }
 
 /** One caller budget shared by directory resolution and every queued host. */
-export interface OpDeadline {
+export interface OpDeadline extends ReachBudget {
   readonly deadlineAt: number
   readonly signal: AbortSignal
   readonly now: () => number
