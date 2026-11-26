@@ -91,3 +91,53 @@ it('shows skeletons, not "not connected", while the first Host snapshot loads', 
     useRemoteLanesStore.setState({ hosts: {}, snapshotStatus: 'idle' })
   }
 })
+
+/* A placeholder left on a Host stays reachable from the list while that Host is down. */
+it("keeps a Host's placeholder rows listed while the Host is unreadable", async () => {
+  const { useLaneCreatesStore } = await import('@/stores/laneCreates')
+  const host = mockRemoteHosts[MOCK_HOST_ID]!
+  useMachinesStore.setState({
+    machines: [{ ...MACHINE, id: MOCK_HOST_ID }],
+    loading: false,
+    error: null,
+  })
+  useRemoteLanesStore.setState({
+    hosts: { [MOCK_HOST_ID]: { ...host, state: 'down' } },
+    snapshotStatus: 'ready',
+  })
+  useLaneCreatesStore.setState({
+    creates: {
+      c1: {
+        id: 'c1',
+        hostId: MOCK_HOST_ID,
+        repositoryId: host.repositories[0]!.id,
+        draftKey: 'home:x',
+        title: 'Left behind',
+        text: 'Left behind',
+        attachments: [],
+        swarm: false,
+        branches: [],
+        seen: [],
+        failure: 'Could not start.',
+      },
+    },
+  })
+  const element = document.createElement('div')
+  const root = createRoot(element)
+  try {
+    await act(async () =>
+      root.render(
+        <NavigationProvider value={{ location: { to: 'lanes' }, navigate: vi.fn() }}>
+          <CompactLanes />
+        </NavigationProvider>,
+      ),
+    )
+    expect(element.querySelector('[data-testid="lane-create-row"]')?.textContent).toContain(
+      'Left behind',
+    )
+  } finally {
+    await act(async () => root.unmount())
+    useLaneCreatesStore.setState({ creates: {} })
+    useRemoteLanesStore.setState({ hosts: {}, snapshotStatus: 'idle' })
+  }
+})

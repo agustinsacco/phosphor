@@ -15,6 +15,7 @@ import { refreshHostsSnapshot } from './hostsSnapshotRead'
 import {
   clearLaneCreates,
   dismissLaneCreate,
+  laneCreate as laneCreateRecord,
   editLaneCreate,
   pendingLaneCreates,
   reconcileLaneCreate,
@@ -106,6 +107,7 @@ function addSnapshotLane(laneId: string | string[], branch: string | null): void
     laneId: id,
     repositoryId: REPO,
     branch,
+    worktree: branch !== null,
   }))
   host.lanes = [...host.lanes, ...added]
   useRemoteLanesStore.setState({
@@ -390,4 +392,62 @@ it('drops every create on sign-out and on an owner reset', async () => {
   clearLaneCreates()
   expect(creates()).toHaveLength(0)
   expect(shownCreate()).toBeUndefined()
+})
+
+it('hides the placeholder row once the Host lists its requested branch, before createLane returns', () => {
+  submit('Listed early')
+  runs[0]!.hooks.trying?.('phosphor/listed-early')
+  addSnapshotLane('lane-early', 'phosphor/listed-early')
+  expect(
+    pendingLaneCreates(useLaneCreatesStore.getState().creates, MOCK_HOST_ID, REPO),
+  ).toHaveLength(0)
+  // The view stays until the lane is adopted.
+  expect(shownCreate()).toBe(creates()[0]!.id)
+})
+
+it('a no-worktree create never takes a worktree lane', async () => {
+  submit('In place', false)
+  runs[0]!.reject(new Error('timeout'))
+  await vi.waitFor(() => expect(creates()[0]?.checking).toBe(true))
+  addSnapshotLane('lane-wt', 'phosphor/someone-else')
+  expect(creates()).toHaveLength(1)
+  addSnapshotLane('lane-in-place', null)
+  await vi.waitFor(() => expect(creates()).toHaveLength(0))
+})
+
+it('a retired unbranched create no longer blocks a later one from recovering its lane', async () => {
+  vi.useFakeTimers()
+  try {
+    submit('Made nothing', false)
+    const first = creates()[0]!.id
+    runs[0]!.reject(new Error('timeout'))
+    await vi.advanceTimersByTimeAsync(181_000)
+    editLaneCreate(first)
+    expect(laneCreateRecord(first)).toMatchObject({ retired: true, text: '', attachments: [] })
+    useDraftsStore.getState().clear(key)
+    submit('Made one', false)
+    runs[1]!.reject(new Error('timeout'))
+    await vi.advanceTimersByTimeAsync(0)
+    addSnapshotLane('lane-second', null)
+    const laneDraft = hostResourceKey(
+      { kind: 'remote', hostId: MOCK_HOST_ID },
+      'session',
+      'lane-second',
+    )
+    expect(useDraftsStore.getState().drafts[laneDraft]?.text).toBe('Made one')
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('a lane recovered by the check says its first message was not sent', async () => {
+  submit('Recovered')
+  runs[0]!.hooks.trying?.('phosphor/recovered')
+  runs[0]!.reject(new Error('timeout'))
+  await vi.waitFor(() => expect(creates()[0]?.checking).toBe(true))
+  addSnapshotLane('lane-rec', 'phosphor/recovered')
+  await vi.waitFor(() => expect(creates()).toHaveLength(0))
+  expect(useExtensionUiStore.getState().toasts.map((t) => t.message)).toContain(
+    "Lane created. Your first message wasn't sent; it's in the composer.",
+  )
 })
