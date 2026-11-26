@@ -14,7 +14,11 @@ import { resumeServiceLane } from './resumeServiceLane'
 
 const HOST = 'machine-1'
 const view = (state: string, laneIds: string[]) =>
-  ({ state, lanes: laneIds.map((laneId) => ({ laneId })) }) as unknown as HostConnectionView
+  ({
+    state,
+    capabilities: [],
+    lanes: laneIds.map((laneId) => ({ laneId })),
+  }) as unknown as HostConnectionView
 
 beforeEach(() => {
   vi.useFakeTimers()
