@@ -29,7 +29,8 @@ const create: LaneCreate = {
   attachments: [],
   swarm: false,
   branches: [],
-  seen: [],
+  // The folder's lanes at Enter: none of them is this create's.
+  seen: mockRemoteHosts[MOCK_HOST_ID]!.lanes.map((l) => l.laneId),
 }
 
 beforeEach(() => {

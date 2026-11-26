@@ -46,11 +46,18 @@ function isLaneLocation(location: Location, lane: HostLaneKey): boolean {
   )
 }
 
-/** Leaving a placeholder's URL for a lane replaces it: Back never lands on a dead one. */
+/** A placeholder's URL that its own lane, or any lane once it is gone, replaces. */
+function deadPlaceholder(current: Location, lane: HostLaneKey): boolean {
+  if (current.to !== 'new' || !current.create) return false
+  const create = laneCreate(current.create)
+  return !create || (create.hostId === lane.hostId && create.laneId === lane.laneId)
+}
+
+/** Leaving a finished placeholder's URL for a lane replaces it: Back never lands on a dead one. */
 function showLaneIn(history: HistoryNavigation, lane: HostLaneKey): void {
   const current = history.getSnapshot()
   if (!isLaneLocation(current, lane))
-    history.navigate({ to: 'lane', lane, pane: 'chat' }, !!(current.to === 'new' && current.create))
+    history.navigate({ to: 'lane', lane, pane: 'chat' }, deadPlaceholder(current, lane))
 }
 
 export function useBrowserNavigation() {

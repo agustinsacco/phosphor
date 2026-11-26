@@ -171,7 +171,15 @@ const mayBeFrom = (create: LaneCreate, lane: HostLaneView): boolean =>
 /** The lane an uncertain create made, only when nothing else can explain it. */
 function foundLane(create: LaneCreate): string | undefined {
   const found = unclaimedLanes(create).filter((l) => mayBeFrom(create, l))
-  // In place: only the one create still running or checking here could have made it.
+  if (found.length !== 1 || (!create.branches.length && !aloneInPlace(create))) return
+  return found[0]!.laneId
+}
+
+/**
+ * In place: only when no other create here may have made a lane. One past its
+ * window may still have; one the user took back with Edit and retry has not.
+ */
+function aloneInPlace(create: LaneCreate): boolean {
   const unresolved = Object.values(useLaneCreatesStore.getState().creates).filter(
     (c) =>
       c.hostId === create.hostId &&
@@ -179,12 +187,9 @@ function foundLane(create: LaneCreate): string | undefined {
       !c.branches.length &&
       !c.laneId &&
       !c.retired &&
-      !c.failure,
+      (!c.failure || c.unknown),
   )
-  // An in-place create past its window (retired too) no longer claims an in-place lane.
-  const alone = unresolved.length === 1 && unresolved[0]!.id === create.id
-  if (found.length !== 1 || (!create.branches.length && !alone)) return
-  return found[0]!.laneId
+  return unresolved.length === 1 && unresolved[0]!.id === create.id
 }
 
 /**
@@ -226,7 +231,7 @@ export function editLaneCreate(id: string): void {
   if (!create.unknown) dropLaneCreate(id)
   else {
     // Only what matching needs stays: the text and files are back in the composer.
-    patchLaneCreate(id, { retired: true, text: '', attachments: [] })
+    patchLaneCreate(id, { retired: true, title: '', text: '', attachments: [] })
     leaveLaneCreate(id)
   }
 }
@@ -276,8 +281,17 @@ export function pendingLaneCreates(
         !c.retired &&
         (repositoryId === undefined || c.repositoryId === repositoryId) &&
         !(c.laneId && lanes.some((l) => l.laneId === c.laneId)) &&
-        // The Host lists a lane while `hosts:createLane` is still opening it.
-        !(c.branches.length && lanes.some((l) => isRequestedLane(c, l))),
+        !listedEarly(c, lanes),
     )
     .reverse()
+}
+
+/**
+ * The Host lists a lane while `hosts:createLane` is still opening it. A failed
+ * create keeps its row: the lane on its branch is another create's.
+ */
+function listedEarly(create: LaneCreate, lanes: readonly HostLaneView[]): boolean {
+  if (create.failure || create.laneId) return false
+  const listed = lanes.filter((l) => isRequestedLane(create, l))
+  return create.branches.length ? listed.length > 0 : listed.length === 1 && aloneInPlace(create)
 }

@@ -100,7 +100,7 @@ function MachineLaneList({
       ) : !readable ? (
         <>
           {/* Placeholders left here stay reachable, as Desktop's This Mac fallback keeps them. */}
-          <LaneCreateRows hostId={machine.id} />
+          <LaneCreateRows hostId={machine.id} unlisted />
           {!hostReconnecting(host?.state) && (
             <p role="status">
               {host?.state === 'ready'

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import type { HostLaneView } from '@shared/ipc'
 import { useNavigation } from '@/navigation/Navigation'
 import { pendingLaneCreates, useLaneCreatesStore } from '@/stores/laneCreates'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -11,17 +12,23 @@ import { LaneRow, SessionIndicator, SubtitleSegments } from './SidebarPrimitives
  * Starting, or why it failed. Each gives way to its lane's row once the Host
  * lists it.
  */
+const NO_LANES: readonly HostLaneView[] = []
+
 export function LaneCreateRows({
   hostId,
   repositoryId,
+  unlisted,
 }: {
   hostId: string
   /** Absent: the Host's, in every folder (its lanes are not listed while it is down). */
   repositoryId?: string
+  /** Down: its cached lanes are not shown, so none of them stands in for a placeholder. */
+  unlisted?: boolean
 }): React.JSX.Element | null {
   const { navigate } = useNavigation()
   const creates = useLaneCreatesStore((s) => s.creates)
-  const lanes = useRemoteLanesStore((s) => s.hosts[hostId]?.lanes)
+  const cached = useRemoteLanesStore((s) => s.hosts[hostId]?.lanes)
+  const lanes = unlisted ? NO_LANES : cached
   const shown = useSessionsStore((s) => s.opening?.create)
   const pending = useMemo(
     () => pendingLaneCreates(creates, hostId, repositoryId, lanes),

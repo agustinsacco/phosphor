@@ -38,7 +38,7 @@ export function RemoteHostLanes({
   if (local && !ready)
     return (
       <>
-        <LaneCreateRows hostId={hostId} />
+        <LaneCreateRows hostId={hostId} unlisted />
         <p role="status">{REMOTE_NOT_READY}</p>
       </>
     )
