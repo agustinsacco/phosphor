@@ -119,6 +119,10 @@ export function observePause(
   return run
 }
 
+function restartDeadlinePassed(run: UpdateRun, now: number): boolean {
+  return run.restartAt !== undefined && now - run.restartAt >= 4 * 60_000
+}
+
 function returned(
   run: UpdateRun,
   entry: MachineUpdateEntry,
@@ -140,6 +144,8 @@ function returned(
   // A live transport can reconnect to the same daemon; only a new runtime epoch implies restart.
   if (run.wentOffline && run.epoch && host.cursor?.epoch && host.cursor.epoch !== run.epoch)
     return { ...reach(run, 'health', now), finish: 'rolled-back', settled: undefined }
+  if (!run.wentOffline && version && version === run.from && restartDeadlinePassed(run, now))
+    return { ...run, finish: 'apply' }
   return run
 }
 
@@ -168,8 +174,7 @@ export function tickRun(run: UpdateRun, now: number): UpdateRun {
       run.taskExit.code !== 0
     )
       return nextRun({ ...run, finish: 'download' }, now)
-    if (run.restartAt !== undefined && now - run.restartAt >= 4 * 60_000)
-      return nextRun({ ...run, finish: 'not-back' }, now)
+    if (restartDeadlinePassed(run, now)) return nextRun({ ...run, finish: 'not-back' }, now)
     if (run.reached === 'paused' && now - run.shownAt >= 5 * 60_000)
       return nextRun({ ...run, finish: 'apply' }, now)
     if (run.reached === 'downloading' && now - run.started >= 15 * 60_000)

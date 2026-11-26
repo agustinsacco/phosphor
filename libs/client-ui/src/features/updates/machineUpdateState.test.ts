@@ -56,9 +56,11 @@ it('holds each reached step for 600ms and ignores reconnect flaps to the same pr
 it('soft-times out and recovers on a new runtime running the original version', () => {
   const started = startRun('task', {}, host, 0)
   const offline = observeConnection(started, {}, undefined, 1)
-  expect(tickRun(offline, 240001)).toMatchObject({ finish: 'not-back', settled: true })
+  const timedOut = tickRun(offline, 240001)
+  expect(timedOut).toMatchObject({ finish: 'not-back', settled: true })
+  expect(observeConnection(timedOut, {}, host, 250000)).toBe(timedOut)
   const back = observeConnection(
-    tickRun(offline, 240001),
+    timedOut,
     {},
     { ...host, cursor: { epoch: 'next', seq: 0 } },
     250000,
