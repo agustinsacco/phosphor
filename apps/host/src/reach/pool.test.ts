@@ -152,7 +152,11 @@ describe('reach pool', () => {
     const { pool, clock } = setup([bee2])
     const controller = new AbortController()
     try {
-      const result = pool.run(bee2, write, { write: true, signal: controller.signal, deadlineAt: clock.now + 1000 })
+      const result = pool.run(bee2, write, {
+        write: true,
+        signal: controller.signal,
+        deadlineAt: clock.now + 1000,
+      })
       await vi.waitFor(() => expect(answer.waiting).toHaveLength(1))
       controller.abort()
       answer.waiting[0]!(LANE_LIST_OK)
@@ -280,7 +284,7 @@ describe('reach pool', () => {
     ['reach-off', 'forbidden', 'Machine reach is off for bee2 or for this machine.'],
     ['unavailable', 'offline', 'bee2 is offline, has no tailnet address'],
     ['signed-out', 'forbidden', 'This machine is not enrolled'],
-    ['too-many-requests', 'denied', 'Too many machine grants this minute.'],
+    ['rate-limited', 'denied', 'rate-limited the request'],
   ] as const)('reads a %s grant refusal as %s', async (reason, code, text) => {
     const bee2 = sibling('bee2')
     const pool = createReachPool({

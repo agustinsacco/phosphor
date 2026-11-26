@@ -422,6 +422,25 @@ describe('Host API constants and op lists', () => {
     ])
   })
 
+  it('preserves an all-denied v1 batch alongside the original denial fields', () => {
+    const data = {
+      summary: { total: 1, ok: 0, failed: 1 },
+      hosts: [
+        {
+          hostId: 'bee2-id',
+          label: 'bee2',
+          status: 'denied',
+          code: 'unsupported',
+          text: 'Update Host.',
+        },
+      ],
+    }
+    const denial = { status: 'denied', code: 'unsupported', text: '== bee2 (denied)\nUpdate Host.' }
+    expect(parseOpsRunResult(denial)).toStrictEqual(denial)
+    expect(parseOpsRunResult({ ...denial, data })).toStrictEqual({ ...denial, data })
+    expect(parseOpsRunResult({ ...denial, data: 'x'.repeat(OPS_LIMITS.callDataBytes) })).toBeNull()
+  })
+
   it('keeps the agent-op envelope, ready flags and owner methods exactly, in order', () => {
     expect(OPS_RUN).toBe('ops.run')
     const reply = { status: 'ok', text: 'rows', applies: 'now' }

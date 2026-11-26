@@ -75,7 +75,15 @@ function toolRequest(deps: OpsDispatcherDeps, envelope: OpRequestEnvelope): Tool
 
 function toReply(id: string, outcome: OpOutcome, now: number): OpReplyEnvelope {
   const r = outcome.result
-  if (r.status === 'denied') return { v: 1, id, status: 'denied', code: r.code, text: r.text }
+  if (r.status === 'denied')
+    return {
+      v: 1,
+      id,
+      status: 'denied',
+      code: r.code,
+      text: r.text,
+      ...(r.data !== undefined ? { data: r.data } : {}),
+    }
   if (r.status === 'confirm')
     return {
       v: 1,
@@ -150,7 +158,8 @@ function execute(
   principal: OpPrincipal,
   request: OpsRunRequest,
   signal: AbortSignal,
-  extras: Omit<OpRunExtras, 'signal'> = {},
+  deadlineAt: number,
+  extras: Omit<OpRunExtras, 'signal' | 'deadlineAt' | 'now'> = {},
   onStart?: () => void,
 ): Promise<OpOutcome | null> {
   // Undo awaits its inverse, which runs on this same principal’s ordinary control queue.
@@ -161,7 +170,12 @@ function execute(
     if (signal.aborted) return null
     onStart?.()
     try {
-      return await core.pipeline.execute(principal, request, { ...extras, signal })
+      return await core.pipeline.execute(principal, request, {
+        ...extras,
+        signal,
+        deadlineAt,
+        now: core.now,
+      })
     } catch {
       core.deps.log('ops', 'op failed', { op: request.op, phase: 'dispatch' })
       return {
@@ -180,12 +194,18 @@ async function runOp(
   principal: OpPrincipal,
   request: OpsRunRequest,
   hosts?: OpRunExtras['hosts'],
+  deadlineMs = 30_000,
 ): Promise<OpsRunResult> {
   const { controller, release } = track(core, principal)
+  const deadlineAt = core.now() + deadlineMs
+  const timer = setTimeout(() => controller.abort(), deadlineMs)
   try {
-    const outcome = await execute(core, principal, request, controller.signal, { hosts })
+    const outcome = await execute(core, principal, request, controller.signal, deadlineAt, {
+      hosts,
+    })
     return outcome?.result ?? { status: 'denied', code: 'unavailable', text: STOPPED }
   } finally {
+    clearTimeout(timer)
     release()
   }
 }
@@ -227,6 +247,7 @@ async function runFromTool(
   const deadline = toolDeadline(core, parsed.request, envelope.deadlineMs)
   let phase = 'queue'
   const { controller, release } = track(core, principal)
+  const deadlineAt = core.now() + deadline
   let settle: (reply: OpReplyEnvelope) => void = () => undefined
   const early = new Promise<OpReplyEnvelope>((resolve) => (settle = resolve))
   const timer = setTimeout(() => {
@@ -247,11 +268,17 @@ async function runFromTool(
     ...(envelope.facts ? { facts: envelope.facts } : {}),
     ...(parsed.hosts ? { hosts: parsed.hosts } : {}),
   }
-  const work = execute(core, principal, parsed.request, controller.signal, extras, () => {
-    phase = 'execution'
-  }).then((outcome) =>
-    outcome ? toReply(id, outcome, core.now()) : failed('aborted', id, STOPPED),
-  )
+  const work = execute(
+    core,
+    principal,
+    parsed.request,
+    controller.signal,
+    deadlineAt,
+    extras,
+    () => {
+      phase = 'execution'
+    },
+  ).then((outcome) => (outcome ? toReply(id, outcome, core.now()) : failed('aborted', id, STOPPED)))
   try {
     const reply = await Promise.race([work, early])
     return isOpName(op) ? { ...reply, op } : reply
@@ -279,7 +306,7 @@ export function createOpsDispatcher(binding: OpsBinding, deps: OpsDispatcherDeps
     async runFromCli(principal, envelope) {
       const parsed = toolRequest(deps, envelope)
       if ('error' in parsed) return { status: 'denied', code: 'bad-request', text: parsed.error }
-      return runOp(core, principal, parsed.request, parsed.hosts)
+      return runOp(core, principal, parsed.request, parsed.hosts, envelope.deadlineMs)
     },
     runFromTool: (sessionId, envelope) => runFromTool(core, sessionId, envelope),
     surfaceAnswered: (sessionId, response, origin) =>

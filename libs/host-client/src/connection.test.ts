@@ -220,7 +220,6 @@ it.each([
   }
 })
 
-
 it('keeps the connection open when renewal fails before grant expiry', async () => {
   vi.useFakeTimers()
   const t = await setup()
@@ -229,7 +228,10 @@ it('keeps the connection open when renewal fails before grant expiry', async () 
     await Promise.resolve()
     t.grant.mockRejectedValue(new Error('offline'))
     for (let elapsed = 0; elapsed < (300 - HOST_LIMITS.renewBeforeSec) * 1000;) {
-      const step = Math.min(HOST_LIMITS.pingIntervalMs, (300 - HOST_LIMITS.renewBeforeSec) * 1000 - elapsed)
+      const step = Math.min(
+        HOST_LIMITS.pingIntervalMs,
+        (300 - HOST_LIMITS.renewBeforeSec) * 1000 - elapsed,
+      )
       await vi.advanceTimersByTimeAsync(step)
       t.message(JSON.stringify({ type: 'pong', at: Date.now() }))
       elapsed += step

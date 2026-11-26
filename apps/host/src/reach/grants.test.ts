@@ -80,7 +80,9 @@ describe('reach grants', () => {
     const { grants, calls } = setup(() => answer)
     await expect(grants.grantFor(bee2.id)).rejects.toEqual(new ReachGrantRefused(reason))
     await expect(grants.grantFor(bee2.id)).rejects.toBeInstanceOf(ReachGrantRefused)
-    expect(calls).toHaveLength(reason === 'control-unreachable' ? 4 : reason === 'rate-limited' ? 1 : 2)
+    expect(calls).toHaveLength(
+      reason === 'control-unreachable' ? 4 : reason === 'rate-limited' ? 1 : 2,
+    )
   })
 
   it('refuses a grant for another machine than the one asked for', async () => {

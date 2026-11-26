@@ -129,6 +129,7 @@ export type OpReplyEnvelope = { readonly op?: string } & (
       readonly status: 'denied' | 'error'
       readonly code: OpsDenyCode | 'timeout' | 'aborted'
       readonly text: string
+      readonly data?: unknown
     }
   /** Nothing listens on the channel. */
   | {

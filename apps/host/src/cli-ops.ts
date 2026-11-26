@@ -95,6 +95,14 @@ async function afterApproval(
   }
 }
 
+function exitFor(result: OpsRunResult): number {
+  if (result.status === 'confirm') return 1
+  const batch = result.data as { summary?: { failed?: number }; hosts?: unknown } | null | undefined
+  if (Array.isArray(batch?.hosts) && typeof batch.summary?.failed === 'number')
+    return result.status === 'ok' && batch.summary.failed === 0 ? EXIT.ok : 1
+  return result.status === 'ok' ? EXIT.ok : result.code === 'confirm-expired' ? EXIT.tempfail : 1
+}
+
 /** Catalog args execute on the installed owner; this binary only routes help and command names. */
 export async function runCliOps(
   argv: readonly string[],
@@ -126,5 +134,5 @@ export async function runCliOps(
   if (json) io.stdout(`${JSON.stringify(result)}\n`)
   else if (result.status === 'ok') io.stdout(`${result.text}\n`)
   else io.stderr(`${result.text}\n`)
-  return result.status === 'ok' ? EXIT.ok : result.code === 'confirm-expired' ? EXIT.tempfail : 1
+  return exitFor(result)
 }

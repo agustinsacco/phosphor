@@ -157,7 +157,11 @@ export async function resubmitBatch(
   confirm: OpsConfirmRef,
   send: (host: RoutedHost, request: OpsRunRequest) => Promise<OpsRunResult>,
   forward: (batch?: OpsBatchRef) => OpsRunRequest,
-): Promise<{ hosts: readonly RoutedHost[]; results: readonly OpsRunResult[] } | null> {
+): Promise<{
+  hosts: readonly RoutedHost[]
+  results: readonly OpsRunResult[]
+  batch: boolean
+} | null> {
   const batch = batches.take(confirm.confirmId, j.key)
   if (!batch) return null
   const { targets, batchId } = batch
@@ -166,5 +170,5 @@ export async function resubmitBatch(
     const ref = batchId !== undefined ? { id: batchId, index, size: targets.length } : undefined
     return unapproved(t.host, await send(t.host, { ...forward(ref), confirm: t.confirm }))
   })
-  return { hosts: targets.map((t) => t.host), results }
+  return { hosts: targets.map((t) => t.host), results, batch: batchId !== undefined }
 }

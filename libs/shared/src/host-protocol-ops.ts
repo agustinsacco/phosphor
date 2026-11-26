@@ -126,7 +126,12 @@ export type OpsRunResult =
       /** Epoch milliseconds. */
       readonly expiresAt: number
     }
-  | { readonly status: 'denied'; readonly code: OpsDenyCode; readonly text: string }
+  | {
+      readonly status: 'denied'
+      readonly code: OpsDenyCode
+      readonly text: string
+      readonly data?: unknown
+    }
 
 /** `data` of an op that may outlast the Host's answer deadline: poll `job.status`. */
 export interface OpsJobData {
@@ -291,8 +296,15 @@ export function parseOpsRunResult(v: unknown): OpsRunResult | null {
   if (v.status === 'ok') return okResult(v)
   if (v.status === 'confirm') return confirmResult(v)
   if (v.status === 'denied')
-    return member(v.code, OPS_DENY_CODES) && text(v.text, HOST_LIMITS.messageChars)
-      ? { status: 'denied', code: v.code, text: v.text }
+    return member(v.code, OPS_DENY_CODES) &&
+      text(v.text, HOST_LIMITS.messageChars) &&
+      (v.data === undefined || jsonBytes(v.data) <= OPS_LIMITS.callDataBytes)
+      ? {
+          status: 'denied',
+          code: v.code,
+          text: v.text,
+          ...(v.data !== undefined ? { data: v.data } : {}),
+        }
       : null
   return null
 }

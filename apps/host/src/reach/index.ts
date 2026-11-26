@@ -15,7 +15,8 @@ import type {
   ReachUnavailable,
 } from '@phosphor/session-runtime/ops/reach'
 import type { OpsBinding } from '@phosphor/session-runtime/ops/types'
-import { createReachDirectory, type ReachControlPorts } from './directory'
+import { createReachDirectory } from './directory'
+import { CONTROL_STAGE_TEXT, type ReachControlPorts } from './control'
 import { createReachGrants } from './grants'
 import { createReachPool, type ReachPoolLimits } from './pool'
 
@@ -48,10 +49,10 @@ export const DIRECTORY_REFUSALS: Readonly<Record<ReachUnavailable, Failure>> = {
     'unsupported',
     "Other machines are unavailable: Phosphor's control service does not offer machine reach yet.",
   ),
-  offline: refused(
-    'offline',
-    "Other machines are unavailable: Phosphor's control service cannot be reached.",
-  ),
+  'control-unreachable': refused('offline', CONTROL_STAGE_TEXT['control-unreachable']),
+  'control-timeout': refused('timeout', CONTROL_STAGE_TEXT['control-timeout']),
+  'rate-limited': refused('denied', CONTROL_STAGE_TEXT['rate-limited']),
+  'bad-response': refused('offline', CONTROL_STAGE_TEXT['bad-response']),
   'reach-off': refused(
     'forbidden',
     'Machine reach is off on this machine. Turn it on under Machines.',
@@ -68,8 +69,13 @@ function notReady(machine: ReachMachine): Failure {
       'forbidden',
       `Machine reach is off on ${machine.label}. Turn it on under Machines.`,
     )
-  if (machine.why === 'update-host')
-    return refused('unsupported', `Update that Host: ${machine.label}.`)
+  if (machine.why === 'not-enrolled')
+    return refused(
+      'unsupported',
+      `${machine.label} is not enrolled for reach. Update that Host and enable machine reach.`,
+    )
+  if (machine.why === 'stale-heartbeat')
+    return refused('offline', `${machine.label} has a stale heartbeat. Check that Host is running.`)
   return refused('offline', `${machine.label} is offline.`)
 }
 
@@ -87,12 +93,22 @@ export function createMachineReach(ports: MachineReachPorts): Reach {
     limits: ports.limits,
   })
   return {
-    directory: (options) => directory.read(options),
+    async directory(options) {
+      const listing = await directory.read(options)
+      if (!listing.available) return listing
+      return {
+        ...listing,
+        machines: listing.machines.map((m) => ({ ...m, ...pool.capabilities(m.id) })),
+      }
+    },
     async run(hostId, request, options) {
-      const listing = await directory.read()
-      if (!listing.available) return DIRECTORY_REFUSALS[listing.reason]
-      if (hostId === listing.self.id) return refused('bad-request', 'That is this machine.')
-      const machine = listing.machines.find((entry) => entry.id === hostId)
+      let machine = options.target?.id === hostId ? options.target : undefined
+      if (!machine) {
+        const listing = await directory.read(options)
+        if (!listing.available) return DIRECTORY_REFUSALS[listing.reason]
+        if (hostId === listing.self.id) return refused('bad-request', 'That is this machine.')
+        machine = listing.machines.find((entry) => entry.id === hostId)
+      }
       if (!machine) return refused('bad-request', 'No machine on your account has that id.')
       if (!machine.ready) return notReady(machine)
       return pool.run(machine, request, options)
@@ -136,13 +152,20 @@ export function reachRemote(
   catalog: readonly CatalogSpec[] = OP_CATALOG,
 ): NonNullable<OpsBinding['remote']> {
   return {
-    async run(hostId, request) {
+    async run(hostId, request, options) {
       const spec = catalog.find((entry) => entry.name === request.op)
       if (!spec)
         return { status: 'denied', code: 'bad-request', text: `Unknown operation: ${request.op}.` }
       const tier =
         typeof spec.tier === 'function' ? spec.tier(request.args, { self: false }) : spec.tier
-      return reachOpsResult(await reach.run(hostId, request, { write: tier !== 'read' }))
+      return reachOpsResult(
+        await reach.run(hostId, request, {
+          write: tier !== 'read',
+          signal: options.signal,
+          deadlineAt: options.deadlineAt,
+          ...(options.target ? { target: options.target } : {}),
+        }),
+      )
     },
   }
 }

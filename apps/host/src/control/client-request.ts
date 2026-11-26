@@ -3,7 +3,7 @@ import { CONTROL_TRACE_HEADERS, type Parsed } from '@phosphor/shared/control-api
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { signRequest, type SigningIdentity } from './signer'
 import { HOST_VERSION } from '../version'
-import { ControlFailure, parseResponse } from './client-response'
+import { ControlFailure, ControlRequestFailure, parseResponse } from './client-response'
 
 export interface ClientPorts {
   fetch?: typeof fetch
@@ -30,6 +30,7 @@ export interface RequestArgs<T> {
   readonly empty?: boolean
   readonly signal?: AbortSignal
   readonly seq?: number
+  readonly deadlineAt?: number
 }
 
 function sendRequest<T>(state: ClientState, args: RequestArgs<T>, signal: AbortSignal) {
@@ -57,15 +58,40 @@ function sendRequest<T>(state: ClientState, args: RequestArgs<T>, signal: AbortS
   })
 }
 
-function failureCode(error: unknown): string {
-  return error instanceof ControlFailure
-    ? error.code
-    : error instanceof TypeError
-      ? 'TypeError'
-      : error instanceof DOMException &&
-          (error.name === 'AbortError' || error.name === 'TimeoutError')
-        ? error.name
-        : 'Error'
+type Transport = NonNullable<ControlRequestFailure['transport']>
+
+function transportCause(error: unknown): Transport {
+  if (error instanceof TypeError) return 'TypeError'
+  if (
+    error instanceof DOMException &&
+    (error.name === 'AbortError' || error.name === 'TimeoutError')
+  )
+    return error.name
+  return 'Error'
+}
+
+function retryAfter(value: string | null, now: number): number | undefined {
+  if (!value) return undefined
+  const ms = /^\d+$/.test(value) ? Number(value) * 1000 : Date.parse(value) - now
+  return Number.isFinite(ms) ? Math.max(1, ms) : undefined
+}
+
+function classify(error: unknown, status: number, timedOut: boolean, after?: number) {
+  if (!(error instanceof ControlFailure)) {
+    const cause = transportCause(error)
+    const stage = timedOut || cause === 'TimeoutError' ? 'control-timeout' : 'control-unreachable'
+    return new ControlRequestFailure('offline', stage, cause)
+  }
+  if (status === 429)
+    return new ControlRequestFailure('too-many-requests', 'rate-limited', 'http', after)
+  if (status >= 500) return new ControlRequestFailure(error.code, 'control-unreachable', 'http')
+  if (
+    (status >= 200 && status < 300) ||
+    error.code === 'internal' ||
+    error.code === 'payload-too-large'
+  )
+    return new ControlRequestFailure(error.code, 'bad-response', 'http')
+  return error
 }
 
 export async function executeRequest<T>(state: ClientState, args: RequestArgs<T>): Promise<T> {
@@ -73,23 +99,28 @@ export async function executeRequest<T>(state: ClientState, args: RequestArgs<T>
   const { method, path, parse, empty = false, signal = ports.signal, seq } = args
   const start = (ports.now ?? Date.now)()
   let status = 0
+  let after: number | undefined
   let requestId: string | null = null
   let code: string | null = null
   const controller = new AbortController()
   const abort = () => controller.abort()
-  const timer = setTimeout(abort, 10_000)
+  const ms = Math.min(10_000, Math.max(0, (args.deadlineAt ?? Infinity) - start))
+  const timer = setTimeout(abort, ms)
   signal?.addEventListener('abort', abort, { once: true })
-  if (signal?.aborted) abort()
+  if (signal?.aborted || ms === 0) abort()
   try {
+    controller.signal.throwIfAborted()
     const response = await sendRequest(state, args, controller.signal)
     status = response.status
+    if (status === 429) after = retryAfter(response.headers.get('retry-after'), start)
     const id = response.headers.get('x-request-id')
     requestId = id && /^[0-9a-f]{32}$/.test(id) ? id : null
-    return await parseResponse(response, parse, empty)
+    const value = await parseResponse(response, parse, empty)
+    controller.signal.throwIfAborted()
+    return value
   } catch (error) {
-    code = failureCode(error)
-    if (error instanceof ControlFailure) throw error
-    throw new ControlFailure('offline')
+    code = error instanceof ControlFailure ? error.code : transportCause(error)
+    throw classify(error, status, controller.signal.aborted, after)
   } finally {
     ports.log?.('control', 'call', {
       method,

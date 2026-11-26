@@ -128,10 +128,12 @@ describe('reach directory', () => {
     const clock = { now: Date.now() }
     let count = 0
     const directory = createReachDirectory({
-      control: reachControl, now: () => clock.now,
-      fetch: async () => ++count === 1
-        ? Response.json({}, { status: 429, headers: { 'Retry-After': '2' } })
-        : Response.json((listing([]) as { body: unknown }).body),
+      control: reachControl,
+      now: () => clock.now,
+      fetch: async () =>
+        ++count === 1
+          ? Response.json({}, { status: 429, headers: { 'Retry-After': '2' } })
+          : Response.json((listing([]) as { body: unknown }).body),
     })
     expect(await directory.read()).toEqual({ available: false, reason: 'rate-limited' })
     clock.now += 1999

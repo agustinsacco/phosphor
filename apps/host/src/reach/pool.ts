@@ -11,12 +11,18 @@ import {
   hostEndpoint,
   type HostConnectionSnapshot,
 } from '@phosphor/host-client/connection'
-import { OPS_UNCONFIRMED, OPS_UNREADABLE, opsRun } from '@phosphor/host-client/ops'
+import {
+  OPS_HOST_TOO_OLD,
+  OPS_UNCONFIRMED,
+  OPS_UNREADABLE,
+  opsRun,
+} from '@phosphor/host-client/ops'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
 import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import type { ReachResult } from '@phosphor/session-runtime/ops/reach'
+import type { ReachBudget, ReachResult } from '@phosphor/session-runtime/ops/reach'
 import { nodeIdentity } from '@phosphor/session-runtime/pi/node-identity'
+import { CONTROL_STAGE_TEXT } from './control'
 import { ReachGrantRefused, type ReachGrants } from './grants'
 
 export const REACH_POOL_LIMITS = {
@@ -30,6 +36,7 @@ export type ReachPoolLimits = typeof REACH_POOL_LIMITS
 export interface ReachTarget {
   readonly id: string
   readonly label: string
+  readonly hostVersion?: string | null
 }
 
 export interface ReachPoolPorts {
@@ -71,7 +78,7 @@ export function reachAnswer(result: OpsRunResult): ReachResult {
 }
 
 function grantRefusal(target: ReachTarget, error: unknown): Failure {
-  const reason = error instanceof ReachGrantRefused ? error.reason : 'offline'
+  const reason = error instanceof ReachGrantRefused ? error.reason : 'control-unreachable'
   switch (reason) {
     case 'signed-out':
       return refused(
@@ -90,10 +97,12 @@ function grantRefusal(target: ReachTarget, error: unknown): Failure {
       )
     case 'unknown':
       return refused('bad-request', `${target.label} is not one of your machines.`)
-    case 'too-many-requests':
-      return refused('denied', 'Too many machine grants this minute. Try again shortly.')
+    case 'rate-limited':
+      return refused('denied', CONTROL_STAGE_TEXT[reason])
+    case 'control-timeout':
+      return refused('timeout', CONTROL_STAGE_TEXT[reason])
     default:
-      return refused('offline', "Phosphor's control service cannot be reached right now.")
+      return refused('offline', CONTROL_STAGE_TEXT[reason])
   }
 }
 
@@ -131,14 +140,30 @@ function sendFailure(target: ReachTarget, error: unknown, write: boolean): Attem
   return result('offline', `${target.label} could not take the request.`)
 }
 
-function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined, stopped: T) {
-  if (!signal) return promise
-  if (signal.aborted) return Promise.resolve(stopped)
-  return new Promise<T>((resolve) => {
+function abortable<T>(promise: Promise<T>, signal: AbortSignal, stopped: T): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
     const abort = () => resolve(stopped)
     signal.addEventListener('abort', abort, { once: true })
-    void promise.then(resolve).finally(() => signal.removeEventListener('abort', abort))
+    if (signal.aborted) abort()
+    void promise.then(
+      (value) => {
+        signal.removeEventListener('abort', abort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', abort)
+        reject(error)
+      },
+    )
   })
+}
+
+function unsupportedOp(target: ReachTarget, op: string, version?: string): Failure {
+  const hostVersion = version ?? target.hostVersion
+  const host = hostVersion
+    ? `${target.label} runs Host ${hostVersion}`
+    : `${target.label} runs a Host`
+  return refused('unsupported', `${host}, which does not serve ${op}. Update that Host.`)
 }
 
 interface Pool {
@@ -172,23 +197,37 @@ function changed(pool: Pool, entry: Entry) {
   queueMicrotask(() => drop(pool, entry))
 }
 
-async function connect(pool: Pool, entry: Entry): Promise<void> {
-  const { ports, limits } = pool
+async function connect(pool: Pool, entry: Entry, budget: ReachBudget): Promise<void> {
+  const { ports } = pool
   const { id } = entry.target
-  let endpoint: string | null
   try {
-    endpoint = (await ports.grants.grantFor(id)).host.endpoint
+    const initial = await ports.grants.grantFor(id, budget)
+    open(pool, entry, initial.host.endpoint, (deadlineAt) =>
+      deadlineAt === undefined
+        ? Promise.resolve(initial)
+        : ports.grants.grantFor(id, { deadlineAt }),
+    )
   } catch (error) {
     entry.settle(grantRefusal(entry.target, error))
     return drop(pool, entry)
   }
+}
+
+function open(
+  pool: Pool,
+  entry: Entry,
+  endpoint: string | null,
+  grant: Parameters<typeof createHostConnection>[0]['grant'],
+) {
   if (entry.dropped) return
+  const { ports, limits } = pool
+  const { id } = entry.target
   const timer = setTimeout(() => {
     entry.settle(refused('timeout', `${entry.target.label} is unreachable on your tailnet.`))
     drop(pool, entry)
   }, limits.connectMs)
   timer.unref()
-  void entry.ready.finally(() => clearTimeout(timer))
+  void entry.ready.then(() => clearTimeout(timer))
   entry.conn = createHostConnection({
     identity: nodeIdentity,
     hostId: id,
@@ -196,7 +235,7 @@ async function connect(pool: Pool, entry: Entry): Promise<void> {
     endpointAllowed: ports.endpointAllowed ?? hostEndpoint,
     unrefTimer: (t) => t.unref(),
     socket: ports.socket,
-    grant: () => ports.grants.grantFor(id),
+    grant,
     clearGrant: () => ports.grants.clear(id),
     changed: () => changed(pool, entry),
     lanes: false,
@@ -213,7 +252,7 @@ function evictIdle(pool: Pool): boolean {
   return oldest !== null
 }
 
-function entryFor(pool: Pool, target: ReachTarget): Entry | Failure {
+function entryFor(pool: Pool, target: ReachTarget, budget: ReachBudget): Entry | Failure {
   const existing = pool.entries.get(target.id)
   if (existing) return existing
   if (pool.entries.size >= pool.limits.open && !evictIdle(pool))
@@ -235,7 +274,7 @@ function entryFor(pool: Pool, target: ReachTarget): Entry | Failure {
     dropped: false,
   }
   pool.entries.set(target.id, entry)
-  connect(pool, entry).catch(() => drop(pool, entry))
+  void connect(pool, entry, budget).catch(() => drop(pool, entry))
   return entry
 }
 
@@ -251,34 +290,56 @@ async function attempt(
   pool: Pool,
   target: ReachTarget,
   request: OpsRunRequest,
-  options: { readonly write: boolean; readonly signal?: AbortSignal },
+  options: { readonly write: boolean; readonly signal: AbortSignal; readonly deadlineAt?: number },
 ): Promise<Attempt> {
+  const stopped = refused('timeout', `Stopped before reaching ${target.label}.`)
+  if (options.signal.aborted) return { result: stopped }
   const until = pool.backoff.get(target.id)
   if (until !== undefined && pool.now() < until) {
     const message = `${target.label} refused this machine recently. Try again in a minute.`
     return { result: refused('forbidden', message) }
   }
   pool.backoff.delete(target.id)
-  const entry = entryFor(pool, target)
+  const entry = entryFor(pool, target, options)
   if (!('conn' in entry)) return { result: entry }
   entry.busy++
   clearTimeout(entry.idle)
   try {
-    const stopped = refused('timeout', `Stopped before reaching ${target.label}.`)
     const failure = await abortable(entry.ready, options.signal, stopped)
-    if (failure) return { result: failure }
+    if (failure || options.signal.aborted) return { result: failure ?? stopped }
     const conn = entry.conn
     if (!conn || entry.dropped) return { lost: true }
-    if (conn.snapshot().ops !== true)
-      return { result: refused('unsupported', `Update that Host: ${target.label}.`) }
+    const view = conn.snapshot()
+    if (view.ops !== true) return { result: unsupportedOp(target, request.op, view.hostVersion) }
     try {
-      return { result: reachAnswer(await opsRun(conn, request, { write: options.write })) }
+      const awaiting = options.write
+        ? refused(
+            'unconfirmed',
+            `${target.label} did not confirm the change. Check it before you try again.`,
+          )
+        : refused('timeout', `${target.label} did not answer in time.`)
+      const answer = await abortable(
+        opsRun(conn, request, { write: options.write }).then((r) => {
+          if (
+            r.status === 'denied' &&
+            (r.text === OPS_HOST_TOO_OLD ||
+              (r.code === 'unsupported' && r.text.startsWith('Unknown operation ')))
+          )
+            return unsupportedOp(target, request.op, view.hostVersion)
+          return reachAnswer(r)
+        }),
+        options.signal,
+        awaiting,
+      )
+      return { result: answer }
     } catch (error) {
       const outcome = sendFailure(target, error, options.write)
       if ('lost' in outcome) drop(pool, entry)
       return outcome
     }
   } finally {
+    if (options.signal.aborted && entry.busy === 1 && entry.conn?.snapshot().state !== 'ready')
+      drop(pool, entry)
     release(pool, entry)
   }
 }
@@ -296,13 +357,35 @@ export function createReachPool(ports: ReachPoolPorts) {
     async run(
       target: ReachTarget,
       request: OpsRunRequest,
-      options: { readonly write: boolean; readonly signal?: AbortSignal },
+      options: ReachBudget & { readonly write: boolean },
     ): Promise<ReachResult> {
-      for (let tries = 0; tries < 2; tries++) {
-        const outcome = await attempt(pool, target, request, options)
-        if ('result' in outcome) return outcome.result
+      const controller = new AbortController()
+      const signal = options.signal
+        ? AbortSignal.any([controller.signal, options.signal])
+        : controller.signal
+      const remaining =
+        options.deadlineAt === undefined ? undefined : options.deadlineAt - pool.now()
+      if (remaining !== undefined && remaining <= 0) controller.abort()
+      const timer =
+        remaining !== undefined && remaining > 0
+          ? setTimeout(() => controller.abort(), remaining)
+          : undefined
+      timer?.unref()
+      try {
+        for (let tries = 0; tries < 2; tries++) {
+          const outcome = await attempt(pool, target, request, { ...options, signal })
+          if ('result' in outcome) return outcome.result
+        }
+        return refused('offline', `${target.label} is unreachable on your tailnet.`)
+      } finally {
+        clearTimeout(timer)
       }
-      return refused('offline', `${target.label} is unreachable on your tailnet.`)
+    },
+    capabilities(id: string) {
+      const view = pool.entries.get(id)?.conn?.snapshot()
+      return view?.state === 'ready'
+        ? { catalogOps: view.ops === true, hostVersion: view.hostVersion ?? null }
+        : {}
     },
     /** How many sibling connections are open now. */
     size: () => pool.entries.size,

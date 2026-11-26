@@ -1,3 +1,4 @@
+import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { op } from '@phosphor/session-runtime/ops/results'
 import type { ReachMachine } from '@phosphor/session-runtime/ops/reach'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
@@ -7,7 +8,8 @@ import type { DaemonHandlerDeps } from './index'
 
 const WHY: Readonly<Record<NonNullable<ReachMachine['why']>, string>> = {
   offline: 'offline',
-  'update-host': 'update that Host',
+  'not-enrolled': 'not enrolled for reach',
+  'stale-heartbeat': 'stale heartbeat',
   'reach-off': 'machine reach is off there',
 }
 
@@ -30,15 +32,19 @@ export function hostsHandlers(
   deps: Pick<DaemonHandlerDeps, 'directory'>,
 ): Readonly<Record<string, OpHandler>> {
   return {
-    'hosts.list': op(async () => {
+    'hosts.list': op(async (_args, ctx) => {
       if (!deps.directory)
-        return {
-          text: 'This machine cannot reach other machines.',
-          data: { available: false },
-        }
-      const listing = await deps.directory()
-      if (!listing.available)
-        return { text: DIRECTORY_REFUSALS[listing.reason].message, data: listing }
+        throw new OpRefusal('unsupported', 'This machine cannot reach other machines.')
+      const listing = await deps.directory({ signal: ctx.signal })
+      if (!listing.available) {
+        const failure = DIRECTORY_REFUSALS[listing.reason]
+        throw new OpRefusal(
+          failure.code === 'unsupported' || failure.code === 'forbidden'
+            ? failure.code
+            : 'unavailable',
+          failure.message,
+        )
+      }
       const self = `This machine: ${listing.self.label} (${listing.self.id.slice(0, HOST_ID_PREFIX_MIN)})`
       const machines = listing.machines.filter((m) => m.id !== listing.self.id)
       const others = machines.length

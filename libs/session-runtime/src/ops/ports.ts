@@ -18,7 +18,8 @@ import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '../file-log'
 import type { ConfirmTarget } from './confirm-message'
 import type { AgentPrincipal } from './principals'
-import type { LaneFacts, OpHandlerContext, OpHandlerResult, OpPrincipal } from './types'
+import type { ReachMachine } from './reach'
+import type { OpDeadline, LaneFacts, OpHandlerContext, OpHandlerResult, OpPrincipal } from './types'
 
 /** The argv parser's answer (the `phosphor` tool's command line). */
 export type ParsedOpArgv =
@@ -109,6 +110,7 @@ export interface RoutedHost {
   /** The enrolled Host id `binding.remote.run` takes. */
   readonly id: string
   readonly label: string
+  readonly machine?: ReachMachine
 }
 
 /**
@@ -117,8 +119,10 @@ export interface RoutedHost {
  * then runs the op here.
  */
 export interface OpsHostResolver {
+  isSelf?(hostId: string): boolean
   resolve(
     hosts: readonly string[] | 'all',
+    budget?: OpDeadline,
   ): Promise<
     | { readonly ok: true; readonly hosts: readonly RoutedHost[] }
     | { readonly ok: true; readonly self: true }

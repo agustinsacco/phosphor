@@ -5,7 +5,7 @@ import {
   type OpsRunResult,
 } from '@phosphor/shared/host-protocol-ops'
 import { createHarness, DIGEST, OWN, type HarnessOptions } from './__fixtures__/dispatcher-harness'
-import { clipBytes } from './route'
+import { clipBytes } from './route-result'
 
 const ok = (text: string): OpsRunResult => ({ status: 'ok', text, applies: 'now' })
 
@@ -127,12 +127,16 @@ describe('--host fan-out', () => {
       b: async () => ({ status: 'denied', code: 'policy', text: 'Read-only.' }),
     })
     expect(await harness(r.remote).tool({ ...list, hosts: ['a', 'b'] })).toMatchObject({
-      status: 'denied', code: 'unsupported',
+      status: 'denied',
+      code: 'unsupported',
       text: '== a (denied)\nUpdate.\n== b (denied)\nRead-only.',
-      data: { summary: { total: 2, ok: 0, failed: 2 }, hosts: [
-        { hostId: 'a', code: 'unsupported', text: 'Update.' },
-        { hostId: 'b', code: 'policy', text: 'Read-only.' },
-      ] },
+      data: {
+        summary: { total: 2, ok: 0, failed: 2 },
+        hosts: [
+          { hostId: 'a', code: 'unsupported', text: 'Update.' },
+          { hostId: 'b', code: 'policy', text: 'Read-only.' },
+        ],
+      },
     })
   })
 
@@ -141,20 +145,29 @@ describe('--host fan-out', () => {
     const r = remoteOf({ a: page, b: page })
     const h = harness(r.remote)
     const result = await h.tool({ ...list, hosts: ['a', 'b'] })
-    expect(result).toMatchObject({ status: 'ok', data: { hosts: [
-      { hostId: 'a', data: { rows: [1] }, next: expect.any(String) },
-      { hostId: 'b', data: { rows: [1] }, next: expect.any(String) },
-    ] } })
+    expect(result).toMatchObject({
+      status: 'ok',
+      data: {
+        hosts: [
+          { hostId: 'a', data: { rows: [1] }, next: expect.any(String) },
+          { hostId: 'b', data: { rows: [1] }, next: expect.any(String) },
+        ],
+      },
+    })
     expect(result).not.toHaveProperty('next')
     if (result.status !== 'ok') throw new Error('expected batch')
     const [a, b] = (result.data as { hosts: { next: string }[] }).hosts
     expect(a!.next).not.toBe(b!.next)
-    const follow: typeof list & { page?: string } = list
-    expect(await h.tool({ ...follow, ...{ page: a!.next }, hosts: ['a', 'b'] })).toMatchObject({ code: 'bad-request', text: expect.stringContaining('one host') })
-    expect(await h.tool({ ...follow, ...{ page: a!.next }, hosts: ['b'] })).toMatchObject({ code: 'bad-request' })
-    expect(await h.tool({ ...follow, ...{ page: a!.next } })).toMatchObject({ code: 'bad-request' })
+    expect(await h.tool({ ...list, ...{ page: a!.next }, hosts: ['a', 'b'] })).toMatchObject({
+      code: 'bad-request',
+      text: expect.stringContaining('one host'),
+    })
+    expect(await h.tool({ ...list, ...{ page: a!.next }, hosts: ['b'] })).toMatchObject({
+      code: 'bad-request',
+    })
+    expect(await h.tool({ ...list, ...{ page: a!.next } })).toMatchObject({ code: 'bad-request' })
     expect(r.sent).toHaveLength(2)
-    await h.tool({ ...follow, ...{ page: a!.next }, hosts: ['a'] })
+    await h.tool({ ...list, ...{ page: a!.next }, hosts: ['a'] })
     expect(r.sent[2]).toMatchObject({ hostId: 'a', request: { page: '20' } })
   })
 
@@ -163,8 +176,13 @@ describe('--host fan-out', () => {
     const h = harness(r.remote)
     const lane = { op: 'lane.read', args: { ref: 'host:bee2/lane:x' } }
     expect(await h.tool(lane)).toMatchObject({ status: 'ok', text: 'lane' })
-    expect(await h.tool({ ...lane, hosts: ['other'] })).toMatchObject({ code: 'bad-request', text: expect.stringContaining('conflicts') })
-    expect(await h.tool({ ...lane, args: { ref: 'x' }, hosts: ['bee2', 'other'] })).toMatchObject({ code: 'bad-request' })
+    expect(await h.tool({ ...lane, hosts: ['other'] })).toMatchObject({
+      code: 'bad-request',
+      text: expect.stringContaining('conflicts'),
+    })
+    expect(await h.tool({ ...lane, args: { ref: 'x' }, hosts: ['bee2', 'other'] })).toMatchObject({
+      code: 'bad-request',
+    })
     expect(r.sent).toMatchObject([{ hostId: 'bee2', request: lane }])
   })
 
@@ -173,14 +191,16 @@ describe('--host fan-out', () => {
     try {
       const deadlines: number[] = []
       const signals: AbortSignal[] = []
-      const h = harness({ run: async (_id, _request, options) => {
-        if (options) {
-          deadlines.push(options.deadlineAt)
-          signals.push(options.signal)
-        }
-        await new Promise((resolve) => setTimeout(resolve, 40))
-        return ok('late')
-      } })
+      const h = harness({
+        run: async (_id, _request, options) => {
+          if (options) {
+            deadlines.push(options.deadlineAt)
+            signals.push(options.signal)
+          }
+          await new Promise((resolve) => setTimeout(resolve, 40))
+          return ok('late')
+        },
+      })
       const pending = h.tool({ ...list, hosts: ['a', 'b', 'c', 'd', 'e'] }, { deadlineMs: 20 })
       await vi.advanceTimersByTimeAsync(50)
       expect(await pending).toMatchObject({ code: 'timeout' })
@@ -214,7 +234,12 @@ describe('--host fan-out', () => {
     const reply = await harness(r.remote).tool({ ...list, hosts: ['a', 'b'] })
     if (reply.status !== 'ok') throw new Error('expected ok')
     expect(Buffer.byteLength(reply.text)).toBeLessThanOrEqual(OPS_LIMITS.resultBytes)
-    expect(reply.text.split('\n').filter((l) => l.endsWith('[…cut]')).map(() => true)).toEqual([true, true])
+    expect(
+      reply.text
+        .split('\n')
+        .filter((l) => l.endsWith('[…cut]'))
+        .map(() => true),
+    ).toEqual([true, true])
   })
 
   it('resolves names and all through the resolver, in directory order', async () => {
@@ -233,7 +258,9 @@ describe('--host fan-out', () => {
             : { ok: false, text: `Several machines match ${hosts.join(',')}: bee1, bee2.` },
       },
     })
-    expect(await h.tool({ ...list, hosts: 'all' })).toMatchObject({ text: '== bee2 (ok)\ntwo\n== bee1 (ok)\none' })
+    expect(await h.tool({ ...list, hosts: 'all' })).toMatchObject({
+      text: '== bee2 (ok)\ntwo\n== bee1 (ok)\none',
+    })
     expect(await h.tool({ ...list, hosts: ['bee'] })).toMatchObject({
       code: 'bad-request',
       text: 'Several machines match bee: bee1, bee2.',

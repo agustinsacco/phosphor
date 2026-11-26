@@ -126,7 +126,7 @@ describe('--host asks: one origin confirmation over every target', () => {
     })
     expect(done).toMatchObject({
       status: 'ok',
-      text: 'bee1: purged\nbee2: nothing to purge\nbee3: purged',
+      text: '== bee1 (ok)\npurged\n== bee2 (ok)\nnothing to purge\n== bee3 (ok)\npurged',
     })
     // The machine that already answered is never contacted again.
     expect(r.sent.slice(3).map((s) => s.hostId)).toEqual([BEE1, BEE3])

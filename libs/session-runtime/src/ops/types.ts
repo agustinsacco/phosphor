@@ -17,6 +17,7 @@ import type {
 } from '@phosphor/shared/ops'
 import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import type { OpsChangedEvent } from '@phosphor/shared/ipc'
+import type { ReachMachine } from './reach'
 import type { AuditLog } from './audit'
 import type { RuntimeLog } from '../file-log'
 
@@ -141,6 +142,13 @@ export interface BrainOpsPort {
   flag(input: Readonly<Record<string, unknown>>): Promise<unknown>
 }
 
+/** One caller budget shared by directory resolution and every queued host. */
+export interface OpDeadline {
+  readonly deadlineAt: number
+  readonly signal: AbortSignal
+  readonly now: () => number
+}
+
 /** Everything one owner (Desktop in-app, or the daemon) gives the dispatcher. */
 export interface OpsBinding {
   /** The enrolled Host id, or null before enrollment and on Desktop in-app. */
@@ -161,7 +169,13 @@ export interface OpsBinding {
     apply(sessionOrLaneId: string, items: readonly LaneDeferred[]): Promise<DeferredOutcome>
   }
   /** `--host`: the same request on another machine. */
-  readonly remote?: { run(hostId: string, request: OpsRunRequest): Promise<OpsRunResult> }
+  readonly remote?: {
+    run(
+      hostId: string,
+      request: OpsRunRequest,
+      options: OpDeadline & { readonly target?: ReachMachine },
+    ): Promise<OpsRunResult>
+  }
   readonly brain?: BrainOpsPort
   notifySurfaces(event: Omit<OpsChangedEvent, 'machine'>): void
 }

@@ -39,7 +39,7 @@ export function createHostConnection(ports: {
   endpointAllowed?: (value: unknown) => boolean
   unrefTimer?: (timer: ReturnType<typeof setTimeout>) => void
   socket: (url: string) => Promise<FrameSocket>
-  grant: () => Promise<GrantIssueResponse>
+  grant: (deadlineAt?: number) => Promise<GrantIssueResponse>
   clearGrant: () => void
   changed: () => void
   onRoutinesChanged?: () => void
@@ -206,11 +206,12 @@ export function createHostConnection(ports: {
     retry.schedule(code === 4429 || error === 'too-many-requests')
   }
   function renew(expiresAt: string) {
+    const expiry = Date.parse(expiresAt)
     later(
       () => {
         const epoch = generation
         void ports
-          .grant()
+          .grant(expiry)
           .then((g) => {
             if (!stopped && epoch === generation) {
               if (!write({ type: 'auth', grant: g.grant, trace }))
@@ -221,14 +222,14 @@ export function createHostConnection(ports: {
               )
             }
           })
-          .catch((error) => {
+          .catch(() => {
             if (epoch === generation && !stopped) {
-              socket?.close(1000, 'Renewal failed')
-              failed(0, error instanceof Error ? error.message : 'offline')
+              log('hosts', 'renewal_failed', { hostId: ports.hostId })
+              later(() => socket?.close(1000, 'Grant expired'), Math.max(0, expiry - now()))
             }
           })
       },
-      Math.max(1000, Date.parse(expiresAt) - now() - HOST_LIMITS.renewBeforeSec * 1000),
+      Math.max(1000, expiry - now() - HOST_LIMITS.renewBeforeSec * 1000),
     )
   }
   function beat() {
