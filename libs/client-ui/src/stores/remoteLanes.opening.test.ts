@@ -202,12 +202,11 @@ it.each(['page', 'machine'])('leaving a failed lane via %s clears its Retry view
 
 it('selects a rejoined lane until both bootstrap and the snapshot refresh finish', async () => {
   let finishBootstrap!: () => void
-  const bootstrap = new Promise<{ success: false }>((resolve) => {
-    finishBootstrap = () => resolve({ success: false })
+  const bootstrap = new Promise<void>((resolve) => (finishBootstrap = resolve))
+  vi.mocked(window.phosphor.piCommand).mockImplementation(async (_id, command) => {
+    if (command.type === 'get_state') await bootstrap
+    return { type: 'response', command: command.type, success: false, error: 'not available' }
   })
-  vi.mocked(window.phosphor.piCommand).mockImplementation(async (_id, command) =>
-    command.type === 'get_state' ? bootstrap : { success: false },
-  )
   let finishSnapshot!: () => void
   const snapshot = new Promise<void>((resolve) => (finishSnapshot = resolve))
   const refresh = vi.fn(() => snapshot)

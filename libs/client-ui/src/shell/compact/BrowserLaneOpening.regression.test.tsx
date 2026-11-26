@@ -30,7 +30,7 @@ const opens: { resolve: (info: LiveSessionInfo) => void; reject: (error: Error) 
 let root: Root | undefined
 let fake: ReturnType<typeof createFakePhosphor>
 let restore: () => void
-let readBootstrap: () => Promise<{ success: false }>
+let readBootstrap: () => Promise<void>
 
 function makeOpenLane() {
   return vi.fn(
@@ -41,18 +41,18 @@ function makeOpenLane() {
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  readBootstrap = async () => ({ success: false })
+  readBootstrap = async () => undefined
   openLane = makeOpenLane()
   fake = createFakePhosphor({
     'hosts:openLane': openLane,
     'hosts:snapshot': () => useRemoteLanesStore.getState().hosts,
     'hosts:markRead': () => undefined,
-    'pi:command': async (_id, command) =>
-      command.type === 'get_state'
-        ? readBootstrap()
-        : command.type === 'get_messages'
-          ? { success: true, data: { messages: [] } }
-          : { success: false },
+    'pi:command': async (_id, command) => {
+      if (command.type === 'get_state') await readBootstrap()
+      if (command.type === 'get_messages')
+        return { type: 'response', command: command.type, success: true, data: { messages: [] } }
+      return { type: 'response', command: command.type, success: false, error: 'not available' }
+    },
   })
   restore = installFakePhosphor(fake)
   useLayoutStore.setState({ page: null })
@@ -202,9 +202,7 @@ it('a second failed notice open on the same Host shows that lane and its Retry',
 
 it('keeps the browser busy after live is published and until the snapshot refresh lands', async () => {
   let finishBootstrap!: () => void
-  const bootstrap = new Promise<{ success: false }>((resolve) => {
-    finishBootstrap = () => resolve({ success: false })
-  })
+  const bootstrap = new Promise<void>((resolve) => (finishBootstrap = resolve))
   readBootstrap = () => bootstrap
   let finishSnapshot!: () => void
   const snapshot = new Promise<void>((resolve) => (finishSnapshot = resolve))
