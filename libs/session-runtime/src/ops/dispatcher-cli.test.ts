@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import { parseOpArgv } from '@phosphor/shared/ops-cli'
-import { agent, createHarness, local, OWN } from './__fixtures__/dispatcher-harness'
+import { agent, createHarness, OWN } from './__fixtures__/dispatcher-harness'
 import { createConfirmStore } from './confirm'
 import { createOpsDispatcher } from './dispatcher'
 import { metaHandlers } from './meta-handlers'
@@ -31,7 +31,7 @@ it('keeps parser usage for CLI and tool callers', async () => {
   const request = { v: 1 as const, id: 'parse', argv: ['lane', 'read'], deadlineMs: 1000 }
   for (const result of [
     await dispatcher.runFromTool('s1', request),
-    await dispatcher.runFromCli(local(), request),
+    await dispatcher.runFromCli({ kind: 'local', clientId: 'cli' }, request),
   ]) {
     expect(result).toMatchObject({
       status: 'denied',
@@ -48,12 +48,16 @@ it('shows only served ops in help and gives the same unavailability reason as ex
   })
   const dispatcher = createOpsDispatcher({ ...h.binding, handlers }, h.deps)
   const run = (op: string, args = {}) => dispatcher.run(agent(), { op, args })
-  const help = await run('help')
-  expect(help).toMatchObject({ status: 'ok', read: true })
-  expect(help.text).not.toMatch(/\blane\b|\broutine\b/)
-  expect((await run('help', { topic: 'lane.read' })).text).toContain('Try the other owner.')
-  expect((await run('help', { topic: 'lane.list' })).text).toBe((await run('lane.list')).text)
-  expect((await run('help', { topic: 'routine.list' })).text).toBe((await run('routine.list')).text)
+  const text = async (op: string, args = {}) => {
+    const result = await run(op, args)
+    if (result.status === 'confirm') throw new Error(`Unexpected confirmation for ${op}`)
+    return result.text
+  }
+  expect(await run('help')).toMatchObject({ status: 'ok', read: true })
+  expect(await text('help')).not.toMatch(/\blane\b|\broutine\b/)
+  expect(await text('help', { topic: 'lane.read' })).toContain('Try the other owner.')
+  expect(await text('help', { topic: 'lane.list' })).toBe(await text('lane.list'))
+  expect(await text('help', { topic: 'routine.list' })).toBe(await text('routine.list'))
   expect(await run('whoami')).toMatchObject({
     data: { machine: 'Test', laneRef: OWN, principal: { laneRef: OWN } },
   })

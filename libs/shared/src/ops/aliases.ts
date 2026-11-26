@@ -40,9 +40,9 @@ export function helpArgv(argv: readonly string[], catalog: readonly CatalogSpec[
   const { spec, consumed } = resolveOp(argv, catalog)
   const beforeSeparator = argv.slice(0, optionsEnd(argv))
   if (spec?.name === 'help') {
-    const operands = beforeSeparator.slice(consumed)
-    if (operands.length === 2 && operands.every((word) => /^\w[\w-]*$/.test(word)))
-      return ['help', canonicalName(operands.join('.'))]
+    const [domain, verb] = beforeSeparator.slice(consumed)
+    if (domain && verb && [domain, verb].every((word) => /^\w[\w-]*$/.test(word)))
+      return ['help', canonicalName(`${domain}.${verb}`), ...argv.slice(consumed + 2)]
     return argv
   }
   if (beforeSeparator.some((arg) => arg === '--help' || arg === '-h')) {

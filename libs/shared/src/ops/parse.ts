@@ -59,7 +59,7 @@ function scalar(schema: TSchema, raw: string, key: string): unknown {
   if (Type.IsBoolean(schema) || (Type.IsLiteral(schema) && schema.type === 'boolean')) {
     if (raw === 'on' || raw === 'true') return true
     if (raw === 'off' || raw === 'false') return false
-    return fail(`Use on, off, true or false for ${key}.`)
+    return fail(`${key}: expected ${constraint(schema)}.`)
   }
   // Objects (including nested definitions) are one JSON argv token. In a union
   // prefer a matching JSON value; a plain string remains a string when allowed.
