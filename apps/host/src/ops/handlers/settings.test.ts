@@ -135,3 +135,17 @@ it('projects Claude account metadata without reading the machine inventory', asy
   expect((await f.run('claude.accounts', {})).data).toEqual([])
   expect(f.call).not.toHaveBeenCalled()
 })
+
+it('reads directive overrides without writing config or refreshing live lanes', async () => {
+  const f = await fixture()
+  const initial = await f.run('directives.read', { project: true })
+  expect(initial.data).toContainEqual({ key: 'worktreeGuard', override: null, effective: true })
+  await f.run('directives.set', { key: 'worktreeGuard', on: false, project: true })
+  f.refreshDirectives.mockClear()
+  const before = await readFile(f.configPath, 'utf8')
+  const answer = await f.run('directives.read', { project: true })
+  expect(answer.data).toContainEqual({ key: 'worktreeGuard', override: false, effective: false })
+  expect(answer).not.toHaveProperty('deferred')
+  expect(f.refreshDirectives).not.toHaveBeenCalled()
+  expect(await readFile(f.configPath, 'utf8')).toBe(before)
+})
