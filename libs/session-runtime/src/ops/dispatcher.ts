@@ -53,6 +53,7 @@ function toolRequest(deps: OpsDispatcherDeps, envelope: OpRequestEnvelope): Tool
         ...shared,
         ...(reason !== undefined ? { reason } : {}),
         ...(parsed.page !== undefined ? { page: parsed.page } : {}),
+        ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
       },
       ...(parsed.hosts ? { hosts: parsed.hosts } : {}),
     }

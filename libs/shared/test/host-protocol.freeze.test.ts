@@ -19,7 +19,7 @@ import {
   type HostFrame,
 } from '@phosphor/shared/host-protocol'
 import { READY_OP_FLAGS } from '@phosphor/shared/host-protocol'
-import { OPS_LIMITS, OPS_RUN } from '@phosphor/shared/host-protocol-ops'
+import { OPS_LIMITS, OPS_RUN, parseOpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 import {
   OWNER_METHODS,
   OWNER_METHODS_ANY_LOCAL,
@@ -419,6 +419,12 @@ describe('Host API constants and op lists', () => {
 
   it('keeps the agent-op envelope, ready flags and owner methods exactly, in order', () => {
     expect(OPS_RUN).toBe('ops.run')
+    const request = { op: 'lane.list', args: {} }
+    expect(parseOpsRunRequest(request)).toEqual(request)
+    for (const limit of [1, 100])
+      expect(parseOpsRunRequest({ ...request, limit })).toEqual({ ...request, limit })
+    for (const limit of [0, 101, 1.5, '20'])
+      expect(parseOpsRunRequest({ ...request, limit })).toBeNull()
     expect(OPS_LIMITS).toStrictEqual({
       argsBytes: 307200,
       contentBytes: 262144,

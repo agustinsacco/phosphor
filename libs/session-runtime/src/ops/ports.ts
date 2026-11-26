@@ -29,6 +29,7 @@ export type ParsedOpArgv =
       /** `--host a,b` or `--host all`. */
       readonly hosts?: readonly string[] | 'all'
       readonly page?: string
+      readonly limit?: number
       readonly reason?: string
     }
   | { readonly ok: false; readonly error: string }
@@ -157,9 +158,15 @@ export interface OpsDispatcherDeps {
 /** What a handler sees beyond `OpHandlerContext`: the caller's page token. */
 export interface OpRunContext extends OpHandlerContext {
   readonly page?: string
+  readonly limit?: number
 }
 
 /** The page token a paged handler continues from. */
 export function requestPage(ctx: OpHandlerContext): string | undefined {
   return (ctx as OpRunContext).page
+}
+
+/** The explicit page size, if the op does not declare its own limit argument. */
+export function requestLimit(ctx: OpHandlerContext): number | undefined {
+  return (ctx as OpRunContext).limit
 }

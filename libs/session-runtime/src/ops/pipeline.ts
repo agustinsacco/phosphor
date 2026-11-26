@@ -262,6 +262,7 @@ async function perform(
     log: env.deps.log,
     ...(j.lane ? { lane: j.lane } : {}),
     ...(j.request.page !== undefined ? { page: j.request.page } : {}),
+    ...(j.request.limit !== undefined ? { limit: j.request.limit } : {}),
   })
   try {
     if ((j.spec.job || env.deps.background?.(j.request, j.self)) && env.deps.jobs) {
