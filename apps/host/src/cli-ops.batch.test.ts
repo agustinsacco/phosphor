@@ -20,7 +20,6 @@ it.each([0, 1, 2])(
       ['artifact', 'list', '--host', 'a,b', '--json'],
       { stdout, stderr: vi.fn() },
       {} as CliContext,
-      async () => 64,
     )
     expect(code).toBe(failed === 0 ? 0 : 1)
     expect(stdout).toHaveBeenCalledWith(`${JSON.stringify(result)}\n`)
