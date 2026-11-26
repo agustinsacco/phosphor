@@ -192,13 +192,8 @@ async function runOp(
 
 /** The lane gives us a backstop; only the owner knows the resolved command. */
 function toolDeadline(core: DispatcherCore, op: string, backstop: number): number {
-  const tier = core.pipeline.spec(op)?.tier
-  const budget =
-    op.startsWith('package.') || op === 'service.update'
-      ? 600_000
-      : tier === 'read'
-        ? 30_000
-        : 60_000
+  const spec = core.pipeline.spec(op)
+  const budget = spec?.deadlineMs ?? (spec?.tier === 'read' ? 30_000 : 60_000)
   return Math.min(backstop, budget)
 }
 

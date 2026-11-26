@@ -289,7 +289,7 @@ it('applies swarm on to the pill’s own policy, then respects a user off', asyn
   })
   await f.command('phosphor-swarm', 'off')
   expect(await f.run(enable)).toMatchObject({
-    details: { status: 'denied' },
+    details: { status: 'error' },
     content: [{ text: 'The user turned Swarm off for this lane. Ask them to turn it on.' }],
   })
   expect(f.requests[2]?.facts?.swarm?.userOff).toBe(true)

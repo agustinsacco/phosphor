@@ -245,3 +245,18 @@ it('freezes the workspace lane selector separately from revisions and PR URLs', 
      pr.list pr.status pr.detail`.split(/\s+/),
   )
 })
+
+it('freezes lane tool deadline overrides', () => {
+  expect(
+    Object.fromEntries(
+      OP_CATALOG.filter((op) => op.deadlineMs !== undefined).map((op) => [op.name, op.deadlineMs]),
+    ),
+  ).toEqual({
+    'service.update': 600_000,
+    'package.list': 600_000,
+    'package.checkUpdates': 600_000,
+    'package.install': 600_000,
+    'package.update': 600_000,
+    'package.remove': 600_000,
+  })
+})

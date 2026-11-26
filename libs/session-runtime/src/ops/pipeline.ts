@@ -107,7 +107,6 @@ async function audit(
       decision,
       result: result.slice(0, 200),
       applies: j.spec.applies,
-      ...(j.tier === 'read' ? { read: true as const } : {}),
       undo: undoRecord !== null,
       undoRecord,
     })
@@ -238,6 +237,7 @@ async function finish(
       status: 'ok',
       text,
       applies: j.spec.applies,
+      ...(j.tier === 'read' ? { read: true as const } : {}),
       ...(out.data !== undefined ? { data: out.data } : {}),
       ...(out.next !== undefined ? { next: out.next } : {}),
       ...(undo ? { undo: true } : {}),

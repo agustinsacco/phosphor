@@ -50,7 +50,7 @@ export const machineOps = [
     'Pause lanes and update the Phosphor service.',
     'destructive',
     undefined,
-    { job: true },
+    { job: true, deadlineMs: 600_000 },
   ),
   machine(
     'service.pause',

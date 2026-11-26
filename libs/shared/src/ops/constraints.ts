@@ -1,18 +1,21 @@
-import { Type, type TSchema } from 'typebox'
+import { Type, type TNumberOptions, type TSchema, type TStringOptions } from 'typebox'
 import { Check } from 'typebox/value'
 import { record } from '../host-protocol/primitives'
 import type { CatalogSpec } from './domains/spec'
 
 export function integerRange(schema: TSchema): string | undefined {
   if (!Type.IsInteger(schema)) return undefined
-  if (schema.minimum !== undefined && schema.maximum !== undefined)
-    return `${schema.minimum}–${schema.maximum}`
-  if (schema.minimum !== undefined) return `≥ ${schema.minimum}`
-  if (schema.maximum !== undefined) return `≤ ${schema.maximum}`
+  const { minimum, maximum } = schema as TNumberOptions
+  if (minimum !== undefined && maximum !== undefined) return `${minimum}–${maximum}`
+  if (minimum !== undefined) return `≥ ${minimum}`
+  if (maximum !== undefined) return `≤ ${maximum}`
 }
 
 export function choices(schema: TSchema): string | undefined {
-  if (Type.IsString(schema) && schema.enum?.length) return schema.enum.join('|')
+  if (Type.IsString(schema)) {
+    const { enum: values } = schema as TStringOptions
+    if (values?.length) return values.join('|')
+  }
   if (Type.IsLiteral(schema)) return String(schema.const)
 }
 
@@ -23,17 +26,19 @@ export function constraint(schema: TSchema): string {
   if (Type.IsInteger(schema)) return range ? `an integer ${range}` : 'an integer'
   if (Type.IsBoolean(schema)) return 'on, off, true or false'
   if (Type.IsString(schema)) {
-    const min = schema.minLength ?? 0
-    return schema.maxLength !== undefined ? `text of ${min}–${schema.maxLength} characters` : 'text'
+    const { minLength = 0, maxLength } = schema as TStringOptions
+    return maxLength !== undefined ? `text of ${minLength}–${maxLength} characters` : 'text'
   }
   if (Type.IsUnion(schema)) return schema.anyOf.map(constraint).join(' or ')
   if (Type.IsArray(schema)) {
-    const count = `${schema.minItems ?? 0}–${schema.maxItems ?? 'any'}`
-    return `${count} ${schema.uniqueItems ? 'unique ' : ''}items (${constraint(schema.items)})`
+    const { minItems = 0, maxItems, uniqueItems } = Type.ArrayOptions(schema)
+    const count = `${minItems}–${maxItems ?? 'any'}`
+    return `${count} ${uniqueItems ? 'unique ' : ''}items (${constraint(schema.items)})`
   }
   if (Type.IsNull(schema)) return 'null'
   if (Type.IsObject(schema)) {
-    if (schema.minProperties === 1 && schema.maxProperties === 1)
+    const { minProperties, maxProperties } = Type.ObjectOptions(schema)
+    if (minProperties === 1 && maxProperties === 1)
       return `exactly one of ${Object.keys(schema.properties).join(', ')}`
     const required = schema.required?.join(', ')
     return required ? `a JSON object with ${required}` : 'a JSON object with only supported fields'

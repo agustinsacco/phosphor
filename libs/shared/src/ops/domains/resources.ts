@@ -24,6 +24,7 @@ const scope = choice('global', 'project')
 const read = domain('machine', configure, untrusted)
 const change = domain('machine', configure, { applies: 'reload' })
 const byName = { positional: ['name'] } as const
+const packageDeadline = { deadlineMs: 600_000 }
 const skill = { scope: choice('user', 'project'), name: id, project: optional(path) }
 const skillFlag = { flag: 'configFiles' } as const
 const connector = { name: id, scope, project: optional(path) }
@@ -134,12 +135,19 @@ export const resources = [
     ...byName,
     applies: 'now',
   }),
-  read('package.list', 'List installed packages.', 'read', object({ project: optional(path) })),
+  read(
+    'package.list',
+    'List installed packages.',
+    'read',
+    object({ project: optional(path) }),
+    packageDeadline,
+  ),
   read(
     'package.checkUpdates',
     'Check for package updates.',
     'read',
     object({ project: optional(path) }),
+    packageDeadline,
   ),
   ...(['install', 'update', 'remove'] as const).map((action) =>
     change(
@@ -152,6 +160,7 @@ export const resources = [
       'persistence',
       object({ spec: action === 'update' ? optional(id) : id, scope, project: optional(path) }),
       {
+        ...packageDeadline,
         job: true,
         positional: ['spec'],
         ...(action === 'update'
