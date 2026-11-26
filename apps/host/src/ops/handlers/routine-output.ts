@@ -96,7 +96,6 @@ export function routineRunHandlers(deps: DaemonHandlerDeps) {
       }),
       ctx,
       routineRunColumns,
-      surfaceInventory,
       { windowOffset: start, limit, ...(surface ? { surface: { limit } } : {}) },
     )
   })

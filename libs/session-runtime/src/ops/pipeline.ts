@@ -151,7 +151,6 @@ async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
     ...(j.request.reason !== undefined ? { reason: j.request.reason } : {}),
     items: confirmItems(env.binding, j),
     ...(j.lane ? { lane: j.lane } : {}),
-    pending: askingLanePending(env, j),
     ...(j.request.batch ? { batch: j.request.batch } : {}),
   })
   return { result }
@@ -210,6 +209,7 @@ async function perform(
     reason: j.request.reason,
     signal: s,
     log: env.deps.log,
+    pending: askingLanePending(env, j),
     ...(j.lane ? { lane: j.lane } : {}),
     ...(j.request.page !== undefined ? { page: j.request.page } : {}),
     ...(j.request.limit !== undefined ? { limit: j.request.limit } : {}),

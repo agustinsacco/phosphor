@@ -112,7 +112,11 @@ export function inventoryText<T>(rows: readonly T[], columns: Columns<T>) {
   const project = Object.entries(columns)
   return [
     Object.keys(columns).join(' | '),
-    ...rows.map((r) => project.map(([name, f]) => cell(f(r), name === 'ref' || name === 'key' || name === 'laneRef')).join(' | ')),
+    ...rows.map((r) =>
+      project
+        .map(([name, f]) => cell(f(r), name === 'ref' || name === 'key' || name === 'laneRef'))
+        .join(' | '),
+    ),
   ].join('\n')
 }
 
