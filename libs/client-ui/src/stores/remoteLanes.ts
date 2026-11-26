@@ -15,7 +15,7 @@ import { hostLaneOf, type SessionHostLane } from './hostLaneOf'
 import { useMachinesStore } from './machines'
 import { machineCaps } from './machineCaps'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
-import { bindHostsSnapshotRead, refreshHostsSnapshot } from './hostsSnapshotRead'
+import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
 import {

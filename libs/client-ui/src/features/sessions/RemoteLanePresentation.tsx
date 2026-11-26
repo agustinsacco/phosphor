@@ -11,6 +11,7 @@ import { SelectableIndicator, type LaneSelect } from './LaneSelect'
 import { PinIcon } from '@/components/icons'
 import { LaneWorkspaceBadge } from './LaneWorkspaceBadge'
 import { remoteLanePresentation, remoteLaneTitle } from './remoteLaneView'
+import { useHostLaneOpenInFlight } from '@/stores/hostLaneOpen'
 
 /** Read-only title projection: subscribed transcript metadata wins over a lagging Host scan. */
 export function useRemoteLaneTitle(lane: HostLaneView, hostId?: string): string {
@@ -66,7 +67,8 @@ export function RemoteLanePresentation({
   const showPr = useLanePrefsStore((s) => s.lanes.prStatus)
   const description = useId()
   const view = remoteLanePresentation(lane, ready)
-  const activity = view.activity ?? (opening ? 'opening' : undefined)
+  const inFlight = useHostLaneOpenInFlight(hostId ?? '', lane.laneId) && hostId !== undefined
+  const activity = view.activity ?? (opening || inFlight ? 'opening' : undefined)
   const stateLabel = {
     streaming: '',
     unseen: 'Unread activity. ',

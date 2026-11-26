@@ -19,13 +19,15 @@ let opens: { resolve: (info: LiveSessionInfo) => void; reject: (error: Error) =>
 
 beforeEach(() => {
   opens = []
-  invoke.mockReset().mockImplementation((channel: string) =>
-    channel === 'hosts:openLane'
-      ? new Promise((resolve, reject) => opens.push({ resolve, reject }))
-      : channel === 'hosts:snapshot'
-        ? Promise.resolve(structuredClone(mockRemoteHosts))
-        : Promise.resolve([]),
-  )
+  invoke
+    .mockReset()
+    .mockImplementation((channel: string) =>
+      channel === 'hosts:openLane'
+        ? new Promise((resolve, reject) => opens.push({ resolve, reject }))
+        : channel === 'hosts:snapshot'
+          ? Promise.resolve(structuredClone(mockRemoteHosts))
+          : Promise.resolve([]),
+    )
   useSessionsStore.setState({
     live: { mac: { phosphorId: 'mac', workspacePath: '/mac' } },
     activeSessionId: 'mac',
@@ -139,4 +141,18 @@ it('an open that fails while you are elsewhere says nothing, and the next click 
   await vi.waitFor(() => expect(opens).toHaveLength(2))
   opens[1]!.resolve(mockRemoteInfo)
   expect(await again).toBe(true)
+})
+
+it('switches to a lane this client already holds without the opening view', async () => {
+  const opened = openRemoteLane(MOCK_HOST_ID, LANE)
+  await vi.waitFor(() => expect(opens).toHaveLength(1))
+  opens[0]!.resolve(mockRemoteInfo)
+  expect(await opened).toBe(true)
+  useSessionsStore.getState().activate('mac')
+  const back = openRemoteLane(MOCK_HOST_ID, LANE)
+  expect(useSessionsStore.getState().opening).toBeNull()
+  await vi.waitFor(() => expect(opens).toHaveLength(2))
+  opens[1]!.resolve(mockRemoteInfo)
+  expect(await back).toBe(true)
+  expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
 })

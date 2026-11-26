@@ -60,10 +60,22 @@ async function adopt(
   return info.sessionId
 }
 
-/** Claims the screen for a Host lane before it opens: no page in the way, the lane opening. */
+/**
+ * Claims the screen for a Host lane before it opens: no page in the way, the
+ * lane opening. A lane this client already holds switches without the opening
+ * view, so moving between open lanes never flashes it.
+ */
 export function beginHostLaneOpening(lane: { hostId: string; laneId: string }, title: string) {
+  const sessions = useSessionsStore.getState()
+  const held = Object.values(sessions.live).some(
+    (entry) =>
+      entry.target?.kind === 'remote' &&
+      entry.target.hostId === lane.hostId &&
+      entry.laneId === lane.laneId,
+  )
+  if (held) return sessions.claimNav()
   useLayoutStore.getState().setPage(null)
-  return useSessionsStore.getState().beginOpening({
+  return sessions.beginOpening({
     workspacePath: remoteLaneKey(lane.hostId, lane.laneId),
     title,
     reason: 'open',

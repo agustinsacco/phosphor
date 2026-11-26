@@ -21,13 +21,15 @@ let root: Root | undefined
 beforeEach(() => {
   opens = []
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  invoke.mockReset().mockImplementation((channel: string) =>
-    channel === 'hosts:openLane'
-      ? new Promise((resolve, reject) => opens.push({ resolve, reject }))
-      : channel === 'hosts:snapshot'
-        ? Promise.resolve(structuredClone(mockRemoteHosts))
-        : Promise.resolve([]),
-  )
+  invoke
+    .mockReset()
+    .mockImplementation((channel: string) =>
+      channel === 'hosts:openLane'
+        ? new Promise((resolve, reject) => opens.push({ resolve, reject }))
+        : channel === 'hosts:snapshot'
+          ? Promise.resolve(structuredClone(mockRemoteHosts))
+          : Promise.resolve([]),
+    )
   vi.stubGlobal('phosphor', {
     invoke,
     onSessionPush: () => () => {},

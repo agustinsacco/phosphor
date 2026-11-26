@@ -50,7 +50,9 @@ it('shows the Phosphor loader and the lane it is opening', () => {
 
 it('a failed open says why and Retry opens the lane again, never leaving the loader up', async () => {
   invoke.mockRejectedValue(new Error('down'))
-  act(() => root.render(<OpeningLane lane={{ ...opening, failure: 'Could not open the remote lane.' }} />))
+  act(() =>
+    root.render(<OpeningLane lane={{ ...opening, failure: 'Could not open the remote lane.' }} />),
+  )
   const view = container.querySelector('[data-testid="opening-lane"]')!
   expect(view.getAttribute('aria-busy')).toBe('false')
   expect(container.querySelector('[role="alert"]')?.textContent).toContain(
