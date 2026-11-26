@@ -128,9 +128,12 @@
   --px-font-mono:
     'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
 
+  /* Radii stay tight: 6px for rows, cards and controls, 8px for dialogs and
+     large surfaces. The composer is the one rounder surface (docs/style-guide.md). */
   --px-radius-sm: 6px;
-  --px-radius: 10px;
-  --px-radius-lg: 14px;
+  --px-radius: 8px;
+  --px-radius-lg: 8px;
+  --px-radius-composer: 12px;
   --px-beacon-duration: 2.4s;
 
   /* Font sizes driven by settings (see stores/settings.ts) */
@@ -251,6 +254,7 @@
   --radius-sm: var(--px-radius-sm);
   --radius-DEFAULT: var(--px-radius);
   --radius-lg: var(--px-radius-lg);
+  --radius-composer: var(--px-radius-composer);
 }
 
 html,

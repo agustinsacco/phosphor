@@ -90,7 +90,7 @@ export function CommandApprovalSheet({
 
   return (
     <ModalOverlay onClose={() => answer(false)} closeOnBackdrop={false}>
-      <div className="border-border bg-surface-raised flex max-h-[82vh] w-[min(46rem,92vw)] flex-col overflow-hidden rounded-xl border shadow-2xl">
+      <div className="border-border bg-surface-raised flex max-h-[82vh] w-[min(46rem,92vw)] flex-col overflow-hidden rounded-lg border shadow-2xl">
         <div className="border-border flex items-start gap-3 border-b px-4 py-3">
           <span
             className={clsx(

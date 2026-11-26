@@ -527,7 +527,7 @@ export function ImageEditor({
           event.stopPropagation()
           if (fromFiles([...event.dataTransfer.files])) event.preventDefault()
         }}
-        className="image-editor border-border bg-surface-raised flex h-[92vh] w-[94vw] flex-col overflow-hidden rounded-xl border shadow-2xl outline-none"
+        className="image-editor border-border bg-surface-raised flex h-[92vh] w-[94vw] flex-col overflow-hidden rounded-lg border shadow-2xl outline-none"
       >
         <EditorToolbar
           tool={tool}

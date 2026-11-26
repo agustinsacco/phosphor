@@ -127,7 +127,7 @@ function FinderDialog({ workspacePath }: { workspacePath: string }): React.JSX.E
             inputRef.current?.focus()
           }
         }}
-        className="border-border bg-surface-raised w-[560px] max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl"
+        className="border-border bg-surface-raised w-[560px] max-w-[92vw] overflow-hidden rounded-lg border shadow-2xl"
       >
         <input
           ref={inputRef}

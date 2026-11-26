@@ -19,7 +19,7 @@ export function SandboxList(): React.JSX.Element {
         Trash.
       </p>
       {sandboxes.length === 0 && <p className="text-text-tertiary text-base">No sandboxes yet.</p>}
-      <div className="border-border divide-border divide-y overflow-hidden rounded-xl border">
+      <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
         {sandboxes.map((sandbox) => (
           <SandboxRow key={sandbox.path} sandbox={sandbox} />
         ))}

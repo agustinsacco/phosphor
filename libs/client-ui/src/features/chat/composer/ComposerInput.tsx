@@ -122,7 +122,7 @@ export function ComposerInput({
         onDragLeave={attachments.handleDragLeave}
         onDrop={canAttach ? attachments.handleDrop : undefined}
         className={clsx(
-          'bg-surface relative rounded-xl border shadow-sm transition-colors',
+          'bg-surface relative rounded-composer border shadow-sm transition-colors',
           attachments.dragging
             ? 'border-accent ring-accent/25 ring-2'
             : live && swarmLook(liveSwarm) === 'pending'

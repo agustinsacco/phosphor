@@ -134,7 +134,7 @@ export function FeedbackModal(): React.JSX.Element | null {
         role="dialog"
         aria-modal="true"
         aria-label="Send feedback"
-        className="border-border bg-bg flex max-h-[86vh] w-[560px] max-w-[94vw] flex-col overflow-hidden rounded-2xl border shadow-2xl"
+        className="border-border bg-bg flex max-h-[86vh] w-[560px] max-w-[94vw] flex-col overflow-hidden rounded-lg border shadow-2xl"
       >
         <header className="border-border flex items-start justify-between gap-4 border-b px-5 py-4">
           <div>

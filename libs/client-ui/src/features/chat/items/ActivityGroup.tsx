@@ -302,10 +302,8 @@ export const ActivityGroup = memo(function ActivityGroup({
            * Border only, no fill. A white card on the grey page plus a border
            * is two containment signals for one group; the hairline alone is
            * enough and keeps the run visually subordinate to the prose.
-           * `rounded-lg` is 14px in this theme (--px-radius-lg), which was far
-           * too round for a 26px row — hence the explicit 7.
            */}
-          <div className="border-border divide-border/50 mt-1 divide-y overflow-hidden rounded-[7px] border">
+          <div className="border-border divide-border/50 mt-1 divide-y overflow-hidden rounded-md border">
             {rows.map(({ step, thought }) => {
               const findKey = stepFindKey(step)
               return (

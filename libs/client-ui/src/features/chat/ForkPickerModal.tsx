@@ -55,7 +55,7 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
 
   return (
     <ModalOverlay onClose={close}>
-      <div className="border-border bg-surface-raised max-h-[70vh] w-[540px] overflow-hidden rounded-xl border shadow-xl">
+      <div className="border-border bg-surface-raised max-h-[70vh] w-[540px] overflow-hidden rounded-lg border shadow-xl">
         <div className="border-border flex items-center justify-between border-b px-4 py-3">
           <div>
             <div className="text-lg font-semibold">Rewind to an earlier message</div>

@@ -110,7 +110,7 @@ function Group({ title, bindings }: { title: string; bindings: Binding[] }): Rea
   return (
     <div>
       <SectionTitle>{title}</SectionTitle>
-      <div className="border-border divide-border divide-y overflow-hidden rounded-xl border">
+      <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
         {bindings.map(([parts, action]) => (
           <div
             key={action}
