@@ -94,6 +94,7 @@ async function runLaneCreate(
         refused: (branch) => refuseLaneCreateBranch(id, branch),
         created: (info) => laneCreated(id, info),
         adopted: () => laneCreateAdopted(id),
+        uploading: () => laneCreateAdopted(id),
       },
     )
     finishLaneCreate(id)

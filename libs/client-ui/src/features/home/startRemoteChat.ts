@@ -25,6 +25,8 @@ export interface LaneCreateHooks {
   created?: (info: LiveSessionInfo) => void
   /** Adopted, before control and files: the Host takes files only for the lane on screen. */
   adopted?: () => void
+  /** Again right before files upload: the user may have come back to the placeholder since. */
+  uploading?: () => void
 }
 
 /** Only a definitive fresh-branch refusal may retry. Uncertain receipts keep the draft. */
@@ -74,6 +76,7 @@ export async function startRemoteChat(
   // As on This Mac: the first prompt never runs without the authorization the user chose.
   if (swarm)
     await requestSwarm(info.sessionId, true).catch(() => Promise.reject(new Error('swarm-failed')))
+  hooks.uploading?.()
   const uploaded = await uploadPromptFiles(info.sessionId, attachments)
   if (
     !(await piCallOk(info.sessionId, {
