@@ -429,7 +429,8 @@ installed version. Service installs on Linux and macOS point node and the bundle
 before this rule with `phosphor service install`.
 
 An active Linux service or loaded macOS LaunchAgent restarts after selection.
-For a headless service the updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
+The updater waits up to 180 seconds for the new run's health signals. For a headless
+service that means an accepted heartbeat. `run`
 writes `{ version, pid, startedAt, acceptedAt }` to `<state>/run.json` atomically
 at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
