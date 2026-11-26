@@ -90,7 +90,7 @@ it('keeps a slow title on a busy machine: 60 s is still in time', async () => {
   expect(slow.apply).toHaveBeenCalledOnce()
   expect(outcome).toHaveBeenCalledExactlyOnceWith('applied')
 })
-it('times out after 30 s, kills the group and stops retrying', async () => {
+it('times out after 90 s, kills the group and stops retrying', async () => {
   vi.useFakeTimers()
   const outcome = vi.fn()
   const timedOut = job({ outcome })
@@ -98,7 +98,7 @@ it('times out after 30 s, kills the group and stops retrying', async () => {
   await vi.advanceTimersByTimeAsync(0)
   expect(children).toHaveLength(1)
   children[0]?.stdout.write('partial')
-  await vi.advanceTimersByTimeAsync(30_000)
+  await vi.advanceTimersByTimeAsync(90_000)
   expect(timedOut.apply).not.toHaveBeenCalled()
   expect(outcome).toHaveBeenCalledExactlyOnceWith('print-timeout', {
     reason: 'timeout',
@@ -336,7 +336,7 @@ it.each([
     }),
   )
   await vi.advanceTimersByTimeAsync(0)
-  if (expected === 'print-timeout') await vi.advanceTimersByTimeAsync(30_000)
+  if (expected === 'print-timeout') await vi.advanceTimersByTimeAsync(90_000)
   if (expected === 'print-failed') {
     children[0]?.stdout.write('private output')
     children[0]?.emit('close', 1)
