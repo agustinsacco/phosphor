@@ -73,14 +73,14 @@ describe('reach grants', () => {
     [{ status: 409, code: 'conflict' }, 'unavailable'],
     [{ status: 404, code: 'not-found' }, 'unknown'],
     [{ status: 410, code: 'gone' }, 'signed-out'],
-    [{ status: 429, code: 'too-many-requests' }, 'too-many-requests'],
-    [{ status: 503, code: 'unavailable' }, 'offline'],
-    ['offline', 'offline'],
+    [{ status: 429, code: 'too-many-requests' }, 'rate-limited'],
+    [{ status: 503, code: 'unavailable' }, 'control-unreachable'],
+    ['offline', 'control-unreachable'],
   ] as const)('reads control %j as %s and caches no refusal', async (answer, reason) => {
     const { grants, calls } = setup(() => answer)
     await expect(grants.grantFor(bee2.id)).rejects.toEqual(new ReachGrantRefused(reason))
     await expect(grants.grantFor(bee2.id)).rejects.toBeInstanceOf(ReachGrantRefused)
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(reason === 'control-unreachable' ? 4 : reason === 'rate-limited' ? 1 : 2)
   })
 
   it('refuses a grant for another machine than the one asked for', async () => {

@@ -150,7 +150,7 @@ describe('--host asks: one origin confirmation over every target', () => {
     })
     expect(done).toMatchObject({
       status: 'ok',
-      text: 'bee1: purged\nbee2: confirm-denied: Not approved on bee2. Approve from an updated Phosphor app.',
+      text: '1 of 2 hosts failed\n== bee1 (ok)\npurged\n== bee2 (denied)\nNot approved on bee2. Approve from an updated Phosphor app.',
       data: {
         hosts: [
           { hostId: BEE1, status: 'ok' },

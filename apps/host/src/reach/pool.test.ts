@@ -105,7 +105,7 @@ describe('reach pool', () => {
     await expect(pool.run(old, read, { write: false })).resolves.toEqual({
       ok: false,
       code: 'unsupported',
-      message: 'Update that Host: old.',
+      message: 'old runs Host 0.0.0, which does not serve lane.list. Update that Host.',
     })
     expect(opsFrames(old)).toEqual([])
     pool.close()
@@ -144,6 +144,23 @@ describe('reach pool', () => {
     expect(bee2.sockets).toHaveLength(1)
     expect(opsFrames(bee2)).toHaveLength(1)
     expect(pool.size()).toBe(0)
+  })
+
+  it('reports a deadline after dispatch as unconfirmed without sending again', async () => {
+    const answer = held()
+    const bee2 = sibling('bee2', answer.handler)
+    const { pool, clock } = setup([bee2])
+    const controller = new AbortController()
+    try {
+      const result = pool.run(bee2, write, { write: true, signal: controller.signal, deadlineAt: clock.now + 1000 })
+      await vi.waitFor(() => expect(answer.waiting).toHaveLength(1))
+      controller.abort()
+      answer.waiting[0]!(LANE_LIST_OK)
+      await expect(result).resolves.toMatchObject({ ok: false, code: 'unconfirmed' })
+      expect(opsFrames(bee2)).toHaveLength(1)
+    } finally {
+      pool.close()
+    }
   })
 
   it('reports an unknown receipt as unconfirmed', async () => {
