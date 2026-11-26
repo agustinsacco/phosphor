@@ -50,11 +50,19 @@ it('keeps all unsolicited Host frame types readable by original v1 clients', () 
   // Frame types are erased. The parser fixtures exhaust the union at compile time;
   // also point at the contract if a new type has not even acquired a fixture yet.
   const optInFrame = 'resource-changed'
-  const reviewed: Exclude<HostFrame['type'], (typeof v1HostFrames)[number] | typeof optInFrame> extends never
+  const reviewed: Exclude<
+    HostFrame['type'],
+    (typeof v1HostFrames)[number] | typeof optInFrame
+  > extends never
     ? true
     : typeof guidance = true
   expect(reviewed).toBe(true)
-  expect(Object.keys(HOST_FRAMES).filter((type) => type !== optInFrame).sort(), guidance).toEqual(v1HostFrames)
+  expect(
+    Object.keys(HOST_FRAMES)
+      .filter((type) => type !== optInFrame)
+      .sort(),
+    guidance,
+  ).toEqual(v1HostFrames)
 })
 
 it('keeps lanes topics within the repository and lane bounds old clients accept', () => {

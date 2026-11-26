@@ -119,11 +119,20 @@ describe('client frame discriminants', () => {
 
 it('freezes the resource change kinds and lanes subscription opt-in', () => {
   expect(HOST_RESOURCE_KINDS).toEqual([
-    'archives', 'settings', 'connectors', 'skills', 'packages', 'artifacts', 'routines', 'folders', 'sandboxes',
+    'archives',
+    'settings',
+    'connectors',
+    'skills',
+    'packages',
+    'artifacts',
+    'routines',
+    'folders',
+    'sandboxes',
   ])
   const lanes = CLIENT_FRAMES.subscribe.lanes
   expect(client({ ...lanes, resourceChanges: true })).toEqual({
-    ok: true, frame: { ...lanes, resourceChanges: true },
+    ok: true,
+    frame: { ...lanes, resourceChanges: true },
   })
   expect(client({ ...lanes, resourceChanges: false })).toEqual({ ok: true, frame: lanes })
 })
