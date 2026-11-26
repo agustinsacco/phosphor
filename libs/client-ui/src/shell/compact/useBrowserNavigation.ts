@@ -4,8 +4,9 @@ import { createHistoryNavigation } from '@/navigation/history'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { releaseHostLaneNav } from '@/stores/hostLaneOpen'
 import { useMachinePagesStore } from '@/stores/machinePages'
-import { locationMachine, type Location } from '@/navigation/location'
+import { locationMachine, type LaneKey, type Location } from '@/navigation/location'
 import { useDefaultMachine } from './useDefaultMachine'
 import { laneCreate, showLaneCreate, useLaneCreatesStore } from '@/stores/laneCreates'
 import type { Navigation } from '@/navigation/Navigation'
@@ -31,6 +32,17 @@ function showCreateRoute(location: Location): boolean {
     return false
   if (useSessionsStore.getState().opening?.create !== create) showLaneCreate(create)
   return true
+}
+
+type HostLaneKey = Extract<LaneKey, { hostId: string }>
+
+function isLaneLocation(location: Location, lane: HostLaneKey): boolean {
+  return (
+    location.to === 'lane' &&
+    'hostId' in location.lane &&
+    location.lane.hostId === lane.hostId &&
+    location.lane.laneId === lane.laneId
+  )
 }
 
 export function useBrowserNavigation() {
@@ -61,10 +73,14 @@ export function useBrowserNavigation() {
     if (!remoteEnabled) return
     const machine = locationMachine(location)
     applying.current = true
+    const sessions = useSessionsStore.getState()
+    const opening = sessions.opening
     if (location.to !== 'lane' && !showCreateRoute(location)) {
       // Native activate(null) persists app:setLastSession; browser home has no local resume target.
-      useSessionsStore.getState().claimNav()
-      useSessionsStore.setState({ activeSessionId: null, opening: null })
+      sessions.claimNav()
+      useSessionsStore.setState({ activeSessionId: null })
+    } else if (opening?.lane && !isLaneLocation(location, opening.lane)) {
+      releaseHostLaneNav(opening.nav)
     }
     useRemoteLanesStore.getState().setFilter(machine ?? 'all')
     useMachinePagesStore.setState({
@@ -86,19 +102,19 @@ export function useBrowserNavigation() {
     let listening = true
     const offSessions = useSessionsStore.subscribe((state, previous) => {
       if (applying.current) return
+      const showLane = (lane: HostLaneKey): void => {
+        if (!isLaneLocation(history.getSnapshot(), lane))
+          history.navigate({ to: 'lane', lane, pane: 'chat' })
+      }
+      const opening = state.opening
+      if (opening?.lane && opening.nav !== previous.opening?.nav) return showLane(opening.lane)
       if (state.activeSessionId === previous.activeSessionId || !state.activeSessionId) return
       const entry = state.live[state.activeSessionId]
       if (entry?.target?.kind !== 'remote' || !entry.laneId) return
-      const current = history.getSnapshot()
-      if (
-        current.to === 'lane' &&
-        'hostId' in current.lane &&
-        current.lane.hostId === entry.target.hostId &&
-        current.lane.laneId === entry.laneId
-      )
-        return
-      // A placeholder becoming its lane replaces its URL, so Back skips the dead one.
       const lane = { hostId: entry.target.hostId, laneId: entry.laneId }
+      const current = history.getSnapshot()
+      if (isLaneLocation(current, lane)) return
+      // A placeholder becoming its lane replaces its URL, so Back skips the dead one.
       history.navigate({ to: 'lane', lane, pane: 'chat' }, current.to === 'new' && !!current.create)
     })
     const offLayout = useLayoutStore.subscribe((state, previous) => {
@@ -127,7 +143,7 @@ export function useBrowserNavigation() {
           (filter !== 'all' && filter !== 'local' ? filter : undefined)
         history.navigate({ to: 'page', page: state.page, ...(machine ? { machine } : {}) })
       } else if (!state.page && current.to === 'page' && current.page !== 'settings') {
-        // activate() closes the page before publishing the active lane in the same tick.
+        // A lane open or activation closes the page before publishing its lane in the same tick.
         // Let that lane own the URL rather than adding an intermediate Home history entry.
         queueMicrotask(() => {
           if (

@@ -50,7 +50,11 @@ export function useRemoteModel(hostId: string) {
     host?.state === 'ready' ? defaultRemoteModel(models, providers, preferences) : undefined
   const degraded = catalogue.source === 'config'
   const missingModel =
-    host?.state === 'ready' && catalogue.status === 'ready' && !model && !degraded
+    host?.state === 'ready' &&
+    catalogue.status === 'ready' &&
+    !model &&
+    !degraded &&
+    !catalogue.error
   const hint = hostReconnecting(host?.state)
     ? 'Connecting…'
     : (hostFeatureRefusal(host, 'skills.read', 'models') ??
@@ -75,11 +79,19 @@ export function useRemoteModel(hostId: string) {
         : model
           ? remoteModelExplanation(model, preferences)
           : hint,
+    loading:
+      host?.state === 'ready' &&
+      host.capabilities.includes('skills.read') &&
+      (catalogue.status === 'idle' ||
+        catalogue.status === 'loading' ||
+        catalogue.refreshing === true),
+    error: catalogue.error,
     canRetry:
       host?.state === 'ready' &&
       host.capabilities.includes('skills.read') &&
       catalogue.status !== 'loading' &&
-      !model,
+      !catalogue.refreshing &&
+      (!!catalogue.error || !model),
     retry: () => useMachineCataloguesStore.getState().load(hostId, 'retry'),
     thinking: model ? remoteStartThinking(model, preferences) : ('off' as const),
     setThinking: (level: ThinkingLevel) => rememberRemoteThinking(hostId, level),

@@ -84,3 +84,13 @@ it('selects the row being opened and marks it opening while its open runs', () =
   expect(row.getAttribute('aria-current')).toBeNull()
   expect(row.getAttribute('data-activity')).toBe('opening')
 })
+
+it('says Opening on a working Host row while the open is pending', () => {
+  const lanes = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.lanes
+  lanes[0] = { ...lanes[0]!, laneId: 'working-lane', activity: 'working' }
+  act(() => root.render(<RemoteLaneList hostId={MOCK_HOST_ID} lanes={lanes} ready />))
+  const row = container.querySelector<HTMLButtonElement>('[data-testid="remote-session-row"]')!
+  expect(row.getAttribute('data-activity')).toBe('working')
+  act(() => row.click())
+  expect(row.getAttribute('data-activity')).toBe('opening')
+})

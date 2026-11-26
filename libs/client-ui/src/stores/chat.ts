@@ -34,6 +34,7 @@ export interface ChatSession extends ChatSessionState {
   modelsLoaded: boolean
   /** The last read of `models` failed; the list keeps what it had. */
   modelsFailed: boolean
+  modelsRefreshing: boolean
   commands: RpcSlashCommand[]
   /**
    * Levels the current model supports, straight from pi
@@ -60,6 +61,7 @@ const emptySession = (): ChatSession => ({
   models: [],
   modelsLoaded: false,
   modelsFailed: false,
+  modelsRefreshing: false,
   commands: [],
   thinkingLevels: null,
   resuming: false,
@@ -102,8 +104,8 @@ interface ChatStore {
   setMeta: (sessionId: string, meta: RpcSessionState) => void
   patchMeta: (sessionId: string, patch: Partial<RpcSessionState>) => void
   setStats: (sessionId: string, stats: SessionStats) => void
-  /** A model read's answer; `null` when the read failed. */
-  setModels: (sessionId: string, models: Model[] | null) => void
+  /** `undefined` starts a model read, `null` records its failure. */
+  setModels: (sessionId: string, models: Model[] | null | undefined) => void
   setCommands: (sessionId: string, commands: RpcSlashCommand[]) => void
   setThinkingLevels: (sessionId: string, levels: ThinkingLevel[] | null) => void
   remove: (sessionId: string) => void
@@ -117,10 +119,14 @@ function patchSession(
   return chats.patch(sessions, sessionId, (session) => ({ ...session, ...patch }))
 }
 
-function modelsRead(models: Model[] | null): Partial<ChatSession> {
-  return models
-    ? { models, modelsLoaded: true, modelsFailed: false }
-    : { modelsLoaded: true, modelsFailed: true }
+function modelsRead(models: Model[] | null | undefined): Partial<ChatSession> {
+  if (models === undefined) return { modelsRefreshing: true, modelsFailed: false }
+  return {
+    ...(models ? { models } : {}),
+    modelsLoaded: true,
+    modelsFailed: models === null,
+    modelsRefreshing: false,
+  }
 }
 
 function promptActions(

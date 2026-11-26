@@ -22,7 +22,8 @@ function hostStartModel(
 ): StartModelSource {
   const { model } = selection
   const actions: StartModelSource['actions'] = []
-  if (selection.canRetry) actions.push({ label: 'Retry models', run: () => void selection.retry() })
+  const retry = () => void selection.retry()
+  if (selection.canRetry) actions.push({ label: 'Retry models', run: retry })
   if (selection.missingModel) actions.push(signIn)
   return {
     testIdPrefix: 'remote',
@@ -35,13 +36,15 @@ function hostStartModel(
           title: `${model.name} · ${selection.explanation}`,
         }
       : { text: selection.hint, tone: 'muted', title: selection.hint },
-    loading: false,
+    loading: selection.loading,
     levels: model ? supportedThinkingLevels(model) : [],
     thinking: selection.thinking,
     choose: selection.choose,
     setThinking: selection.setThinking,
     menu: {
       emptyText: selection.hint,
+      error: selection.error,
+      ...(selection.error && selection.canRetry && { onRetry: retry }),
       unavailable: selection.unavailable,
       notice: selection.degraded
         ? 'Showing configured models while pi’s full catalogue is unavailable. Retrying…'

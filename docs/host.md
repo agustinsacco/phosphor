@@ -2118,7 +2118,7 @@ Naming uses the shared title policy and runner Desktop uses
 - **Limits.** Only one naming subprocess runs at a time, with at most 64 pending
   jobs. Print mode has no stdin, tools, context files, skills or templates;
   thinking is off; stderr is ignored. It waits for stdout to close before
-  accepting its result. Every attempt has a 30 second timeout, a 4 KiB output
+  accepting its result. Every attempt has a 90 second timeout, a 4 KiB output
   cap, and its own process group, killed on completion or failure. Host shutdown
   cancels the active naming group and discards queued naming work.
 

@@ -8,9 +8,8 @@ import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
 
 /**
- * Host lanes whose `hosts:openLane` is running, by `remoteLaneKey`. An open
- * keeps going after the user clicks elsewhere, so its row says so even when it
- * is not the selection.
+ * Host lanes still opening, by `remoteLaneKey`: through adoption, bootstrap
+ * and any snapshot refresh. Their rows say so even after the user goes elsewhere.
  */
 export const useHostLaneOpensStore = create<{ inFlight: Record<string, true> }>(() => ({
   inFlight: {},
@@ -67,12 +66,15 @@ async function adopt(
  */
 export function beginHostLaneOpening(lane: { hostId: string; laneId: string }, title: string) {
   const sessions = useSessionsStore.getState()
-  const held = Object.values(sessions.live).some(
-    (entry) =>
-      entry.target?.kind === 'remote' &&
-      entry.target.hostId === lane.hostId &&
-      entry.laneId === lane.laneId,
-  )
+  // Adoption publishes the handle before its transcript and state are ready.
+  const held =
+    !running.has(remoteLaneKey(lane.hostId, lane.laneId)) &&
+    Object.values(sessions.live).some(
+      (entry) =>
+        entry.target?.kind === 'remote' &&
+        entry.target.hostId === lane.hostId &&
+        entry.laneId === lane.laneId,
+    )
   if (held) return sessions.claimNav()
   useLayoutStore.getState().setPage(null)
   return sessions.beginOpening({
@@ -90,6 +92,12 @@ export function settleOpening(nav: number, failure?: string): void {
       ? {}
       : { opening: failure && s.opening.lane ? { ...s.opening, failure } : null },
   )
+}
+
+/** Leave only the navigation this caller owns; its open can still finish in the background. */
+export function releaseHostLaneNav(nav: number): void {
+  const sessions = useSessionsStore.getState()
+  if (sessions.navSeq === nav) sessions.claimNav()
 }
 
 export const isActiveLane = (id: string): boolean =>

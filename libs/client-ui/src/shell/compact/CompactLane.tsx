@@ -1,7 +1,8 @@
 import { useLayoutStore } from '@/stores/layout'
 import { TooltipButton } from '@/components/Tooltip'
-import { lazy, Suspense, useEffect, useMemo } from 'react'
+import { lazy, Suspense, useLayoutEffect, useMemo } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
+import { releaseHostLaneNav, useHostLaneOpenInFlight } from '@/stores/hostLaneOpen'
 import { WaitingPane } from '@/components/Waiting'
 import {
   connectingTo,
@@ -37,6 +38,19 @@ const ArtifactsPane = lazy(() =>
   })),
 )
 
+function useOpenRoutedLane(hostId: string, laneId: string, ready: boolean): void {
+  // Before paint, so the first frame already shows the open it starts.
+  useLayoutEffect(() => {
+    if (!ready) return
+    const { navSeq, opening } = useSessionsStore.getState()
+    // A notice or Continue can put its own open in the URL. Don't replace its claim.
+    if (opening?.lane?.hostId === hostId && opening.lane.laneId === laneId) return
+    void openRemoteLane(hostId, laneId)
+    const nav = useSessionsStore.getState().navSeq
+    if (nav !== navSeq) return () => releaseHostLaneNav(nav)
+  }, [hostId, laneId, ready])
+}
+
 export function CompactLane({
   location,
   navigate,
@@ -59,12 +73,8 @@ export function CompactLane({
   const page = useLayoutStore((s) => s.page)
   const navigationReady = filter === hostId && page === null
   const ready = host?.state === 'ready' && !!lane
-  useEffect(() => {
-    if (ready && navigationReady) void openRemoteLane(hostId, laneId)
-    return () => {
-      useSessionsStore.getState().claimNav()
-    }
-  }, [hostId, laneId, ready, navigationReady])
+  const inFlight = useHostLaneOpenInFlight(hostId, laneId)
+  useOpenRoutedLane(hostId, laneId, ready && navigationReady)
   if (snapshotStatus === 'idle' || snapshotStatus === 'loading')
     return <WaitingPane title="Connecting to your machines…" />
   if (snapshotStatus === 'error')
@@ -95,7 +105,7 @@ export function CompactLane({
         Machine not connected. Open Machines to reconnect.
       </p>
     )
-  if (opening?.failure || !session || !navigationReady)
+  if (opening || !session || !navigationReady)
     return (
       <div className="relative h-full">
         <OpeningLane
@@ -104,6 +114,8 @@ export function CompactLane({
               title: remoteLaneTitle(undefined, lane?.title),
               reason: 'open',
               lane: { hostId, laneId },
+              // Nothing is opening it: say so with Retry rather than spin forever.
+              ...(navigationReady && !inFlight ? { failure: 'This lane did not open.' } : {}),
             }
           }
         />

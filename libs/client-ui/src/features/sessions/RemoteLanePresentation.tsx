@@ -68,7 +68,7 @@ export function RemoteLanePresentation({
   const description = useId()
   const view = remoteLanePresentation(lane, ready)
   const inFlight = useHostLaneOpenInFlight(hostId ?? '', lane.laneId) && hostId !== undefined
-  const activity = view.activity ?? (opening || inFlight ? 'opening' : undefined)
+  const activity = opening || inFlight ? 'opening' : view.activity
   const stateLabel = {
     streaming: '',
     unseen: 'Unread activity. ',

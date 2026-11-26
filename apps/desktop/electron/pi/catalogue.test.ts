@@ -96,13 +96,37 @@ describe('catalogue service', () => {
 
   it('does not cache empty results and keeps session-naming rejection distinct', async () => {
     const { catalogueResult, catalogueModels } = await import('./catalogue')
-    state.models.mockResolvedValue([])
+    state.models.mockRejectedValue(new Error('launch failed'))
     state.configModels.mockResolvedValue([])
     expect(await catalogueResult()).toEqual({ models: [], source: 'config' })
     await expect(catalogueModels()).rejects.toThrow('no models available')
     state.models.mockResolvedValue(models)
     expect(await catalogueModels()).toEqual(models)
     expect(state.models).toHaveBeenCalledTimes(3)
+  })
+
+  it('reports a completed empty pi catalogue separately from a launch failure', async () => {
+    const { catalogueResult } = await import('./catalogue')
+    state.models.mockResolvedValue([])
+    state.configModels.mockResolvedValue([])
+    expect(await catalogueResult()).toEqual({ models: [], source: 'pi' })
+  })
+
+  it('keeps unsuccessful RPC replies distinct from completed empty replies', async () => {
+    const { catalogueResult } = await import('./catalogue')
+    const { listModelsViaRpc } = await vi.importActual<typeof ModelCatalogue>('./model-catalogue')
+    state.stub.mockReturnValue('/stub.cjs')
+    state.models.mockImplementation(listModelsViaRpc)
+    state.request
+      .mockResolvedValueOnce({ success: false, error: 'models failed' })
+      .mockResolvedValueOnce({ success: true, data: { models: [] } })
+    state.configModels.mockResolvedValue([])
+    expect(await catalogueResult()).toEqual({ models: [], source: 'config' })
+    expect(await catalogueResult()).toEqual({ models: [], source: 'pi' })
+    expect(state.request.mock.calls).toEqual([
+      [{ type: 'get_available_models' }],
+      [{ type: 'get_available_models' }],
+    ])
   })
 
   it('reloads immediately on catalogue invalidation', async () => {

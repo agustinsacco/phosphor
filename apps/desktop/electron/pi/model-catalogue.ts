@@ -69,11 +69,13 @@ export async function resolveCatalogueModels(
   listModels: (binaryPath: string) => Promise<CatalogueModel[]> = listModelsViaRpc,
 ): Promise<CatalogueResult> {
   let reason = 'pi returned no models'
+  let emptyPiList = false
   try {
     const binaryPath = await resolveBinary()
     if (binaryPath) {
       const models = await listModels(binaryPath)
       if (models.length > 0) return { models, source: 'pi' }
+      emptyPiList = true
     } else {
       reason = 'pi is not available'
     }
@@ -81,6 +83,8 @@ export async function resolveCatalogueModels(
     reason = error instanceof Error ? error.message : String(error)
   }
   const models = await fromConfig()
+  // Keep configured choices if present, but don't label a completed empty read as a failure.
+  if (emptyPiList && models.length === 0) return { models, source: 'pi' }
   log('models', 'catalogue fell back to models.json', { reason, models: models.length })
   return { models, source: 'config' }
 }
@@ -120,7 +124,8 @@ export async function requestAvailableModels(
     timeoutMs,
     'get_available_models timed out',
   )) as RpcResponse<RpcResponseDataMap['get_available_models']>
-  if (!response.success || !response.data) return []
+  if (!response.success) throw new Error(response.error ?? 'get_available_models failed')
+  if (!response.data) throw new Error('get_available_models returned no data')
   return toCatalogueModels(response.data.models)
 }
 

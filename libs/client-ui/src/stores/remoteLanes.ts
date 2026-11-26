@@ -23,6 +23,7 @@ import {
   isActiveLane,
   openHostLane,
   prepareOpenedLane,
+  releaseHostLaneNav,
   settleOpening,
 } from './hostLaneOpen'
 import { remoteLaneTitle } from '@/features/sessions/remoteLaneView'
@@ -191,9 +192,8 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
         ? { hostId: live.target.hostId, laneId: live.laneId }
         : undefined
   let nav = sessions.claimNav()
-  let superseded = false
   let stopWatching = (): void => {}
-  const current = (): boolean => !superseded && useSessionsStore.getState().navSeq === nav
+  const current = (): boolean => useSessionsStore.getState().navSeq === nav
   const unavailable = (hosts = useRemoteLanesStore.getState().hosts): string | undefined => {
     if (!remote) return
     const host = hosts[remote.hostId]
@@ -211,7 +211,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
       alignLaneMachineFilter(remote.hostId)
       const view = host?.lanes.find((lane) => lane.laneId === remote.laneId)
       nav = beginHostLaneOpening(remote, remoteLaneTitle(undefined, view?.title))
-      stopWatching = watchSupersede(nav, () => (superseded = true))
+      stopWatching = watchSupersede(nav)
       sessionId = await openHostLane(remote, !!(host?.local || host?.warmOnOpen))
     }
     if (!current()) return false
@@ -248,26 +248,24 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     settleOpening(nav, message)
     return false
   } finally {
-    stopWatching()
+    const { opening } = useSessionsStore.getState()
+    if (opening?.nav !== nav || !opening.failure) stopWatching()
   }
 }
 
-/** A page or machine chosen while a lane opens wins; the open lands without taking the screen. */
-function watchSupersede(nav: number, supersede: () => void): () => void {
-  const leave = (): void => {
-    supersede()
-    settleOpening(nav)
-  }
-  const offPage = useLayoutStore.subscribe((state, previous) => {
-    if (state.page !== previous.page) leave()
+/** A page or machine supersedes both a pending open and its retained failure. */
+function watchSupersede(nav: number): () => void {
+  const offPage = useLayoutStore.subscribe((s, prev) => {
+    if (s.page !== prev.page) releaseHostLaneNav(nav)
   })
-  const offFilter = useRemoteLanesStore.subscribe((state, previous) => {
-    if (state.filter !== previous.filter) leave()
+  const offFilter = useRemoteLanesStore.subscribe((s, prev) => {
+    if (s.filter !== prev.filter) releaseHostLaneNav(nav)
   })
-  return () => {
-    offPage()
-    offFilter()
-  }
+  const offNav = useSessionsStore.subscribe((s) => {
+    if (s.navSeq !== nav) stop()
+  })
+  const stop = (): void => [offPage, offFilter, offNav].forEach((off) => off())
+  return stop
 }
 
 export async function openRemoteLane(hostId: string, laneId: string): Promise<boolean> {

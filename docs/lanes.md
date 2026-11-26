@@ -715,12 +715,15 @@ A Host lane, This Mac's service included, opens the same way on Desktop and in
 the browser. `navigateToLane` records it in `sessions.opening` (with `lane`) on
 the click, closes any page and shows its machine, so its row selects and
 `OpeningLane` covers the main region (`CompactLane` renders the same view)
-while `hosts:openLane` runs in the background. `hostLaneOpen.ts` runs one open
-per lane at a time: a click back to a lane whose open is running joins it, and
-its row says `Opening` even when it is not the selection. The lane activates
-only if no newer navigation came first; a late open is adopted quietly, with no
-focus change and no toast. A failed open keeps the view, still, with the reason
-and Retry; the next click starts a fresh open.
+while the open runs in the background. Routines’ Continue and lane notices
+also put the target in the browser URL as soon as it starts opening.
+`hostLaneOpen.ts` runs one open per lane at a time, through transcript and
+session bootstrap and any required Host snapshot refresh. A click back joins
+that open, and its row says `Opening` even if the lane is working or is not
+selected. The lane activates only if no newer navigation came first; a late
+open is adopted quietly, with no focus change and no toast. A failed open
+stops the loader and offers Retry until the user changes page, machine, or
+lane. Retry starts a fresh open.
 
 A new Host lane is on screen before the Host has it. Sending from a New lane
 composer records a placeholder (`laneCreates.ts`) and puts it in

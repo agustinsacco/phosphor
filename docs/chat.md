@@ -973,8 +973,14 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   not read models."), offers the same two actions (`useSessionModelActions`)
   beside the chat picker's chip and in the no-models banner, which adds **Open
   terminal with `pi`** when the platform has a terminal and the lane runs on
-  This Mac. Retry models reads through `stores/sessionModels.ts`, as the lane's
-  bootstrap does.
+  This Mac. Retry models joins any in-flight model read for the lane, including
+  bootstrap, through `stores/sessionModels.ts`.
+  On Desktop and the PWA, the popover opens while models load and keeps cached
+  choices available with **Refreshing…**. An empty config fallback means the
+  catalogue read failed, not that there are no models; the popover shows
+  **Could not read models.** with **Retry**. A completed empty catalogue keeps
+  its empty-state guidance. Results replace the list in place, and search takes
+  keyboard focus when it becomes enabled after a cold load.
   The picker grows into the toolbar's free width on every machine.
   Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the
