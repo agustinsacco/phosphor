@@ -146,3 +146,104 @@ it('names the nearest flag and uses only the supplied catalog', () => {
     ),
   ).toMatchObject({ ok: false })
 })
+
+it.each([
+  [['lane', 'queue-mode', 'follow-up', 'one-at-a-time'], 'lane.queueMode'],
+  [['routine.history', '--run-id=run-1'], 'routine.history'],
+  [['lane.mark-read', 'lane-a'], 'lane.markRead'],
+  [['mcp', 'status', 'example'], 'mcp.check'],
+  [['routine', 'pause', 'r'], 'routine.disable'],
+  [['routine', 'resume', 'r'], 'routine.enable'],
+])('resolves %j to the canonical wire name', (argv, op) => {
+  expect(parseOpArgv(argv)).toMatchObject({ ok: true, op })
+})
+
+it.each([
+  [['lane.read', 'x', '--part', 'private-input'], 'part', 'summary|messages|artifacts|prs|debug'],
+  [['lane.read', 'x', '--messages', '101'], 'messages', '1–50'],
+  [['routine.create', '--definition', '{"name":"example"}'], 'definition', 'instructions'],
+])('names the field and the constraint for %j', (argv, field, expected) => {
+  const result = parseOpArgv(argv)
+  expect(result).toMatchObject({ ok: false })
+  if (result.ok) throw new Error('Expected a refusal')
+  expect(result.error).toContain(field)
+  expect(result.error).toContain(expected)
+  expect(result.error).not.toContain('private-input')
+})
+
+it.each([
+  [['lan', 'read'], 'Did you mean lane?'],
+  [['lane', 'rea'], 'Did you mean read?'],
+  [['lane.read', 'x', '--completely-unrelated', 'x'], null],
+  [['lane', 'lid'], null],
+])('suggests only a close, unambiguous match for %j', (argv, hint) => {
+  const result = parseOpArgv(argv)
+  expect(result).toMatchObject({ ok: false })
+  if (result.ok) throw new Error('Expected a refusal')
+  if (hint) expect(result.error).toContain(hint)
+  else expect(result.error).not.toContain('Did you mean')
+})
+
+it('accepts reserved paging options only for paged ops and preserves a declared limit field', () => {
+  const catalog = OP_CATALOG.map((s) =>
+    ['lane.list', 'audit.list'].includes(s.name) ? { ...s, paged: true as const } : s,
+  )
+  expect(parseOpArgv(['lanes', '--limit', '9'], catalog)).toMatchObject({
+    ok: true,
+    limit: 9,
+    args: {},
+  })
+  expect(parseOpArgv(['changes', '--limit', '9'], catalog)).toEqual({
+    ok: true,
+    op: 'audit.list',
+    args: { limit: 9 },
+    json: false,
+  })
+  for (const value of ['0', '101', '1.5'])
+    expect(parseOpArgv(['lanes', '--limit', value], catalog)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('1–100'),
+    })
+  for (const flag of ['--limit', '--page'])
+    expect(parseOpArgv(['whoami', flag, '1'], catalog)).toMatchObject({
+      ok: false,
+      error: expect.stringContaining(`does not accept ${flag}`),
+    })
+})
+
+it('merges long tool content into routine instructions before validating its definition', () => {
+  const definition = {
+    name: 'Morning digest',
+    repositoryId: 'repo1',
+    isolated: false,
+    intent: 'report',
+    provider: 'sample',
+    model: 'sample',
+    timezone: 'UTC',
+    schedule: { kind: 'manual' },
+    period: 'none',
+    catchUpHours: 0,
+    maxRuntimeMinutes: 10,
+  }
+  const instructions = 'Write a digest. '.repeat(400)
+  const argv = ['routine', 'create', '--definition', JSON.stringify(definition)]
+  expect(parseOpArgv(argv, undefined, { content: instructions })).toMatchObject({
+    ok: true,
+    args: { definition: { ...definition, instructions } },
+  })
+  expect(
+    parseOpArgv(
+      [...argv.slice(0, -1), JSON.stringify({ ...definition, instructions: 'short' })],
+      undefined,
+      { content: instructions },
+    ),
+  ).toMatchObject({ ok: false, error: expect.stringContaining('instructions') })
+})
+
+it.each([
+  ['help', 'lane', 'read'],
+  ['help', 'lane.read'],
+  ['lane', 'read', '--help'],
+])('parses %j as the same help topic', (...argv) => {
+  expect(parseOpArgv(argv)).toMatchObject({ ok: true, op: 'help', args: { topic: 'lane.read' } })
+})

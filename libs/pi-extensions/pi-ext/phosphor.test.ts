@@ -327,3 +327,67 @@ it('unregisters both controls on session replacement and shutdown', async () => 
   await f.emit('session_shutdown', replacement)
   expect(laneControlFacts(key)).toEqual({})
 })
+
+it('preserves the prefix of one-line UTF-8 text rather than clipping the entire body', async () => {
+  const payload = JSON.stringify({ value: '🐳"<&'.repeat(9000) })
+  const { content } = await fixture({ ...ok, read: true, untrusted: true, text: payload }).run({
+    args: ['lane.read', 'x'],
+  })
+  const text = content[0]!.text
+  expect(text).not.toContain('Done.')
+  expect(text).toContain('{"value":"🐳\\"&lt;&amp;')
+  expect(text).not.toContain('�')
+  expect(Buffer.byteLength(text)).toBeLessThanOrEqual(16 * 1024)
+})
+
+it('uses compact JSON only before -- and never displays a clipped JSON document as JSON', async () => {
+  const reply = {
+    ...ok,
+    read: true,
+    untrusted: true,
+    text: 'rows',
+    data: { next: 'not-a-cursor', q: '<"' },
+  }
+  const f = fixture(reply, reply, { ...reply, data: { q: 'x'.repeat(20_000) } })
+  expect((await f.run({ args: ['lane.read', '--', '--json'] })).content[0]!.text).toContain(
+    '\nrows\n',
+  )
+  const json = (await f.run({ args: ['lane.read', 'x', '--json'] })).content[0]!.text
+  expect(json).toContain('{"next":"not-a-cursor","q":"&lt;\\""}')
+  expect(json).not.toContain('More:')
+  const large = (await f.run({ args: ['lane.read', 'x', '--json'] })).content[0]!.text
+  expect(large).toMatch(/JSON.*too large.*--limit/)
+  expect(large).not.toContain('{"q":')
+})
+
+it('uses owner reply names and codes, and does not try to quote a continuation command', async () => {
+  const f = fixture(
+    { ...ok, op: 'lane.list', next: 'cursor' },
+    { status: 'error', code: 'timeout', op: 'lane.list', text: 'Timeout' },
+  )
+  const first = await f.run({ args: ['lanes', '--host', 'My Mac'] })
+  expect(first.content[0]!.text).toContain('More: repeat the same arguments with --page cursor')
+  expect(first.details.op).toBe('lane.list')
+  expect((await f.run({ args: ['lanes'] })).details).toMatchObject({
+    op: 'lane.list',
+    status: 'error',
+    code: 'timeout',
+  })
+})
+
+it('surfaces failed host counts and frames denied batch JSON after the failure text', async () => {
+  const hosts = [{ hostId: 'a', label: '<A>', status: 'denied', code: 'busy', text: 'Try again' }]
+  const partial = { ...ok, data: { summary: { total: 2, ok: 1, failed: 1 }, hosts } }
+  const allFailed = {
+    status: 'denied',
+    code: 'busy',
+    text: '1 of 1 hosts failed',
+    data: { summary: { total: 1, ok: 0, failed: 1 }, hosts },
+  }
+  const f = fixture(partial, allFailed)
+  expect((await f.run({ args: ['lanes'] })).details).toMatchObject({ batch: { failed: 1 } })
+  const denied = await f.run({ args: ['lanes', '--json'] })
+  expect(denied.details).toMatchObject({ code: 'busy', batch: { total: 1, ok: 0, failed: 1 } })
+  expect(denied.content[0]!.text).toContain('1 of 1 hosts failed\n<phosphor-data')
+  expect(denied.content[0]!.text).toContain('"label":"&lt;A&gt;"')
+})

@@ -3,6 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { readCliRequest } from './cli-args'
 import { runCli, USAGE, type CliContext } from './cli'
 import { runCliOps } from './cli-ops'
+import { openLocalClient } from './local-client'
+
+vi.mock('./local-client', () => ({
+  openLocalClient: vi.fn(() => {
+    throw new Error('No local socket')
+  }),
+}))
 
 vi.mock('./cli-ops', async (original) => {
   const actual = await original<typeof CliOpsModule>()
@@ -97,4 +104,43 @@ describe('local setup and staged update flags', () => {
     expect(readCliRequest(['setup'], false)).toMatchObject({ kind: 'command' })
     expect(readCliRequest(['update', '--check'], false)).toMatchObject({ kind: 'command' })
   })
+})
+
+it('asks the local owner for all catalog help forms and routes the service update op', async () => {
+  const run = vi.fn(async () => ({
+    status: 'ok' as const,
+    text: 'owner reply',
+    applies: 'now' as const,
+  }))
+  const close = vi.fn()
+  vi.mocked(openLocalClient).mockReturnValue({ run, close })
+  for (const args of [
+    ['help', 'lane', 'read'],
+    ['help', 'lane.read'],
+    ['lane', 'read', '--help'],
+  ])
+    expect(await cli(args)).toEqual({ code: 0, stdout: 'owner reply\n', stderr: '' })
+  expect(await cli(['help'])).toMatchObject({ stdout: 'owner reply\n' })
+  expect(await cli(['service', 'update'])).toMatchObject({ stdout: 'owner reply\n' })
+  expect(await cli(['service.update'])).toMatchObject({ stdout: 'owner reply\n' })
+  expect(run.mock.calls).toEqual([
+    ...Array.from({ length: 3 }, () => [expect.objectContaining({ argv: ['help', 'lane.read'] })]),
+    [expect.objectContaining({ argv: ['help'] })],
+    [expect.objectContaining({ argv: ['service', 'update'] })],
+    [expect.objectContaining({ argv: ['service.update'] })],
+  ])
+  expect(close).toHaveBeenCalledTimes(6)
+})
+
+it('labels offline help as static and keeps an unknown domain error short', async () => {
+  vi.mocked(openLocalClient).mockImplementation(() => {
+    throw new Error('No local socket')
+  })
+  expect(await cli(['help', 'lane.read'])).toMatchObject({
+    stdout: expect.stringMatching(/^Static catalog/),
+  })
+  const unknown = await cli(['lan', 'read'])
+  expect(unknown.stderr).toContain('Did you mean lane?')
+  expect(unknown.stderr).toContain('phosphor help')
+  expect(unknown.stderr.length).toBeLessThan(200)
 })

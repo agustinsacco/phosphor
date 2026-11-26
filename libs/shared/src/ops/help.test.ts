@@ -36,3 +36,17 @@ Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json`)
   expect(renderHelp(OP_CATALOG, 'swarm.on')).not.toContain('--host')
   expect(renderHelp(OP_CATALOG, 'missing')).toContain('Unknown help topic')
 })
+
+it('shows semantic labels, schema choices and only the options an op accepts', () => {
+  const catalog = OP_CATALOG.map((s) =>
+    s.name === 'lane.list' ? { ...s, paged: true as const } : s,
+  )
+  const read = renderHelp(catalog, 'lane read')
+  expect(read).toContain('<lane-ref>')
+  expect(read).toContain('--part summary|messages|artifacts|prs|debug')
+  expect(read).toContain('--messages <1–50>')
+  expect(read).not.toContain('--page')
+  expect(read).not.toContain('--limit')
+  expect(renderHelp(catalog, 'lanes')).toContain('--limit <1–100> (default 20)')
+  expect(renderHelp(catalog, 'files.read')).toContain('--target <lane-ref>')
+})
