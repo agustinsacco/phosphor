@@ -248,8 +248,8 @@ describe('fixed-purpose private machine programs', () => {
 it.each(['package.install', 'package.update', 'package.remove'] as const)(
   'invalidates packages only after a successful %s from either UI PTY or catalog runner',
   async (task) => {
-    const args = { name: 'npm:sample', repositoryId: '0123456789abcdef' }
-    vi.mocked(listPackages).mockResolvedValue([{ spec: args.name, scope: 'project' }] as never)
+    const args = { name: 'npm:sample' }
+    vi.mocked(listPackages).mockResolvedValue([{ spec: args.name, scope: 'global' }] as never)
     vi.mocked(runPrintMode).mockResolvedValue({ stdout: '', stderr: '' })
     const f = fixture()
     const resourceChanged = vi.fn()
@@ -265,15 +265,14 @@ it.each(['package.install', 'package.update', 'package.remove'] as const)(
     expect(resourceChanged).not.toHaveBeenCalled()
     f.finish()
     await vi.waitFor(() => expect(ui.active()).toBe(false))
-    const change = { kind: 'packages', repositoryId: args.repositoryId }
+    const change = { kind: 'packages' }
     expect(resourceChanged).toHaveBeenCalledExactlyOnceWith(change)
     resourceChanged.mockClear()
     const handlers = packageHandlers({
       settingsOps: { task: createHeadlessTasks(options, (s) => s) },
-      store: { listRepositories: () => [{ id: args.repositoryId }] },
     } as unknown as DaemonHandlerDeps)
     await handlers[task](
-      { scope: 'project', project: args.repositoryId, spec: args.name },
+      { scope: 'global', spec: args.name },
       {
         principal: {
           kind: 'agent',

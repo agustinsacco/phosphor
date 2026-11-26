@@ -48,15 +48,16 @@ import {
  * (deleted, or its folder gone) opens here instead, read-only; a deleted
  * session's can also be removed.
  */
+function artifactResourceScope(machine: string) {
+  return machine === 'local' ? null : machine === 'all' ? '*' : machine
+}
+
 export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
   const filter = useRemoteLanesStore((s) => s.filter)
   const override = useMachinePagesStore((s) => s.artifactsMachine)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const machine = serviceScope(pageMachine(filter, override, true), hosts)
-  const revision = useHostResourceRevision(
-    machine === 'local' ? null : machine === 'all' ? '*' : machine,
-    'artifacts',
-  )
+  const revision = useHostResourceRevision(artifactResourceScope(machine), 'artifacts')
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
   // Refresh deletion status after changes to the session inventory.
