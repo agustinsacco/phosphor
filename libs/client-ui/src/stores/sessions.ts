@@ -396,6 +396,8 @@ export function attachPiCommandsListener(): () => void {
   })
 }
 
+const bootstraps = new Map<string, Promise<boolean>>()
+
 /**
  * (Re)learn this session's live state from pi — `sessionFile`, model
  * catalogue, commands, stats, thinking levels.
@@ -417,7 +419,30 @@ export function attachPiCommandsListener(): () => void {
  * simply lack some of these commands, and surfacing five chat errors while a
  * session is still opening would be worse than the graceful degradation below.
  */
-export async function bootstrapSession(phosphorId: string): Promise<boolean> {
+export function bootstrapSession(
+  phosphorId: string,
+  /** Read again after any read in flight, which may predate a new pi or session file. */
+  options: { fresh?: boolean } = {},
+): Promise<boolean> {
+  // One read per session at a time: adoption, a stream reset and a lane's pi
+  // starting all ask at once, and each read costs the Host several calls.
+  const running = bootstraps.get(phosphorId)
+  if (running && !options.fresh) return running
+  const run = (
+    running
+      ? running.catch(() => false).then(() => readSession(phosphorId))
+      : readSession(phosphorId)
+  ).finally(() => {
+    if (bootstraps.get(phosphorId) === run) bootstraps.delete(phosphorId)
+  })
+  bootstraps.set(phosphorId, run)
+  return run
+}
+
+/** Whether a bootstrap read for this session is in flight. */
+export const bootstrapping = (phosphorId: string): boolean => bootstraps.has(phosphorId)
+
+async function readSession(phosphorId: string): Promise<boolean> {
   const chat = useChatStore.getState()
   // get_state is awaited on its own, ahead of the rest: it carries
   // `sessionFile`, and "reopen my last session" depends on that path being
@@ -1098,7 +1123,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     } finally {
       useChatStore.getState().doneResuming(sessionId)
     }
-    await bootstrapSession(sessionId)
+    await bootstrapSession(sessionId, { fresh: true })
   },
 
   openDiskSession: async (workspacePath, meta) => {
