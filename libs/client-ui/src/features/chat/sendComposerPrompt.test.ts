@@ -15,6 +15,14 @@ import { useSessionsStore } from '@/stores/sessions'
 import { usePendingQueue } from './composer/pendingQueue'
 import { sendComposerPrompt } from './sendComposerPrompt'
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
+
+type PiResult = Awaited<ReturnType<typeof window.phosphor.piCommand>>
+
 /** pi's own words when a plain prompt reaches it mid-run. */
 const PI_BUSY =
   "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message."
@@ -204,8 +212,8 @@ it.each([UNKNOWN_OUTCOME, `Studio: controlled by ${PI_BUSY}`, 'No API key found 
 
 it('holds a second prompt through the first prompt’s automatic resume and retry receipt', async () => {
   hostLane('working')
-  const resume = Promise.withResolvers<void>()
-  const retry = Promise.withResolvers<void>()
+  const resume = deferred<void>()
+  const retry = deferred<void>()
   const atPi: string[] = []
   const host = {
     async send(op: LaneOp): Promise<CommandResult> {
@@ -226,7 +234,7 @@ it('holds a second prompt through the first prompt’s automatic resume and retr
   let hostRetried = false
   const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (_id, op) => {
     if (op.type !== 'prompt') throw new Error('expected prompt')
-    return receiptResponse(op.type, await sendToLane(host, op, id), 'Studio')
+    return receiptResponse(op.type, await sendToLane(host, op, id), 'Studio') as PiResult
   })
   const first = send(true, 'followUp')
   await Promise.resolve()
@@ -252,8 +260,8 @@ it('holds a second prompt through the first prompt’s automatic resume and retr
 
 it('retains both submitted texts and image blobs on Desktop until their own receipts', async () => {
   hostLane('working')
-  const firstReceipt = Promise.withResolvers<PromptResponse>()
-  const secondReceipt = Promise.withResolvers<PromptResponse>()
+  const firstReceipt = deferred<PromptResponse>()
+  const secondReceipt = deferred<PromptResponse>()
   const store = useDraftsStore.getState()
   const disk = new Map<string, ComposerDraftRecord>()
   const blobs = new Map<string, string>()
@@ -261,10 +269,10 @@ it('retains both submitted texts and image blobs on Desktop until their own rece
   vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
     switch (args[0]) {
       case 'app:writeDraftBlob':
-        blobs.set(args[1], args[2])
+        blobs.set(args[1] as string, args[2] as string)
         return true
       case 'app:setDraft': {
-        const record = args[1]
+        const record = args[1] as ComposerDraftRecord
         const kept = new Set(record.attachments.map((a) => a.blobId))
         for (const a of disk.get(record.key)?.attachments ?? [])
           if (a.blobId && !kept.has(a.blobId)) blobs.delete(a.blobId)
@@ -272,8 +280,9 @@ it('retains both submitted texts and image blobs on Desktop until their own rece
         return
       }
       case 'app:clearDraft':
-        for (const a of disk.get(args[1])?.attachments ?? []) if (a.blobId) blobs.delete(a.blobId)
-        disk.delete(args[1])
+        for (const a of disk.get(args[1] as string)?.attachments ?? [])
+          if (a.blobId) blobs.delete(a.blobId)
+        disk.delete(args[1] as string)
     }
   })
   vi.spyOn(window.phosphor, 'piCommand')

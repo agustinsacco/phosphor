@@ -132,6 +132,12 @@ interface DraftsState {
   rekey: (from: DraftKey, to: DraftKey) => void
 }
 
+/** Hydrated records, minus any held for a submit that has no terminal receipt yet. */
+function visibleDrafts(entries: readonly (readonly [DraftKey, Draft])[]): Record<DraftKey, Draft> {
+  const held = new Set([...heldDrafts].map((draft) => draft.diskKey))
+  return Object.fromEntries(entries.filter(([key]) => !held.has(key)))
+}
+
 export const useDraftsStore = create<DraftsState>((set, get) => ({
   hydrated: false,
   drafts: {},
@@ -153,11 +159,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
     if (generation !== memoryGeneration) return
     // Anything typed while hydrate was in flight wins — losing a keystroke to
     // a slow disk read is exactly the bug this store exists to stop.
-    const hidden = new Set([...heldDrafts].map((draft) => draft.diskKey))
-    set((s) => ({
-      hydrated: true,
-      drafts: { ...Object.fromEntries(entries.filter(([key]) => !hidden.has(key))), ...s.drafts },
-    }))
+    set((s) => ({ hydrated: true, drafts: { ...visibleDrafts(entries), ...s.drafts } }))
   },
 
   get: (key) => get().drafts[key] ?? EMPTY,

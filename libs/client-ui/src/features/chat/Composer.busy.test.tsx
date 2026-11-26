@@ -13,6 +13,12 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Composer } from './Composer'
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
+
 const id = mockRemoteInfo.sessionId
 const hostKey = hostResourceKey(
   { kind: 'remote', hostId: MOCK_HOST_ID },
@@ -217,13 +223,13 @@ it('Queue follow-up treats a shell-looking draft as a message, not an immediate 
 
 it('replaces a provisional chip when an identical earlier send was refused', async () => {
   hostLane('working')
-  const first = Promise.withResolvers<RpcResponse>()
-  const second = Promise.withResolvers<RpcResponse>()
+  const first = deferred<RpcResponse>()
+  const second = deferred<RpcResponse>()
   const mockCommand = window.phosphor.piCommand
   let sent = 0
   const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (id, op) => {
     if (op.type !== 'prompt') return mockCommand(id, op)
-    return sent++ === 0 ? first.promise : second.promise
+    return (sent++ === 0 ? first.promise : second.promise) as ReturnType<typeof mockCommand>
   })
   const chips = () => container.querySelector('[data-testid="queue-chips"]')?.children
   await draw()

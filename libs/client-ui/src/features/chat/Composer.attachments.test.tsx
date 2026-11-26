@@ -13,6 +13,12 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from './composer/contextBreakdown'
 import { Composer } from './Composer'
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
+
 let root: Root
 let container: HTMLDivElement
 const key = hostResourceKey(
@@ -383,10 +389,11 @@ it('unlocks after a legacy Host accepts an extension command without a dispositi
 it('replaces the document preview with its only confirmed queue chip before the receipt', async () => {
   const id = mockRemoteInfo.sessionId
   const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
-  hosts[MOCK_HOST_ID]!.lanes[0]!.activity = 'working'
+  const host = hosts[MOCK_HOST_ID]!
+  host.lanes = host.lanes.map((lane, i) => (i === 0 ? { ...lane, activity: 'working' } : lane))
   useRemoteLanesStore.setState({ hosts })
-  const upload = Promise.withResolvers<string[]>()
-  const receipt = Promise.withResolvers<void>()
+  const upload = deferred<string[]>()
+  const receipt = deferred<void>()
   vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
     if (args[0] === 'hosts:uploadAttachments') return upload.promise
   })
