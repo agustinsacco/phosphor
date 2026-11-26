@@ -129,7 +129,7 @@ async function restoreBranch(
   afterIdentity?: Restore,
   alreadyLive = false,
 ): Promise<void> {
-  if (!(await bootstrapSession(id)))
+  if (!(await bootstrapSession(id, { fresh: true })))
     throw new Error('Could not refresh session identity. Retry loading the session.')
   if (!useSessionsStore.getState().live[id] || !useSessionTransition.getState().bySession[id])
     return

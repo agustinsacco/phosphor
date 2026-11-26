@@ -996,7 +996,24 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   model (`LaneSummary.model`, named from a model catalogue this client has
   already read, else its id) as an inert chip with the tooltip "Starts with
   the lane". The live chip replaces it in the same row once the lane runs and
-  pi has reported its state. A stopped snapshot keeps pi state null, but carries
+  pi has reported its state. A lane opened while stopped has no pi state yet,
+  because the Host refuses `lane.state` and `lane.models` until its pi runs, so
+  when the Host's lane view shows an open lane leave `stopped` or `failed`
+  (This Mac's warm on open, a first prompt's resume, or Resume) the client
+  reads its state, models, thinking levels, commands and stats again as
+  bootstrap does, without its transcript (`stores/lanePiStart.ts`). If those
+  reads fail, for example because the Host dropped before they landed, the lane
+  reads once more when its Host is ready again on a new connection; a lane whose
+  reads landed is not read again. `bootstrapSession` runs one read per session
+  at a time: adoption, a stream reset and the start join it, so a reconnect adds
+  no Host calls per lane. A Host runs at most three lanes' reads at once
+  (`stores/bootstrapFlights.ts`), so a reconnect that shows many lanes running
+  stays well under the Host's 32 pending calls; an adoption or fork goes to the
+  front of the line, and This Mac's in-app sessions never wait. A caller that
+  joined a Host lane's read that a refusal left without state or models reads
+  once more after it. A fork or rewind, which needs the new session file,
+  reads afresh after it. A restart during the start's read reads once more after
+  it. Desktop and the PWA share this path. A stopped snapshot keeps pi state null, but carries
   the saved branch’s model, thinking level and latest context usage when known.
   Usage is cleared on compaction or a change of model or provider. Stopping an
   open chat sends the saved readings in a replayable summary update without

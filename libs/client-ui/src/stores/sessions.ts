@@ -18,6 +18,8 @@ import type {
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
 import { loadSessionModels } from './sessionModels'
+import { sharedBootstrap, type BootstrapOptions } from './bootstrapFlights'
+import { hostLaneOf } from './hostLaneOf'
 import { useNamingStore } from './naming'
 import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
@@ -417,7 +419,16 @@ export function attachPiCommandsListener(): () => void {
  * simply lack some of these commands, and surfacing five chat errors while a
  * session is still opening would be worse than the graceful degradation below.
  */
-export async function bootstrapSession(phosphorId: string): Promise<boolean> {
+export function bootstrapSession(
+  phosphorId: string,
+  options: BootstrapOptions = {},
+): Promise<boolean> {
+  const hostId = hostLaneOf(useSessionsStore.getState().live[phosphorId], undefined)?.hostId
+  const isOpen = () => sessionIsOpen(phosphorId)
+  return sharedBootstrap(phosphorId, () => readSession(phosphorId), { hostId, isOpen }, options)
+}
+
+async function readSession(phosphorId: string): Promise<boolean> {
   const chat = useChatStore.getState()
   // get_state is awaited on its own, ahead of the rest: it carries
   // `sessionFile`, and "reopen my last session" depends on that path being
@@ -1098,7 +1109,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     } finally {
       useChatStore.getState().doneResuming(sessionId)
     }
-    await bootstrapSession(sessionId)
+    await bootstrapSession(sessionId, { fresh: true })
   },
 
   openDiskSession: async (workspacePath, meta) => {

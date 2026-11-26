@@ -15,6 +15,7 @@ import { hostLaneOf, type SessionHostLane } from './hostLaneOf'
 import { useMachinesStore } from './machines'
 import { machineCaps } from './machineCaps'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
+import { rereadLanesWhosePiStarted } from './lanePiStart'
 import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
@@ -149,6 +150,7 @@ const hostView = (hostId: string) => useRemoteLanesStore.getState().hosts[hostId
 bindRemoteHostView(hostView)
 bindServiceLaneViews({ host: hostView, session: sessionHostLane })
 useRemoteLanesStore.subscribe((state) => migrateLegacyLaneMarks(state.hosts))
+useRemoteLanesStore.subscribe((s, prev) => rereadLanesWhosePiStarted(s.hosts, prev.hosts))
 
 // Window-local selection survives sidebar remounts, but not account or directory removal.
 useMachinesStore.subscribe((state, previous) => {
