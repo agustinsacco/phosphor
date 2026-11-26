@@ -118,3 +118,49 @@ it('aborts running jobs on close and prunes finished jobs past retention', async
   })
   expect(jobs.get(old.jobId, 'local:a')).toBeNull()
 })
+
+it('pages summaries past 50 jobs but keeps full legacy surface rows and job.status results', async () => {
+  const result = { text: `Done\n${'x'.repeat(100)}`, data: { count: 42 } }
+  const insert = db.prepare('INSERT INTO agent_jobs VALUES (?, ?, ?, ?, NULL, ?, ?, ?)')
+  for (const principal of ['local:a', 'surface:a', 'agent:lane-a'])
+    for (let i = 1; i <= 63; i++)
+      insert.run(
+        `job-${principal}-${i}`,
+        principal,
+        'package.update',
+        'done',
+        JSON.stringify(result),
+        i,
+        i + 100,
+      )
+  const jobs = jobHandlers(createJobStore(db, ports))
+  const surface = { principal: { kind: 'surface', clientId: 'a' } } as OpHandlerContext
+  const legacy = await jobs['job.list']!({}, surface)
+  expect(legacy.data).toHaveLength(50)
+  expect(legacy.next).toBeUndefined()
+  expect((legacy.data as unknown[])[0]).toMatchObject({ result })
+  for (const principal of [
+    { kind: 'local', clientId: 'a' },
+    { kind: 'agent', laneRef: 'lane-a' },
+  ]) {
+    const seen: string[] = []
+    let page: string | undefined
+    for (const next of ['20', '40', '60', undefined]) {
+      const answer = await jobs['job.list']!({}, { principal, page } as OpHandlerContext)
+      expect(answer.next).toBe(next)
+      expect(answer.text).toMatch(/^jobId \| op \| state \| started \| finished \| result\n/)
+      const rows = answer.data as { jobId: string }[]
+      expect(rows[0]).toMatchObject({
+        state: 'done',
+        resultPreview: `Done ${'x'.repeat(74)}…`,
+      })
+      expect(rows[0]).not.toHaveProperty('result')
+      seen.push(...rows.map(({ jobId }) => jobId))
+      page = next
+    }
+    expect(seen).toHaveLength(63)
+    expect(new Set(seen).size).toBe(63)
+    const status = await jobs['job.status']!({ jobId: seen[0] }, { principal } as OpHandlerContext)
+    expect(status.data).toMatchObject({ result })
+  }
+})

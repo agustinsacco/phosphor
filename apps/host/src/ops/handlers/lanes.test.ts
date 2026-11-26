@@ -9,6 +9,7 @@ import {
 import { createOpsService, type OpsService } from '../service'
 import type { LaneService } from '../../lanes/service'
 import type { LaneArchiveEntry } from '@phosphor/shared/lane-archive'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import type { AgentOpRow } from '@phosphor/shared/ops'
 import type { OpsRunResult } from '@phosphor/shared/host-protocol-ops'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
@@ -218,4 +219,21 @@ it('shows live lanes with reusable canonical refs', async () => {
   const lane = f.store.getLane(f.lane.laneId)!
   const result = ok(await service.dispatcher.run(cli, { op: 'lane.list', args: { state: 'live' } }))
   expect(result.data).toMatchObject({ lanes: [{ ref: `host:local/lane:${lane.laneId}` }] })
+})
+
+it('advertises the activity enum and rejects unknown lane state filters', async () => {
+  for (const op of ['lane.list', 'lane.search']) {
+    expect(OP_CATALOG.find((spec) => spec.name === op)?.args.properties.state).toMatchObject({
+      enum: ['stopped', 'idle', 'working', 'needs-input', 'failed', 'live'],
+    })
+    const result = await service.dispatcher.run(cli, {
+      op,
+      args: { state: 'busy', ...(op === 'lane.search' ? { q: 'test' } : {}) },
+    })
+    expect(result).toMatchObject({
+      status: 'denied',
+      code: 'bad-request',
+      text: expect.stringMatching(/state/),
+    })
+  }
 })

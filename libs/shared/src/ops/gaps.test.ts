@@ -49,3 +49,9 @@ it('offers only the pre-migration subset and explains every other op', () => {
     ]),
   )
 })
+
+it('explains Desktop folder browsing and background-job gaps at the point of use', () => {
+  expect(OP_GAPS.desktop['folder.browse']).toMatch(/folder picker/i)
+  for (const op of ['job.list', 'job.status'])
+    expect(OP_GAPS.desktop[op]).toMatch(/background operations run on the Phosphor service/i)
+})
