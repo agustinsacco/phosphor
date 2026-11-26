@@ -103,3 +103,19 @@ it('the browser shows the same placeholder view on its New route', () => {
     'Fix the parser',
   )
 })
+
+it('the browser shows another machine’s placeholder only on its own machine', () => {
+  render(<CompactNew hostId="another-host" create="create-1" />)
+  expect(container.querySelector('[data-testid="starting-chat-message"]')).toBeNull()
+})
+
+it('says it is checking with the Host while an uncertain create may still land', () => {
+  useLaneCreatesStore.setState({
+    creates: { [create.id]: { ...create, unknown: true, checking: true } },
+  })
+  render(<OpeningLane lane={{ title: create.title, reason: 'open', create: create.id }} />)
+  expect(container.textContent).toContain('Checking with the Host…')
+  expect([...container.querySelectorAll('button')].map((b) => b.textContent)).not.toContain(
+    'Edit and retry',
+  )
+})

@@ -200,3 +200,25 @@ it('sends the first prompt for a background create that never takes the screen',
   })
   expect(accepted).toHaveBeenCalledOnce()
 })
+
+it('records the new lane before adopting it and reports refused branch names', async () => {
+  const order: string[] = []
+  adopt.mockImplementation(async () => void order.push('adopt'))
+  const refused = vi.fn()
+  invoke.mockImplementation(async (channel, _host, input) => {
+    if (channel === 'hosts:createLane' && input.worktree.branch === 'phosphor/fix-bug')
+      throw new Error('branch-exists')
+    return mockRemoteInfo
+  })
+  await startRemoteChat(
+    MOCK_HOST_ID,
+    { ...input, worktree: { branch: 'phosphor/fix-bug', fresh: true } },
+    'Fix bug',
+    [],
+    accepted,
+    false,
+    { nav: -1, refused, created: () => void order.push('created') },
+  )
+  expect(refused).toHaveBeenCalledExactlyOnceWith('phosphor/fix-bug')
+  expect(order).toEqual(['created', 'adopt'])
+})
