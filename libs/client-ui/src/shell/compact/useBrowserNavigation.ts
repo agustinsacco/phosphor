@@ -1,6 +1,6 @@
 import { useMachinesStore } from '@/stores/machines'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { createHistoryNavigation } from '@/navigation/history'
+import { createHistoryNavigation, type HistoryNavigation } from '@/navigation/history'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -44,6 +44,13 @@ function isLaneLocation(location: Location, lane: HostLaneKey): boolean {
     location.lane.hostId === lane.hostId &&
     location.lane.laneId === lane.laneId
   )
+}
+
+/** Leaving a placeholder's URL for a lane replaces it: Back never lands on a dead one. */
+function showLaneIn(history: HistoryNavigation, lane: HostLaneKey): void {
+  const current = history.getSnapshot()
+  if (!isLaneLocation(current, lane))
+    history.navigate({ to: 'lane', lane, pane: 'chat' }, !!(current.to === 'new' && current.create))
 }
 
 export function useBrowserNavigation() {
@@ -102,19 +109,13 @@ export function useBrowserNavigation() {
     let listening = true
     const offSessions = useSessionsStore.subscribe((state, previous) => {
       if (applying.current) return
-      const showLane = (lane: HostLaneKey): void => {
-        if (!isLaneLocation(history.getSnapshot(), lane))
-          history.navigate({ to: 'lane', lane, pane: 'chat' })
-      }
       const opening = state.opening
-      if (opening?.lane && opening.nav !== previous.opening?.nav) return showLane(opening.lane)
+      if (opening?.lane && opening.nav !== previous.opening?.nav)
+        return showLaneIn(history, opening.lane)
       if (state.activeSessionId === previous.activeSessionId || !state.activeSessionId) return
       const entry = state.live[state.activeSessionId]
-      if (entry?.target?.kind !== 'remote' || !entry.laneId) return
-      const lane = { hostId: entry.target.hostId, laneId: entry.laneId }
-      const current = history.getSnapshot()
-      if (isLaneLocation(current, lane)) return
-      history.navigate({ to: 'lane', lane, pane: 'chat' }, current.to === 'new' && !!current.create)
+      if (entry?.target?.kind === 'remote' && entry.laneId)
+        showLaneIn(history, { hostId: entry.target.hostId, laneId: entry.laneId })
     })
     const offLayout = useLayoutStore.subscribe((state, previous) => {
       if (applying.current) return

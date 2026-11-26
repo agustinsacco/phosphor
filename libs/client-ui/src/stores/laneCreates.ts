@@ -31,6 +31,8 @@ const CHECK_FOR_MS = 180_000
 const UNCONFIRMED =
   'The Host could not confirm this lane. If the lane shows up later, it was created.'
 
+const RECOVERED = "Lane created. Your first message wasn't sent; it's in the composer."
+
 let sequence = 0
 
 /**
@@ -160,21 +162,28 @@ function unclaimedLanes(create: LaneCreate): HostLaneView[] {
   )
 }
 
+/** Whether a lane could be this create's: its requested branch, or in place for one that asked for none. */
+const mayBeFrom = (create: LaneCreate, lane: HostLaneView): boolean =>
+  create.branches.length
+    ? lane.worktree && lane.branch !== null && create.branches.includes(lane.branch)
+    : !lane.worktree
+
 /** The lane an uncertain create made, only when nothing else can explain it. */
 function foundLane(create: LaneCreate): string | undefined {
-  const creates = Object.values(useLaneCreatesStore.getState().creates).filter(
-    (c) => c.hostId === create.hostId && c.repositoryId === create.repositoryId,
+  const found = unclaimedLanes(create).filter((l) => mayBeFrom(create, l))
+  // In place: only the one create still running or checking here could have made it.
+  const unresolved = Object.values(useLaneCreatesStore.getState().creates).filter(
+    (c) =>
+      c.hostId === create.hostId &&
+      c.repositoryId === create.repositoryId &&
+      !c.branches.length &&
+      !c.laneId &&
+      !c.retired &&
+      !c.failure,
   )
-  const asked = new Set(creates.flatMap((c) => c.branches))
-  const unclaimed = unclaimedLanes(create)
-  const found = create.branches.length
-    ? unclaimed.filter((l) => l.branch !== null && create.branches.includes(l.branch))
-    : unclaimed.filter((l) => l.branch === null || !asked.has(l.branch))
-  // Unbranched: only one create here could have made an unbranched lane.
-  const unresolved = creates.filter(
-    (c) => !c.branches.length && !c.laneId && !(c.failure && !c.unknown),
-  )
-  if (found.length !== 1 || (!create.branches.length && unresolved.length !== 1)) return
+  // An in-place create past its window (retired too) no longer claims an in-place lane.
+  const alone = unresolved.length === 1 && unresolved[0]!.id === create.id
+  if (found.length !== 1 || (!create.branches.length && !alone)) return
   return found[0]!.laneId
 }
 
@@ -192,6 +201,7 @@ export function reconcileLaneCreate(id: string): string | undefined {
   const shown = laneCreateShown(id)
   settleLaneCreateDraft(id, create.retired ? undefined : laneDraftKey(create, laneId))
   dropLaneCreate(id)
+  if (!create.retired) useExtensionUiStore.getState().pushToast(RECOVERED, 'info')
   if (shown) void navigateToLane({ hostId: create.hostId, laneId })
   return laneId
 }
@@ -215,7 +225,8 @@ export function editLaneCreate(id: string): void {
   if (create.swarm) useDraftsStore.getState().patch(create.draftKey, { swarm: true })
   if (!create.unknown) dropLaneCreate(id)
   else {
-    patchLaneCreate(id, { retired: true })
+    // Only what matching needs stays: the text and files are back in the composer.
+    patchLaneCreate(id, { retired: true, text: '', attachments: [] })
     leaveLaneCreate(id)
   }
 }
@@ -246,6 +257,11 @@ useMachinesStore.subscribe((state, previous) => {
     )
 })
 
+const isRequestedLane = (create: LaneCreate, lane: HostLaneView): boolean =>
+  lane.repositoryId === create.repositoryId &&
+  !create.seen.includes(lane.laneId) &&
+  mayBeFrom(create, lane)
+
 /** A folder's placeholders (or a Host's), newest first, without those whose lane is listed. */
 export function pendingLaneCreates(
   creates: Record<string, LaneCreate>,
@@ -259,7 +275,9 @@ export function pendingLaneCreates(
         c.hostId === hostId &&
         !c.retired &&
         (repositoryId === undefined || c.repositoryId === repositoryId) &&
-        !(c.laneId && lanes.some((l) => l.laneId === c.laneId)),
+        !(c.laneId && lanes.some((l) => l.laneId === c.laneId)) &&
+        // The Host lists a lane while `hosts:createLane` is still opening it.
+        !(c.branches.length && lanes.some((l) => isRequestedLane(c, l))),
     )
     .reverse()
 }

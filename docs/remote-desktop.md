@@ -178,15 +178,18 @@ and start more at once, each with its own placeholder, or go anywhere. A create
 never takes the screen: only if its placeholder is still on screen when the prompt
 is sent, and no page covers it, does it become that lane in place. The lane is
 recorded as soon as the Host answers, before it is adopted, so the placeholder row
-gives way to the lane's row as soon as the Host snapshot lists it. The sent text
+gives way to the lane's row as soon as the Host snapshot lists it, or lists a new
+worktree lane in its folder on a branch it asked for (the Host lists a lane while
+`hosts:createLane` is still opening it); the placeholder view stays until the lane
+is adopted. The sent text
 and attachments stay with the placeholder until the create settles, with their
 documents still counted against the draft cap. If the Host made the lane but a
 later step failed or went unconfirmed (control, Swarm, the prompt), the text is
 added to that lane's composer instead. Every restore appends, a blank line after
 whatever the destination draft already holds, and never replaces it. Sign-out
 drops the placeholders of every machine but This Mac's service, and the browser's
-owner reset drops them all. A failed placeholder on This Mac's service stays
-listed while the service is down.
+owner reset drops them all. A failed placeholder stays listed while its machine is
+unreadable: on Desktop for This Mac's service, in the browser for any Host.
 
 Isolation follows This Mac's worktree preference and branch-naming rule. Generated
 Host branches trim only the slug to fit the 100-character flattened limit; an
@@ -208,13 +211,17 @@ the New lane composer) and **Dismiss**; one the user has left also raises a toas
 An uncertain one never creates again while its outcome is unknown: its
 placeholder says “Checking with the Host…” and reads a fresh `hosts:snapshot`
 about every 10 seconds for three minutes, since a create can take two. A lane
-the Host lists for it is adopted in its place, with the text in its composer. It
-matches by a branch the create asked for and the Host did not refuse as taken,
-or, when it asked for none, only if that is the one new lane in its folder and
-it is the one unbranched create there still unresolved. A lane any create is
-known to have made is never matched again. After the window the placeholder
-offers Edit and retry, noting that if the lane shows up later, it was created; a
-create retried that way keeps holding whatever lane turns up for it.
+the Host lists for it is adopted in its place, with the text in its composer and a
+notice: “Lane created. Your first message wasn't sent; it's in the composer.” It
+matches a worktree lane by a branch the create asked for and the Host did not
+refuse as taken. A create that asked for no worktree matches only an in-place
+lane, only if that is the one new lane in its folder, and only while it is the one
+in-place create there still running or checking. A lane any create is known to
+have made is never matched again. After the window the placeholder offers Edit
+and retry, noting that if the lane shows up later, it was created; a branched
+create retried that way keeps only its matching metadata (branches, lanes seen)
+and still holds whatever lane turns up on its branch. In the browser, a
+placeholder's URL is replaced, not pushed over, when it becomes its lane.
 
 An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 
