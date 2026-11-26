@@ -22,18 +22,30 @@ import type { FeatureContext } from '../../features/feature'
 import type { LocatedSkill } from '../../features/skills'
 import { confineToRoots } from '../../machine/repositories'
 import { NO_CONTENT_UNDO, resourceCall } from './resources-call'
+import { featureError } from '../../features/failure'
+import { refusal } from './lane-target'
 import type { DaemonHandlerDeps } from './index'
 
 export interface SkillPorts {
   agentDir: string
   context: FeatureContext
-  resolveProject(cwd: string): Promise<LocatedSkill[]>
+  invalidate?(): void
+  resolveProject(cwd: string, signal?: AbortSignal): Promise<LocatedSkill[]>
 }
 type Target = { scope: 'user' | 'project'; name: string; project?: string }
 const invalid = (msg: string) => new OpRefusal('bad-request', msg)
 function ports(deps: DaemonHandlerDeps) {
   if (!deps.skills) throw new OpRefusal('unavailable', 'Skills unavailable.')
   return deps.skills
+}
+async function projectIndex(deps: DaemonHandlerDeps, cwd: string, signal: AbortSignal) {
+  const skills = ports(deps)
+  try {
+    return await skills.resolveProject(cwd, signal)
+  } catch (error) {
+    const { code, message } = featureError(error).error
+    throw refusal(code, message)
+  }
 }
 async function project(deps: DaemonHandlerDeps, path: string | undefined) {
   const roots = deps.store.listRepositories().map((r) => r.path)
@@ -88,6 +100,7 @@ function editSkill(deps: DaemonHandlerDeps) {
       expected,
       content: a.content,
     })
+    ports(deps).invalidate?.()
     return { text: `Edited ${a.name}. ${NO_CONTENT_UNDO}` }
   })
 }
@@ -113,7 +126,7 @@ function installSkill(deps: DaemonHandlerDeps) {
         throw invalid('A skill with that name already exists.')
       return { text, data: result }
     }
-    const entry = (await ports(deps).resolveProject(cwd)).find(
+    const entry = (await projectIndex(deps, cwd, ctx.signal)).find(
       (s) => s.skill.name === a.name && s.skill.scope === 'project',
     )
     const elsewhere = !!entry && (await resolvesElsewhere(root, a.name, entry.file))
@@ -126,6 +139,7 @@ function installSkill(deps: DaemonHandlerDeps) {
       overwrite: a.overwrite ?? false,
     })
     if (result.status === 'conflict') throw invalid('A skill with that name already exists.')
+    ports(deps).invalidate?.()
     return { text, data: result }
   })
 }
@@ -139,7 +153,7 @@ export function skillHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, 
     'skill.list': op<{ project?: string }>(async (a, ctx) => {
       if (!a.project)
         return dataResult(await resourceCall(deps, 'skills.list', askingLane(ctx), ctx.signal))
-      const skills = await ports(deps).resolveProject(await project(deps, a.project))
+      const skills = await projectIndex(deps, await project(deps, a.project), ctx.signal)
       return dataResult({ skills: skills.map((s) => s.skill) })
     }),
     'skill.read': op<{ name: string; file?: string }>(async (a, ctx) =>
@@ -159,6 +173,7 @@ export function skillHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, 
           elsewhere: false,
         })
         if (result.status !== 'installed') throw invalid('A skill with that name already exists.')
+        ports(deps).invalidate?.()
         return { text: `Created ${a.name}.` }
       },
     ),
@@ -168,6 +183,7 @@ export function skillHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, 
       const { root } = await destination(deps, a, ctx)
       await bundleDirectory(root, a.name)
       await trashEntry(ports(deps).context, root, a.name)
+      ports(deps).invalidate?.()
       return { text: `Moved ${a.name} to Trash.` }
     }),
   }

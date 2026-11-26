@@ -60,5 +60,7 @@ it('resolves reads against only the asking lane through the Host feature', async
     'skills.read',
     { laneId: 'one', name: 'demo' },
     expect.any(Function),
+    undefined,
+    expect.any(AbortSignal),
   )
 })

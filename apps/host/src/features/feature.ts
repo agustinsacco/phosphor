@@ -21,5 +21,6 @@ export interface HostFeature {
     params: unknown,
     authorized?: () => boolean,
     clientId?: string,
+    signal?: AbortSignal,
   ): Promise<FeatureOutcome>
 }

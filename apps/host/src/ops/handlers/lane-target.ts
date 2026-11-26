@@ -44,6 +44,8 @@ export function requireRuntime(runtime: DaemonLaneRuntime | undefined): DaemonLa
 
 const DENY: Partial<Record<CallErrorCode | RejectCode, OpsDenyCode>> = {
   'bad-request': 'bad-request',
+  'unknown-lane': 'bad-request',
+  'not-controller': 'not-controller',
   // A stale expected revision or an existing path: the request must change, not the machine.
   conflict: 'bad-request',
   forbidden: 'forbidden',
@@ -53,15 +55,23 @@ const DENY: Partial<Record<CallErrorCode | RejectCode, OpsDenyCode>> = {
 }
 
 const SAID: Partial<Record<CallErrorCode | RejectCode, string>> = {
-  'unknown-lane': 'That lane is unavailable on this machine.',
+  'unknown-lane': 'No such lane on this machine.',
   'lane-stopped': 'That lane is stopped.',
   conflict: 'The file changed or already exists; read it again first.',
   'too-large': 'The result is too large; narrow the request.',
 }
 
 /** A Host refusal in the agent's words. */
-export function refusal(code: CallErrorCode | RejectCode, message?: string): OpRefusal {
-  return new OpRefusal(DENY[code] ?? 'unavailable', SAID[code] ?? message ?? `Refused: ${code}.`)
+export function refusal(
+  code: CallErrorCode | RejectCode,
+  message?: string,
+  method?: string,
+): OpRefusal {
+  const hint =
+    method === 'lane.messages' && code === 'too-large'
+      ? 'History exceeds the read limit. If the lane is stopped, try reading while running, or request a narrower part such as summary.'
+      : SAID[code]
+  return new OpRefusal(DENY[code] ?? 'unavailable', hint ?? message ?? `Refused: ${code}.`)
 }
 
 /** A lane-service call (files, git, GitHub), its failure as an in-band refusal. */
@@ -69,8 +79,14 @@ export async function laneCall(
   lanes: Pick<LaneService, 'calls'>,
   method: string,
   params: unknown,
+  signal?: AbortSignal,
+  authorized?: () => boolean,
 ): Promise<unknown> {
-  const outcome: CallOutcome = await lanes.calls.call(method, params)
-  if (!outcome.ok) throw refusal(outcome.error.code, outcome.error.message)
+  const outcome: CallOutcome = await (signal
+    ? lanes.calls.call(method, params, authorized ?? (() => !signal.aborted), undefined, signal)
+    : authorized
+      ? lanes.calls.call(method, params, authorized)
+      : lanes.calls.call(method, params))
+  if (!outcome.ok) throw refusal(outcome.error.code, outcome.error.message, method)
   return outcome.data
 }

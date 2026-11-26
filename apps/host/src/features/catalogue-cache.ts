@@ -1,6 +1,6 @@
 import { statSync, lstatSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
-import { FeatureFailure } from './machine'
+import { FeatureFailure } from './failure'
 import type { HostInspection } from '../commands/doctor'
 
 /** Include file replacement as well as an edit in place. Never read auth bytes. */
@@ -34,7 +34,7 @@ export class CatalogueCache<T> {
     if (!this.entries.has(key)) {
       if (this.entries.size >= 64) {
         const idle = [...this.entries].find(([, candidate]) => !candidate.refresh)
-        if (!idle) return Promise.reject(new FeatureFailure('internal'))
+        if (!idle) return Promise.reject(new FeatureFailure('internal', 'queue-full', 'catalogue'))
         this.entries.delete(idle[0])
       }
       this.entries.set(key, entry)

@@ -33,17 +33,24 @@ export interface ProviderState {
 export async function checkProviders(
   pi: Pick<PiLaunch, 'binaryPath' | 'prefixArgs'>,
   environment: ProbeEnvironment,
-  options: { defaultProvider?: string; timeoutMs?: number } = {},
+  options: {
+    defaultProvider?: string
+    configuredProviders?: readonly string[]
+    timeoutMs?: number
+  } = {},
 ): Promise<ProviderState[]> {
   const listed = SUBSCRIPTION_PROVIDERS.map(({ id, name }) => ({ id: id as string, name }))
   const fallback = options.defaultProvider
-  if (
-    fallback &&
-    fallback !== CLAUDE_CLI_PROVIDER &&
-    PROVIDER_ID.test(fallback) &&
-    !listed.some((provider) => provider.id === fallback)
-  ) {
-    listed.push({ id: fallback, name: fallback })
+  // Keep room for the separate Claude CLI row within the Host's 64-provider wire bound.
+  for (const id of [fallback, ...(options.configuredProviders ?? [])]) {
+    if (listed.length >= 63) break
+    if (
+      id &&
+      id !== CLAUDE_CLI_PROVIDER &&
+      PROVIDER_ID.test(id) &&
+      !listed.some((p) => p.id === id)
+    )
+      listed.push({ id, name: id })
   }
   return Promise.all(
     listed.map(async ({ id, name }): Promise<ProviderState> => {

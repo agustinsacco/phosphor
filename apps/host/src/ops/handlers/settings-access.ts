@@ -5,6 +5,7 @@ import type { createAccountMoves } from '../../settings/account-moves'
 import type { createMachineSettings } from '../../settings/service'
 import type { createHeadlessTasks } from '../../settings/headless-tasks'
 import type { DaemonHeadroom } from '../../session/headroom'
+import { resourceCall } from './resources-call'
 import type { DaemonHandlerDeps } from './index'
 
 export interface SettingsOps {
@@ -43,21 +44,7 @@ export async function settingsCall(
   params: unknown,
   signal?: AbortSignal,
 ) {
-  const result = await deps.lanes.calls.call(
-    `machine.settings.${method}`,
-    params,
-    () => !signal?.aborted,
-  )
-  if (!result.ok)
-    throw new OpRefusal(
-      result.error.code === 'forbidden'
-        ? 'forbidden'
-        : result.error.code === 'bad-request'
-          ? 'bad-request'
-          : 'unavailable',
-      result.error.message,
-    )
-  return result.data as MachineSettings
+  return (await resourceCall(deps, `machine.settings.${method}`, params, signal)) as MachineSettings
 }
 export function readSection(
   deps: DaemonHandlerDeps,

@@ -1,5 +1,5 @@
 import type { CatalogSpec } from '@phosphor/shared/ops-catalog'
-import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
+import { laneCall } from './lane-target'
 import type { DaemonHandlerDeps } from './index'
 
 /** Use the machine's own feature router, after ops admission. */
@@ -9,17 +9,7 @@ export async function resourceCall(
   params: unknown,
   signal?: AbortSignal,
 ) {
-  const result = await deps.lanes.calls.call(method, params, () => !signal?.aborted)
-  if (result.ok) return result.data
-  const { code, message } = result.error
-  throw new OpRefusal(
-    code === 'internal' || code === 'lane-stopped'
-      ? 'unavailable'
-      : code === 'unknown-lane'
-        ? 'bad-request'
-        : code,
-    message,
-  )
+  return laneCall(deps.lanes, method, params, signal, () => !signal?.aborted)
 }
 
 export const NO_CONTENT_UNDO = "No Undo: Phosphor doesn't keep the previous content."

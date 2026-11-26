@@ -73,7 +73,7 @@ fs.writeFileSync(${JSON.stringify(ready)},'1')
 setInterval(()=>{},1000)`,
   )
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-  const query = queryMachine(pi, root, 'get_commands')
+  const query = queryMachine(pi, root, 'get_commands', 15_000)
   const result = expect(query).rejects.toMatchObject({ code: 'internal' })
   await vi.waitFor(() => readFile(ready), { timeout: 3000 })
   await vi.advanceTimersByTimeAsync(15000)
@@ -85,7 +85,7 @@ setInterval(()=>{},1000)`,
 it('times out and kills a non-answering child', async () => {
   await writeFile(join(root, 'pi.cjs'), 'setInterval(()=>{},1000)')
   vi.useFakeTimers()
-  const query = queryMachine(pi, root, 'get_commands')
+  const query = queryMachine(pi, root, 'get_commands', 15_000)
   const result = expect(query).rejects.toMatchObject({ code: 'internal' })
   await vi.advanceTimersByTimeAsync(15000)
   await result
