@@ -65,3 +65,29 @@ it('passes the health check of an unenrolled local daemon on its local signal al
   expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.2.3')
   expect(f.messages).toContain('Selected Host 1.2.3.')
 })
+
+it('keeps the new version when the local service first becomes ready at 170 seconds', async () => {
+  const { f, localReady, at } = localDaemon()
+  const start = at()
+  const wait = f.context.wait!
+  f.context.wait = async (ms, signal) => {
+    await wait(ms, signal)
+    if (at() - start === 170_000) localReady('1.2.3')
+  }
+  const runner = vi.fn(async () => ({ code: 0, stdout: '' }))
+  f.context.service = { runner }
+  expect(await runUpdate(f.context)).toBe(0)
+  expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.2.3')
+  expect(runner).toHaveBeenCalledTimes(2) // active check and one restart, no rollback
+})
+
+it('rolls back after 180 seconds when the local service never becomes ready', async () => {
+  const { f, at } = localDaemon()
+  const start = at()
+  const runner = vi.fn(async () => ({ code: 0, stdout: '' }))
+  f.context.service = { runner }
+  expect(await runUpdate(f.context)).toBe(75)
+  expect(at() - start).toBe(180_000)
+  expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.0.0')
+  expect(runner).toHaveBeenCalledTimes(3) // active check, restart, and rollback restart
+})
