@@ -160,6 +160,20 @@ const STATE_WORDS: Record<string, string> = {
 }
 export const stateWord = (state: string): string => STATE_WORDS[state] ?? state
 
+const BATCH_WORDS: Record<string, string> = {
+  parallel: 'Parallel run',
+  chain: 'Chain run',
+}
+/**
+ * What one launch of several agents is, e.g. `Parallel run · 3 agents`: a
+ * batch this lane started, not a parent agent. Without its launch call the
+ * mode is unknown.
+ */
+export function batchTitle(group: { kind: string; mode?: string }, agents: number): string {
+  const what = group.kind === 'workflow' ? 'Workflow' : (BATCH_WORDS[group.mode ?? ''] ?? 'Batch')
+  return `${what} · ${agents} ${agents === 1 ? 'agent' : 'agents'}`
+}
+
 /**
  * `openai-codex/gpt-6.1-sol:medium` reads `gpt-6.1-sol:medium`: the provider is
  * noise in a row, the thinking suffix is not. A list keeps its commas.

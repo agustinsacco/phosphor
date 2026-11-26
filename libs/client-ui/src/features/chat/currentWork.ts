@@ -8,6 +8,7 @@ import {
   SUBAGENT_ASYNC_WIDGET_KEY,
   subagentCall,
   subagentRun,
+  type SubagentCall,
   type FleetNode,
   type FleetSnapshot,
 } from './subagentRuns'
@@ -44,8 +45,10 @@ export interface WorkEntry {
   childId?: string
   /** A single-agent run, shown once: the run and its one step are the same work. */
   single?: boolean
-  /** The workflow or parallel run this entry belongs to, or is (no `childId`). */
-  group?: { id: string; label: string }
+  /** The batch run this belongs to, or is (no `childId`); `mode` is its launch's, if known. */
+  group?: { id: string; label: string; kind: string; mode?: string }
+  /** Below a step of its run, not one of the run's own members. */
+  nested?: boolean
   /** A title when there is no single prompt, e.g. one call naming four tasks. */
   fallbackTitle?: string
 }
@@ -86,7 +89,7 @@ function nodeEntry(node: FleetNode, runId: string, childId?: string): WorkEntry 
 }
 
 /** Count leaves, not a workflow and its children twice. Keep routing to the root. */
-function backgroundEntries(nodes: FleetNode[], root?: FleetNode): WorkEntry[] {
+function backgroundEntries(nodes: FleetNode[], root?: FleetNode, nested = false): WorkEntry[] {
   return nodes.flatMap((node) => {
     const step = root ? undefined : singleStep(node)
     if (step) {
@@ -115,11 +118,12 @@ function backgroundEntries(nodes: FleetNode[], root?: FleetNode): WorkEntry[] {
         },
       ]
     }
-    const children = backgroundEntries(node.children, root ?? node)
+    const children = backgroundEntries(node.children, root ?? node, !!root)
     const group = root ?? (node.children.length ? node : undefined)
     const own: WorkEntry = {
       ...nodeEntry(node, root?.id ?? node.id, root ? node.id : undefined),
-      ...(group ? { group: { id: group.id, label: group.label } } : {}),
+      ...(group ? { group: { id: group.id, label: group.label, kind: group.kind } } : {}),
+      ...(nested ? { nested } : {}),
     }
     if (!children.length) return [own]
     // A workflow can be coordinating between child runs. Its own activity is
@@ -179,6 +183,27 @@ function statusPausedByCompaction(chat: ChatSessionState | undefined): boolean {
       return true
   }
   return false
+}
+
+type LaunchCall = Extract<SubagentCall, { kind: 'launch' }>
+// Only the exact launch: a run's prompt belongs to the run (or its single
+// step); a parallel/chain step gets its own entry by native step index. A
+// workflow prompt is never a child's task.
+function adoptLaunch(entry: WorkEntry, call: LaunchCall, requestedAt?: number): void {
+  const step = /^step:(\d+)$/.exec(entry.childId ?? '')
+  const own = !entry.childId || entry.single
+  const indexed = step && !call.workflow && !call.script ? call.tasks?.[Number(step[1])] : undefined
+  const task = own
+    ? (call.task ?? (call.tasks?.length === 1 ? call.tasks[0]!.task : undefined))
+    : indexed?.task
+  if (own || task) {
+    entry.task = task
+    entry.requestedAt = requestedAt
+  }
+  // A step's own model wins over the call's; a workflow root names none.
+  entry.model ??= own
+    ? (call.model ?? (call.tasks?.length === 1 ? call.tasks[0]!.model : undefined))
+    : (indexed?.model ?? (indexed ? call.model : undefined))
 }
 
 export function currentWork(
@@ -264,27 +289,11 @@ export function currentWork(
     const settled = tool.status === 'done' || tool.status === 'error'
     const run = subagentRun(toolDetails(tool), settled)
     const detached = run?.async || call.async
-    // Only the exact launch: a run's prompt belongs to the run (or its single
-    // step); a parallel/chain step gets its own entry by native step index. A
-    // workflow prompt is never a child's task.
     if (run?.runId) {
       for (const entry of entries) {
         if (entry.runId !== run.runId) continue
-        const step = /^step:(\d+)$/.exec(entry.childId ?? '')
-        const own = !entry.childId || entry.single
-        const indexed =
-          step && !call.workflow && !call.script ? call.tasks?.[Number(step[1])] : undefined
-        const task = own
-          ? (call.task ?? (call.tasks?.length === 1 ? call.tasks[0]!.task : undefined))
-          : indexed?.task
-        if (own || task) {
-          entry.task = task
-          entry.requestedAt = requested.get(tool.toolCallId) ?? tool.startedAt
-        }
-        // A step's own model wins over the call's; a workflow root names none.
-        entry.model ??= own
-          ? (call.model ?? (call.tasks?.length === 1 ? call.tasks[0]!.model : undefined))
-          : (indexed?.model ?? (indexed ? call.model : undefined))
+        if (entry.group) entry.group.mode = run.mode
+        adoptLaunch(entry, call, requested.get(tool.toolCallId) ?? tool.startedAt)
       }
     }
     if (run?.runId && represented.has(run.runId)) continue
