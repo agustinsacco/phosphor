@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { remoteHostFixture, REMOTE_TEST_TIMEOUT } from './fixtures/remote-host'
 import { selectMachine } from './fixtures/remote-ui'
 
-test('remote home contains a long lane list and keeps creation reachable in a short Desktop window', async ({
+test('remote home shows a long lane list as an orbit and keeps creation reachable in a short Desktop window', async ({
   browserName: _browserName,
 }, info) => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
@@ -18,7 +18,10 @@ test('remote home contains a long lane list and keeps creation reachable in a sh
     const home = h.page.locator('.remote-workspace-page')
     await expect(home).toBeVisible()
     await expect(h.page.getByTestId('remote-model-picker')).toContainText('HOST_B_ONLY')
-    await expect(home.getByRole('button', { name: /^Synthetic overflow lane/ })).toHaveCount(12)
+    // Host home is an orbit, one dot per lane, not a second copy of the sidebar's list.
+    await expect(
+      home.getByTestId('host-orbit').getByRole('button', { name: /^Synthetic overflow lane/ }),
+    ).toHaveCount(12)
     const bounds = await home.evaluate((element) => ({
       top: element.getBoundingClientRect().top,
       bottom: element.getBoundingClientRect().bottom,
@@ -27,7 +30,6 @@ test('remote home contains a long lane list and keeps creation reachable in a sh
     expect(bounds.bottom).toBeLessThanOrEqual(bounds.parentBottom + 1)
     await expect(h.page.getByRole('button', { name: 'Start lane', exact: true })).toBeInViewport()
     const list = home.locator('.remote-workspace-intro')
-    expect(await list.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
     // The scroller spans the page, so its scrollbar sits at the window's edge, not
     // beside the centred column.
     const edges = await list.evaluate((element) => ({

@@ -1,5 +1,4 @@
 import type { ReactNode, RefObject } from 'react'
-import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { HostHome } from './HostHome'
 import { RemoteStartView } from './RemoteStartView'
 import './remoteStart.css'
@@ -19,12 +18,11 @@ export function RemoteWorkspacePage({
   return (
     <div className="remote-workspace-page">
       <div className="remote-workspace-intro">
-        <div className="remote-workspace-heading">
-          <PhosphorLoader size={36} decorative animated={false} />
-          <h1>What are we working on?</h1>
-          <p>Your workspace, wherever you are.</p>
+        <div className="remote-workspace-column">
+          {/* First for reading order and heading levels; the stylesheet draws it under the orbit. */}
+          <h1 className="remote-workspace-heading">What are we working on?</h1>
+          <HostHome hostId={hostId} />
         </div>
-        <HostHome hostId={hostId} />
       </div>
       <div className="remote-start">
         <RemoteStartView

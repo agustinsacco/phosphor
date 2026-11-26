@@ -133,12 +133,10 @@ test('Switcher drives pages; page override resets and never revives Mac data', a
     ).toContainText('All machines')
     await selectMachine(h, 'bee1')
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
-    await expect(h.page.getByRole('region', { name: 'Host home', exact: true })).toContainText(
-      'Remote test lane',
-    )
-    await expect(h.page.getByRole('region', { name: 'Host home', exact: true })).not.toContainText(
-      'LOCAL_ONLY',
-    )
+    const home = h.page.getByRole('region', { name: 'Host home', exact: true })
+    await expect(home.getByRole('button', { name: /^Remote test lane, / })).toBeVisible()
+    await expect(home.getByRole('button', { name: /LOCAL_ONLY/ })).toHaveCount(0)
+    await expect(home).not.toContainText('LOCAL_ONLY')
   } finally {
     await h.close()
   }

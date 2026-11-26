@@ -316,24 +316,20 @@ it('renders This Mac -> Host -> This Mac dashboards without leaking lanes, ledge
   invoke.mockClear()
   await act(async () => useRemoteLanesStore.getState().setFilter(MOCK_HOST_ID))
   expect(el.querySelector('[aria-label="Host home"]')).not.toBeNull()
-  expect(el.textContent).toContain('Connected')
-  expect(el.textContent).toContain('Remote demo lane')
-  expect(el.textContent).toContain('host-branch')
-  expect(el.querySelector('[data-state="unseen"]')).not.toBeNull()
-  expect(el.querySelector('[data-segment="time"]')?.textContent).toBe(
-    new Date(0).toLocaleDateString(),
+  // Host home is the Host's orbit: one dot per Host lane, none of This Mac's.
+  const dot = el.querySelector<HTMLButtonElement>(`[data-lane-id="${mockRemoteInfo.laneId}"]`)
+  expect(dot?.getAttribute('aria-label')).toBe(
+    `Remote demo lane, New activity · ${new Date(0).toLocaleDateString()}`,
   )
-  expect(el.querySelector('[data-segment="branch"]')?.textContent).toContain('⎇ host-branch')
-  expect(el.querySelector('[data-segment="worktree"]')).toBeNull()
+  expect(dot?.dataset.tone).toBe('unread')
+  expect(el.querySelectorAll('.host-orbit-dot')).toHaveLength(1)
   expect(el.textContent).not.toContain('idle')
   expect(el.textContent).not.toContain('Needs attention')
   expect(el.textContent).not.toContain('Mac-only lane')
   expect(el.querySelector('[data-testid=home-ledger]')).toBeNull()
   expect(el.textContent).not.toContain('Project stats')
   expect(invoke.mock.calls.some(([c]) => c === 'sessions:stats')).toBe(false)
-  await act(async () =>
-    el.querySelector<HTMLButtonElement>('[aria-label="Remote demo lane"]')!.click(),
-  )
+  await act(async () => dot!.click())
   expect(invoke).toHaveBeenCalledWith('hosts:openLane', MOCK_HOST_ID, mockRemoteInfo.laneId)
   await act(async () => useRemoteLanesStore.getState().setFilter('local'))
   expect(el.textContent).toContain('Mac-only lane')

@@ -1,8 +1,14 @@
 /*
- * One scroller: the intro above the composer. The composer never scrolls as a
- * box; its field scrolls itself past its cap, so the caret stays on screen. A
- * capped, scrolling composer box hid the caret below its fold and stacked a
- * second and third scrollbar beside the intro's.
+ * One scroller: the intro above the composer, as wide as the page so its scrollbar
+ * sits at the window's edge, not beside the 48rem column inside it. The composer
+ * never scrolls as a box; its field scrolls itself past its cap, so the caret stays
+ * on screen. A capped, scrolling composer box hid the caret below its fold and
+ * stacked a second and third scrollbar beside the intro's.
+ *
+ * The intro takes only the height it needs and the pair is centred, so on a tall
+ * window the orbit, greeting and composer sit together. Short of room, the intro
+ * shrinks and scrolls; the composer keeps its place. A phone keeps the composer at
+ * the bottom, under the thumb, and centres the orbit in the space above it.
  */
 .remote-workspace-page {
   height: 100%;
@@ -10,42 +16,41 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  overflow: auto;
+  justify-content: center;
+  overflow: hidden;
   padding-bottom: var(--compact-safe-bottom, env(safe-area-inset-bottom));
 }
 .remote-workspace-intro {
-  flex: 1;
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
   min-height: 0;
-  overflow: auto;
   width: 100%;
-  max-width: 48rem;
-  margin: 0 auto;
-  padding: 20px 20px 8px;
+  overflow: auto;
 }
-.remote-workspace-heading {
+[data-form-factor='compact'] .remote-workspace-intro {
+  flex-grow: 1;
+}
+.remote-workspace-column {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 10px;
-  padding: clamp(16px, 6vh, 64px) 0 24px;
+  width: 100%;
+  max-width: 48rem;
+  margin: auto;
+  padding: clamp(16px, 5vh, 48px) 20px 0;
+  box-sizing: border-box;
 }
-.remote-workspace-heading h1 {
+.remote-workspace-heading {
+  order: 1;
+  margin-top: clamp(16px, 4vh, 32px);
+  text-align: center;
   font-size: clamp(22px, 3vw, 28px);
   line-height: 1.2;
   font-weight: 600;
   letter-spacing: -0.035em;
 }
-.remote-workspace-heading p {
-  color: var(--px-text-secondary);
-  font-size: 13px;
-}
 .remote-workspace-page > .remote-start {
   flex-shrink: 0;
-}
-.remote-lane-list {
-  border-top: 1px solid var(--px-border);
-  margin-top: 12px;
 }
 .remote-start {
   width: 100%;

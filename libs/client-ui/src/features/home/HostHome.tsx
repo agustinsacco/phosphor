@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+import type { HostLaneView } from '@shared/ipc'
 import { useMachinesStore } from '@/stores/machines'
 import {
   useRemoteLanesStore,
@@ -6,11 +8,18 @@ import {
   hostPending,
 } from '@/stores/remoteLanes'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
-import { RemoteHostLanes } from '@/features/sessions/RemoteHostLanes'
+import { useMachineCaps } from '@/stores/machineCaps'
+import { useLaneEditing, visibleHostLanes } from '@/features/chat/hostLaneEditing'
+import { NoFolders } from '@/features/sessions/RemoteHostLanes'
 import { WaitingNote } from '@/components/Waiting'
-import './remoteStart.css'
+import { HostOrbit } from './HostOrbit'
 
-/** A Host has a lane snapshot, not This Mac's project ledger or spend statistics. */
+const NO_LANES: readonly HostLaneView[] = []
+
+/**
+ * A Host's home is its lanes at a glance, not a second copy of the sidebar: the orbit
+ * counts what needs you and opens any lane, and the sidebar or Lanes lists them all.
+ */
 export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   useMachinesStore((s) => s.machines)
@@ -18,37 +27,35 @@ export function HostHome({ hostId }: { hostId: string }): React.JSX.Element {
   const error = useRemoteLanesStore((s) => s.error)
   const pending = useRemoteLanesStore((s) => hostPending(s, hostId))
   const refusal = hostFeatureRefusal(host, 'sessions.read')
+  const ready = useMachineCaps(hostId).ready
+  const editing = useLaneEditing(hostId)
+  const lanes = useMemo(
+    () => (!host ? NO_LANES : editing ? visibleHostLanes(host.lanes) : host.lanes),
+    [host, editing],
+  )
+  // The composer below names the machine it waits for; this waits for the lanes.
+  const status = pending ? (
+    <WaitingNote>Loading lanes…</WaitingNote>
+  ) : refusal ? (
+    <p className="text-text-secondary text-sm">{refusal}</p>
+  ) : ready && host && !host.repositories.length && !host.lanes.length ? (
+    <NoFolders hostId={hostId} className="items-center" />
+  ) : undefined
   return (
     <section aria-label="Host home">
-      <p className="text-text-secondary mb-2 font-mono text-xs uppercase tracking-wider">
-        {connectionLabel(host?.state)}
-      </p>
-      <h2 className="text-lg font-medium">{label}</h2>
-      {/* The composer below names the machine it waits for; this waits for the lanes. */}
-      {pending ? (
-        <WaitingNote className="mt-4">Loading lanes…</WaitingNote>
-      ) : refusal ? (
-        <p className="text-text-secondary mt-4">{refusal}</p>
-      ) : (
-        <>
-          <p className="text-text-secondary mt-1 text-sm">Your lanes on {label}</p>
-          <div className="remote-lane-list">
-            {host && (
-              <RemoteHostLanes
-                hostId={hostId}
-                repositories={host.repositories}
-                lanes={host.lanes}
-                density="page"
-              />
-            )}
-          </div>
-          {host?.lanes.length === 0 && (
-            <p className="text-text-secondary mt-4">No lanes yet. Describe a task below.</p>
-          )}
-        </>
-      )}
+      <HostOrbit
+        hostId={hostId}
+        label={label}
+        lanes={status ? NO_LANES : lanes}
+        ready={ready}
+        status={status}
+      />
+      <div className="host-home-machine">
+        <h2>{label}</h2>
+        {host?.state !== 'ready' && <span>· {connectionLabel(host?.state)}</span>}
+      </div>
       {error && (
-        <p role="alert" className="text-warning mt-4">
+        <p role="alert" className="text-warning mt-2 text-center text-sm">
           {error}
         </p>
       )}

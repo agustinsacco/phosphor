@@ -82,11 +82,17 @@ function PinnedRemoteLanes({
 }
 
 /** A ready Host with no folders: the one next step is adding one, so offer it right here. */
-function NoFolders({ hostId }: { hostId: string }): React.JSX.Element {
+export function NoFolders({
+  hostId,
+  className = 'items-start px-2 py-3',
+}: {
+  hostId: string
+  className?: string
+}): React.JSX.Element {
   const [adding, setAdding] = useState(false)
   const writable = useMachineCaps(hostId).granted('workspaces.write')
   return (
-    <div className="text-text-tertiary flex flex-col items-start gap-2 px-2 py-3 text-sm">
+    <div className={`text-text-tertiary flex flex-col gap-2 text-sm ${className}`}>
       <span>No folders yet</span>
       {writable && (
         <Button size="xs" onClick={() => setAdding(true)}>

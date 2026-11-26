@@ -274,9 +274,10 @@ the visible transcript, leaving browser find elsewhere untouched.
 
 ### One lane row, list and menu
 
-The browser's navigation and Lanes page, Host home (under the start composer) and
-the machine page's lane preview render Desktop's Host lane components, not
-copies ([Lanes](lanes.md#remote-lanes) owns their rules):
+The browser's navigation and Lanes page and the machine page's lane preview
+render Desktop's Host lane components, not copies (Host home shows the
+[orbit](#host-home-orbit) instead; [Lanes](lanes.md#remote-lanes) owns their
+rules):
 
 - `RemoteHostLanes` lists a Host: pinned lanes first under Pinned, then one
   `RemoteRepositoryGroup` per folder in the Host's order, and lanes whose folder
@@ -299,8 +300,33 @@ copies ([Lanes](lanes.md#remote-lanes) owns their rules):
   (`LaneSelect.tsx`), and bulk Archive is the shared bar and confirm
   (`RemoteBulkDelete`).
 
-`RemoteWorkspacePage` composes the complete remote start page in both clients,
-and its input is `StartComposer`, the one new-lane composer This Mac uses too
+### Host home orbit
+
+`RemoteWorkspacePage` composes the complete remote start page in both clients:
+the Host's orbit (`HostHome`, `HostOrbit`), the greeting and the composer. The
+page has one scroller, as wide as the page, so its scrollbar sits at the window's
+edge. On Desktop and a wide browser the orbit, greeting and composer are centred
+together; a phone keeps the composer at the bottom and centres the orbit above it.
+
+The orbit is the beacon drawn large: one dot per lane on its shell, clockwise from
+twelve o'clock in the order a person should look (needs you, working, unread,
+live, then the rest, newest first within each; `orbitLanes.ts`). Dot colours are
+the sidebar's: warning for needs you, accent for working, success for unread and
+a success ring for live. The ring holds 48 dots; older quiet lanes drop off it
+but still count. At rest the centre reads the one number that matters (what needs
+you, else what is working, else what is unread, else "All quiet") over the other
+counts; hovering or focusing a dot shows that lane's marker, title and state
+there instead, and the machine's name sits under the ring with its connection
+state while it is not ready. The orbit turns only while a lane is working, and
+reduced motion stops it. A mouse click opens the lane. A touch has no hover, so a
+first tap previews and offers Open, and a second tap on the same dot opens it.
+The ring is one tab stop: arrows walk it and wrap, Home and End jump to its ends,
+Enter opens. It does not list lanes or offer their menus: the sidebar, or the
+browser's navigation and Lanes page, does. While the lanes load the centre says
+so; a Host that cannot be read says why; a ready Host with no folders offers Add
+folder on MACHINE….
+
+The page's input is `StartComposer`, the one new-lane composer This Mac uses too
 ([remote creation](remote-desktop.md#machine-context-and-lane-creation)).
 `RemoteStartView` supplies the Host target: it validates remembered
 repositories, usable model choices and submission receipts. New without a
