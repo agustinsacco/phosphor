@@ -1,3 +1,8 @@
+import type { LaneSummary } from '@phosphor/shared/host-protocol'
+import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
+import { archiveHandlers } from '../ops/handlers/archives'
+import { laneHandlers } from '../ops/handlers/lanes'
+import type { DaemonHandlerDeps } from '../ops/handlers'
 import { createWorkspaceLeases, type WorkspaceLeases } from '../owner/lease'
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -229,24 +234,70 @@ it('a workspace lease blocks restore before moving the transcript', async () => 
   expect(await readFile(`${transcript}.archived`, 'utf8')).toBe('original conversation')
 })
 
-it('invalidates open archive inventories after archive, restore and permanent cleanup', async () => {
-  // Warm the inventory before the write; notification must come after cache invalidation.
-  expect(await listed()).toEqual([])
-  const observed: Promise<unknown[]>[] = []
-  changed.mockImplementation(() => observed.push(listed()))
-  const archive = { type: 'lane.archive', laneId } as const
-  const restore = { type: 'archive.restore', archiveId: laneId } as const
-  const purge = { type: 'archive.purge', archiveId: laneId, removeWorktree: false } as const
-  for (const action of [archive, restore, archive, purge]) {
-    expect(await archives.execute(action, () => true)).toEqual({ ok: true })
-    await observed.at(-1)
+function agentArchive() {
+  const summary = (id: string): LaneSummary | null => {
+    const row = store.getLane(id)
+    return row?.removedAt === null
+      ? ({ ...row, activity: 'stopped', control: { fence: 0 } } as LaneSummary)
+      : null
   }
-  expect(changed.mock.calls).toEqual([[laneId], [laneId], [laneId], [laneId]])
-  expect(await Promise.all(observed)).toEqual([
-    [expect.objectContaining({ id: laneId })],
-    [],
-    [expect.objectContaining({ id: laneId })],
-    [],
-  ])
-  expect(forget).toHaveBeenCalledTimes(3)
-})
+  const deps = {
+    store,
+    selfIds: () => ['local'],
+    daemonLanes: { summary, sessionFor: () => null },
+    management: { archives },
+  } as unknown as DaemonHandlerDeps
+  const context: OpHandlerContext = {
+    principal: {
+      kind: 'agent',
+      laneRef: 'issuer',
+      sessionId: 'issuer',
+      unattended: false,
+      lineage: 0,
+    },
+    lane: {
+      ref: `host:local/lane:${laneId}`,
+      cwd: root,
+      title: 'Keep me',
+      sessionId: null,
+      busy: false,
+      controller: null,
+    },
+    signal: new AbortController().signal,
+    log: () => {},
+  }
+  const lane = laneHandlers(deps)
+  const archive = archiveHandlers(deps)
+  return {
+    'lane.archive': () => lane['lane.archive']!({ ref: laneId }, context),
+    'archive.restore': () => archive['archive.restore']!({ id: laneId }, context),
+    'archive.purge': () => archive['archive.purge']!({ ids: [laneId] }, context),
+  }
+}
+
+it.each(['agent', 'ui'] as const)(
+  'invalidates open archive inventories after %s mutations',
+  async (mode) => {
+    // Warm the inventory before the write; notification must come after cache invalidation.
+    expect(await listed()).toEqual([])
+    const observed: Promise<unknown[]>[] = []
+    changed.mockImplementation(() => observed.push(listed()))
+    const archive = { type: 'lane.archive', laneId } as const
+    const restore = { type: 'archive.restore', archiveId: laneId } as const
+    const purge = { type: 'archive.purge', archiveId: laneId, removeWorktree: false } as const
+    const agent = agentArchive()
+    for (const action of [archive, restore, archive, purge]) {
+      if (mode === 'agent') await agent[action.type]()
+      else expect(await archives.execute(action, () => true)).toEqual({ ok: true })
+      await observed.at(-1)
+    }
+    expect(changed.mock.calls).toEqual([[laneId], [laneId], [laneId], [laneId]])
+    expect(await Promise.all(observed)).toEqual([
+      [expect.objectContaining({ id: laneId })],
+      [],
+      [expect.objectContaining({ id: laneId })],
+      [],
+    ])
+    expect(forget).toHaveBeenCalledTimes(3)
+  },
+)
