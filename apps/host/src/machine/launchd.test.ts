@@ -256,3 +256,51 @@ describe('launchd', () => {
     expect(await readServiceExit(path)).toBeUndefined()
   })
 })
+
+it.skipIf(process.platform !== 'darwin')(
+  'warns once at start about the owned Background agent, without rewriting it',
+  async () => {
+    const path = join(root, 'Library', 'LaunchAgents', `${HOST_AGENT}.plist`)
+    const background = plist().replace('<string>Standard</string>', '<string>Background</string>')
+    await writeServiceUnit(path, background)
+    const log = vi.fn()
+    prepareLaunchdRun({}, root, { ...ports(path), log })
+    expect(log).toHaveBeenCalledExactlyOnceWith('service', 'launchd.background_priority', {
+      docs: 'https://github.com/SaccoLabs/Phosphor/blob/main/docs/local-service.md#installation-and-launch',
+      headlessDocs:
+        'https://github.com/SaccoLabs/Phosphor/blob/main/docs/host.md#running-as-a-service',
+    })
+    expect(await readFile(path, 'utf8')).toBe(background)
+  },
+)
+
+it.skipIf(process.platform !== 'darwin')(
+  'does not warn about Standard, missing, malformed, nested, foreign or linked plists',
+  async () => {
+    const path = join(root, 'Library', 'LaunchAgents', `${HOST_AGENT}.plist`)
+    const standard = plist()
+    const background = standard.replace('<string>Standard</string>', '<string>Background</string>')
+    const log = vi.fn()
+    const start = () => prepareLaunchdRun({}, root, { ...ports(path), log })
+    start()
+    for (const text of [
+      standard,
+      background.replace('<key>ProcessType</key><string>Background</string>\n', ''),
+      background.replace(HOST_AGENT, 'com.other.launcher'),
+      background.replace('<string>run</string>', '<string>update</string>'),
+      background
+        .replace('<key>ProcessType</key>', '<key>Other</key><dict><key>ProcessType</key>')
+        .replace('<string>Background</string>', '<string>Background</string></dict>'),
+      background.replace('</plist>', ''),
+    ]) {
+      await writeServiceUnit(path, text)
+      start()
+    }
+    const target = join(root, 'other.plist')
+    await writeFile(target, background)
+    await removeServiceUnit(path)
+    await symlink(target, path)
+    start()
+    expect(log).not.toHaveBeenCalled()
+  },
+)
