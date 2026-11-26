@@ -130,11 +130,26 @@ describe('HomeModelPicker', () => {
     expect(thinkingChip()?.textContent).toBe('Low')
   })
 
-  it('holds the chip until the catalogue lands', async () => {
+  it('opens before the catalogue lands and refreshes a cached list in place', async () => {
     catalogue({ status: 'loading', models: [] })
     await draw(<HomeModelPicker />)
-    expect(chip().disabled).toBe(true)
-    expect(chip().dataset.loading).toBe('true')
+    act(() => chip().click())
+    const list = document.querySelector('[data-testid="model-list"]')
+    expect(list?.textContent).toContain('Loading models…')
+
+    act(() => catalogue({}))
+    expect(list?.textContent).toContain('Model One')
+    act(() => catalogue({ status: 'loading' }))
+    expect(list?.textContent).toContain('Refreshing…')
+    expect(list?.textContent).toContain('Model One')
+    expect(document.querySelector<HTMLInputElement>('[data-testid="model-search"]')?.disabled).toBe(
+      false,
+    )
+
+    act(() => catalogue({ models: [MODELS[1]!] }))
+    expect(list?.textContent).not.toContain('Refreshing…')
+    expect(list?.textContent).toContain('Model Two')
+    expect(list?.textContent).not.toContain('Model One')
   })
 
   it('names a degraded catalogue and asks pi again when opened', async () => {
@@ -185,7 +200,12 @@ describe('HomeModelPicker', () => {
     catalogue({ status: 'error', models: [] })
     await draw(<HomeModelPicker />)
     expect(actions().map((b) => b.textContent)).toEqual(['Retry models'])
-    act(() => actions()[0]!.click())
+    act(() => chip().click())
+    const list = document.querySelector('[data-testid="model-list"]')!
+    expect(list.textContent).toContain('Could not read models.')
+    const retry = [...list.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+    expect(retry).toBeDefined()
+    act(() => retry!.click())
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
