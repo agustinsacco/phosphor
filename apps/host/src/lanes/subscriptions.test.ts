@@ -691,3 +691,26 @@ it('continues attention recovery after the first notification without resending 
   expect(s.received.at(-1)).toMatchObject({ type: 'lanes-delta', cursor: { seq: 3 } })
   s.subscriptions.close()
 })
+
+it('sends resource hints only to opted-in readers without creating legacy cursor gaps', async () => {
+  const s = setup()
+  s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'old' })
+  s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'new', resourceChanges: true })
+  await tick()
+  s.received.length = 0
+  const change = { kind: 'archives', laneId } as const
+  s.topic.resourceChanged(change)
+  s.topic.delta([summary])
+  await tick()
+  expect(s.received).toEqual([
+    { type: 'resource-changed', id: 'new', change },
+    ...['old', 'new'].map((id) => ({
+      type: 'lanes-delta',
+      id,
+      cursor: { epoch, seq: 1 },
+      upsert: [summary],
+      remove: [],
+    })),
+  ])
+  s.subscriptions.close()
+})

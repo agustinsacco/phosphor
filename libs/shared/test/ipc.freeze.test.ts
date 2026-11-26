@@ -1,5 +1,5 @@
 import { expect, expectTypeOf, it } from 'vitest'
-import type { IpcInvokeChannel } from '../src/ipc'
+import type { HostResourceChangedEvent, IpcInvokeChannel, PhosphorApi } from '../src/ipc'
 import { IPC_SCOPE } from '../src/ipc-scope'
 
 // Explicit channel/scope pairs: adding even an app-local channel needs review.
@@ -341,4 +341,10 @@ it('freezes every IPC invoke channel and its app/machine scope', () => {
   ).toEqual(expectedEntries)
   expectTypeOf<(typeof expectedEntries)[number][0]>().toEqualTypeOf<IpcInvokeChannel>()
   expectTypeOf<keyof typeof IPC_SCOPE>().toEqualTypeOf<IpcInvokeChannel>()
+})
+
+it('freezes the Host resource change push subscription', () => {
+  expectTypeOf<PhosphorApi['onHostResourceChanged']>().toEqualTypeOf<
+    (listener: (event: HostResourceChangedEvent) => void) => () => void
+  >()
 })

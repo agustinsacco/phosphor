@@ -148,6 +148,7 @@ function browserSurface(
     onSessionPush: (id, listener) => events.on(`pi:event:${id}`, listener),
     onAccountChanged: (listener) => events.on('account', listener),
     onMachinesChanged: (listener) => events.on('machines', listener),
+    onHostResourceChanged: (listener) => events.on('hostResource', listener),
     onHostsChanged: (listener) => events.on('hosts', listener),
     onHostAttention: (listener) => events.on('attention', listener),
     onRoutinesChanged: (listener) => events.on('routines', listener),
@@ -230,6 +231,7 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
       events.emit('hosts', undefined)
       push.sync()
     },
+    resourceChanged: (event) => events.emit('hostResource', event),
     routinesChanged: (hostId) => events.emit('routines', { machine: `host:${hostId}` }),
     attention: attention.receive,
   })

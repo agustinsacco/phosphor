@@ -11,6 +11,7 @@ import { isEndpoint, type GrantIssueResponse } from '@phosphor/shared/control-ap
 import {
   HOST_LIMITS,
   parseHostFrame,
+  type HostResourceChange,
   parseClientFrame,
   utf8Length,
   type ClientFrame,
@@ -42,6 +43,7 @@ export function createHostConnection(ports: {
   grant: (deadlineAt?: number) => Promise<GrantIssueResponse>
   clearGrant: () => void
   changed: () => void
+  onResourceChanged?: (change: HostResourceChange) => void
   onRoutinesChanged?: () => void
   onAttention?: (event: Extract<HostFrame, { type: 'attention' }>['event']) => void
   disabled?: () => void
@@ -153,7 +155,14 @@ export function createHostConnection(ports: {
             after,
             trace: identity.randomHex(8),
           }
-        : { type: 'subscribe', id, topic: 'lanes', after, trace: identity.randomHex(8) },
+        : {
+            type: 'subscribe',
+            id,
+            topic: 'lanes',
+            after,
+            trace: identity.randomHex(8),
+            ...(ports.onResourceChanged ? { resourceChanges: true } : {}),
+          },
     )
     if (!sent) socket?.close(1000, 'Transport failed')
   }
@@ -310,6 +319,8 @@ export function createHostConnection(ports: {
               : f.cursor.seq,
         },
       })
+    } else if (f.type === 'resource-changed' && f.id === 'lanes') {
+      ports.onResourceChanged?.(f.change)
     } else if (f.type === 'routines-changed' && f.id === 'lanes') {
       if (!view.cursor || view.cursor.epoch !== f.cursor.epoch || f.cursor.seq <= view.cursor.seq)
         return

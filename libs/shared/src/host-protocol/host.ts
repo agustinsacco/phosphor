@@ -1,6 +1,7 @@
 /** parseHostFrame: one Host frame, accepted as a projection or refused as host-frame. */
 import { isIsoTime, type Parsed } from '../control-api'
 import { parseTerminalFrame } from '../host-protocol-terminals'
+import { parseResourceChangedFrame } from './resource-change'
 import { HOST_CLOSE, HOST_LIMITS, type HostCloseCode } from './constants'
 import type { HostFrame } from './frames'
 import {
@@ -43,6 +44,8 @@ function hostFrame(v: Record<string, unknown>): HostFrame | null {
         : null
     case 'lanes':
       return parseLanesFrame(v)
+    case 'resource-changed':
+      return parseResourceChangedFrame(v)
     case 'routines-changed':
       return parseRoutinesChangedFrame(v)
     case 'lanes-delta':

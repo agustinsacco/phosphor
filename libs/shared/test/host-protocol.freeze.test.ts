@@ -11,6 +11,7 @@ import {
   HOST_API_ROUTES,
   HOST_CALL_METHODS,
   HOST_PROTOCOL_VERSION,
+  HOST_RESOURCE_KINDS,
   LANE_PI_OPS,
   UNFENCED_OPS,
   parseClientFrame,
@@ -116,6 +117,17 @@ describe('client frame discriminants', () => {
   })
 })
 
+it('freezes the resource change kinds and lanes subscription opt-in', () => {
+  expect(HOST_RESOURCE_KINDS).toEqual([
+    'archives', 'settings', 'connectors', 'skills', 'packages', 'artifacts', 'routines', 'folders', 'sandboxes',
+  ])
+  const lanes = CLIENT_FRAMES.subscribe.lanes
+  expect(client({ ...lanes, resourceChanges: true })).toEqual({
+    ok: true, frame: { ...lanes, resourceChanges: true },
+  })
+  expect(client({ ...lanes, resourceChanges: false })).toEqual({ ok: true, frame: lanes })
+})
+
 describe('Host frame discriminants', () => {
   it('pins every HostFrame type and its variant keys', () => {
     expect(Object.keys(HOST_FRAMES).sort()).toStrictEqual([
@@ -129,6 +141,7 @@ describe('Host frame discriminants', () => {
       'ready',
       'receipt',
       'result',
+      'resource-changed',
       'routines-changed',
       'snapshot',
       'subscribe-failed',

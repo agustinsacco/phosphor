@@ -81,6 +81,7 @@ const api: PhosphorApi = {
   onAccountChanged: (listener) => subscribe<[AccountView]>('account:changed', listener),
 
   onHostsChanged: (listener) => subscribe<[]>('hosts:changed', listener),
+  onHostResourceChanged: (listener) => subscribe('hosts:resourceChanged', listener),
   onHostAttention: (listener) => subscribe<[HostAttention]>('hosts:attention', listener),
   onFileDownloadProgress: (listener) =>
     subscribe<[FileDownloadProgress]>('hosts:fileDownloadProgress', listener),

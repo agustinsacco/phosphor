@@ -33,6 +33,7 @@ describe('host-protocol frame declarations', () => {
       | 'auth-renewed'
       | 'lanes'
       | 'lanes-delta'
+      | 'resource-changed'
       | 'routines-changed'
       | 'attention'
       | 'snapshot'

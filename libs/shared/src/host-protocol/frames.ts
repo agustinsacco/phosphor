@@ -10,6 +10,7 @@ import type {
   RepositorySummary,
   StreamCursor,
 } from './lanes'
+import type { HostResourceChange } from './resource-change'
 import type { CallError, LaneOp, Receipt } from './operations'
 
 export type ClientFrame =
@@ -26,6 +27,8 @@ export type ClientFrame =
       readonly type: 'subscribe'
       readonly id: string
       readonly topic: 'lanes'
+      /** Older Hosts ignore this opt-in; newer Hosts never send the event without it. */
+      readonly resourceChanges?: true
       /** Replays attention events after this cursor when the epoch matches. */
       readonly after?: StreamCursor
       readonly trace?: string
@@ -143,6 +146,7 @@ export type HostFrame =
       readonly upsert: readonly LaneSummary[]
       readonly remove: readonly string[]
     }
+  | { readonly type: 'resource-changed'; readonly id: string; readonly change: HostResourceChange }
   | { readonly type: 'routines-changed'; readonly id: string; readonly cursor: StreamCursor }
   | {
       readonly type: 'attention'

@@ -286,6 +286,9 @@ export const HOST_FRAMES = {
       remove: [OTHER_LANE_ID],
     },
   },
+  'resource-changed': {
+    changed: { type: 'resource-changed', id: 'lanes', change: { kind: 'archives' } },
+  },
   'routines-changed': {
     changed: { type: 'routines-changed', id: 'lanes', cursor: { epoch: EPOCH, seq: 1 } },
   },

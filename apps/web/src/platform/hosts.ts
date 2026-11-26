@@ -1,3 +1,4 @@
+import type { HostResourceChangedEvent } from '@phosphor/shared/ipc'
 import {
   createHostConnection,
   hostEndpoint,
@@ -42,6 +43,7 @@ export interface HostPorts {
   socket?: (url: string) => Promise<FrameSocket>
   identity?: IdentityCrypto
   changed: () => void
+  resourceChanged?: (event: HostResourceChangedEvent) => void
   routinesChanged: (hostId: string) => void
   attention: (hostId: string, event: AttentionEvent) => void
   now?: () => number
@@ -152,6 +154,9 @@ export function createBrowserHosts(ports: HostPorts) {
           clearGrant: () => grants.delete(hostId),
           changed: () => {
             if (active()) changed()
+          },
+          onResourceChanged: (change) => {
+            if (active()) ports.resourceChanged?.({ hostId, ...change })
           },
           onRoutinesChanged: () => {
             if (active()) ports.routinesChanged(hostId)

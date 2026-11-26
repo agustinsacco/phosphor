@@ -2471,6 +2471,7 @@ export function installMockPhosphor(): void {
     },
 
     onHostsChanged: onMockRemoteChanged,
+    onHostResourceChanged: () => () => {},
     onHostAttention: () => () => undefined,
     onHostOpenLane: () => () => undefined,
     onFileDownloadProgress: () => () => undefined,

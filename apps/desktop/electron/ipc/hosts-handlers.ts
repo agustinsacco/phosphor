@@ -198,6 +198,7 @@ export function registerHostsHandlers(): void {
         clearGrant: () => grants.clear(hostId),
         changed: () => manager.changed(),
         disabled: () => manager.disabled(),
+        onResourceChanged: (change) => broadcast('hosts:resourceChanged', { hostId, ...change }),
         onRoutinesChanged: () => broadcast('routines:changed', { machine: `host:${hostId}` }),
         onAttention: (event) => attention.receive(hostId, event),
         log: tappedLog,
