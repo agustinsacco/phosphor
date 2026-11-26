@@ -55,6 +55,11 @@ machine directory changes. Oversize closes query receipts rather than resend
 commands. Other reconnects resend unchanged commands under 60 seconds, then
 ask receipt status. Replay waits for queue space in original order, rechecking
 that age rule on each retry. New sends answer `not-connected` until replay drains.
+A ready frame that grants no capabilities (a [local service](local-service.md)
+still starting its lanes) neither replays nor subscribes lane watches: pending
+commands wait, within their usual deadlines, and open lanes keep their handles
+for the next connection that grants capabilities, so they send normally after
+startup without reopening.
 Unknown means the action's outcome remains uncertain.
 Local `not-sent` results (`too-large`, `too-many-pending`, `not-connected` or
 `closed`) never write or queue a command. `not-connected` is transient; callers
@@ -99,8 +104,10 @@ name the machine and controller. A `prompt` rejected `lane-stopped` sends
 resume is the answer. Any other `lane-stopped` rejection tells the user to press
 Resume. Unknown outcomes tell the user to check the lane
 before retrying. Unanswered commands expire after 60 seconds as unknown, never
-as a fresh retry. `lane.create` gets 180 seconds on the client to allow for queueing
-and the longer Host answer window. The 60-second resend cutoff still applies.
+as a fresh retry. `lane.create`, `set_model` and `lane.resume` get 180 seconds on
+the client to allow for queueing and the longer Host answer window for starting pi,
+so a prompt to a stopped lane waits for a slow start instead of reading unknown.
+The 60-second resend cutoff still applies.
 Local pi routing is unchanged.
 
 Remote snapshots and reset snapshots replace main's in-memory lane projection.
@@ -229,7 +236,17 @@ Remote header and pane chips report Connected, Connecting (first attempt),
 Reconnecting or Down from the connection snapshot. Directory-down Hosts retain
 greyed, disabled lanes labelled "last known". While a Host connects or
 reconnects, the composer is locked with its draft under a spinner note naming
-the machine, and the header holds its control buttons. A down Host's composer
+the machine, and the header holds its control buttons. A ready connection that
+grants no capabilities is never usable (`hostReady` in
+`libs/client-ui/src/stores/hostReadiness.ts`, the one readiness check for sending,
+control and warm-on-open). On This Mac's local socket that is the service's boot
+window (`hostStarting`): the composer is locked under "Starting <machine>…" with
+the Phosphor loader, the lane is not read-only and offers no control, and nothing
+is sent. An enrolled Host serves TCP only after its lanes start, so one that
+grants nothing reads as not connected. The PWA reaches This Mac over TCP, which
+the service opens only after its lanes start: during the same boot it shows the
+reconnecting note, or "Machine not connected" once the directory marks the
+machine down, with the composer locked either way. A down Host's composer
 and panes show "Machine not connected. Wait for reconnection." Both recover
 from snapshots without reload.
 

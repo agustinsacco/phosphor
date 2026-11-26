@@ -113,14 +113,14 @@ function heldLane(sessionId: string) {
   const remote = sessionHostLane(sessionId)
   if (!remote) return null
   const { host, lane } = remote
-  const held =
-    machineCaps(host).granted('sessions.control') && laneControlPolicy(host?.local, lane).actionable
-  return { state: host?.state, held }
+  const caps = machineCaps(host)
+  const held = caps.granted('sessions.control') && laneControlPolicy(host?.local, lane).actionable
+  return { ready: caps.ready, held }
 }
 
 export function canControlSession(sessionId: string): boolean {
   const lane = heldLane(sessionId)
-  return !lane || (lane.state === 'ready' && lane.held)
+  return !lane || (lane.ready && lane.held)
 }
 
 /**
@@ -129,7 +129,7 @@ export function canControlSession(sessionId: string): boolean {
  */
 export function readOnlyLane(sessionId: string): boolean {
   const lane = heldLane(sessionId)
-  return !!lane && lane.state === 'ready' && !lane.held
+  return !!lane && lane.ready && !lane.held
 }
 
 export const useRemoteLanesStore = create<{

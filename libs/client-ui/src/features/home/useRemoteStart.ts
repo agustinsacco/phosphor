@@ -5,6 +5,7 @@ import { useRemoteModel } from '@/features/machines/useRemoteModel'
 import type { PendingAttachment } from '@/features/chat/attachments'
 import { useDraftsStore } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineCaps } from '@/stores/machineCaps'
 import { rememberRemoteRepository, useRemoteComposer } from './remoteComposer'
 import { submitRemoteHome } from './submitRemoteHome'
 
@@ -28,7 +29,7 @@ export function useRemoteStart(hostId: string, draftKey: string) {
   const attachments = draft?.attachments ?? EMPTY_ATTACHMENTS
   const swarm = draft?.swarm ?? false
   const [warning, setWarning] = useState<string | null>(null)
-  const ready = host?.state === 'ready' && host.capabilities.includes('sessions.control')
+  const ready = machineCaps(host).can('sessions.control')
   const canSend =
     ready && !!repositoryId && !!selection.model && (!!text.trim() || !!attachments.length)
   const send = async (): Promise<void> => {

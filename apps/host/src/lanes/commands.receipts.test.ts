@@ -286,8 +286,10 @@ describe('lane command guards and operations', () => {
 
   it('delivers and drains when the terminal clock throws', async () => {
     const take = f.frame({ type: 'control.take' })
+    // Reads: the job's start, its queue wait (lane.ts heldTooLong), then the terminal log.
     f.ports.now = vi
       .fn(() => Date.now())
+      .mockReturnValueOnce(Date.now())
       .mockReturnValueOnce(Date.now())
       .mockImplementationOnce(() => {
         throw new Error('clock failed')

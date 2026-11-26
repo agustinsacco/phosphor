@@ -20,8 +20,8 @@ import {
 
 // Creation includes both the worktree checkout and booting pi.
 export const LANE_CREATE_ANSWER_MS = 120_000
-// A cross-provider model change also boots pi, then attaches its transcript.
-const SET_MODEL_ANSWER_MS = 120_000
+// A cross-provider model change and a resume also boot pi, which is slow under load.
+export const PI_START_ANSWER_MS = 120_000
 
 export type QueuePorts = ReceiptPorts & {
   store: Pick<HostStore, 'getReceipt' | 'beginRequest'>
@@ -142,8 +142,8 @@ export function dispatch<T>(
     promise,
     job.frame.op.type === 'lane.create'
       ? LANE_CREATE_ANSWER_MS
-      : job.frame.op.type === 'set_model'
-        ? SET_MODEL_ANSWER_MS
+      : job.frame.op.type === 'set_model' || job.frame.op.type === 'lane.resume'
+        ? PI_START_ANSWER_MS
         : answerWait(job.client.ownerExemption, job.frame.op.type),
   )
 }

@@ -37,6 +37,8 @@ does not start, read the service log and run `service install` again with the
 same config and state folders; do not run setup again. `service status` can exit
 nonzero for a healthy local service that is not enrolled.
 
+After a restart or an update the service accepts the owner socket before its lanes start, granting no capabilities, then closes the socket (1001) and reconnects with them. Until then Desktop shows its lanes from the last snapshot with the composer locked under "Starting <machine>…" and sends nothing; open lanes keep their watches and commands pending across the restart replay on the capable connection. The PWA reaches the service over TCP, which opens only after the lanes start, so it shows the machine reconnecting or not connected for that window, also locked ([remote desktop](remote-desktop.md#machine-context-and-lane-creation)).
+
 `local-machine/launch.ts` decides the runtime once, after IPC registration and before pi configuration, windows or sessions. An unpackaged build needs both `PHOSPHOR_TEST_USER_DATA` and `PHOSPHOR_MIGRATE=1` to migrate. Dev over data already committed to the service cannot start in-app lanes if it cannot reach the service.
 
 ## Handing over existing lanes

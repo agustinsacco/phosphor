@@ -1,3 +1,4 @@
+import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import type { LaneArchiveOp } from '@phosphor/shared/lane-archive'
 import type { LaneMarksChange } from '@phosphor/shared/host-protocol-lane-marks'
 import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
@@ -34,6 +35,8 @@ export function executeLane(
   allowed: () => boolean,
 ): Execution | void {
   const { op } = job.frame
+  if ((op.type === 'control.take' || op.type === 'control.release') && heldTooLong(ports, job))
+    return rejected(state, ports, job, 'busy', true)
   switch (op.type) {
     case 'control.take':
       return takeControl(state, ports, job, queue, admitted.laneId)
@@ -58,6 +61,15 @@ export function executeLane(
       return rejected(state, ports, job, 'unsupported', true)
   }
   answerDone(state, ports, job, admitted.fence)
+}
+
+/**
+ * A resume holds its lane's queue while pi starts, up to two minutes. A control change
+ * queued behind it past the ordinary answer window has outlived its client's wait, which
+ * reads it as unknown: refusing it keeps the change from applying unseen.
+ */
+function heldTooLong(ports: Pick<ReceiptPorts, 'now'>, job: Job): boolean {
+  return ports.now() - job.started > HOST_LIMITS.commandAnswerMs
 }
 
 function answerDone(

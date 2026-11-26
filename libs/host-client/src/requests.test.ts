@@ -132,3 +132,26 @@ it('waits for a replacement pi instead of expiring a set_model at 60 seconds', (
     requests.close()
   }
 })
+
+it('waits for a slow pi start instead of expiring a lane.resume at 60 seconds', () => {
+  vi.useFakeTimers()
+  const requests = createRequests({
+    now: Date.now,
+    write: () => true,
+    later: setTimeout,
+    canReplay: () => true,
+    changed: () => {},
+    transportFailed: () => {},
+  })
+  const resolve = vi.fn()
+  requests.track({ type: 'command', requestId: 'resume', op: { type: 'lane.resume' } }, resolve)
+  try {
+    vi.advanceTimersByTime(65_000)
+    expect(resolve).not.toHaveBeenCalled()
+    const receipt = { requestId: 'resume', status: 'done', fence: 2 } as const
+    requests.receipt(receipt)
+    expect(resolve).toHaveBeenCalledExactlyOnceWith(receipt)
+  } finally {
+    requests.close()
+  }
+})

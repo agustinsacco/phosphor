@@ -3,6 +3,7 @@ import { ipcErrorText, LANE_ACTION_FAILED, UNKNOWN_OUTCOME } from '@shared/error
 import { remoteLaneResourceKey } from '@shared/remote-host'
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import type { SessionHostLane } from '@/stores/hostLaneOf'
+import { hostReady } from '@/stores/hostReadiness'
 
 // RPC is used by the session stores themselves. Read their projections at action time,
 // without importing the stores (and their initialization cycle) into the RPC layer.
@@ -40,11 +41,7 @@ export async function ensureServiceLaneControl(hostId: string, laneId: string): 
   if (!host?.local && !host?.warmOnOpen) return
   const lane = host.lanes.find((l) => l.laneId === laneId)
   const policy = laneControlPolicy(true, lane)
-  if (
-    host.state !== 'ready' ||
-    !host.capabilities.includes('sessions.control') ||
-    !policy.actionable
-  )
+  if (!hostReady(host) || !host.capabilities.includes('sessions.control') || !policy.actionable)
     throw new ServiceLaneControlRefused(
       lane?.control.controller
         ? `Controlled by ${lane.control.controller.label}. Take control first.`
@@ -77,7 +74,7 @@ export function warmOpenedLane(
   const remote = views?.session(sessionId)
   if (
     !remote?.host?.warmOnOpen ||
-    remote.host.state !== 'ready' ||
+    !hostReady(remote.host) ||
     !remote.host.capabilities.includes('sessions.control') ||
     remote.lane?.activity !== 'stopped' ||
     remote.lane.pause ||

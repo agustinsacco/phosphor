@@ -23,6 +23,7 @@ import { useChatStore } from '@/stores/chat'
 import { LaneLinks } from '@/features/sessions/LaneLinks'
 import { useMachinesStore } from '@/stores/machines'
 import { connectionLabel, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostReady, hostStarting } from '@/stores/hostReadiness'
 import { laneListFor } from './browserMemory'
 
 type LaneLocation = Extract<Location, { to: 'lane' }>
@@ -120,8 +121,8 @@ function LaneStatus({
   pane?: string
 }): React.JSX.Element {
   useMachinesStore((s) => s.machines)
-  const hostState = useRemoteLanesStore((s) => s.hosts[hostId]?.state)
-  const ready = hostState === 'ready'
+  const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const ready = hostReady(host)
   return (
     <span id={id} className="compact-lane-status">
       <span
@@ -132,7 +133,7 @@ function LaneStatus({
       <span className="truncate">{machineLabel(hostId)}</span>
       <span aria-hidden>·</span>
       <span className="truncate">
-        {ready && control ? control.status : connectionLabel(hostState)}
+        {(ready || hostStarting(host)) && control ? control.status : connectionLabel(host?.state)}
       </span>
       {pane && <span aria-hidden>·</span>}
       {pane && <span>{pane}</span>}
@@ -154,7 +155,7 @@ function HostLaneMenu({
   onClose: () => void
   children: (actions: { items: ContextMenuItem[]; error: string | null }) => React.ReactNode
 }): React.JSX.Element {
-  const ready = useRemoteLanesStore((s) => s.hosts[hostId]?.state === 'ready')
+  const ready = useRemoteLanesStore((s) => hostReady(s.hosts[hostId]))
   const actions = useRemoteLaneActions({
     hostId,
     lane,

@@ -4,16 +4,18 @@ import {
   laneActionErrorText,
 } from '@/platform/serviceLaneControl'
 import { useState } from 'react'
-import type { HostConnectionView, HostLaneView } from '@shared/ipc'
+import type { HostLaneView } from '@shared/ipc'
 import { useChatStore } from '@/stores/chat'
 import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
 import {
   canControlSession,
   connectionLabel,
+  machineLabel,
   REMOTE_NOT_READY,
   useSessionHostLane,
 } from '@/stores/remoteLanes'
 import type { SessionHostLane } from '@/stores/hostLaneOf'
+import { hostReady, hostStarting, startingMachine } from '@/stores/hostReadiness'
 
 /** pi writes nothing to resume until a first message; the Host refuses Stop before then. */
 export const STOP_NEEDS_PROMPT = 'Send a first message before stopping this lane.'
@@ -23,10 +25,11 @@ export type LaneControlChannel =
 
 export interface LaneControl {
   hostId: string
-  hostState: HostConnectionView['state'] | undefined
+  /** The Host is connected and has started its lanes (`hostReady`). */
+  ready: boolean
   /** "Connected", "Reconnecting" or "Down". */
   connection: string
-  /** "Controlled by you", "No controller", or the not-connected notice. */
+  /** "Controlled by you", "No controller", "Starting <machine>…" or the not-connected notice. */
   status: string
   /** The Host is ready and offers control at all. */
   enabled: boolean
@@ -50,7 +53,7 @@ export interface LaneControl {
 /** Why this window may not act on a Host lane now (`remoteControlHint`), or undefined. */
 export function laneControlHint({ host, lane }: SessionHostLane): string | undefined {
   return remoteControlHint(
-    host?.state === 'ready',
+    hostReady(host),
     !!host?.capabilities.includes('sessions.control'),
     laneControlPolicy(host?.local, lane).actionable,
   )
@@ -87,14 +90,16 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
       setBusy(false)
     }
   }
-  const enabled = host?.state === 'ready' && host.capabilities.includes('sessions.control')
+  const ready = hostReady(host)
+  const enabled = ready && !!host?.capabilities.includes('sessions.control')
   const controlling = canControlSession(sessionId)
   return {
     hostId,
-    hostState: host?.state,
+    ready,
     connection: connectionLabel(host?.state),
-    status:
-      host?.state !== 'ready'
+    status: hostStarting(host)
+      ? startingMachine(machineLabel(hostId))
+      : !ready
         ? REMOTE_NOT_READY
         : controller
           ? `Controlled by ${controller.self ? 'you' : controller.label}${controller.connected ? '' : ' (disconnected)'}`

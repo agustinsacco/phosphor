@@ -31,7 +31,7 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
   const control = useLaneControl(sessionId)
   if (!control) return null
   // Control cannot change hands until the Host is back; the composer says what it waits for.
-  if (control.hostState !== 'ready')
+  if (!control.ready)
     return (
       <div className="px-6 py-2">
         <MachineChip sessionId={sessionId} />

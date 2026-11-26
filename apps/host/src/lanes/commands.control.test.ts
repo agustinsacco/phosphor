@@ -4,6 +4,7 @@ import { HOST_LIMITS, type LaneOp, type LanePiOp } from '@phosphor/shared/host-p
 import { commandRefusal } from '../session/runtime'
 import * as folders from './worktree'
 import { createLaneCommands, type LaneCommandFrame } from './commands'
+import { PI_START_ANSWER_MS } from './commands/queue'
 import {
   createCommandsFixture,
   deferred,
@@ -363,7 +364,10 @@ describe('lane command guards and operations', () => {
       f.ports.stopLane = () => response.promise
       const request = f.frame({ type })
       const running = f.service.submit(f.one, request)
-      await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+      // A resume starts pi, which is slow under load: it waits as long as a model switch.
+      await vi.advanceTimersByTimeAsync(
+        type === 'lane.resume' ? PI_START_ANSWER_MS : HOST_LIMITS.commandAnswerMs,
+      )
       await running
       expect(f.last(request.requestId)?.status).toBe('unknown')
       response.release()
@@ -412,4 +416,44 @@ it('only the first conditional take claims the lane, even when two clients race'
     control,
   })
   expect(f.store.getLane(f.lane.laneId)!.control).toEqual(control)
+})
+
+/*
+ * A resume holds the lane's queue while pi starts, up to two minutes. A takeover
+ * queued behind it outlives its client's wait, so it is refused, not applied later.
+ */
+it.each(['control.take', 'control.release'] as const)(
+  'refuses a %s left waiting behind a slow resume',
+  async (type) => {
+    f.sessions.clear()
+    f.store.takeControl(f.lane.laneId, { clientId: f.one.id, label: f.one.label })
+    const starting = deferred<void>()
+    f.ports.resumeLane = () => starting.promise
+    const resume = f.service.submit(f.one, f.frame({ type: 'lane.resume' }, 2))
+    await vi.advanceTimersByTimeAsync(5_000)
+    const client = type === 'control.take' ? f.two : f.one
+    const request = f.frame({ type }, 2)
+    const control = f.service.submit(client, request)
+    await vi.advanceTimersByTimeAsync(70_000)
+    starting.release()
+    await resume
+    await control
+    expect(f.last(request.requestId)).toMatchObject({ status: 'rejected', code: 'busy' })
+    expect(f.store.getLane(f.lane.laneId)?.control.controller?.clientId).toBe(f.one.id)
+  },
+)
+
+it('still applies a takeover that waited only briefly behind a resume', async () => {
+  f.sessions.clear()
+  f.store.takeControl(f.lane.laneId, { clientId: f.one.id, label: f.one.label })
+  const starting = deferred<void>()
+  f.ports.resumeLane = () => starting.promise
+  const resume = f.service.submit(f.one, f.frame({ type: 'lane.resume' }, 2))
+  const request = f.frame({ type: 'control.take' }, 2)
+  const control = f.service.submit(f.two, request)
+  await vi.advanceTimersByTimeAsync(10_000)
+  starting.release()
+  await resume
+  await control
+  expect(f.last(request.requestId)).toMatchObject({ status: 'done' })
 })
