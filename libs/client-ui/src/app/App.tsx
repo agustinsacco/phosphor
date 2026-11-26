@@ -1,3 +1,4 @@
+import { useMachineUpdateObserver } from '@/features/updates/watchMachineUpdates'
 import { resumeServiceLane } from './resumeServiceLane'
 import { AppOverlays } from './AppOverlays'
 import { GlobalScreen } from '@/navigation/screens'
@@ -37,6 +38,7 @@ import { worktreeAwareName } from '@/lib/path'
 import { attachMachinesListener } from '@/stores/machines'
 
 export function App(): React.JSX.Element {
+  useMachineUpdateObserver()
   const machineFiles = useMachineHomeFiles()
   const [health, setHealth] = useState<PiHealth | null>(null)
   const remote = useActiveMachine().kind === 'remote'

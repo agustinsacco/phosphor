@@ -34,6 +34,7 @@ const retry = vi.fn(),
   off = vi.fn()
 const machine = 'mac'
 const none = { kind: 'none' }
+const lastUpdate = { from: '1.2.2', to: '1.2.3', outcome: 'updated', at: '2026-01-01T00:00:00Z' }
 const pausing = {
   kind: 'pausing',
   purpose: 'update',
@@ -54,7 +55,7 @@ function slot() {
     type: 'result' as const,
     id: 'call-1',
     ok: true as const,
-    data: { machineId: machine, hostVersion: '1.2.3', pause: none },
+    data: { machineId: machine, hostVersion: '1.2.3', pause: none, lastUpdate },
   }))
   const c = {
     snapshot: () => ({ ...snap, lanes: [], repositories: [], capabilities: [] }),
@@ -104,7 +105,13 @@ it('pushes gate and local slot transitions without polling; duplicate lane notif
   expect(c.call).not.toHaveBeenCalled()
   expect(h.push).toHaveBeenCalledTimes(2)
   await expect(Promise.all([get(), get()])).resolves.toEqual(
-    Array(2).fill({ ...status, service: 'ready', pause: none, serviceVersion: '1.2.3' }),
+    Array(2).fill({
+      ...status,
+      service: 'ready',
+      pause: none,
+      serviceVersion: '1.2.3',
+      lastUpdate,
+    }),
   )
   expect(c.call.mock.calls).toEqual([['machine.local', undefined]])
   status = { mode: 'in-app', migration: 'failed' }
@@ -127,7 +134,7 @@ it('routes update only over the local service write receipt; before Abort now an
       type: 'result',
       id: 'call-1',
       ok: true,
-      data: { machineId: machine, hostVersion: '1.2.3', pause: pausing },
+      data: { machineId: machine, hostVersion: '1.2.3', pause: pausing, lastUpdate },
     })
     expect(await act(name)).toEqual({ ok: true })
     expect(c.call).toHaveBeenLastCalledWith('machine.pause', { action })

@@ -56,6 +56,8 @@ Signing in can enroll the service over the owner socket without restarting lanes
 
 In **Settings → Advanced → Phosphor service**, use **Start service** or **Retry** when unavailable. A failed move offers Retry or **Export diagnostics** (status-only JSON). **Update Phosphor service** stages a release, waits for working lanes, live sub-agents and routines to pause, then applies the staged version. While waiting, **Abort now** saves and stops unfinished turns; **Cancel** leaves the update unapplied. Timing out does not abort turns. An update starting is not confirmation that the version changed. The browser has no same-machine service card.
 
+The owner socket reports the most recent update result. Desktop projects it into its optional local-machine status field so Settings can distinguish a rollback from a stale result.
+
 ## Break-glass restore
 
 `--restore-in-app-runtime` is recovery from a **committed** migration, not a runtime selector. Stop the service’s lanes first. Desktop asks the identified service to release ownership and waits up to 60 seconds for standby with a free lock. A refusal or unconfirmed release shows an error and quits without restoring data. Restore uses the pre-migration device settings and routines, not subsequent edits; a draft image no longer on disk is not reconstructed. The journal becomes `reverted`; automatic migration stays blocked until Retry. A migration after Retry keeps the lane IDs the service already has, so links and marks to those lanes still resolve. See [service limits and recovery risks](known-issues.md#this-macs-service).
