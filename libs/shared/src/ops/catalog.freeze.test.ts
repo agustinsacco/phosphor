@@ -38,7 +38,7 @@ lane.autoRetry lane self after-run - - local - - 747277e2e03bcd747b9bb8f7d09989b
 lane.queueMode lane self after-run - - local - - 3af915363b23553ae96974c4f1a959542bbd62519fea03ac477a4bed932fceaf
 lane.reload lane/never self/other-lane reload laneReload - local - - 9eb3030695c5a31deb3f75fce35fac70add152588f6b45a181047dd25a3dc3c2
 notify lane self now - - local - - 3af0e74ed7b972a0784ddbf3ef32ed963f2ef621be162f5c9483e37d71679c64
-mcp.lane lane/never self/other-lane now laneContext - local - - 645a2c1fbdfcef399dac5ff8fdc445047851c2279fca85c8c1aef3b10e841dfa
+mcp.lane lane/never/read self/other-lane now laneContext - local - - 645a2c1fbdfcef399dac5ff8fdc445047851c2279fca85c8c1aef3b10e841dfa
 account.move configure self reload - - local - - 439252a416678fb7efbad406ecb6831f5d3803752351cb651c4f0b8117032ca9
 lane.list read machine now pagedLanes - - - paged 8f1dcc8e69a63a4e4ab92467032ba286075afa33e29f4eeb7f20e850c1ca1a2b
 lane.search read machine now - - - - paged 66c042c62c88fbafc174d4afbeca0299ef9c9dceebf9d4770ee19529ab6f6259
@@ -128,8 +128,8 @@ skill.share persistence machine reload - - - - - 9054935b2fc58b9673fe54c2056ee8f
 skill.delete destructive machine now configFiles - - - - f16f2498673e932012df57539890a0ec21f855c5f74bf0135bc86e43dc7aed3c
 mcp.list read machine now - - - - paged c57e5987bdbbc8d6bf059cc32f8702b76da3f75ff2e38e6a4d7e9bfebb8d2f48
 mcp.check read machine now - - - - - d59da275452fdfe196154d19c54a42076e994c4d4a59ab6a89ed2083408e7fac
-mcp.add persistence machine reload - - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
-mcp.update persistence machine reload - - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
+mcp.add persistence/destructive machine reload - - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
+mcp.update persistence/destructive machine reload - - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
 mcp.enable persistence machine reload - - - - - af625573641fa2ccdce40c019f4abd038812a87bd0a2291afe1c4118b10186ff
 mcp.disable persistence machine reload - - - - - af625573641fa2ccdce40c019f4abd038812a87bd0a2291afe1c4118b10186ff
 mcp.expose persistence machine reload - - - - - a36358f1137d419a45a601383cf6811144b952527a081b8f9551dde93bf1d040
@@ -154,11 +154,13 @@ claude.routing configure machine new-lanes - - - - - edd52ffb3c32267944a7157a295
 claude.reorder configure machine new-lanes - - - - - d41d6ee7ba1c9a3889a121b976831960390a0bd8efffa6b1cb3fdda62636b7ab
 machine.status read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 machine.doctor read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+machine.refreshEnvironment configure machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 machine.models read machine now - - - - paged 1f53a76be30b0eae49b13e4768c1a87783b7ce6499fd14ed3fdb6a6587355a97
 machine.providers read machine now - - - - paged 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
-machine.commands read machine now - - - - paged 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+machine.commands read machine now - - - - paged c57e5987bdbbc8d6bf059cc32f8702b76da3f75ff2e38e6a4d7e9bfebb8d2f48
 machine.usage read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 service.update destructive machine now - - - job - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+service.pause never machine now - surface local - - 58b0ac567e7d7cddafe40ed512d78d6d4c95ac9b95f76170f97764185435a4b7
 maintenance.scan read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 maintenance.run destructive machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 hosts.list read machine now - - local - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
