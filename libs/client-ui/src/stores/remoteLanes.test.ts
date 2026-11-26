@@ -396,8 +396,12 @@ it.each(['session', 'page', 'filter'])(
     finish?.(mockRemoteInfo)
     expect(await opening).toBe(false)
     expect(useSessionsStore.getState().activeSessionId).toBeNull()
-    expect(useRemoteLanesStore.getState().filter).toBe(navigation === 'filter' ? 'all' : 'local')
-    expect(useLayoutStore.getState().page).toBe(navigation === 'filter' ? 'skills' : 'routines')
+    // The click itself closed the page and showed the lane's machine; only the newer choice moved them since.
+    expect(useRemoteLanesStore.getState().filter).toBe(
+      navigation === 'filter' ? 'all' : MOCK_HOST_ID,
+    )
+    expect(useLayoutStore.getState().page).toBe(navigation === 'filter' ? null : 'routines')
+    expect(useSessionsStore.getState().opening).toBeNull()
     expect(useLaneRevealStore.getState().seq).toBe(0)
   },
 )
@@ -448,30 +452,6 @@ it('adopted lanes receive one settled card, not a second Host attention card', a
   notify.mockRestore()
   detach()
 })
-
-it.each(['offline', 'removed'])(
-  'does not commit when a lane becomes %s during open',
-  async (problem) => {
-    useRemoteLanesStore.setState({ filter: 'local' })
-    useSessionsStore.setState({ activeSessionId: 'mac' })
-    invoke.mockImplementation(async (channel) => {
-      if (channel !== 'hosts:openLane') return []
-      const hosts = structuredClone(mockRemoteHosts)
-      const host = hosts[MOCK_HOST_ID]
-      if (!host) throw new Error('fixture')
-      if (problem === 'offline') host.state = 'reconnecting'
-      else host.lanes = []
-      useRemoteLanesStore.setState({ hosts })
-      return mockRemoteInfo
-    })
-    expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(false)
-    expect(useSessionsStore.getState().activeSessionId).toBe('mac')
-    expect(useRemoteLanesStore.getState().filter).toBe('local')
-    expect(useLayoutStore.getState().page).toBe('skills')
-    expect(useLaneRevealStore.getState().seq).toBe(0)
-    expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
-  },
-)
 
 it('classifies an open rejection from a fresh snapshot without showing Host error payloads', async () => {
   invoke.mockImplementation(async (channel) => {

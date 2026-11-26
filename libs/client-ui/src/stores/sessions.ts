@@ -113,6 +113,13 @@ export interface OpeningLane {
   reason: 'open' | 'restart'
   /** The navigation this open belongs to. See `navSeq`. */
   nav: number
+  /**
+   * The Host lane being opened, This Mac's service included; absent for an
+   * in-app open. Its rows select from this, and `navigateToLane` owns it.
+   */
+  lane?: { hostId: string; laneId: string }
+  /** Why the open failed. The view stays, with Retry, until the user goes elsewhere. */
+  failure?: string
 }
 
 /**

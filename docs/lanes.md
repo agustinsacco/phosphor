@@ -709,6 +709,20 @@ region, so the previous lane keeps its React tree and a failed open leaves the
 user exactly where they were. Clicking a lane whose open is already running
 still activates it rather than deduping to nothing.
 
+A Host lane, This Mac's service included, opens the same way on Desktop and in
+the browser. `navigateToLane` records it in `sessions.opening` (with `lane`) on
+the click, closes any page and shows its machine, so its row selects and
+`OpeningLane` covers the main region (`CompactLane` renders the same view)
+while the open runs in the background. Routines’ Continue and lane notices
+also put the target in the browser URL as soon as it starts opening.
+`hostLaneOpen.ts` runs one open per lane at a time, through transcript and
+session bootstrap and any required Host snapshot refresh. A click back joins
+that open, and its row says `Opening` even if the lane is working or is not
+selected. The lane activates only if no newer navigation came first; a late
+open is adopted quietly, with no focus change and no toast. A failed open
+stops the loader and offers Retry until the user changes page, machine, or
+lane. Retry starts a fresh open.
+
 **Whatever finishes last does not win.** `sessions.navSeq` counts explicit
 navigations — a click, a palette entry, a send. Every step that would put a
 lane on screen carries the navigation it belongs to and checks it first:
