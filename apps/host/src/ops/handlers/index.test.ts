@@ -65,11 +65,13 @@ it('leaves no H1–H4 op pending', () => {
   for (const { file } of owned) expect(existsSync(join(import.meta.dirname, file)), file).toBe(true)
 })
 
-it('serves machine.doctor through the login-shell refresh', async () => {
+it('projects health without refreshing, and refreshes only on the configure op', async () => {
   let refreshed = 0
   const handlers = domainHandlers({
     ...deps,
+    machineHealth: () => ({ pi: 'ready', control: 'not-enrolled' }),
     shellEnvironment: {
+      status: () => ({ status: 'cached', ageMs: 42 }),
       refresh: async () => {
         refreshed++
         return true
@@ -78,11 +80,13 @@ it('serves machine.doctor through the login-shell refresh', async () => {
   })
   const ctx = { principal: { kind: 'local', clientId: 'cli' } } as never
   expect(await handlers['machine.doctor']!({}, ctx)).toMatchObject({
-    data: { shellEnvironment: 'refreshed' },
+    data: { pi: 'ready', control: 'not-enrolled', service: { kind: 'none' }, shellEnvironment: { status: 'cached', ageMs: 42 } },
   })
+  expect(refreshed).toBe(0)
+  expect(await handlers['machine.refreshEnvironment']!({}, ctx)).toMatchObject({ data: { shellEnvironment: 'refreshed' } })
   expect(refreshed).toBe(1)
   expect(await domainHandlers(deps)['machine.doctor']!({}, ctx)).toMatchObject({
-    data: { shellEnvironment: 'not-used' },
+    data: { shellEnvironment: { status: 'not-used' } },
   })
 })
 
@@ -125,10 +129,8 @@ it('reports the machine’s lanes, version and pause, and its inventory through 
     lanes: { total: 3, live: 2, working: 1 },
     pause: { kind: 'none' },
   })
-  await handlers['machine.usage']!({}, ctx)
   await handlers['machine.models']!({}, ctx)
   expect(call.mock.calls).toEqual([
-    ['machine.claudeUsage', {}],
     ['machine.models', {}],
   ])
 })

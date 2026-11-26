@@ -126,3 +126,10 @@ it('resolves a surface directive by repository id, never by a string path or an 
   await set(f.repository.id)
   expect(f.refreshDirectives).toHaveBeenCalledExactlyOnceWith(f.repo)
 })
+
+it('projects Claude account metadata without reading the machine inventory', async () => {
+  const f = await fixture()
+  f.call.mockImplementation(async () => { throw new Error('inventory must not be read') })
+  expect((await f.run('claude.accounts', {})).data).toEqual([])
+  expect(f.call).not.toHaveBeenCalled()
+})
