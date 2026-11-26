@@ -211,6 +211,49 @@ it.each([
   },
 )
 
+it.each([
+  ['Desktop service', 'the initiating window', true],
+  ['Desktop service', 'a second window', true],
+  ['PWA Host', 'the initiating window', false],
+  ['PWA Host', 'a second window', false],
+] as const)(
+  '%s holds Advanced across a restart that %s misses between polls',
+  async (_surface, observer, owner) => {
+    connection({ ops: true, ...(owner ? { local: true } : {}) })
+    const initiating = observer === 'the initiating window'
+    if (!initiating) pause = waiting // A second window sees the drain, but never the pause.
+    startWatch(owner)
+    const platform = owner ? undefined : COMPACT_PLATFORM
+    await showHostSettings(root, machine.id, 'advanced', platform)
+    if (initiating) {
+      vi.mocked(promptChoice).mockResolvedValue('update')
+      await click()
+      expect(step()).toBe('Download and verify')
+    } else {
+      await tick(800)
+      expect(step()).toBe('Wait for working lanes')
+    }
+    expect(container.textContent).toContain('/usr/bin')
+    invoke.mockClear()
+    await act(async () => {
+      changed?.({ ...status, service: 'down', pause: undefined })
+      connection({ state: 'reconnecting' })
+    })
+    expect(container.textContent).toContain('/usr/bin')
+    expect(container.textContent).not.toMatch(/Start service|service unavailable/)
+    await tick(1600)
+    expect(step()).toBe('Restart')
+    expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:settingsRead')).toBe(false)
+
+    pause = { kind: 'none' }
+    await act(async () =>
+      connection({ state: 'ready', hostVersion: '1.1.0', cursor: { epoch: 'second', seq: 0 } }),
+    )
+    await tick(1500)
+    expect(text()).toContain('Updated to 1.1.0')
+  },
+)
+
 it('keeps Advanced mounted when the local slot clears its pause and flaps between ready and down', async () => {
   connection({ local: true, ops: true })
   pause = { kind: 'paused', purpose: 'update', since: 'now' }
