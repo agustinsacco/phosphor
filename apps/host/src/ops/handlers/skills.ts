@@ -1,3 +1,4 @@
+import type { SkillBundle } from '@phosphor/shared/host-protocol-skill-share'
 import { op, dataResult, fields, pageInventory } from '@phosphor/session-runtime/ops/results'
 import type { OpHandler, OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import {
@@ -17,10 +18,8 @@ function mutationPorts(deps: DaemonHandlerDeps, signal: AbortSignal) {
   return {
     skills: deps.skills,
     store: deps.store,
-    installGlobal: (
-      bundle: import('@phosphor/shared/host-protocol-skill-share').SkillBundle,
-      overwrite: boolean,
-    ) => resourceCall(deps, 'skills.install', { bundle, overwrite }, signal),
+    installGlobal: (bundle: SkillBundle, overwrite: boolean) =>
+      resourceCall(deps, 'skills.install', { bundle, overwrite }, signal),
   }
 }
 function askingLane(ctx: OpHandlerContext) {

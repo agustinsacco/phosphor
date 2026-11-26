@@ -83,7 +83,8 @@ it.each(['agent', 'ui'] as const)('publishes committed routine changes from %s',
     )
     await routines.execute({ type: 'routine.archive', routineId: id }, randomUUID(), caps)
   }
-  expect(seen).toEqual(['routines', 'routines', 'routines'])
+  // Save emits the committed definition and the scheduler's subsequent tick.
+  expect(seen).toEqual(Array.from({ length: 5 }, () => 'routines'))
   expect(await routines.feature.call('routines.list', {})).toMatchObject({
     ok: true,
     data: [expect.objectContaining({ id, name: 'Renamed', archived: true })],

@@ -1,3 +1,4 @@
+import type { HostResourceChange } from '@phosphor/shared/host-protocol'
 import type { RoutineRepository } from '@phosphor/session-runtime/routines/repository'
 import type { RoutineScheduler } from '@phosphor/session-runtime/routines/scheduler'
 import type { HostRuntime } from '../session/runtime'
@@ -9,6 +10,7 @@ export interface HostRoutineOptions {
   store: Pick<HostStore, 'listRepositories'>
   runtime: HostRuntime
   changed(): void
+  resourceChanged?(change: HostResourceChange): void
   now?: () => number
   /** A service pause holds: the scheduler starts no run until it ends. */
   paused?: () => boolean

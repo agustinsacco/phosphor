@@ -23,7 +23,14 @@ export function routineOwnership(cancel: (id: string) => Promise<void>) {
     cancel,
   }
 }
-export function createHostRoutines(options: HostRoutineOptions) {
+export function createHostRoutines(ports: HostRoutineOptions) {
+  const options = {
+    ...ports,
+    changed: () => {
+      ports.changed()
+      ports.resourceChanged?.({ kind: 'routines' })
+    },
+  }
   const directory = join(options.directory, 'routines')
   prepareStateDirectory(directory, options.uid)
   const repository = new RoutineRepository(prepareStateFile(directory, options.uid))

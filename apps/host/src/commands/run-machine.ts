@@ -142,10 +142,8 @@ async function startRuntime(
     uid: context.uid,
     store,
     runtime,
-    changed: () => {
-      activeTopic.routinesChanged()
-      activeTopic.resourceChanged({ kind: 'routines' })
-    },
+    changed: activeTopic.routinesChanged,
+    resourceChanged: activeTopic.resourceChanged,
     now: context.now,
     paused: () => (parts.services?.pauses?.state().kind ?? 'none') !== 'none',
   })
