@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, protocol } from 'electron'
+import { app, BrowserWindow, shell, dialog, protocol, screen } from 'electron'
 import { hasPendingRoutineWork } from './routines'
 import { configureShutdownApproval, shutdownApproval } from './shutdown-approval'
 import { routinesKeepRunning } from './routines/background'
@@ -28,6 +28,12 @@ import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
 import { devRendererUrl } from './dev-renderer-url'
 import { startServices, stopServices } from './startup'
+import {
+  showRestored,
+  trackWindowState,
+  windowPlacement,
+  windowPositionSupported,
+} from './window-state'
 import { quitLaunchGate } from './local-machine/launch-gate'
 import { decideLocalRuntime } from './local-machine/launch'
 import { serviceLanesRunning, serviceQuitOptions } from './app/quit'
@@ -87,12 +93,24 @@ configureLinuxKeyring(app.commandLine, (message) => {
   void app.whenReady().then(() => setImmediate(() => log('account', message)))
 })
 
+function savedWindowPlacement() {
+  const primary = screen.getPrimaryDisplay()
+  const areas = [primary, ...screen.getAllDisplays().filter((d) => d.id !== primary.id)]
+  return windowPlacement(
+    app.getPath('userData'),
+    areas.map((d) => d.workArea),
+    windowPositionSupported(
+      process.platform,
+      process.platform === 'linux' ? app.commandLine.getSwitchValue('ozone-platform') : '',
+      process.env,
+    ),
+  )
+}
+
 function createWindow(): BrowserWindow {
+  const place = savedWindowPlacement()
   const window = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 900,
-    minHeight: 600,
+    ...place.bounds,
     show: false,
     // Frameless on every platform. The sidebar and chat header already reserve
     // a 44px drag strip for macOS's traffic lights; leaving Linux on
@@ -121,8 +139,9 @@ function createWindow(): BrowserWindow {
     },
   })
 
+  trackWindowState(window, app.getPath('userData'))
   window.on('ready-to-show', () => {
-    if (!hideWindowsForE2E()) window.show()
+    if (!hideWindowsForE2E()) showRestored(window, place.maximized)
   })
 
   window.on('close', (event) => {

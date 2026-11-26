@@ -59,7 +59,7 @@ vi.mock('electron', () => ({
     getAppPath: () => '/nonexistent/phosphor-startup-characterization/app',
     setPath: vi.fn(),
     setAppLogsPath: vi.fn(),
-    commandLine: {},
+    commandLine: { getSwitchValue: () => '' },
     requestSingleInstanceLock: () => {
       fake.lockRequests++
       return true
@@ -82,6 +82,13 @@ vi.mock('electron', () => ({
   },
   dialog: { showMessageBox: async () => ({ response: 1 }) },
   protocol: { registerSchemesAsPrivileged: fake.record('registerSchemesAsPrivileged') },
+  screen: { getPrimaryDisplay: () => ({ id: 1 }), getAllDisplays: () => [] },
+}))
+vi.mock('./window-state', () => ({
+  windowPositionSupported: () => true,
+  windowPlacement: () => ({ bounds: { width: 1440, height: 920 }, maximized: false }),
+  showRestored: (window: { show(): void }) => window.show(),
+  trackWindowState: () => {},
 }))
 vi.mock('./routines', () => ({
   startRoutines: fake.record('startRoutines'),
