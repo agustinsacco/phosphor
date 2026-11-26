@@ -77,6 +77,19 @@ it('ignores stdin, owns and kills its group on clean finish, and fails past 4 Ki
     attempts: 2,
   })
 })
+it('keeps a slow title on a busy machine: 60 s is still in time', async () => {
+  vi.useFakeTimers()
+  const outcome = vi.fn()
+  const slow = job({ outcome })
+  createLaneNamer(machine)(slow)
+  await vi.advanceTimersByTimeAsync(0)
+  await vi.advanceTimersByTimeAsync(60_000)
+  children[0]?.stdout.write('Slow title')
+  children[0]?.emit('close', 0)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(slow.apply).toHaveBeenCalledOnce()
+  expect(outcome).toHaveBeenCalledExactlyOnceWith('applied')
+})
 it('times out after 30 s, kills the group and stops retrying', async () => {
   vi.useFakeTimers()
   const outcome = vi.fn()
