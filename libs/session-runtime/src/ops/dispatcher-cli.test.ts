@@ -1,4 +1,6 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
+import { parseOpArgv } from '@phosphor/shared/ops-cli'
 import { agent, createHarness, local, OWN } from './__fixtures__/dispatcher-harness'
 import { createConfirmStore } from './confirm'
 import { createOpsDispatcher } from './dispatcher'
@@ -55,4 +57,41 @@ it('shows only served ops in help and gives the same unavailability reason as ex
   expect(await run('whoami')).toMatchObject({
     data: { machine: 'Test', laneRef: OWN, principal: { laneRef: OWN } },
   })
+})
+
+it('honors the owner catalog deadline and returns the canonical operation name on timeout', async () => {
+  vi.useFakeTimers()
+  try {
+    const h = createHarness({
+      handlers: {
+        'lane.list': async (_args, ctx) => {
+          await new Promise<void>((resolve) =>
+            ctx.signal.addEventListener('abort', () => resolve(), { once: true }),
+          )
+          return { text: 'finished' }
+        },
+      },
+    })
+    const catalog = OP_CATALOG.map((s) => (s.name === 'lane.list' ? { ...s, deadlineMs: 250 } : s))
+    const dispatcher = createOpsDispatcher(h.binding, {
+      ...h.deps,
+      catalog,
+      parseArgv: (argv) => parseOpArgv(argv),
+    })
+    const request = dispatcher.runFromTool('s1', {
+      v: 1,
+      id: 'slow',
+      argv: ['lanes'],
+      deadlineMs: 600_000,
+    })
+    await vi.advanceTimersByTimeAsync(250)
+    expect(await Promise.race([request, Promise.resolve('still running')])).toMatchObject({
+      op: 'lane.list',
+      status: 'error',
+      code: 'timeout',
+      text: expect.stringContaining('execution after 0.25 seconds'),
+    })
+  } finally {
+    vi.useRealTimers()
+  }
 })
