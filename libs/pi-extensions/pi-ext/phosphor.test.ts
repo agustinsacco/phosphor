@@ -391,3 +391,34 @@ it('surfaces failed host counts and frames denied batch JSON after the failure t
   expect(denied.content[0]!.text).toContain('1 of 1 hosts failed\n<phosphor-data')
   expect(denied.content[0]!.text).toContain('"label":"&lt;A&gt;"')
 })
+
+it('keeps batch failure text without JSON and frames error data only when requested', async () => {
+  const failure = {
+    status: 'error',
+    op: 'lane.list',
+    code: 'timeout',
+    text: 'A did not answer',
+    data: {
+      summary: { total: 1, ok: 0, failed: 1 },
+      hosts: [{ hostId: 'a', label: 'A', status: 'denied', text: '<no response>' }],
+    },
+  }
+  const f = fixture(failure, failure)
+  for (const args of [
+    ['lanes', '--', '--json'],
+    ['lanes', '--json'],
+  ]) {
+    const result = await f.run({ args })
+    expect(result.details).toMatchObject({
+      status: 'error',
+      code: 'timeout',
+      batch: { total: 1, ok: 0, failed: 1 },
+    })
+    const text = result.content[0]!.text
+    if (args.includes('--')) expect(text).toBe(failure.text)
+    else {
+      expect(text).toContain(`${failure.text}\n<phosphor-data`)
+      expect(text).toContain('"text":"&lt;no response&gt;"')
+    }
+  }
+})

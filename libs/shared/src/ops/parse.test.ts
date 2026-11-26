@@ -41,18 +41,21 @@ it.each([
 
 it('keeps routing, paging, reason and formatting outside the wire args', () => {
   expect(
-    parseOpArgv([
-      'lane',
-      'read',
-      'x',
-      '--host',
-      'a,My Mac',
-      '--page',
-      'v1_x-2',
-      '--reason',
-      'context for review',
-      '--json',
-    ], OP_CATALOG.map((s) => s.name === 'lane.read' ? { ...s, paged: true as const } : s)),
+    parseOpArgv(
+      [
+        'lane',
+        'read',
+        'x',
+        '--host',
+        'a,My Mac',
+        '--page',
+        'v1_x-2',
+        '--reason',
+        'context for review',
+        '--json',
+      ],
+      OP_CATALOG.map((s) => (s.name === 'lane.read' ? { ...s, paged: true as const } : s)),
+    ),
   ).toEqual({
     ok: true,
     op: 'lane.read',
@@ -260,5 +263,22 @@ it('does not discard help options or trailing operands when normalizing a two-wo
   expect(parseOpArgv(['help', 'lane', 'read', '--', 'extra'])).toMatchObject({
     ok: false,
     op: 'help',
+  })
+})
+
+it('keeps a declared limit on a non-paged op without opening common paging', () => {
+  expect(parseOpArgv(['brain', 'search', 'example', '--limit', '5'])).toEqual({
+    ok: true,
+    op: 'brain.search',
+    args: { query: 'example', limit: 5 },
+    json: false,
+  })
+  expect(parseOpArgv(['brain', 'search', 'example', '--limit', '21'])).toMatchObject({
+    ok: false,
+    error: 'limit: expected an integer 1–20.',
+  })
+  expect(parseOpArgv(['brain', 'search', 'example', '--page', 'cursor'])).toMatchObject({
+    ok: false,
+    error: expect.stringContaining('only paged operations'),
   })
 })
