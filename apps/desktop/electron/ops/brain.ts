@@ -52,6 +52,7 @@ export const brainHandlers = {
   'brain.status': op(async (_a, c) => {
     const status = visibleStatus(await (await service()).api.status(), c)
     return pageInventory(status.jobs, c, fields('id', 'state', 'memories'), {
+      surface: { limit: status.jobs.length },
       wrap: (jobs) => ({ ...status, jobs }),
     })
   }),

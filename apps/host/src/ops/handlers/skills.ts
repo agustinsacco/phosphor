@@ -159,6 +159,7 @@ export function skillHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, 
             }
           ).skills
       return pageInventory(skills, ctx, fields('name', 'scope', 'description'), {
+        surface: { limit: skills.length },
         wrap: (skills) => ({ skills }),
       })
     }),

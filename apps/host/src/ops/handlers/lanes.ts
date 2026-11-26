@@ -1,7 +1,14 @@
 import { requestPage } from '@phosphor/session-runtime/ops/ports'
 import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult, pageInventory, rowTime } from '@phosphor/session-runtime/ops/results'
+import {
+  op,
+  dataResult,
+  pageInventory,
+  pageLimit,
+  rowTime,
+  surfaceInventory,
+} from '@phosphor/session-runtime/ops/results'
 import type { OpHandlerContext, OpHandlerResult } from '@phosphor/session-runtime/ops/types'
 import { PAGED_LANES_LIMITS } from '@phosphor/shared/host-protocol-paged-lanes'
 import { matchesLaneState } from '@phosphor/shared/host-protocol/lanes'
@@ -64,7 +71,7 @@ async function readLane(
     const result = (await laneCall(deps, 'lane.messages', { laneId: id }, c)) as {
       messages: unknown[]
     }
-    return messagePage(result.messages, messages, c)
+    return messagePage(result.messages, surfaceInventory(c) ? messages : pageLimit(c, messages), c)
   }
   if (part === 'debug') return dataResult(await laneCall(deps, 'lane.state', { laneId: id }, c))
   const summary = deps.daemonLanes.summary(id)

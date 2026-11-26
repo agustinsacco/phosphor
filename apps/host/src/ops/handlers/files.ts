@@ -39,7 +39,12 @@ export function fileHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, O
     'files.list': op<Path>(async ({ path }, ctx) => {
       const { laneId } = targetLane(ctx)
       const listed = (await laneCall(deps.lanes, 'files.list', { laneId })) as { files: string[] }
-      return pageInventory(under(listed.files, path), ctx, { path: (p) => p })
+      return pageInventory(
+        under(listed.files, path),
+        ctx,
+        { path: (p) => p },
+        { surface: { limit: 200, shrink: true } },
+      )
     }),
     'files.read': op<Path>(async ({ path }, ctx) => {
       const { laneId } = targetLane(ctx)

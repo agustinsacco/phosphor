@@ -35,6 +35,7 @@ function machineInventory(deps: DaemonHandlerDeps) {
         c,
         modelColumns,
         {
+          surface: { limit: list.models.length },
           wrap: (models) => ({ ...(machineRecord(answer) ? answer : list), models }),
         },
       )
@@ -44,6 +45,7 @@ function machineInventory(deps: DaemonHandlerDeps) {
         providers: MachineProvider[]
       }
       return pageInventory(list.providers, c, fields('id', 'name', 'status'), {
+        surface: { limit: list.providers.length },
         wrap: (providers) => ({ ...list, providers }),
       })
     }),
@@ -122,6 +124,7 @@ function machineCommands(deps: DaemonHandlerDeps) {
       commands: { name: string; source: string; description?: string }[]
     }
     return pageInventory(list.commands, ctx, fields('name', 'source', 'description'), {
+      surface: { limit: list.commands.length },
       wrap: (commands) => ({ ...list, commands }),
     })
   })

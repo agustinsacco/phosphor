@@ -44,6 +44,7 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
         c,
         fields('name', 'scope', 'enabled', 'transport', 'state'),
         {
+          surface: { limit: connectors?.servers.length ?? 0 },
           wrap: (servers) => connectors && { ...connectors, servers },
         },
       )

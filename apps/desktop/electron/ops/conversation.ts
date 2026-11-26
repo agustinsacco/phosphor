@@ -40,6 +40,7 @@ async function lanes({ folder, state, q }: LaneFilter, c: OpHandlerContext) {
     ),
     c,
     { ...fields('ref', 'title', 'state'), branch: () => '', ...fields('updated') },
+    { surface: { limit: 50, shrink: true } },
   )
 }
 export const conversationHandlers = {
@@ -66,6 +67,7 @@ export const conversationHandlers = {
         (await listings()).filter((a) => a.sessionFile === lanePath(c)),
         c,
         artifactColumns,
+        { surface: { limit: 50, shrink: true } },
       )
     if (part === 'debug')
       return dataResult({ ref: l.ref, cwd: l.cwd, running: !!l.sessionId, busy: l.busy })
@@ -90,7 +92,7 @@ export const conversationHandlers = {
         folder: (a) => a.cwd,
         archived: (a) => rowTime(a.archivedAt),
       },
-      { wrap: (entries) => ({ ...result, entries }) },
+      { surface: { limit: result.entries.length }, wrap: (entries) => ({ ...result, entries }) },
     )
   }),
   'artifact.list': op<{ lane?: string }>(async ({ lane }, c) =>
@@ -98,6 +100,7 @@ export const conversationHandlers = {
       (await listings()).filter((a) => !lane || a.sessionFile === lanePath(c)),
       c,
       artifactColumns,
+      { surface: { limit: 50, shrink: true } },
     ),
   ),
   'artifact.read': op<{ key: string; lane?: string; version?: number }>(

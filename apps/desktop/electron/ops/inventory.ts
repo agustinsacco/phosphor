@@ -1,6 +1,7 @@
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
+import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
@@ -19,7 +20,13 @@ import {
   routineRunColumns,
   pageOffset,
   pageLimit,
+  surfaceInventory,
 } from '@phosphor/session-runtime/ops/results'
+import { requestPage } from '@phosphor/session-runtime/ops/ports'
+import { ROUTINE_LIMITS } from '@phosphor/shared/host-protocol-routines'
+
+const legacy = { surface: { limit: 50, shrink: true } } as const
+
 async function project(explicit: string | undefined, cwd?: string) {
   if (explicit && explicit !== cwd && !(await projectFolders()).includes(explicit))
     throw new OpRefusal('bad-request', 'Unknown local workspace.')
@@ -65,12 +72,9 @@ async function settings(section = 'agent', cwd?: string) {
   const { defaultProvider, defaultModel, defaultThinkingLevel } = await readAgentSettings(cwd)
   return { defaultProvider, defaultModel, defaultThinkingLevel, contextBudget: prefs.contextBudget }
 }
-async function routineRuns(
-  { id, offset }: { id?: string; offset?: number },
-  c: import('@phosphor/session-runtime/ops/types').OpHandlerContext,
-) {
-  const start = pageOffset(c) || offset || 0
-  const limit = pageLimit(c)
+async function routineRuns({ id, offset }: { id?: string; offset?: number }, c: OpHandlerContext) {
+  const start = requestPage(c) === undefined ? (offset ?? 0) : pageOffset(c)
+  const limit = surfaceInventory(c) ? ROUTINE_LIMITS.history : pageLimit(c)
   const { repository } = (await import('../routines')).routineScheduler()
   if (id) repository.get(id)
   const rows = repository
@@ -103,20 +107,29 @@ export const inventoryHandlers = {
       (await models()).filter((m) => !provider || m.provider === provider),
       c,
       modelColumns,
+      legacy,
     ),
   ),
-  'machine.providers': op(async (_, c) => pageInventory(await providers(), c, { id: (p) => p })),
+  'machine.providers': op(async (_, c) => {
+    const rows = await providers()
+    return pageInventory(rows, c, { id: (p) => p }, { surface: { limit: rows.length } })
+  }),
   'machine.commands': op<{ project?: string }>(async (a, c) => {
     const cwd = await project(a.project, c.lane?.cwd)
     const result = await (await import('../pi/catalogue')).piCommands(cwd)
     if (result.error) throw new Error(result.error)
-    return pageInventory(result.commands, c, fields('name', 'source', 'description'))
+    return pageInventory(result.commands, c, fields('name', 'source', 'description'), legacy)
   }),
   'machine.usage': op(async () =>
     dataResult(await (await import('../pi/codex-usage')).fetchCodexUsage(false)),
   ),
   'routine.list': op(async (_a, c) =>
-    pageInventory((await import('../routines')).routinesSnapshot().routines, c, routineColumns),
+    pageInventory(
+      (await import('../routines')).routinesSnapshot().routines,
+      c,
+      routineColumns,
+      legacy,
+    ),
   ),
   'directives.read': op<{ project?: boolean | string }>(async ({ project }, c) => {
     if (typeof project === 'string')
@@ -154,6 +167,7 @@ export const inventoryHandlers = {
       await connectors(await project(a.project, c.lane?.cwd)),
       c,
       fields('name', 'scope', 'enabled', 'transport', 'state'),
+      legacy,
     ),
   ),
   'package.list': op<{ project?: string }>(async (a, c) =>
@@ -161,6 +175,7 @@ export const inventoryHandlers = {
       await packages(await project(a.project, c.lane?.cwd)),
       c,
       fields('name', 'version', 'scope', 'installed'),
+      legacy,
     ),
   ),
   'package.checkUpdates': op<{ project?: string }>(async (a, c) => {
@@ -190,6 +205,7 @@ export const inventoryHandlers = {
       ).skills,
       c,
       fields('name', 'scope', 'description'),
+      legacy,
     ),
   ),
   'skill.read': op<{ name: string; file?: string }>(async ({ name, file = 'SKILL.md' }, c) => {

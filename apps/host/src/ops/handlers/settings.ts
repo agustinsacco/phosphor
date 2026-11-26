@@ -184,13 +184,12 @@ export function settingsHandlers(deps: DaemonHandlerDeps) {
   return {
     ...agentHandlers(deps),
     ...instructionHandlers(deps),
-    'claude.accounts': op(async (_, c) =>
-      pageInventory(
-        await settingsOps(deps).settings.accountMetadata(),
-        c,
-        fields('id', 'label', 'plan'),
-      ),
-    ),
+    'claude.accounts': op(async (_, c) => {
+      const rows = await settingsOps(deps).settings.accountMetadata()
+      return pageInventory(rows, c, fields('id', 'label', 'plan'), {
+        surface: { limit: rows.length },
+      })
+    }),
     'claude.routing': op(async (a, c) => {
       const snapshot = await readSection(deps, 'providers', undefined, c.signal)
       const before = snapshot.providers

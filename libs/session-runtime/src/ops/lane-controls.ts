@@ -93,6 +93,8 @@ export function laneControlsRead(
     )
       throw new OpRefusal('bad-request', 'Read controls from inside the lane.')
     const state = await readState(c)
+    const autoRetry = (state as (RpcSessionState & { autoRetryEnabled?: boolean }) | null)
+      ?.autoRetryEnabled
     return dataResult({
       effective: {
         swarm: lane.facts?.swarm ?? null,
@@ -102,9 +104,7 @@ export function laneControlsRead(
         steering: state?.steeringMode ?? null,
         'follow-up': state?.followUpMode ?? null,
         autoCompaction: state?.autoCompactionEnabled ?? null,
-        autoRetry:
-          (state as (RpcSessionState & { autoRetryEnabled?: boolean }) | null)?.autoRetryEnabled ??
-          null,
+        autoRetry: typeof autoRetry === 'boolean' ? autoRetry : null,
       },
       pending: c.pending ? pendingControls(c.pending) : 'unknown',
     })

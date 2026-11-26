@@ -18,14 +18,18 @@ export function packageHandlers(deps: DaemonHandlerDeps) {
       return { text: `Finished ${name}.\n${output}`, undo: false }
     })
   return {
-    'package.list': op(async (a, c) =>
-      pageInventory(
-        (await readSection(deps, 'resources', projectId(deps, a.project, c), c.signal)).resources
-          ?.packages ?? [],
-        c,
-        fields('spec', 'scope', 'kind'),
-      ),
-    ),
+    'package.list': op(async (a, c) => {
+      const { resources } = await readSection(
+        deps,
+        'resources',
+        projectId(deps, a.project, c),
+        c.signal,
+      )
+      const rows = resources?.packages ?? []
+      return pageInventory(rows, c, fields('spec', 'scope', 'kind'), {
+        surface: { limit: rows.length },
+      })
+    }),
     'package.checkUpdates': op(async (a, c) => {
       const { resources } = await readSection(
         deps,
@@ -38,11 +42,13 @@ export function packageHandlers(deps: DaemonHandlerDeps) {
           isMachinePackageSpec(spec) ? [{ spec, kind: 'npm' }] : [],
         ),
       )
+      const rows = Object.entries(updates)
       return pageInventory(
-        Object.entries(updates),
+        rows,
         c,
         { spec: ([spec]) => spec, latest: ([, latest]) => latest },
         {
+          surface: { limit: rows.length },
           wrap: Object.fromEntries,
         },
       )

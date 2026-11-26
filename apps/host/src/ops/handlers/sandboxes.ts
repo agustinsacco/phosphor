@@ -7,7 +7,10 @@ export function sandboxHandlers(deps: DaemonHandlerDeps) {
     return deps.sandboxes
   }
   return {
-    'sandbox.list': op((_, c) => pageInventory(service().list(), c, fields('name', 'path'))),
+    'sandbox.list': op((_, c) => {
+      const rows = service().list()
+      return pageInventory(rows, c, fields('name', 'path'), { surface: { limit: rows.length } })
+    }),
     'sandbox.create': op<{ name: string }>(async ({ name }) =>
       dataResult(await service().create(name)),
     ),
