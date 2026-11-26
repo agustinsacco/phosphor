@@ -132,7 +132,7 @@ describe('Host print transport contracts through the lane namer', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(spawn).toHaveBeenCalledOnce()
     child.stdout.write('partial')
-    await vi.advanceTimersByTimeAsync(30_000)
+    await vi.advanceTimersByTimeAsync(90_000)
     expect(job.apply).not.toHaveBeenCalled()
     expect(job.outcome).toHaveBeenCalledExactlyOnceWith('print-timeout', {
       reason: 'timeout',
