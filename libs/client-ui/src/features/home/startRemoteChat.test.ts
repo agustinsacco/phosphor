@@ -11,7 +11,7 @@ const { adopt, pi, control, swarm, refresh } = vi.hoisted(() => ({
   refresh: vi.fn(),
 }))
 vi.mock('@/stores/sessions', () => ({
-  useSessionsStore: { getState: () => ({ claimNav: () => 1 }) },
+  useSessionsStore: { getState: () => ({ claimNav: () => 1, live: {} }) },
 }))
 vi.mock('@/stores/remoteLanes', async (original) => ({
   ...(await original<typeof RemoteLanesModule>()),
@@ -221,4 +221,25 @@ it('records the new lane before adopting it and reports refused branch names', a
   )
   expect(refused).toHaveBeenCalledExactlyOnceWith('phosphor/fix-bug')
   expect(order).toEqual(['created', 'adopt'])
+})
+
+it('reports the adopted lane before its files upload', async () => {
+  const order: string[] = []
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'hosts:uploadAttachments') {
+      order.push('upload')
+      return ['/attachments/1-notes.txt']
+    }
+    return mockRemoteInfo
+  })
+  await startRemoteChat(
+    MOCK_HOST_ID,
+    input,
+    'Files',
+    [{ kind: 'file', id: 'f', name: 'notes.txt', mime: 'text/plain', data: 'c3ludGg=' } as never],
+    accepted,
+    false,
+    { nav: -1, adopted: () => void order.push('adopted') },
+  )
+  expect(order).toEqual(['adopted', 'upload'])
 })

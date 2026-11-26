@@ -480,3 +480,20 @@ it('an in-place lane listed late is not taken by a later create while an earlier
     vi.useRealTimers()
   }
 })
+
+it('takes the screen once its lane is adopted, before files upload, while the placeholder is shown', () => {
+  // The Host takes a lane's files only while that lane has the screen.
+  submit('With files')
+  created(runs[0]!, 'lane-files', 'session-files')
+  runs[0]!.hooks.adopted?.()
+  expect(useSessionsStore.getState().activeSessionId).toBe('session-files')
+  expect(shownCreate()).toBeUndefined()
+})
+
+it('leaves the screen alone at adoption once the user has moved on', () => {
+  submit('Elsewhere')
+  useSessionsStore.getState().activate('mac')
+  created(runs[0]!, 'lane-away', 'session-away')
+  runs[0]!.hooks.adopted?.()
+  expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+})
