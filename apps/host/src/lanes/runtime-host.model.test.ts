@@ -587,3 +587,45 @@ it('refuses a concurrent prompt while model selection is awaiting pi', async () 
   expect(promptCalls).toBe(0)
   await changing
 })
+
+it('publishes the verified replacement model and window without post-attachment state reads', async () => {
+  const s = setup()
+  const original = await s.binding.sessions.start({ repository: machine.repository })
+  const lane = s.saved()
+  let provider = 'pi-claude-cli'
+  s.runtime.command.mockImplementation(async (id, cmd) => {
+    if (cmd.type === 'set_model') provider = cmd.provider
+    return {
+      type: 'response',
+      command: cmd.type,
+      success: true,
+      data:
+        cmd.type === 'get_messages'
+          ? { messages: [] }
+          : {
+              ...state,
+              model: {
+                ...laneModel(provider),
+                contextWindow: id === original.sessionId ? 200_000 : 272_000,
+              },
+            },
+    }
+  })
+  await s.binding.sessions.attach(lane.laneId, original.sessionId)
+  const result = await s.binding.command(original.sessionId, {
+    type: 'set_model',
+    provider: 'openai-codex',
+    modelId: 'model',
+  })
+  const replacement = live.sessionFor(lane.laneId)
+  expect(result.success).toBe(true)
+  expect(replacement).not.toBe(original.sessionId)
+  expect(live.streams.snapshot(lane.laneId)).toMatchObject({
+    ok: true,
+    snapshot: { state: { model: { provider: 'openai-codex', contextWindow: 272_000 } } },
+  })
+  const calls = s.runtime.command.mock.calls
+    .filter(([id]) => id === replacement)
+    .map(([, cmd]) => cmd.type)
+  expect(calls).toEqual(['get_state', 'get_messages'])
+})

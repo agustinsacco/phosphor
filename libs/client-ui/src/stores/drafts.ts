@@ -1,7 +1,9 @@
 import { create } from 'zustand'
+import { ipcErrorText } from '@shared/errors'
 import type { ComposerDraftRecord, DraftAttachment } from '@shared/models'
 import { hostResourceKey, type HostTarget } from '@shared/remote-host'
 import type { PendingAttachment } from '@/features/chat/attachments'
+import { useExtensionUiStore } from './extensionUi'
 
 /**
  * Unsent composer state, durable across session switches AND restarts.
@@ -64,27 +66,32 @@ function documentBytes(attachments: PendingAttachment[]): number {
   return bytes
 }
 
-/** Clear an idle Host draft now, reserving its document budget until its receipt settles. */
-export function takeSubmittedDraft(key: string) {
+/** Clear the draft now; only memory holds its recovery copy and reserved document budget. */
+export function takeSubmittedDraft(key: DraftKey, restoreKey = () => key) {
   const drafts = useDraftsStore.getState()
   const draft = drafts.get(key)
   const generation = memoryGeneration
+  const current = () => generation === memoryGeneration
   const bytes = documentBytes(draft.attachments)
   submittedFileBytes += bytes
   drafts.clear(key)
-  return (accepted: boolean) => {
-    if (generation !== memoryGeneration) return
-    submittedFileBytes -= bytes
-    if (accepted) return
-    // clear() unlinks saved image blobs: persist restored images from their in-memory bytes.
-    const restored = draft.attachments.map((a) =>
-      a.kind === 'image' && a.blobId ? { ...a, blobId: undefined } : a,
-    )
-    const next = drafts.get(key)
-    drafts.patch(key, {
-      text: [draft.text, next.text].filter(Boolean).join('\n'),
-      attachments: [...restored, ...next.attachments],
-    })
+  return {
+    current,
+    finish(accepted: boolean) {
+      if (!current()) return
+      submittedFileBytes -= bytes
+      if (accepted) return
+      // clear() unlinks saved image blobs: persist restored images from their in-memory bytes.
+      const restored = draft.attachments.map((a) =>
+        a.kind === 'image' && a.blobId ? { ...a, blobId: undefined } : a,
+      )
+      const destination = restoreKey()
+      const next = drafts.get(destination)
+      drafts.patch(destination, {
+        text: [draft.text, next.text].filter(Boolean).join('\n'),
+        attachments: [...restored, ...next.attachments],
+      })
+    },
   }
 }
 
@@ -169,7 +176,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       delete drafts[key]
       return { drafts, revisions: { ...s.revisions, [key]: (s.revisions[key] ?? 0) + 1 } }
     })
-    void window.phosphor.invoke('app:clearDraft', key)
+    void clearDraftOnDisk(key)
   },
 
   rekey: (from, to) => {
@@ -182,7 +189,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       drafts[to] = draft
       return { drafts }
     })
-    void window.phosphor.invoke('app:clearDraft', from)
+    void clearDraftOnDisk(from)
     schedulePersist(to, draft)
   },
 }))
@@ -193,6 +200,18 @@ export function isEmptyDraft(draft: Draft): boolean {
 }
 
 // ---------- persistence ----------
+
+async function clearDraftOnDisk(key: DraftKey): Promise<void> {
+  const generation = memoryGeneration
+  try {
+    await window.phosphor.invoke('app:clearDraft', key)
+  } catch (error) {
+    if (generation === memoryGeneration)
+      useExtensionUiStore
+        .getState()
+        .pushToast(`Could not clear draft: ${ipcErrorText(error)}`, 'error')
+  }
+}
 
 /**
  * Typing must not write to disk on every keystroke, so writes are debounced
@@ -223,7 +242,7 @@ async function persist(key: DraftKey, draft: Draft): Promise<void> {
   const generation = memoryGeneration
   try {
     if (isEmptyDraft(draft)) {
-      await window.phosphor.invoke('app:clearDraft', key)
+      await clearDraftOnDisk(key)
       return
     }
     const saved = await Promise.all(draft.attachments.map((a) => saveAttachment(a, generation)))

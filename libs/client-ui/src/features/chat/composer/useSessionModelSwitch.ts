@@ -55,6 +55,8 @@ export function useSessionModelSwitch(
         const restarted = await useSessionsStore
           .getState()
           .restartSession(sessionId, { label: selected.name })
+        if (restarted) chat.noteModelSwitch(restarted, selected)
+        else chat.patchMeta(sessionId, { model: selected })
         useExtensionUiStore
           .getState()
           .pushToast(
@@ -65,7 +67,7 @@ export function useSessionModelSwitch(
           )
         return
       }
-      chat.patchMeta(sessionId, { model: selected })
+      if (!remote) chat.patchMeta(sessionId, { model: selected })
       // Supported levels are per-model. Clear the previous model's list
       // synchronously so the ?? fallback derives from the NEW model during
       // the refresh gap (and permanently, if the refresh fails) — a stale
@@ -74,12 +76,10 @@ export function useSessionModelSwitch(
       void refreshThinkingLevels(sessionId)
       // pi's set_model re-clamps the session's thinking level (e.g. max →
       // high on a 5-level model). Re-read state so the chip reports the
-      // level the session actually runs at, not the pre-switch setting.
-      void piCall(sessionId, { type: 'get_state' }).then((state) => {
-        if (state?.thinkingLevel) {
-          useChatStore.getState().patchMeta(sessionId, { thinkingLevel: state.thinkingLevel })
-        }
-      })
+      // level the session actually runs at, not the pre-switch setting. Host state
+      // (including snapshot resync after a late result) also supplies the effective window.
+      const state = await piCall(sessionId, { type: 'get_state' })
+      if (state) chat.setMeta(sessionId, state)
     } catch (error) {
       // A rejection rather than a failed envelope: main refuses a switch to
       // Claude on an outdated provider before pi sees it, and that refusal

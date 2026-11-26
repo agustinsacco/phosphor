@@ -22,6 +22,67 @@ afterEach(() => {
 })
 
 describe('lane command guards and operations', () => {
+  it.each(['steer', 'followUp'] as const)(
+    'acknowledges a %s prompt at registration, before dispatch',
+    async (streamingBehavior) => {
+      const delivered = vi.spyOn(f.ports, 'deliver')
+      const first = f.frame()
+      const running = f.service.submit(f.one, first)
+      const op = {
+        type: 'prompt' as const,
+        message: 'next',
+        streamingBehavior,
+      }
+      const next = f.frame(op, 2)
+      const sending = f.service.submit(f.one, next)
+      try {
+        expect(f.store.getReceipt(first.requestId, f.one.id)?.status).toBe('pending')
+        expect(f.receipts(next.requestId)).toEqual([
+          { requestId: next.requestId, status: 'pending' },
+        ])
+        expect(f.command).toHaveBeenCalledTimes(2)
+        const ack = delivered.mock.calls.findIndex(
+          ([, receipt]) => receipt.requestId === next.requestId,
+        )
+        expect(delivered.mock.invocationCallOrder[ack]).toBeLessThan(
+          f.command.mock.invocationCallOrder[1]!,
+        )
+      } finally {
+        f.finish(0)
+        f.finish(1)
+        await Promise.all([running, sending])
+      }
+      expect(f.receipts(next.requestId).map((receipt) => receipt.status)).toEqual([
+        'pending',
+        'done',
+      ])
+    },
+  )
+
+  it('dispatches registered prompts on one lane in order', async () => {
+    // The first send takes control at fence 1, which moves the lane to fence 2.
+    const prompt = (message: string, streamingBehavior: 'steer' | 'followUp', fence: number) =>
+      f.frame({ type: 'prompt', message, streamingBehavior }, fence)
+    const first = prompt('PHX-first', 'steer', 1)
+    const second = prompt('PHX-second', 'followUp', 2)
+    const sends = [f.service.submit(f.one, first), f.service.submit(f.one, second)]
+    try {
+      expect(f.last(first.requestId)?.status).toBe('pending')
+      expect(f.command.mock.calls.map(([, cmd]) => cmd)).toMatchObject([
+        { type: 'prompt', message: 'PHX-first', streamingBehavior: 'steer' },
+        { type: 'prompt', message: 'PHX-second', streamingBehavior: 'followUp' },
+      ])
+    } finally {
+      f.finish(0)
+      f.finish(1)
+      await Promise.all(sends)
+    }
+    expect([f.last(first.requestId)?.status, f.last(second.requestId)?.status]).toEqual([
+      'done',
+      'done',
+    ])
+  })
+
   it('caps pi errors, drops oversize data in delivered receipts and logs no content', async () => {
     const request = { ...f.frame(), trace: '1234567890abcdef' }
     const a = f.service.submit(f.one, request)

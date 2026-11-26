@@ -16,11 +16,11 @@ export async function verifyStartupAccount(
   client: Pick<PiRpcClient, 'request'>,
   strict: boolean | undefined,
   accountId: string | undefined,
-): Promise<void> {
+): Promise<RpcSessionState | undefined> {
   if (!strict || accountId) return
   const state = await client.request({ type: 'get_state' })
   if (!state.success || !state.data) throw new Error('Cannot verify the active pi account.')
-  if (state.data.model?.provider !== 'pi-claude-cli') return
+  if (state.data.model?.provider !== 'pi-claude-cli') return state.data
   let controlsVerified = false
   try {
     const commands = await client.request({ type: 'get_commands' })

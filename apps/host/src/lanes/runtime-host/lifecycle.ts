@@ -1,4 +1,5 @@
 import { lstat } from 'node:fs/promises'
+import type { RpcSessionState } from '@phosphor/shared/rpc'
 import type { SessionPush } from '@phosphor/shared/models'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { piState } from '../pi-results'
@@ -9,7 +10,7 @@ import { MODEL_TRANSCRIPT_REFUSAL, type Binding, type RuntimeLaneState } from '.
 const STARTUP_PUSHES = 256
 const STARTUP_BYTES = 1024 * 1024
 
-export async function start(context: RuntimeLaneState, request: unknown) {
+export async function startWithState(context: RuntimeLaneState, request: unknown) {
   const { options, bindings } = context
   const { runtime } = options
   const binding: Binding = { pushes: [], bytes: 0, overflow: false }
@@ -26,13 +27,24 @@ export async function start(context: RuntimeLaneState, request: unknown) {
     return {
       sessionId: session.sessionId,
       sessionFile: typeof data.sessionFile === 'string' ? data.sessionFile : null,
+      state: data,
     }
   } catch (error) {
     await stop(context, session.sessionId)
     throw error
   }
 }
-export async function attach(context: RuntimeLaneState, laneId: string, sessionId: string) {
+export async function start(context: RuntimeLaneState, request: unknown) {
+  const { sessionId, sessionFile } = await startWithState(context, request)
+  return { sessionId, sessionFile }
+}
+
+export async function attach(
+  context: RuntimeLaneState,
+  laneId: string,
+  sessionId: string,
+  startupState?: RpcSessionState,
+) {
   const { options, bindings } = context
   const { runtime, live } = options
   const binding = bindings.get(sessionId)
@@ -41,14 +53,13 @@ export async function attach(context: RuntimeLaneState, laneId: string, sessionI
   for (const [id, previous] of bindings)
     if (id !== sessionId && previous.laneId === laneId) bindings.delete(id)
   live.detach(laneId)
-  binding.attachment = live.attach(laneId, sessionId)
+  binding.attachment = live.attach(laneId, sessionId, startupState)
   binding.laneId = laneId
   replayStartup(context, binding, laneId)
   await binding.attachment.ready
   await syncBranch(context, binding)
   if (options.nameLane) {
-    const response = await runtime.command(sessionId, { type: 'get_state' })
-    const state = response.success ? piState(response.data) : null
+    const state = startupState ?? (await learnState(runtime, sessionId))
     binding.namingEligible = state?.messageCount === 0 && !state.sessionName
   }
 }
@@ -67,11 +78,14 @@ export async function stop(context: RuntimeLaneState, sessionId: string) {
     if (laneId !== undefined) live.detach(laneId)
   }
 }
+async function learnState(runtime: RuntimeLaneState['options']['runtime'], sessionId: string) {
+  const response = await runtime.command(sessionId, { type: 'get_state' })
+  return response.success ? piState(response.data) : null
+}
 export async function learnFile(context: RuntimeLaneState, laneId: string, sessionId: string) {
   const { options } = context
   const { runtime } = options
-  const response = await runtime.command(sessionId, { type: 'get_state' })
-  const state = response.success ? piState(response.data) : null
+  const state = await learnState(runtime, sessionId)
   if (state?.sessionFile) options.store.bindSessionFile(laneId, state.sessionFile)
   return state
 }

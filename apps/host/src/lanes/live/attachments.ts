@@ -1,3 +1,4 @@
+import type { RpcSessionState } from '@phosphor/shared/rpc'
 import type { SessionPush } from '@phosphor/shared/models'
 import {
   createLaneProjection,
@@ -8,7 +9,12 @@ import type { Attachment, LiveState } from './state'
 import { summaryFor } from './summary'
 import { changed, publish } from './publication'
 
-export function attach(state: LiveState, laneId: string, sessionId: string) {
+export function attach(
+  state: LiveState,
+  laneId: string,
+  sessionId: string,
+  startupState?: RpcSessionState,
+) {
   if (state.attached.has(laneId)) throw new Error('lane already attached')
   const last = summaryFor(state, laneId)
   if (!last) throw new Error('unknown lane')
@@ -43,6 +49,7 @@ export function attach(state: LiveState, laneId: string, sessionId: string) {
     sessionId,
     laneId,
     projection: observed,
+    startupState,
     summary: () => summaryFor(state, laneId) ?? last,
     cursor: () => state.streams.cursor(laneId),
     log: state.options.log,

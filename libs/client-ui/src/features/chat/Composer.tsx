@@ -28,7 +28,6 @@ import { ComposerInput } from './composer/ComposerInput'
 import { composerDraftKey, useDraftsStore } from '@/stores/drafts'
 import { useSessionsStore } from '@/stores/sessions'
 import { ipcErrorText } from '@shared/errors'
-import { createReceiptGuard } from './receiptGuard'
 import { runShellCommand } from './composer/runShellCommand'
 import {
   sessionTransitionPending,
@@ -59,7 +58,6 @@ export function Composer({
     host.capabilities.includes('workspaces.write') &&
     host.capabilities.includes('sessions.control') &&
     canControlSession(sessionId)
-  const awaiting = useRef(createReceiptGuard())
   const draftKey = composerDraftKey(entry, sessionId)
   const draft = useDraftsStore((s) => s.drafts[draftKey])
   const text = draft?.text ?? ''
@@ -141,16 +139,15 @@ export function Composer({
       setAttachWarning(null)
       closeSlash()
       setHistoryIndex(null)
-      await sendComposerPrompt(
-        {
-          sessionId,
-          draftKey,
-          remote,
-          remoteAttachments,
-          busyBehavior: behavior,
-        },
-        awaiting.current,
-      )
+      await sendComposerPrompt({
+        sessionId,
+        draftKey,
+        restoreDraftKey: () =>
+          composerDraftKey(useSessionsStore.getState().live[sessionId], sessionId),
+        remote,
+        remoteAttachments,
+        busyBehavior: behavior,
+      })
     },
     [sessionId, text, images, draftKey, remote, remoteAttachments, busy, closeSlash],
   )
