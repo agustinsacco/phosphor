@@ -672,6 +672,10 @@
       "types": "./src/ops/meta-handlers.ts",
       "default": "./src/ops/meta-handlers.ts"
     },
+    "./ops/meta-inventory": {
+      "types": "./src/ops/meta-inventory.ts",
+      "default": "./src/ops/meta-inventory.ts"
+    },
     "./ops/deferred-rpc": {
       "types": "./src/ops/deferred-rpc.ts",
       "default": "./src/ops/deferred-rpc.ts"
