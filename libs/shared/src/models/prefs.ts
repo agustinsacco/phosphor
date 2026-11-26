@@ -18,6 +18,8 @@ import type { ComposerDraftRecord } from './drafts'
 import type { AgentPolicy } from '../ops'
 
 export interface AppPrefs {
+  /** Expose the local Brain UI without turning Brain on. Absent means off. */
+  brainPreview?: boolean
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
   /** Most recently used workspace — where the app lands with no session. */

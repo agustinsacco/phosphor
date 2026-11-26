@@ -4,10 +4,13 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { mockBrainStatus } from '@/features/brain/mockBrainData'
+import { useBrain } from '@/features/brain/useBrain'
 import { SessionMenu } from '@/features/chat/SessionMenu'
 import { RemoteLanes } from '@/features/sessions/RemoteLanes'
 import { visibleSections } from '@/features/settings/settingsIndex'
 import { NavigationProvider } from '@/navigation/Navigation'
+import { PageLinks } from '@/navigation/PageLinks'
 import { CompactLanes } from '@/shell/compact/CompactLanes'
 import { useChatStore } from '@/stores/chat'
 import { useMachinesStore } from '@/stores/machines'
@@ -20,6 +23,7 @@ import {
   WIDE_BROWSER_PLATFORM,
   type Platform,
 } from './Platform'
+import { desktopPlatform } from './Platform'
 
 /*
  * One Host lane offers the same lane menu and Session options on Desktop, in a
@@ -185,6 +189,7 @@ it("This Mac's lanes and a controlled Host lane list the same, all enabled Sessi
 })
 
 it('Settings differs between clients only by the capabilities each declares', () => {
+  const DESKTOP_PLATFORM = desktopPlatform(true, false)
   const ids = (platform: Platform, machine: 'local' | 'host' | null): string[] =>
     visibleSections(platform, machine).map((section) => section.id)
   for (const machine of ['local', 'host', null] as const)
@@ -203,4 +208,23 @@ it('Settings differs between clients only by the capabilities each declares', ()
   // This Mac's own sections need localLanes, so the browser lists none of them.
   expect(ids(WIDE_BROWSER_PLATFORM, 'local')).toEqual(ids(WIDE_BROWSER_PLATFORM, null))
   expect(ids(DESKTOP_PLATFORM, 'local')).toContain('agent')
+})
+
+const hasBrainLink = (): boolean =>
+  [...el.querySelectorAll('button')].some((button) => button.textContent === 'Brain')
+
+it('offers Brain navigation by capability, not by browser width or surface', async () => {
+  const status = mockBrainStatus()
+  status.prefs.enabled = true
+  invoke.mockResolvedValue(status)
+  useBrain.setState({ status })
+  render(desktopPlatform(false, false), <PageLinks onPage={vi.fn()} />)
+  expect(hasBrainLink()).toBe(false)
+  for (const browser of [COMPACT_PLATFORM, WIDE_BROWSER_PLATFORM]) {
+    render(browser, <PageLinks onPage={vi.fn()} />)
+    expect(hasBrainLink()).toBe(false)
+    render({ ...browser, localBrain: true }, <PageLinks onPage={vi.fn()} />)
+    await act(async () => {})
+    expect(hasBrainLink()).toBe(true)
+  }
 })

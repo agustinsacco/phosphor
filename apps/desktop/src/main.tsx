@@ -4,6 +4,8 @@ import { App } from '@phosphor/client-ui/desktop'
 import { TooltipProvider } from '@/components/Tooltip'
 import { LoadingScreen } from '@/app/LoadingScreen'
 import { useSettingsStore } from '@/stores/settings'
+import { useBrain } from '@/features/brain/useBrain'
+import { DesktopPlatformProvider } from '@/platform/DesktopPlatformProvider'
 import { hostPlatform } from '@/lib/shortcuts'
 import { loadBundledFonts } from '@/lib/fonts'
 import '@/styles/index.css'
@@ -41,11 +43,15 @@ async function bootstrap(): Promise<void> {
   try {
     // Show the startup surface while fonts settle, but keep metric-sensitive
     // editors/terminals unmounted until then. Appearance loads in parallel.
+    // Brain's status never holds startup: it builds the Brain service, which has no time limit.
+    void useBrain.getState().refresh()
     await Promise.all([loadBundledFonts(), useSettingsStore.getState().hydrate()])
     root.render(
       <React.StrictMode>
         <TooltipProvider>
-          <App />
+          <DesktopPlatformProvider brainPreview={useSettingsStore.getState().brainPreview}>
+            <App />
+          </DesktopPlatformProvider>
         </TooltipProvider>
       </React.StrictMode>,
     )

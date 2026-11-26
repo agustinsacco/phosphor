@@ -37,7 +37,7 @@ export interface Platform {
   localVoice: boolean
   /** This browser/device owns its native notification permission. Desktop uses OS settings. */
   notificationPermission: boolean
-  /** Brain knowledge and its embedding model live on this Desktop machine. */
+  /** Local Brain UI is available for this launch. */
   localBrain: boolean
   /** Machines → Debug log: main keeps this client's control and Host traffic (`hosts:traffic`). */
   hostTrafficLog: boolean
@@ -61,10 +61,15 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   installableApp: false,
   cancelSignIn: true,
   localVoice: true,
-  localBrain: true,
+  localBrain: false,
   hostTrafficLog: true,
   notificationPermission: false,
 })
+/** Keep the UI available for this launch so turning Brain off doesn't remove its controls. */
+export function desktopPlatform(brainEnabledAtLaunch: boolean, brainPreview: boolean): Platform {
+  return { ...DESKTOP_PLATFORM, localBrain: brainEnabledAtLaunch || brainPreview }
+}
+
 export const COMPACT_PLATFORM: Platform = Object.freeze({
   formFactor: 'compact',
   splitPanes: false,

@@ -9,7 +9,7 @@ import {
   installFakePhosphor,
   type FakePhosphorHandlers,
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
-import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
+import { desktopPlatform, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { PromptHost } from '@/components/PromptHost'
 import { CardMemories } from './card/CardMemories'
@@ -87,10 +87,10 @@ afterEach(() => {
 async function render(): Promise<void> {
   await act(async () =>
     root.render(
-      <>
+      <PlatformProvider value={desktopPlatform(true, false)}>
         <BrainPage />
         <PromptHost />
-      </>,
+      </PlatformProvider>,
     ),
   )
   await settle()

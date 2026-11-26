@@ -100,6 +100,7 @@ export async function seedBrainLanes() {
   await writeFile(
     join(profile, 'config.json'),
     JSON.stringify({
+      brainPreview: true,
       lastWorkspacePath: workspace,
       recentWorkspaces: [{ path: workspace, name: 'Harbor' }],
     }),

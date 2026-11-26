@@ -72,6 +72,7 @@ export function getPrefs(): AppPrefs {
   const s = prefs()
   return {
     theme: s.get('theme'),
+    brainPreview: s.get('brainPreview') === true,
     lastLocal: s.get('lastLocal'),
     localRuntime: s.get('localRuntime'),
     // Read-only prune: worktree folders (never workspaces) and folders that
