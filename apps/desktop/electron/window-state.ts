@@ -60,6 +60,36 @@ function overlap(a: Rect, b: Rect): { width: number; height: number } {
   }
 }
 
+export function windowPositionSupported(
+  platform: NodeJS.Platform,
+  ozone: string,
+  env: NodeJS.ProcessEnv,
+): boolean {
+  if (platform !== 'linux' || ozone === 'x11') return true
+  if (ozone === 'wayland' || env.XDG_SESSION_TYPE === 'wayland') return false
+  return env.XDG_SESSION_TYPE === 'x11' || !env.WAYLAND_DISPLAY
+}
+
+/** A window can fit in the union of connected work areas without fitting on any one display. */
+function fullyVisible(bounds: Rect, areas: readonly Rect[]): boolean {
+  const right = bounds.x + bounds.width
+  const bottom = bounds.y + bounds.height
+  const byTop = [...areas].sort((a, b) => a.y - b.y)
+  const edges = byTop.flatMap((a) => [a.x, a.x + a.width]).filter((x) => x > bounds.x && x < right)
+  const starts = [bounds.x, ...edges.sort((a, b) => a - b)]
+  return starts.every((left, i) => {
+    const end = starts[i + 1] ?? right
+    if (end === left) return true
+    let covered = bounds.y
+    for (const a of byTop) {
+      if (a.x > left || a.x + a.width < end || a.y > covered) continue
+      covered = Math.max(covered, a.y + a.height)
+      if (covered >= bottom) return true
+    }
+    return false
+  })
+}
+
 /**
  * The bounds to open with. The size is clamped between the minimum and the
  * work area it lands on; the position is kept only when the window's top
@@ -69,9 +99,28 @@ export function restoreBounds(
   saved: WindowState | null,
   workAreas: readonly Rect[],
   size: WindowSize,
+  positionSupported = true,
 ): RestoredBounds {
   const first = workAreas[0]
   if (!saved || !first) return { width: size.width, height: size.height }
+  const { x: savedX, y: savedY, width: savedWidth, height: savedHeight } = saved
+  if (!positionSupported)
+    return {
+      width: Math.max(
+        size.minWidth,
+        Math.min(savedWidth, Math.max(...workAreas.map((a) => a.width))),
+      ),
+      height: Math.max(
+        size.minHeight,
+        Math.min(savedHeight, Math.max(...workAreas.map((a) => a.height))),
+      ),
+    }
+  if (
+    savedWidth >= size.minWidth &&
+    savedHeight >= size.minHeight &&
+    fullyVisible(saved, workAreas)
+  )
+    return { x: savedX, y: savedY, width: savedWidth, height: savedHeight }
   const strip = { x: saved.x, y: saved.y, width: saved.width, height: VISIBLE_HEIGHT }
   const home = workAreas.find((area) => {
     const o = overlap(strip, area)
@@ -162,12 +211,13 @@ export const DEFAULT_WINDOW_SIZE: WindowSize = {
 export function windowPlacement(
   userData: string,
   workAreas: readonly Rect[],
-  size: WindowSize = DEFAULT_WINDOW_SIZE,
+  positionSupported = true,
 ): { bounds: RestoredBounds & { minWidth: number; minHeight: number }; maximized: boolean } {
   const saved = readWindowState(userData)
+  const size = DEFAULT_WINDOW_SIZE
   return {
     bounds: {
-      ...restoreBounds(saved, workAreas, size),
+      ...restoreBounds(saved, workAreas, size, positionSupported),
       minWidth: size.minWidth,
       minHeight: size.minHeight,
     },

@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { accountControlFixture } from './fixtures/account-control'
 
 // The fixture relaunches the same scratch userData without involving the real app.
-test('reopens the Desktop window at its last size and position', async () => {
+test('reopens the Desktop window at its last size and position @macos', async () => {
   const h = await accountControlFixture()
   try {
     const saved = await h.app.evaluate(({ BrowserWindow, screen }) => {

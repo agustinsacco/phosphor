@@ -28,7 +28,12 @@ import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
 import { devRendererUrl } from './dev-renderer-url'
 import { startServices, stopServices } from './startup'
-import { showRestored, trackWindowState, windowPlacement } from './window-state'
+import {
+  showRestored,
+  trackWindowState,
+  windowPlacement,
+  windowPositionSupported,
+} from './window-state'
 import { quitLaunchGate } from './local-machine/launch-gate'
 import { decideLocalRuntime } from './local-machine/launch'
 import { serviceLanesRunning, serviceQuitOptions } from './app/quit'
@@ -88,13 +93,22 @@ configureLinuxKeyring(app.commandLine, (message) => {
   void app.whenReady().then(() => setImmediate(() => log('account', message)))
 })
 
-function createWindow(): BrowserWindow {
+function savedWindowPlacement() {
   const primary = screen.getPrimaryDisplay()
   const areas = [primary, ...screen.getAllDisplays().filter((d) => d.id !== primary.id)]
-  const place = windowPlacement(
+  return windowPlacement(
     app.getPath('userData'),
     areas.map((d) => d.workArea),
+    windowPositionSupported(
+      process.platform,
+      process.platform === 'linux' ? app.commandLine.getSwitchValue('ozone-platform') : '',
+      process.env,
+    ),
   )
+}
+
+function createWindow(): BrowserWindow {
+  const place = savedWindowPlacement()
   const window = new BrowserWindow({
     ...place.bounds,
     show: false,
