@@ -51,7 +51,7 @@ export function InstructionsEditor({
       <div
         role="dialog"
         aria-label={`Global instructions on ${source.machine}`}
-        className="border-border bg-bg flex h-[92vh] w-[1100px] max-w-[96vw] flex-col overflow-hidden rounded-xl border shadow-2xl"
+        className="border-border bg-bg flex h-[92vh] w-[1100px] max-w-[96vw] flex-col overflow-hidden rounded-lg border shadow-2xl"
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
             event.preventDefault()

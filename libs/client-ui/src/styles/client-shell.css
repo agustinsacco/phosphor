@@ -613,7 +613,7 @@ html:not([data-form-factor='compact']) .attachment-remove::before {
   align-items: center;
   gap: 8px;
   min-height: 48px;
-  border-radius: 16px;
+  border-radius: var(--px-radius-lg);
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.35);
 }
 /* A tab's scrollers end above the New lane button, so their last row is reachable. */

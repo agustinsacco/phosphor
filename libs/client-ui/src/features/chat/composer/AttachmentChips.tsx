@@ -73,7 +73,7 @@ export function AttachmentChips({
 export function DropOverlay({ visible }: { visible: boolean }): React.JSX.Element | null {
   if (!visible) return null
   return (
-    <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl">
+    <div className="bg-surface/85 pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-composer">
       <span className="text-text text-base font-medium">
         Drop to attach — images inline, other files by path
       </span>

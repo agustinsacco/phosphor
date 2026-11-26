@@ -171,6 +171,9 @@ Read the linked doc before touching any of these.
   [Testing](docs/testing.md#layout-and-helpers).
 - Modals use `ModalOverlay` (`libs/client-ui/src/components/Modal.tsx`), which owns
   depth-aware Escape. No window-level Escape listeners in modal content.
+- UI follows [style-guide.md](docs/style-guide.md). Radii stay tight: `rounded-md`
+  for rows and cards, `rounded-lg` for dialogs, `rounded-composer` only for the
+  composer. `rounded-xl` and larger are a lint error.
 - Never call `window.prompt`: Electron makes it throw. Use `promptText` /
   `presentText` from `libs/client-ui/src/stores/prompt.ts` (lint enforces it).
 - Choose behaviour by a `Platform` capability, never by screen width: in

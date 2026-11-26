@@ -97,7 +97,7 @@ export function LocalHomeDashboard({
       <Ledger workspacePath={workspacePath} stats={stats} lanes={laneBoard.lanes} />
 
       {stats && stats.sessionCount > 0 && (
-        <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">
+        <details className="border-border bg-bg-secondary/60 mt-6 rounded-lg border p-4">
           <TooltipSummary className="text-text-tertiary cursor-pointer text-sm">
             Project stats
           </TooltipSummary>

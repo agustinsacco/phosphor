@@ -42,7 +42,7 @@ export function CatalogRow({
   const { clientSecret: _secret, ...rest } = choice
   return (
     <div
-      className="border-border bg-surface rounded-xl border"
+      className="border-border bg-surface rounded-lg border"
       data-testid={`connector-${entry.id}`}
     >
       <div className="flex items-start gap-3 px-3.5 pt-3 pb-2.5">

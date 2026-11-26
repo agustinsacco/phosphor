@@ -34,7 +34,7 @@ export function StandardPackages({
         const declared = packages.find((pkg) => pkg.name === entry.name)?.spec
         const spec = declared?.startsWith('npm:') ? declared : entry.spec
         return (
-          <div key={entry.name} className="border-border bg-surface rounded-xl border p-3.5">
+          <div key={entry.name} className="border-border bg-surface rounded-lg border p-3.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-lg font-semibold">{entry.title}</span>
               {state === 'installed' ? (

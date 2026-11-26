@@ -173,7 +173,7 @@ export function ModalPanel({
   return (
     <div
       style={{ width }}
-      className="border-border bg-surface-raised max-w-[92vw] overflow-hidden rounded-xl border shadow-2xl"
+      className="border-border bg-surface-raised max-w-[92vw] overflow-hidden rounded-lg border shadow-2xl"
     >
       {title !== undefined && (
         <div className="border-border border-b px-4 py-3">

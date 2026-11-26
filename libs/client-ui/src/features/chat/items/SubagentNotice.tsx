@@ -68,7 +68,7 @@ export function SubagentNoticeItem({
       data-kind={notice.kind}
       data-status={notice.status}
       className={clsx(
-        'rounded-lg border px-2 py-1',
+        'rounded-md border px-2 py-1',
         tone === 'warning'
           ? 'border-warning/30 bg-[color-mix(in_srgb,var(--px-warning)_6%,transparent)]'
           : 'border-border/60',
@@ -81,7 +81,7 @@ export function SubagentNoticeItem({
           aria-expanded={expandable ? open : undefined}
           disabled={!expandable}
           className={clsx(
-            'flex min-w-0 flex-1 items-center gap-2 rounded-md py-0.5 pr-1 text-left text-base',
+            'flex min-w-0 flex-1 items-center gap-2 rounded py-0.5 pr-1 text-left text-base',
             expandable && 'hover:bg-bg-secondary/60',
           )}
         >

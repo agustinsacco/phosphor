@@ -52,7 +52,7 @@ export function NewSkillModal({
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="border-border bg-surface w-[560px] max-w-[92vw] rounded-xl border p-5 shadow-lg">
+      <div className="border-border bg-surface w-[560px] max-w-[92vw] rounded-lg border p-5 shadow-lg">
         <div className="text-xl font-semibold">Create a skill</div>
         <div className="pt-3">
           <div className="text-text-secondary pb-1 text-sm">Skill name</div>

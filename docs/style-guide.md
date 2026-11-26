@@ -276,10 +276,24 @@ for the shared implementation and dismissal contract.
 
 ## Shape, depth, motion
 
-- Radii: 6 / 10 / 14 (`--px-radius-sm` / `--px-radius` / `--px-radius-lg`).
-  Floating IDE panes use `rounded-md` (6px), without a card shadow; their
-  tabs and icon controls use `rounded-sm` (2px). A compact, bordered header
-  separates tools from content. Chat bubbles and dialogs keep their own shape.
+- Radii are tight. Pick by surface, not by taste:
+
+  | Class              | Size | Use                                                                                         |
+  | ------------------ | ---- | ------------------------------------------------------------------------------------------- |
+  | `rounded`          | 4px  | Hover fills, badges, inline chips, icon buttons                                             |
+  | `rounded-md`       | 6px  | Rows, cards, notices, inputs, panes: the agent notice, the Lanes on switcher, activity runs |
+  | `rounded-lg`       | 8px  | Dialogs, palettes, sheets, settings panels, thumbnails                                      |
+  | `rounded-composer` | 12px | The chat composer and its drop overlay, nothing else                                        |
+
+  `rounded-sm` is also 6px (`--px-radius-sm`); `--px-radius` and
+  `--px-radius-lg` are 8px, and `--px-radius-composer` is 12px, for CSS.
+  `rounded-xl` and larger are a lint error. A nested hover fill uses a smaller
+  radius than its container so it sits inside the corner. `rounded-full` is
+  for dots, avatars and true pills only, never a bordered row.
+
+- Floating IDE panes use `rounded-md` without a card shadow; their tabs and
+  icon controls use `rounded`. A compact, bordered header separates tools
+  from content.
 - Depth comes from borders and one-step background shifts. No drop shadow
   heavier than `0 1px 2px rgb(0 0 0 / 0.06)` in light; popovers excepted.
 - Motion: message-in 180ms, expand-in 140ms, lane-in 220ms (a transcript
