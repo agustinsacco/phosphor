@@ -109,14 +109,16 @@ export async function executeRequest<T>(state: ClientState, args: RequestArgs<T>
   signal?.addEventListener('abort', abort, { once: true })
   if (signal?.aborted || ms === 0) abort()
   try {
-    controller.signal.throwIfAborted()
+    // The reach budget must not start another request after cancellation.
+    // Existing control callers delegate cancellation to their transport.
+    if (args.deadlineAt !== undefined) controller.signal.throwIfAborted()
     const response = await sendRequest(state, args, controller.signal)
     status = response.status
     if (status === 429) after = retryAfter(response.headers.get('retry-after'), start)
     const id = response.headers.get('x-request-id')
     requestId = id && /^[0-9a-f]{32}$/.test(id) ? id : null
     const value = await parseResponse(response, parse, empty)
-    controller.signal.throwIfAborted()
+    if (args.deadlineAt !== undefined) controller.signal.throwIfAborted()
     return value
   } catch (error) {
     code = error instanceof ControlFailure ? error.code : transportCause(error)
