@@ -20,6 +20,8 @@ Desktop checks for a compatible service release at startup and periodically. It 
 On macOS, a new service uses launchd’s `Standard` process type for the Host and
 its pi children. An existing `Background` service keeps that priority after a
 Host update or Desktop migration. Local setup leaves a loaded service alone.
+At startup the service logs `launchd.background_priority` with a link to these
+steps when its LaunchAgent plist still says `Background`.
 To reinstall after updating, finish active work and quit Desktop. In an external
 terminal, signed in as the same macOS user and without `sudo`, set PATH,
 `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to the values in the installed job's

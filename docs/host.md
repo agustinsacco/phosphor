@@ -1044,6 +1044,8 @@ Host and its pi children leave the `Background` class and its CPU and I/O limits
 launchd's default limits still apply; `Interactive` is not used. Existing installs
 keep `Background` until the service is reinstalled: updating the Host or running
 `phosphor service restart` restarts the loaded job without rereading its plist.
+On startup the Host logs `launchd.background_priority` with reinstall instructions
+if its LaunchAgent plist still says `Background`. It does not change the job.
 For a headless Host, finish active work, then run `phosphor service install` from
 an external terminal after updating (pass the same `--config FILE` if nondefault).
 For a Desktop-managed service, use the [local reinstall steps](local-service.md#installation-and-launch).

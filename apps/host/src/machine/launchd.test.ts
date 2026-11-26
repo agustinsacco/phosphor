@@ -266,9 +266,9 @@ it.skipIf(process.platform !== 'darwin')(
     const log = vi.fn()
     prepareLaunchdRun({}, root, { ...ports(path), log })
     expect(log).toHaveBeenCalledExactlyOnceWith('service', 'launchd.background_priority', {
-      docs: 'https://github.com/SaccoLabs/Phosphor/blob/main/docs/local-service.md#installation-and-launch',
+      docs: 'https://github.com/agustinsacco/Phosphor/blob/main/docs/local-service.md#installation-and-launch',
       headlessDocs:
-        'https://github.com/SaccoLabs/Phosphor/blob/main/docs/host.md#running-as-a-service',
+        'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md#running-as-a-service',
     })
     expect(await readFile(path, 'utf8')).toBe(background)
   },
