@@ -1,5 +1,5 @@
 import { ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
-import { ipcErrorText } from '@shared/errors'
+import { ipcErrorText, WORKTREE_GIT_TIMEOUT } from '@shared/errors'
 import type { RemoteLaneCreate } from '@shared/ipc'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { machineLabel } from '@/stores/remoteLanes'
@@ -31,6 +31,7 @@ const DEFINITE = new Set([
   'branch-name-exhausted',
   'branch-prefix-too-long',
   'lane-create-failed',
+  WORKTREE_GIT_TIMEOUT,
   'lane-limit',
 ])
 
@@ -43,6 +44,8 @@ function createWarning(code: string, machine: string): string {
       return 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
     case 'lane-create-failed':
       return `${machine} couldn't start this lane. Your draft is kept.`
+    case WORKTREE_GIT_TIMEOUT:
+      return `${WORKTREE_GIT_TIMEOUT}. Your draft is kept.`
     case 'lane-limit':
       // The Host also sends too-many-requests for too many commands in flight.
       return `${machine} is at its lane limit or too busy. Try again, or delete a lane there.`

@@ -429,7 +429,8 @@ installed version. Service installs on Linux and macOS point node and the bundle
 before this rule with `phosphor service install`.
 
 An active Linux service or loaded macOS LaunchAgent restarts after selection.
-For a headless service the updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
+The updater waits up to 180 seconds for the new run's health signals. For a headless
+service that means an accepted heartbeat. `run`
 writes `{ version, pid, startedAt, acceptedAt }` to `<state>/run.json` atomically
 at 0600 after its first accepted running heartbeat and at most once a minute.
 If the new version is not healthy, update selects the old version and restarts
@@ -1043,6 +1044,8 @@ Host and its pi children leave the `Background` class and its CPU and I/O limits
 launchd's default limits still apply; `Interactive` is not used. Existing installs
 keep `Background` until the service is reinstalled: updating the Host or running
 `phosphor service restart` restarts the loaded job without rereading its plist.
+On startup the Host logs `launchd.background_priority` with reinstall instructions
+if its LaunchAgent plist still says `Background`. It does not change the job.
 For a headless Host, finish active work, then run `phosphor service install` from
 an external terminal after updating (pass the same `--config FILE` if nondefault).
 For a Desktop-managed service, use the [local reinstall steps](local-service.md#installation-and-launch).
@@ -1461,6 +1464,14 @@ The API adapter dispatches `lane.create` to this service through the durable
 command pipeline. The client's start composer always asks for a fresh worktree,
 branched from the lane's first message; it has no toggle to run in the
 repository's own checkout.
+
+Git worktree preparation shares a 95-second budget, with up to 90 seconds for
+`git worktree add` and a separate 10 seconds to clean up after failure. Other
+Git calls keep their 30-second cap. If Git times out, Desktop and the PWA say
+“Git took too long to create the worktree” and keep the draft. For diagnosis,
+`lane.worktree_git_failed` records the Git subcommand, exit code or timeout and
+known diagnostic text from a bounded stderr tail. It omits paths, refs and
+unrecognized output, including arbitrary hook output.
 
 A folder in no git repository has no worktrees. When git answers "not a git
 repository" for it, a worktree request runs the lane in the folder itself,

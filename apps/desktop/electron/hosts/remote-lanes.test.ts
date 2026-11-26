@@ -1166,29 +1166,25 @@ it.each(['incarnation', 'focus-cycle', 'removed-lane'] as const)(
     t.host.stop()
   },
 )
-
-// Only a fresh branch-exists may retry. A definite refusal or failure says nothing was
-// created; only an outcome the Host never answered stays "not confirmed". Host text
-// (here a message that reads "branch-exists") never crosses IPC.
+const gitTimeout = 'Git took too long to create the worktree'
 it.each([
   ['rejected branch-exists', { status: 'rejected', code: 'branch-exists' }, 'branch-exists'],
-  [
-    'non-fresh branch-exists',
-    { status: 'rejected', code: 'branch-exists' },
-    'lane-create-failed',
-    false,
-  ],
+  ['not fresh', { status: 'rejected', code: 'branch-exists' }, 'lane-create-failed', false],
   ['rejected forbidden', { status: 'rejected', code: 'forbidden' }, 'lane-create-failed'],
   ['rejected at capacity', { status: 'rejected', code: 'too-many-requests' }, 'lane-limit'],
-  [
-    'failed',
-    { status: 'failed', error: { code: 'internal', message: 'branch-exists' } },
-    'lane-create-failed',
-  ],
+  ...[gitTimeout, `prefix ${gitTimeout}`, 'branch-exists'].map(
+    (message) =>
+      [
+        'failed',
+        { status: 'failed', error: { code: 'internal', message } },
+        message === gitTimeout ? gitTimeout : 'lane-create-failed',
+        true,
+      ] as const,
+  ),
   ['not-sent', { status: 'not-sent', reason: 'not-connected' }, 'lane-create-failed'],
   ['unknown', { status: 'unknown' }, 'Lane creation not confirmed.'],
   ['transport', new Error('branch-exists'), 'Lane creation not confirmed.'],
-] as const)('creation answers a %s outcome with only its fixed text', async (...row) => {
+] as const)('creation exposes only fixed text for %s', async (...row) => {
   const [, outcome, text, fresh = true] = row
   const t = await setup()
   const send = vi.spyOn(t.c, 'send')

@@ -47,3 +47,6 @@ export const missingHistoryResponse = {
 /** Fixed lifecycle rejection across either renderer bridge; no Host detail crosses IPC. */
 export const LANE_ACTION_FAILED = 'lane-action-failed'
 export const UNKNOWN_OUTCOME = 'The Host could not confirm this. Check the lane before retrying.'
+
+/** The only Host worktree failure passed through both renderer bridges. */
+export const WORKTREE_GIT_TIMEOUT = 'Git took too long to create the worktree'

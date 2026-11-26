@@ -4,7 +4,7 @@ import { createBrowserApi } from './index'
 import { createFakeHost, createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
 import { type GrantPayload } from '@phosphor/shared/host-grant'
-import type { ClientFrame, FrameSocket } from '@phosphor/shared/host-protocol'
+import type { ClientFrame, FrameSocket, HostFrame } from '@phosphor/shared/host-protocol'
 import type { HostAttention } from '@phosphor/shared/ipc'
 import { browserCrypto } from '@phosphor/host-client/crypto'
 
@@ -24,6 +24,7 @@ interface SetupOptions {
   grant?: 'deny' | 'wrong-endpoint' | 'wrong-key' | 'expired'
   proof?: () => Promise<boolean>
   expires?: number
+  createFailure?: string
   /** Answers `lane.receipt` as a Host that keeps receipts would; the fake Host keeps none. */
   receipt?: (laneId: string) => unknown
 }
@@ -46,6 +47,20 @@ function answeringReceipts(socket: FrameSocket, receipt: (laneId: string) => unk
     },
   }
 }
+function withCreateFailure(text: string, message: string | undefined): string {
+  if (message === undefined) return text
+  const frame = JSON.parse(text) as HostFrame
+  if (frame.type !== 'receipt' || frame.receipt.status !== 'done') return text
+  return JSON.stringify({
+    type: 'receipt',
+    receipt: {
+      requestId: frame.receipt.requestId,
+      status: 'failed',
+      error: { code: 'internal', message },
+    },
+  })
+}
+
 async function setup(options: SetupOptions = {}) {
   const owner = randomUUID(),
     clientId = randomUUID()
@@ -156,7 +171,7 @@ async function setup(options: SetupOptions = {}) {
       onMessage: (listener: (text: string) => void) =>
         pair.client.onMessage((text) => {
           if (delivery.hold(id, text)) delivery.pending.push(() => listener(text))
-          else listener(text)
+          else listener(withCreateFailure(text, options.createFailure))
         }),
     }
     return options.receipt ? answeringReceipts(client, options.receipt) : client
@@ -480,3 +495,18 @@ it('emits a plain Host notice when the receipt does not answer within two second
   expect(h.attention[0]).not.toHaveProperty('receipt')
   h.answer()
 })
+
+const gitTimeout = 'Git took too long to create the worktree'
+it.each([gitTimeout, `${gitTimeout}: private detail`])(
+  'passes only the allowlisted creation timeout through the browser API (%s)',
+  async (message) => {
+    const s = await setup({ createFailure: message })
+    await s.ready()
+    await expect(
+      s.api.invoke('hosts:createLane', s.machines[0]!.id, {
+        repositoryId: '0123456789abcdef',
+        worktree: { branch: 'branch', fresh: true },
+      }),
+    ).rejects.toThrow(new Error(message === gitTimeout ? gitTimeout : 'lane-create-failed'))
+  },
+)

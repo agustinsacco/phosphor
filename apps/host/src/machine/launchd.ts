@@ -1,9 +1,11 @@
+import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import {
   closeSync,
   constants,
   fstatSync,
   ftruncateSync,
+  lstatSync,
   openSync,
   readSync,
   unlinkSync,
@@ -14,6 +16,7 @@ import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
 import { errnoCode, errnoIs } from '@phosphor/session-runtime/fs-safety'
+import { readBounded } from '@phosphor/session-runtime/host-install/files'
 import { HOST_AGENT } from '@phosphor/shared/host-local'
 import { hostLogDirectory } from './log'
 
@@ -147,12 +150,52 @@ function errorCode(error: unknown): string {
   const code = error instanceof Error ? errnoCode(error) : undefined
   return code !== undefined && /^[A-Z0-9_]{1,40}$/.test(code) ? code : 'UNKNOWN'
 }
+/** Diagnose the generated XML plist only. Never reload or rewrite the service job here. */
+function warnBackgroundPriority(home: string, { uid, log }: LaunchdRunPorts): void {
+  if (!log || uid === undefined || process.platform !== 'darwin') return
+  try {
+    const path = join(home, 'Library', 'LaunchAgents', `${HOST_AGENT}.plist`)
+    const stat = lstatSync(path)
+    if (!stat.isFile() || stat.uid !== uid) return
+    const input = readBounded(path, 128 * 1024)
+    const job = JSON.parse(
+      execFileSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-', '--', '-'], {
+        input,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'ignore'],
+        maxBuffer: 256 * 1024,
+        timeout: 1000,
+      }),
+    ) as { Label?: unknown; ProcessType?: unknown; ProgramArguments?: unknown } | null
+    if (job?.Label !== HOST_AGENT || job.ProcessType !== 'Background') return
+    const args: unknown = job.ProgramArguments
+    if (!Array.isArray(args) || args.length !== 7) return
+    const [node, bundle, run, configFlag, config, supervisor, launchd] = args as unknown[]
+    if (
+      ![node, bundle, config].every((value) => typeof value === 'string' && isAbsolute(value)) ||
+      run !== 'run' ||
+      configFlag !== '--config' ||
+      supervisor !== '--supervisor' ||
+      launchd !== 'launchd'
+    )
+      return
+    log('service', 'launchd.background_priority', {
+      docs: 'https://github.com/agustinsacco/Phosphor/blob/main/docs/local-service.md#installation-and-launch',
+      headlessDocs:
+        'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md#running-as-a-service',
+    })
+  } catch {
+    // A missing, unsupported or unreadable plist must not get in the way of startup.
+  }
+}
+
 /** Called only with the run lock held. No async work can interleave with fd 2 compaction. */
 export function prepareLaunchdRun(
   env: NodeJS.ProcessEnv,
   home: string,
   ports: LaunchdRunPorts,
 ): void {
+  warnBackgroundPriority(home, ports)
   try {
     unlinkSync(serviceExitPath(env, home))
   } catch (error) {

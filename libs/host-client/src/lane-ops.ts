@@ -2,7 +2,7 @@ import { isLanePiOp, type LaneOp } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import { BASH_UNCONFIRMED } from '@phosphor/shared/remote-host'
 import { isLanePrsPrompt } from '@phosphor/shared/lane-prs-command'
-import { LANE_ACTION_FAILED, UNKNOWN_OUTCOME } from '@phosphor/shared/errors'
+import { LANE_ACTION_FAILED, UNKNOWN_OUTCOME, WORKTREE_GIT_TIMEOUT } from '@phosphor/shared/errors'
 import type { CommandResult } from './connection'
 
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
@@ -43,8 +43,8 @@ export function settledReceipt(op: LaneOp, result: CommandResult, machine: strin
 }
 
 /**
- * The fixed IPC text for a lane.create that did not succeed; Host details never cross
- * IPC. A refusal, a failure or an unsent frame created nothing. Anything else, an
+ * The fixed IPC text for a lane.create that did not succeed; only the exact known
+ * timeout sentence crosses IPC. A refusal, a failure or an unsent frame created nothing. Anything else, an
  * unknown receipt or a dropped connection, may have.
  */
 export function createFailureText(error: unknown): string {
@@ -53,6 +53,8 @@ export function createFailureText(error: unknown): string {
   const { result } = error
   if (result.status === 'rejected')
     return result.code === 'too-many-requests' ? 'lane-limit' : 'lane-create-failed'
+  if (result.status === 'failed' && result.error.message === WORKTREE_GIT_TIMEOUT)
+    return WORKTREE_GIT_TIMEOUT
   return result.status === 'failed' || result.status === 'not-sent'
     ? 'lane-create-failed'
     : CREATE_UNCONFIRMED

@@ -113,6 +113,8 @@ function exists(path: string): boolean {
     throw error
   }
 }
+const HEALTH_WAIT_SECONDS = 180
+
 /** Restarts the service and waits for the new version to be healthy (`restartedHealthy`). */
 async function restartHealthy(
   context: UpdateContext,
@@ -129,10 +131,10 @@ async function restartHealthy(
   context.progress?.({ step: 'health', version })
   const wait = context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal }))
   const state = hostStateDirectory(context.env, context.home)
-  for (let i = 0; i <= 90; i++) {
+  for (let i = 0; i <= HEALTH_WAIT_SECONDS; i++) {
     signal.throwIfAborted()
     if (restartedHealthy(baseline, version, state, context.uid, now())) return true
-    if (i < 90) await wait(1000, signal)
+    if (i < HEALTH_WAIT_SECONDS) await wait(1000, signal)
   }
   return false
 }
