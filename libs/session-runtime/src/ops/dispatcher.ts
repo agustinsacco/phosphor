@@ -191,10 +191,17 @@ async function runOp(
 }
 
 /** The lane gives us a backstop; only the owner knows the resolved command. */
-function toolDeadline(core: DispatcherCore, op: string, backstop: number): number {
-  const spec = core.pipeline.spec(op)
-  const budget = spec?.deadlineMs ?? (spec?.tier === 'read' ? 30_000 : 60_000)
-  return Math.min(backstop, budget)
+function toolDeadline(core: DispatcherCore, request: OpsRunRequest, backstop: number): number {
+  const spec = core.pipeline.spec(request.op)
+  const tier = spec?.tier
+  // Target resolution runs after queue admission. Use the shorter budget only
+  // when this invocation is a read regardless of the target.
+  const read =
+    typeof tier === 'function'
+      ? tier(request.args, { self: true }) === 'read' &&
+        tier(request.args, { self: false }) === 'read'
+      : tier === 'read'
+  return Math.min(backstop, spec?.deadlineMs ?? (read ? 30_000 : 60_000))
 }
 
 /** Always answers: the op's reply, `timeout` at the tool's deadline, or `aborted` on Stop. */
@@ -217,7 +224,7 @@ async function runFromTool(
   if ('error' in parsed)
     return { v: 1, id, op: parsed.op, status: 'denied', code: 'bad-request', text: parsed.error }
   const { op } = parsed.request
-  const deadline = toolDeadline(core, op, envelope.deadlineMs)
+  const deadline = toolDeadline(core, parsed.request, envelope.deadlineMs)
   let phase = 'queue'
   const { controller, release } = track(core, principal)
   let settle: (reply: OpReplyEnvelope) => void = () => undefined
