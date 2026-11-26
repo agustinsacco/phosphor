@@ -48,7 +48,8 @@ it('shows the Phosphor loader and the lane it is opening', () => {
   expect(container.querySelector('[role="alert"]')).toBeNull()
 })
 
-it('a failed open says why and Retry opens the lane again, never leaving the loader up', () => {
+it('a failed open says why and Retry opens the lane again, never leaving the loader up', async () => {
+  invoke.mockRejectedValue(new Error('down'))
   act(() => root.render(<OpeningLane lane={{ ...opening, failure: 'Could not open the remote lane.' }} />))
   const view = container.querySelector('[data-testid="opening-lane"]')!
   expect(view.getAttribute('aria-busy')).toBe('false')
@@ -59,6 +60,10 @@ it('a failed open says why and Retry opens the lane again, never leaving the loa
   act(() => retry.click())
   expect(invoke).toHaveBeenCalledWith('hosts:openLane', MOCK_HOST_ID, LANE)
   expect(useSessionsStore.getState().opening?.failure).toBeUndefined()
+  // The retried open fails too, and its view says so again.
+  await vi.waitFor(() =>
+    expect(useSessionsStore.getState().opening?.failure).toBe('Could not open the remote lane.'),
+  )
 })
 
 it('selects the row being opened and marks it opening while its open runs', () => {

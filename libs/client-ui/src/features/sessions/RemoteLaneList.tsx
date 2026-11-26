@@ -29,6 +29,8 @@ export function RemoteLaneList({
   const active = useSessionsStore((s) =>
     s.activeSessionId ? s.live[s.activeSessionId] : undefined,
   )
+  // Selection follows the click: while a lane opens, it is the selection.
+  const opening = useSessionsStore((s) => s.opening)
   const deleting = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   return (
     <SessionList
@@ -42,9 +44,11 @@ export function RemoteLaneList({
             lane={lane}
             ready={ready}
             active={
-              active?.target?.kind === 'remote' &&
-              active.target.hostId === hostId &&
-              active.laneId === lane.laneId
+              opening
+                ? opening.lane?.hostId === hostId && opening.lane.laneId === lane.laneId
+                : active?.target?.kind === 'remote' &&
+                  active.target.hostId === hostId &&
+                  active.laneId === lane.laneId
             }
             {...row?.(lane)}
           />

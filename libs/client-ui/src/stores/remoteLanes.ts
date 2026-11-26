@@ -1,8 +1,4 @@
-import {
-  bindServiceLaneViews,
-  laneControlPolicy,
-  warmOpenedLane,
-} from '@/platform/serviceLaneControl'
+import { bindServiceLaneViews, laneControlPolicy } from '@/platform/serviceLaneControl'
 import { serviceScope } from './localServiceScope'
 import {
   bindRemoteHostView,
@@ -22,6 +18,14 @@ import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { bindHostsSnapshotRead, refreshHostsSnapshot } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
+import {
+  beginHostLaneOpening,
+  isActiveLane,
+  openHostLane,
+  prepareOpenedLane,
+  settleOpening,
+} from './hostLaneOpen'
+import { remoteLaneTitle } from '@/features/sessions/remoteLaneView'
 import { localRevealGroup } from '@/features/sessions/localRevealGroup'
 import {
   localLaneGroupKey,
@@ -175,7 +179,8 @@ export function alignLaneMachineFilter(machine: string): void {
 
 type LaneDestination = { sessionId: string } | { hostId: string; laneId: string }
 
-/** All notice and row navigation commits only after its destination is available. */
+/** Notice and row navigation. A Host lane shows `OpeningLane` at once and activates only if
+ * no newer navigation came first; a failure stays in that view with Retry. */
 export async function navigateToLane(destination: LaneDestination): Promise<boolean> {
   const sessions = useSessionsStore.getState()
   const live = 'sessionId' in destination ? sessions.live[destination.sessionId] : undefined
@@ -185,18 +190,9 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
       : live?.target?.kind === 'remote' && live.laneId
         ? { hostId: live.target.hostId, laneId: live.laneId }
         : undefined
-  const nav = sessions.claimNav()
+  let nav = sessions.claimNav()
   let superseded = false
-  const offPage = useLayoutStore.subscribe((state, previous) => {
-    if (state.page !== previous.page) superseded = true
-  })
-  const offFilter = useRemoteLanesStore.subscribe((state, previous) => {
-    if (state.filter !== previous.filter) superseded = true
-  })
-  const stopWatching = (): void => {
-    offPage()
-    offFilter()
-  }
+  let stopWatching = (): void => {}
   const current = (): boolean => !superseded && useSessionsStore.getState().navSeq === nav
   const unavailable = (hosts = useRemoteLanesStore.getState().hosts): string | undefined => {
     if (!remote) return
@@ -210,7 +206,14 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const problem = unavailable()
     if (problem) throw new Error(problem)
     let sessionId = 'sessionId' in destination ? destination.sessionId : undefined
-    if (remote) sessionId = await openRemoteHandle(remote)
+    if (remote) {
+      const host = hostView(remote.hostId)
+      alignLaneMachineFilter(remote.hostId)
+      const view = host?.lanes.find((lane) => lane.laneId === remote.laneId)
+      nav = beginHostLaneOpening(remote, remoteLaneTitle(undefined, view?.title))
+      stopWatching = watchSupersede(nav, () => (superseded = true))
+      sessionId = await openHostLane(remote, !!(host?.local || host?.warmOnOpen))
+    }
     if (!current()) return false
     const problemAfterOpen = unavailable()
     if (problemAfterOpen) throw new Error(problemAfterOpen)
@@ -242,34 +245,31 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const message = problem ?? (remote ? 'Could not open the remote lane.' : laneRemoved())
     useRemoteLanesStore.setState({ error: message })
     useExtensionUiStore.getState().pushToast(message, 'error')
+    settleOpening(nav, message)
     return false
   } finally {
     stopWatching()
   }
 }
 
-async function openRemoteHandle({ hostId, laneId }: { hostId: string; laneId: string }) {
-  const info = await window.phosphor.invoke('hosts:openLane', hostId, laneId)
-  await useSessionsStore
-    .getState()
-    .adoptSession(info.sessionId, info.workspacePath, undefined, info)
-  // The lane snapshot lands in the bridge before its debounced host notification.
-  const host = hostView(hostId)
-  if (host?.local || host?.warmOnOpen) await refreshHostsSnapshot()
-  return info.sessionId
+/** A page or machine chosen while a lane opens wins; the open lands without taking the screen. */
+function watchSupersede(nav: number, supersede: () => void): () => void {
+  const leave = (): void => {
+    supersede()
+    settleOpening(nav)
+  }
+  const offPage = useLayoutStore.subscribe((state, previous) => {
+    if (state.page !== previous.page) leave()
+  })
+  const offFilter = useRemoteLanesStore.subscribe((state, previous) => {
+    if (state.filter !== previous.filter) leave()
+  })
+  return () => {
+    offPage()
+    offFilter()
+  }
 }
 
-const isActiveLane = (id: string) =>
-  useSessionsStore.getState().activeSessionId === id && useLayoutStore.getState().page === null
-
-async function prepareOpenedLane(sessionId: string) {
-  warmOpenedLane(
-    sessionId,
-    () => isActiveLane(sessionId),
-    (message) => useExtensionUiStore.getState().pushToast(message, 'error'),
-  )
-  await refreshRemoteArtifacts(sessionId)
-}
 export async function openRemoteLane(hostId: string, laneId: string): Promise<boolean> {
   return navigateToLane({ hostId, laneId })
 }

@@ -37,6 +37,8 @@ type RemoteLanePresentationProps = Omit<React.ComponentProps<typeof LaneRow>, 'c
   title: string
   ready?: boolean
   active?: boolean
+  /** Its open is running, selected or not (`useHostLaneOpenInFlight`). */
+  opening?: boolean
   pinned?: boolean
   /** The lane's folder, for rows that mix folders (the Pinned section). */
   workspaceName?: string
@@ -53,6 +55,7 @@ export function RemoteLanePresentation({
   title,
   ready = true,
   active = false,
+  opening = false,
   pinned = false,
   workspaceName,
   marker,
@@ -63,6 +66,7 @@ export function RemoteLanePresentation({
   const showPr = useLanePrefsStore((s) => s.lanes.prStatus)
   const description = useId()
   const view = remoteLanePresentation(lane, ready)
+  const activity = view.activity ?? (opening ? 'opening' : undefined)
   const stateLabel = {
     streaming: '',
     unseen: 'Unread activity. ',
@@ -87,7 +91,7 @@ export function RemoteLanePresentation({
         aria-describedby={description}
         aria-current={active ? 'page' : undefined}
         data-testid="remote-session-row"
-        data-activity={view.activity}
+        data-activity={activity}
         className={active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
         {...props}
       >
@@ -96,7 +100,7 @@ export function RemoteLanePresentation({
         <span className="min-w-0 flex-1">
           <span className="text-text block truncate text-lg font-medium leading-5">{title}</span>
           <span className="text-text-secondary @container/lane-line flex items-center gap-1 text-base leading-4">
-            <SubtitleSegments segments={view.segments} activity={view.activity} />
+            <SubtitleSegments segments={view.segments} activity={activity} />
             {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
             {showPr && <PrBadge prs={prs} />}
           </span>
@@ -111,7 +115,7 @@ export function RemoteLanePresentation({
       <span id={description} className="sr-only">
         {pinned ? 'Pinned. ' : ''}
         {stateLabel}
-        {view.activity === 'working' ? 'Working. ' : ''}
+        {activity === 'working' ? 'Working. ' : activity === 'opening' ? 'Opening. ' : ''}
         {details}
         {view.needsYou ? ' · needs you' : ''}
       </span>

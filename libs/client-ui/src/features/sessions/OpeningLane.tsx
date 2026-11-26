@@ -1,4 +1,6 @@
 import { PhosphorLoader } from '@/components/PhosphorLoader'
+import { Button } from '@/components/form'
+import { openRemoteLane } from '@/stores/remoteLanes'
 import type { OpeningLane as OpeningLaneState } from '@/stores/sessions'
 
 /** Matches `.opening-lane[data-leaving]` in index.css. */
@@ -27,14 +29,39 @@ export const OPENING_LANE_EXIT_MS = 200
  * lane rather than cutting, so the handoff to the transcript (or its skeleton)
  * reads as one continuous motion. `leaving` is that exit; it stops taking
  * input the moment it starts.
+ *
+ * A Host lane (`lane.lane`) opens over its Host, the same way on Desktop and
+ * in the browser (`CompactLane`). Its open can fail; the view then stops
+ * loading and says why, with Retry, until the user goes elsewhere.
  */
 export function OpeningLane({
   lane,
   leaving = false,
 }: {
-  lane: OpeningLaneState
+  lane: Pick<OpeningLaneState, 'title' | 'reason' | 'lane' | 'failure'>
   leaving?: boolean
 }): React.JSX.Element {
+  const host = lane.lane
+  if (lane.failure)
+    return (
+      <div
+        data-testid="opening-lane"
+        aria-busy={false}
+        className="bg-bg absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 px-6 text-center"
+      >
+        {/* Still, as startup's failure is: the beacon stays, the motion stops. */}
+        <PhosphorLoader decorative animated={false} />
+        <span className="text-text truncate text-lg font-medium" data-tooltip={lane.title}>
+          {lane.title}
+        </span>
+        <p role="alert" className="text-text-secondary text-base">
+          {lane.failure}
+        </p>
+        {host && (
+          <Button onClick={() => void openRemoteLane(host.hostId, host.laneId)}>Retry</Button>
+        )}
+      </div>
+    )
   return (
     <div
       data-testid="opening-lane"

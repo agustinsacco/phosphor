@@ -1,6 +1,6 @@
 import { useLayoutStore } from '@/stores/layout'
 import { TooltipButton } from '@/components/Tooltip'
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
 import { WaitingPane } from '@/components/Waiting'
 import {
@@ -18,6 +18,8 @@ import { usePlatform } from '@/platform/Platform'
 import { laneTarget, useTerminalRefusal } from '@/stores/terminal'
 import { COMPACT_LANE_PANES } from './CompactLaneHeader'
 import { useRemoteLaneSession } from '@/features/sessions/useRemoteLaneActions'
+import { OpeningLane } from '@/features/sessions/OpeningLane'
+import { remoteLaneTitle } from '@/features/sessions/remoteLaneView'
 import type { Location } from '@/navigation/location'
 const TerminalPane = lazy(() =>
   import('@/features/terminal/TerminalPane').then((m) => ({ default: m.TerminalPane })),
@@ -49,24 +51,20 @@ export function CompactLane({
   const snapshotStatus = useRemoteLanesStore((s) => s.snapshotStatus)
   const lane = host?.lanes.find((lane) => lane.laneId === laneId)
   const session = useRemoteLaneSession(hostId, laneId)
-  const [failed, setFailed] = useState(false)
-  const [attempt, setAttempt] = useState(0)
+  // The open's state is the store's, so the browser shows what Desktop shows.
+  const opening = useSessionsStore((s) =>
+    s.opening?.lane?.hostId === hostId && s.opening.lane.laneId === laneId ? s.opening : null,
+  )
   const filter = useRemoteLanesStore((s) => s.filter)
   const page = useLayoutStore((s) => s.page)
   const navigationReady = filter === hostId && page === null
   const ready = host?.state === 'ready' && !!lane
   useEffect(() => {
-    let current = true
-    setFailed(false)
-    if (ready && navigationReady)
-      void openRemoteLane(hostId, laneId).then((ok) => {
-        if (current) setFailed(!ok)
-      })
+    if (ready && navigationReady) void openRemoteLane(hostId, laneId)
     return () => {
-      current = false
       useSessionsStore.getState().claimNav()
     }
-  }, [hostId, laneId, ready, navigationReady, attempt])
+  }, [hostId, laneId, ready, navigationReady])
   if (snapshotStatus === 'idle' || snapshotStatus === 'loading')
     return <WaitingPane title="Connecting to your machines…" />
   if (snapshotStatus === 'error')
@@ -97,15 +95,20 @@ export function CompactLane({
         Machine not connected. Open Machines to reconnect.
       </p>
     )
-  if (failed)
+  if (opening?.failure || !session || !navigationReady)
     return (
-      <div role="alert" className="p-4">
-        Could not open this lane.{' '}
-        <TooltipButton onClick={() => setAttempt((n) => n + 1)}>Retry</TooltipButton>
+      <div className="relative h-full">
+        <OpeningLane
+          lane={
+            opening ?? {
+              title: remoteLaneTitle(undefined, lane?.title),
+              reason: 'open',
+              lane: { hostId, laneId },
+            }
+          }
+        />
       </div>
     )
-  if (!session || !navigationReady)
-    return <WaitingPane title="Opening lane…" detail={lane?.title ?? undefined} />
   return <LanePanes location={location} navigate={navigate} session={session} />
 }
 

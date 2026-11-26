@@ -329,8 +329,8 @@ export function useLocalRows(workspacePath: string, onOpenTree: (meta: SessionMe
   const seenSessions = useSessionsStore((s) => s.seenSessions)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
-  /** Session file of the lane being opened right now, if any. */
-  const openingPath = useSessionsStore((s) => s.opening?.path)
+  /** Session file of the lane being opened right now; null while a Host lane opens. */
+  const openingPath = useSessionsStore((s) => (s.opening ? (s.opening.path ?? null) : undefined))
   const byDisk = useMemo(() => liveByDiskPath(live), [live])
   const rowProps = (meta: SessionMeta) => {
     const livePhosphorId = byDisk.get(meta.path)

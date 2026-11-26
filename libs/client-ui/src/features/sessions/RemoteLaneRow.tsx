@@ -6,6 +6,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { RemoteLanePresentation } from './RemoteLanePresentation'
 import { LaneMarker } from './LaneMarker'
 import { useRemoteLaneActions } from './useRemoteLaneActions'
+import { useHostLaneOpenInFlight } from '@/stores/hostLaneOpen'
 import type { LaneSelect } from './LaneSelect'
 export { remoteLaneTitle } from './remoteLaneView'
 
@@ -39,6 +40,7 @@ export function RemoteLaneRow({
   const [draft, setDraft] = useState('')
   const actions = useRemoteLaneActions({ hostId, lane, ready, onRename: rename })
   const { title, busy } = actions
+  const opening = useHostLaneOpenInFlight(hostId, lane.laneId)
   const menu = useMenuTriggers(actions.items, { title, disabled: !ready, revision: lane.activity })
   function rename(): void {
     setDraft(title === 'Untitled lane' ? '' : title)
@@ -77,6 +79,7 @@ export function RemoteLaneRow({
           ready={ready}
           disabled={!ready || actions.deletingInBulk}
           active={active}
+          opening={opening}
           pinned={lane.pinned === true}
           workspaceName={workspaceName}
           select={select && !actions.deletingInBulk ? { ...select, title } : undefined}
