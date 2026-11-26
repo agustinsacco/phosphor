@@ -1843,19 +1843,30 @@ in the Host's home without one, projected to the fields the `/` menu reads
 Host's own; a path is never accepted, and an unknown id is `bad-request`.
 
 `machine.telemetry` answers one machine-wide resource sample: idle and busy
-counters per core and in total, three load averages and machine uptime, memory
-totals with cache and swap where the OS reports them, the state volume's size
-and free space, and a census of the Host's own process subtree. Every CPU number
-is a monotonic counter and never a rate, so the Host holds no sampler state and
-the client's second sample is what makes a percent. The census carries at most
-96 processes — pid, parent pid, a kind (`host`, `pi`, `mcp`, `shell` or `other`),
-the executable's basename, CPU seconds, RSS and age — plus one total per kind,
-which covers every process the walk saw even when the list is capped. Full argv
-is read only to choose a kind and never crosses the wire, nor does any path,
-command line, user or environment. The read needs no pi, no repository and no
-inspection, and it runs outside the resource-probe queue so a doctor inspection
-cannot delay it (`src/machine/telemetry.ts`). A Host older than the call refuses
-it, and clients then show no numbers rather than invented ones.
+kernel counters per core, three load averages and machine uptime, memory totals
+with cache and swap where the OS reports them (macOS reports only swap, so its
+`cache` is 0 and its `used` therefore includes file cache), the state volume's
+size and free space, and a census of the Host's own process subtree. Every CPU number is a
+monotonic counter and never a rate, so the Host holds no sampler state and the
+client's second sample is what makes a percent. The per-core list is capped at
+256 and its length is the core count the client divides by. A read the OS refuses
+is `null` rather than zero: `disk` is null when the volume's stats could not be
+read, and the whole census is null when `ps` failed, so a client can tell "this
+machine has nothing of ours running" from "this Host could not look". The census
+carries at most 96 processes — pid, parent pid, a kind (`host`, `pi`, `mcp`,
+`shell` or `other`), the executable's basename, CPU seconds, RSS and age — biggest
+holder first, plus one total per kind, which covers every process the walk saw
+even when the list is capped. What a process is comes from `argv[0]`, plus its
+script when `argv[0]` is a runner: the rest of the command line never decides, so
+a lane's `grep -r mcp src/` is not an MCP server. Full `argv` is read only to
+choose a kind and never crosses the wire, nor does any path, command line, user
+or environment, and the walk is the Host's subtree, never the machine's whole
+process table. Nothing here runs on a timer: each call takes one `ps` pass and one
+volume stat (cached for a minute, and abandoned after 1.5 s rather than holding
+the reply), so the client's poll interval is the only cost. The read needs no pi,
+no repository and no inspection, and it runs outside the resource-probe queue so a
+doctor inspection cannot delay it (`src/machine/telemetry.ts`). A Host older than
+the call refuses it, and clients then show no numbers rather than invented ones.
 
 The Host caches successful model, repository command and lane-scoped skill lists by
 launch identity/version and agent config/auth file metadata. It forgets them after

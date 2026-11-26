@@ -1,219 +1,178 @@
 /**
- * Host telemetry: one store projection per Host, polled only while someone is
- * looking.
+ * Host telemetry for the popover: one entry per Host, polled only while someone
+ * is watching.
  *
- * The Host is stateless about this (it answers with kernel counters), so the
- * client owns the two things that need memory: the ring of points the graphs
- * draw, and the rate math. Every percentage is a difference between two
- * consecutive samples, so the first sample after opening or reconnecting
- * reports `null` rather than 0.
+ * `hosts:telemetry` answers counters, so each sample is folded into
+ * `telemetryModel` and the one before it ages on its own. One loop per Host reads
+ * back-to-back with a pause between reads: it cannot overlap itself, so a slow
+ * Host delays the next read instead of stacking requests on it, and there is no
+ * stale reply to discard because only one is ever in flight.
  *
- * The poll is refcounted the way `machines.ts` refcounts its listener: opening
- * the popover starts one interval per Host, closing it stops that interval, and
- * an in-flight request is never overlapped. Nothing runs while nobody watches.
- * A failed tick is not a dead end — the next one is already scheduled, and the
- * last good sample stays on screen with its age.
+ * Demand drives it. `watchTelemetry` refcounts viewers so two panels on one Host
+ * read it once; a hidden tab or a closed popover stops the loop and keeps the
+ * last sample on screen; a new connection starts a clean series, because its
+ * counters have no honest relationship to the old connection's.
  */
-import type { MachineTelemetry } from '@phosphor/shared/host-protocol-telemetry'
-import { counterDeltaPct, procDeltaPct } from '@phosphor/shared/host-protocol-telemetry'
 import { create } from 'zustand'
-import {
-  emptyHost,
-  phosphorRss,
-  type TelemetryHost,
-  type TelemetryPoint,
-  type TelemetryStore,
-} from './telemetryModel'
+import { keyedSlice } from './keyedSlice'
+import { machineCaps } from './machineCaps'
+import { machineReadGeneration } from './machineReadGeneration'
+import { useRemoteLanesStore } from './remoteLanes'
+import type { MachineTelemetry } from '@phosphor/shared/host-protocol-telemetry'
+import { EMPTY_VIEW, newView, withSample, type TelemetryView } from './telemetryModel'
 
-export { emptyHost, phosphorRss } from './telemetryModel'
-export type { TelemetryHost, TelemetryPoint, TelemetryStore } from './telemetryModel'
-
-/** Two seconds: fine enough to see a lane's spike, cheap enough to ignore. */
+/** How often a watched Host is re-read. */
 export const TELEMETRY_POLL_MS = 2_000
-/** An hour of the compact points. The full sample is only ever the latest one. */
-const RING_POINTS = 1_800
-/**
- * How many ticks one request may hold the slot. A call that never settles — a
- * renderer bridge torn down mid-flight — must not silence the popover for good.
- */
-const STALL_TICKS = 15
-/**
- * Two samples further apart than this say nothing about the present, so they
- * make no rate: an averaged-over-hours percent would be a fiction on the graph.
- */
-const MAX_RATE_GAP_MS = TELEMETRY_POLL_MS * 3
 
-const hostTimers = new Map<string, ReturnType<typeof setInterval>>()
-const hostViewers = new Map<string, number>()
-const inFlight = new Map<string, { blocked: number; token: number }>()
-let tokenSeed = 0
+interface TelemetryState {
+  byHost: Record<string, TelemetryHost>
+}
 
-function point(sample: MachineTelemetry, prev: MachineTelemetry | null): TelemetryPoint {
-  return {
-    at: sample.at,
-    cpu: prev ? counterDeltaPct(prev.cpu.total, sample.cpu.total) : null,
-    memUsed: sample.mem.used,
-    phosphor: phosphorRss(sample.kinds),
-    procs: sample.kinds.reduce((sum, kind) => sum + kind.procs, 0),
+interface TelemetryHost {
+  /** Live viewers. The loop runs while at least one is open and the tab is visible. */
+  viewers: number
+  /** False while the tab is hidden: nobody can see the numbers move. */
+  allowed: boolean
+  /** The loop is between a read and its pause right now. */
+  running: boolean
+  /** The connection `view` came from. A reconnect is not a previous sample. */
+  generation: number
+  /** A read was missed since the sample on screen, so the next has no rate to show. */
+  gap: boolean
+  /** This connection cannot read the machine: not ready, or no `skills.read`. */
+  unreadable: boolean
+  view: TelemetryView
+}
+
+const EMPTY_HOST: TelemetryHost = {
+  viewers: 0,
+  allowed: true,
+  running: false,
+  generation: 0,
+  gap: true,
+  unreadable: false,
+  view: EMPTY_VIEW,
+}
+
+/** Subscribe with `useTelemetry((state) => telemetryView(state, hostId))`. */
+export const useTelemetry = create<TelemetryState>(() => ({ byHost: {} }))
+const hosts = keyedSlice<TelemetryHost>({ ...EMPTY_HOST })
+
+/** One Host's view, or the shared frozen empty one: a poll must not wake every subscriber. */
+export function telemetryView(state: TelemetryState, hostId: string | null): TelemetryView {
+  return hostId ? hosts.read(state.byHost, hostId).view : EMPTY_VIEW
+}
+
+/** Whether this connection may read this machine at all, so the popover can say why it is quiet. */
+export function telemetryUnreadable(state: TelemetryState, hostId: string | null): boolean {
+  return hostId ? hosts.read(state.byHost, hostId).unreadable : false
+}
+
+/**
+ * Watch one Host until the returned function runs. A Host the grant cannot read,
+ * or that is too old to answer, gets no readings rather than a row of dashes
+ * that never fills.
+ */
+export function watchTelemetry(hostId: string): () => void {
+  patch(hostId, (host) => ({ ...host, viewers: host.viewers + 1 }))
+  start(hostId)
+  return () => patch(hostId, (host) => ({ ...host, viewers: Math.max(0, host.viewers - 1) }))
+}
+
+/**
+ * Whether telemetry may be read at all — false while the tab is hidden. The last
+ * sample stays on screen; the loop stops now and resumes when it is allowed.
+ */
+export function setTelemetryAllowed(allowed: boolean): void {
+  useTelemetry.setState((state) => {
+    const byHost: Record<string, TelemetryHost> = {}
+    for (const [hostId, host] of Object.entries(state.byHost)) byHost[hostId] = { ...host, allowed }
+    return { byHost }
+  })
+  if (allowed) for (const hostId of Object.keys(useTelemetry.getState().byHost)) start(hostId)
+}
+
+/** Start the loop when this Host is wanted on screen and its connection can be read. */
+function start(hostId: string): void {
+  const entry = hosts.read(useTelemetry.getState().byHost, hostId)
+  if (!entry.running)
+    patch(hostId, (state) => ({
+      ...state,
+      unreadable: !machineCaps(hostView(hostId)).can('skills.read'),
+    }))
+  const current = hosts.read(useTelemetry.getState().byHost, hostId)
+  if (current.running || current.viewers <= 0 || !current.allowed || current.unreadable) return
+  patch(hostId, (state) => ({ ...state, running: true }))
+  void poll(hostId, machineReadGeneration(hostId))
+}
+
+// A grant or a connection that arrives while the popover is open restarts what it
+// made unpollable. `start` is a no-op for every Host that is not being watched.
+useRemoteLanesStore.subscribe(() => {
+  for (const hostId of Object.keys(useTelemetry.getState().byHost)) start(hostId)
+})
+
+/** Read, pause, repeat — while a viewer is open and the tab is visible. */
+async function poll(hostId: string, generation: number): Promise<void> {
+  try {
+    while (wanted(hostId, generation)) {
+      const sample = await read(hostId)
+      // A reconnect, a closed popover or a hidden tab mid-read: this sample
+      // belongs to a series nobody is watching.
+      if (!wanted(hostId, generation)) break
+      record(hostId, sample, generation)
+      await sleep(TELEMETRY_POLL_MS)
+    }
+  } finally {
+    patch(hostId, (entry) => ({ ...entry, running: false }))
+    // A viewer that opened, a tab that reappeared or a Host that reconnected in
+    // the meantime gets its loop back. `start` refuses when none of that is true.
+    start(hostId)
   }
 }
 
-/** Instantaneous percent per process, from the same pair of samples the CPU uses. */
-function procPct(sample: MachineTelemetry, prev: MachineTelemetry | null): Record<number, number> {
-  if (!prev) return {}
-  const gapSec = (sample.at - prev.at) / 1000
-  const before = new Map(prev.procs.map((p) => [p.pid, p.cpuSec]))
-  const out: Record<number, number> = {}
-  for (const proc of sample.procs) {
-    const last = before.get(proc.pid)
-    const pct =
-      last === undefined ? null : procDeltaPct(last, proc.cpuSec, gapSec, sample.cpu.cores)
-    if (pct !== null) out[proc.pid] = pct
-  }
-  return out
+/** Still the same connection, still wanted, still on screen? */
+function wanted(hostId: string, generation: number): boolean {
+  const entry = hosts.read(useTelemetry.getState().byHost, hostId)
+  return (
+    machineReadGeneration(hostId) === generation &&
+    entry.viewers > 0 &&
+    entry.allowed &&
+    !entry.unreadable
+  )
 }
 
-function corePct(
-  sample: MachineTelemetry,
-  prev: MachineTelemetry | null,
-): readonly (number | null)[] {
-  if (!prev || prev.cpu.perCore.length !== sample.cpu.perCore.length) return []
-  return sample.cpu.perCore.flatMap((core, index) => {
-    const before = prev.cpu.perCore[index]
-    return before ? [counterDeltaPct(before, core)] : []
+/** One sample, or null: the Host is unreachable, refusing, or older than the read. */
+async function read(hostId: string): Promise<MachineTelemetry | null> {
+  try {
+    return await window.phosphor.invoke('hosts:telemetry', hostId)
+  } catch {
+    return null
+  }
+}
+
+function record(hostId: string, sample: MachineTelemetry | null, generation: number): void {
+  patch(hostId, (entry) => {
+    if (!sample) return { ...entry, gap: true, generation }
+    const first = entry.generation !== generation || entry.view.current === null
+    return {
+      ...entry,
+      generation,
+      gap: false,
+      view: withSample(first ? newView() : entry.view, sample, entry.gap, Date.now()),
+    }
   })
 }
 
-export const useTelemetryStore = create<TelemetryStore>((set, get) => ({
-  hosts: {},
-  ingest: (hostId, sample) =>
-    set((state) => {
-      const host = hostOf(state, hostId)
-      const previous = usablePrevious(host.sample, sample)
-      return {
-        hosts: {
-          ...state.hosts,
-          [hostId]: {
-            ...host,
-            prev: previous,
-            sample,
-            points: [...host.points, point(sample, previous)].slice(-RING_POINTS),
-            procPct: procPct(sample, previous),
-            corePct: corePct(sample, previous),
-            loading: false,
-            unsupported: false,
-            error: null,
-          },
-        },
-      }
-    }),
-  markLoading: (hostId) =>
-    set((state) => ({
-      hosts: { ...state.hosts, [hostId]: { ...hostOf(state, hostId), loading: true } },
-    })),
-  markFailed: (hostId, message, unsupported = false) =>
-    set((state) => ({
-      hosts: {
-        ...state.hosts,
-        [hostId]: { ...hostOf(state, hostId), loading: false, error: message, unsupported },
-      },
-    })),
-  setPaused: (hostId, paused) =>
-    set((state) => ({
-      hosts: { ...state.hosts, [hostId]: { ...hostOf(state, hostId), loading: false, paused } },
-    })),
-  endPoll: (hostId) =>
-    set((state) => ({
-      hosts: { ...state.hosts, [hostId]: { ...hostOf(state, hostId), loading: false } },
-    })),
-  reset: (hostId) =>
-    set((state) => {
-      const hosts = { ...state.hosts }
-      delete hosts[hostId]
-      return { hosts }
-    }),
-  poll: async (hostId) => {
-    if (hostOf(get(), hostId).paused) return
-    const running = inFlight.get(hostId)
-    if (running) {
-      // Counted in ticks, not on a clock: the guard exists to skip a tick, and
-      // it must give up its slot rather than wedge the popover for good.
-      running.blocked++
-      if (running.blocked < STALL_TICKS) return
-    }
-    const token = ++tokenSeed
-    inFlight.set(hostId, { blocked: 0, token })
-    get().markLoading(hostId)
-    try {
-      const sample = await window.phosphor.invoke('hosts:telemetry', hostId)
-      // A reply to a poll the user has since closed is dropped, not stored.
-      if (!hostViewers.has(hostId)) return
-      if (sample === null) get().markFailed(hostId, 'This Host does not report resources.', true)
-      else get().ingest(hostId, sample)
-    } catch {
-      if (hostViewers.has(hostId)) get().markFailed(hostId, 'Telemetry unavailable.')
-    } finally {
-      if (inFlight.get(hostId)?.token === token) inFlight.delete(hostId)
-    }
-  },
-}))
+const hostView = (hostId: string) => useRemoteLanesStore.getState().hosts[hostId]
 
-function hostOf(state: Pick<TelemetryStore, 'hosts'>, hostId: string): TelemetryHost {
-  return state.hosts[hostId] ?? emptyHost()
+function patch(hostId: string, update: (host: TelemetryHost) => TelemetryHost): void {
+  useTelemetry.setState((state) => ({ byHost: hosts.patch(state.byHost, hostId, update) }))
 }
 
-/** The sample to subtract, or null when it is missing, older than the gap or from the future. */
-function usablePrevious(
-  before: MachineTelemetry | null,
-  sample: MachineTelemetry,
-): MachineTelemetry | null {
-  if (!before) return null
-  const gap = sample.at - before.at
-  return gap > 0 && gap <= MAX_RATE_GAP_MS ? before : null
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms)
+    timer.unref?.()
+  })
 }
-
-/**
- * Watch one Host; the returned function is the only way to stop. It is
- * reference-counted, so two viewers of one Host share an interval and the last
- * one out is the one that ends it.
- */
-export function watchTelemetry(hostId: string): () => void {
-  if (!hostId) return () => undefined
-  const viewers = (hostViewers.get(hostId) ?? 0) + 1
-  hostViewers.set(hostId, viewers)
-  if (viewers === 1) {
-    void useTelemetryStore.getState().poll(hostId)
-    hostTimers.set(
-      hostId,
-      setInterval(() => void useTelemetryStore.getState().poll(hostId), TELEMETRY_POLL_MS),
-    )
-  }
-  let active = true
-  return () => {
-    if (!active) return
-    active = false
-    const left = (hostViewers.get(hostId) ?? 1) - 1
-    if (left > 0) {
-      hostViewers.set(hostId, left)
-      return
-    }
-    hostViewers.delete(hostId)
-    const timer = hostTimers.get(hostId)
-    if (timer) clearInterval(timer)
-    hostTimers.delete(hostId)
-    // Nobody is watching, so the overlap guard has nothing left to protect; the
-    // next viewer should poll at once rather than inherit a wedged slot.
-    inFlight.delete(hostId)
-    useTelemetryStore.getState().endPoll(hostId)
-  }
-}
-
-/** The projection for a Host. Never a fresh object: a new `{}` wakes every subscriber. */
-export function telemetryOf(
-  state: Pick<TelemetryStore, 'hosts'>,
-  hostId: string | undefined,
-): TelemetryHost {
-  return (hostId === undefined ? undefined : state.hosts[hostId]) ?? EMPTY_HOST
-}
-
-const EMPTY_HOST: TelemetryHost = emptyHost()

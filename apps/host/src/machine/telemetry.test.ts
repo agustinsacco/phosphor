@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { TELEMETRY_LIMITS, parseMachineTelemetry } from '@phosphor/shared/host-protocol-telemetry'
+import { parseMachineTelemetry } from '@phosphor/shared/host-protocol-telemetry'
 import {
   census,
+  coreCounters,
   classifyProc,
   parseCpuTime,
   parseMemInfo,
@@ -12,153 +13,169 @@ import {
   type PsRow,
 } from './telemetry'
 
-function row(over: Partial<PsRow> & { pid: number; ppid: number }): PsRow {
-  return {
-    rss: 1000,
-    cpuSec: 1,
-    elapsedSec: 60,
-    comm: 'node',
-    args: '/usr/local/bin/node something',
-    ...over,
-  }
-}
+const row = (over: Partial<PsRow> = {}): PsRow => ({
+  pid: 10,
+  ppid: 1,
+  rss: 1024,
+  cpuSec: 5,
+  elapsedSec: 60,
+  argv0: 'pi',
+  target: '',
+  ...over,
+})
 
-describe('ps output', () => {
-  it('parses the census line format', () => {
-    const rows = parsePsRows(
-      [
-        '  100     1  50000 00:02.50 3600 phosphor-host /usr/bin/phosphor-host --service',
-        '  101   100  90000 01:02:03 7200 node /usr/local/bin/pi --mode rpc',
-        'junk line without numbers',
-        '  102   101     0 1-02:03:04 90000 npx @modelcontextprotocol/server-fs',
-      ].join('\n'),
+describe('the ps census', () => {
+  it('reads a ps line into the fields the census needs', () => {
+    const [head, ...rest] = parsePsRows(
+      '  42   1  2048 00:01.02 90 /usr/local/bin/pi --mode rpc --session /home/bee2/s.jsonl\n' +
+        'garbage line\n' +
+        '43 42 512 0:02.00 80 node /opt/mcp/server-fs/index.js\n',
     )
-    expect(rows.map((r) => r.pid)).toEqual([100, 101, 102])
-    expect(rows[0]).toMatchObject({ ppid: 1, rss: 50000 * 1024, cpuSec: 2.5, elapsedSec: 3600 })
-    expect(rows[1]?.cpuSec).toBe(3723)
-    expect(rows[2]?.comm).toBe('npx')
+    expect(head?.pid).toBe(42)
+    expect(head?.ppid).toBe(1)
+    // ps reports RSS in kilobytes; the wire is bytes.
+    expect(head?.rss).toBe(2048 * 1024)
+    expect(head?.cpuSec).toBeCloseTo(1.02, 6)
+    expect(head?.elapsedSec).toBe(90)
+    expect(head?.argv0).toBe('/usr/local/bin/pi')
+    // Options are skipped, so this is `rpc` rather than the script. Harmless: only a
+    // runner's first argument is read as a program name, and `pi` is not one.
+    expect(head?.target).toBe('rpc')
+    expect(rest[0]?.target).toBe('/opt/mcp/server-fs/index.js')
+    expect(parsePsRows('no numbers here')).toEqual([])
   })
 
-  it('reads cpu time in each shape ps uses', () => {
+  it('reads each ps time shape, including a run longer than a day', () => {
     expect(parseCpuTime('00:01.02')).toBeCloseTo(1.02, 6)
-    expect(parseCpuTime('01:02:03')).toBe(3723)
-    expect(parseCpuTime('1-02:03:04')).toBe(93_784)
-    expect(parseCpuTime('nonsense')).toBe(0)
+    expect(parseCpuTime('1:02:03')).toBe(3723)
+    expect(parseCpuTime('1-02:03:04')).toBe(93784)
+    expect(parseCpuTime('')).toBe(0)
   })
 
-  it('labels a process by its executable, never its path', () => {
-    expect(procLabel(row({ pid: 1, ppid: 0, comm: 'node' }))).toBe('node')
-    expect(procLabel(row({ pid: 1, ppid: 0, comm: '', args: '/opt/bin/pi --mode rpc' }))).toBe('pi')
-    expect(procLabel(row({ pid: 1, ppid: 0, comm: 'x'.repeat(200) }))).toHaveLength(
-      TELEMETRY_LIMITS.labelBytes,
+  it('reads a label as a bare name, never a path or argv', () => {
+    expect(procLabel(row({ argv0: '/usr/local/bin/pi' }))).toBe('pi')
+    expect(procLabel(row({ argv0: '/usr/bin/python3.11' }))).toBe('python3.11')
+    expect(procLabel(row({ argv0: '/opt/Google Chrome Helper' }))).toBe('googlechromehelper')
+    expect(procLabel(row({ argv0: '' }))).toBe('proc')
+    expect(procLabel(row({ argv0: 'x'.repeat(300) })).length).toBeLessThanOrEqual(48)
+  })
+
+  it('names a process by argv[0], and by its script only when a runner launched it', () => {
+    expect(classifyProc(row({ pid: 1 }), 1, false)).toBe('host')
+    expect(classifyProc(row({ argv0: '/usr/local/bin/pi' }), 1, true)).toBe('pi')
+    expect(classifyProc(row({ argv0: 'node', target: '/usr/local/bin/pi' }), 1, true)).toBe('pi')
+    expect(classifyProc(row({ argv0: 'node', target: '/opt/pi-subagents/run.js' }), 1, true)).toBe(
+      'pi',
     )
+    expect(classifyProc(row({ argv0: 'node', target: '/opt/mcp/fs.js' }), 1, true)).toBe('mcp')
+    // A shell under the Host is its terminal pane; a shell a lane opened is that
+    // lane's tool call, and `other` here.
+    expect(classifyProc(row({ argv0: '/usr/bin/bash' }), 1, true)).toBe('shell')
+    expect(classifyProc(row({ argv0: 'bash' }), 1, false)).toBe('other')
+    // The rest of a command line never decides what a process is.
+    expect(classifyProc(row({ argv0: 'grep', target: 'mcp' }), 1, false)).toBe('other')
+    expect(classifyProc(row({ argv0: 'cat', target: 'pi.jsonl' }), 1, false)).toBe('other')
+    expect(classifyProc(row({ argv0: '/usr/bin/pnpm' }), 1, false)).toBe('other')
   })
-})
 
-describe('process kinds', () => {
-  const kind = (over: Partial<PsRow> & { pid: number; ppid: number }, rootChild = false) =>
-    classifyProc(row(over), 100, rootChild)
-
-  it('separates the Host, its lanes and its MCP servers', () => {
-    expect(kind({ pid: 100, ppid: 1 })).toBe('host')
-    expect(kind({ pid: 200, ppid: 100, args: '/usr/local/bin/pi --mode rpc' })).toBe('pi')
-    expect(kind({ pid: 201, ppid: 100, args: 'npx @earendil-works/pi-coding-agent' })).toBe('pi')
-    expect(kind({ pid: 202, ppid: 100, args: 'npx @modelcontextprotocol/server-fs' })).toBe('mcp')
-    expect(kind({ pid: 203, ppid: 100, comm: 'bash' }, true)).toBe('shell')
-    expect(kind({ pid: 204, ppid: 101, comm: 'bash' }, false)).toBe('other')
-    expect(kind({ pid: 205, ppid: 100, comm: 'node', args: 'worker.js' })).toBe('other')
-  })
-})
-
-describe('census', () => {
-  it('keeps the Host subtree and nothing else', () => {
-    const { procs, kinds } = census(
+  it('walks the Host subtree alone, not the whole process table', () => {
+    const taken = census(
       [
-        row({ pid: 100, ppid: 1 }),
-        row({ pid: 101, ppid: 100, args: 'pi --mode rpc' }),
-        row({ pid: 102, ppid: 101, args: 'git status' }),
-        row({ pid: 999, ppid: 1, args: 'postgres' }),
+        row({ pid: 1, ppid: 0, argv0: 'systemd' }),
+        row({ pid: 2, ppid: 0, argv0: 'kthreadd' }),
+        row({ pid: 100, ppid: 1, argv0: '/usr/bin/pi' }),
+        row({ pid: 101, ppid: 100, argv0: 'node', target: '/opt/mcp/fs.js' }),
+        row({ pid: 999, ppid: 2, argv0: 'sshd' }),
       ],
-      100,
-      500,
+      1,
+      1000,
     )
-    expect(procs.map((p) => p.pid).sort()).toEqual([100, 101, 102])
-    expect(procs.find((p) => p.pid === 100)?.kind).toBe('host')
-    expect(procs.find((p) => p.pid === 100)?.label).toBe('node')
-    expect(kinds.find((k) => k.kind === 'pi')?.procs).toBe(1)
-    expect(kinds.find((k) => k.kind === 'other')?.procs).toBe(1)
+    expect(taken.procs.map((p) => p.pid).sort((a, b) => a - b)).toEqual([1, 100, 101])
+    expect(taken.kinds.find((k) => k.kind === 'host')?.procs).toBe(1)
+    expect(taken.kinds.find((k) => k.kind === 'pi')?.procs).toBe(1)
+    expect(taken.kinds.find((k) => k.kind === 'mcp')?.procs).toBe(1)
+    // A Host whose pid is not in the table yields an empty census, not a crash.
+    expect(census([row({ pid: 7 })], 1, 100).procs).toEqual([])
   })
 
-  it('clamps a child older than the machine', () => {
-    const { procs } = census(
-      [row({ pid: 100, ppid: 1, elapsedSec: 900 }), row({ pid: 101, ppid: 100, elapsedSec: 4000 })],
-      100,
-      900,
+  it('totals every process it walked even when it returns the cap', () => {
+    const many = Array.from({ length: 120 }, (_, index) =>
+      row({ pid: 10 + index, ppid: 1, rss: (120 - index) * 1024 }),
     )
-    expect(procs.find((p) => p.pid === 101)?.uptimeSec).toBe(900)
+    const taken = census([row({ pid: 1, ppid: 0, rss: 10 }), ...many], 1, 1000)
+    expect(taken.procs.length).toBe(96)
+    expect(taken.kinds.reduce((sum, kind) => sum + kind.procs, 0)).toBe(121)
+    // The tree is reported biggest-holder first.
+    expect(taken.procs[0]?.rss).toBe(120 * 1024)
   })
 
-  it('totals every process it saw while capping the list it sends', () => {
-    const crowd = [row({ pid: 100, ppid: 1, rss: 10 })]
-    const children = TELEMETRY_LIMITS.procs + 4
-    for (let pid = 1; pid <= children; pid++) {
-      crowd.push(row({ pid: 500 + pid, ppid: 100, rss: pid * 100 }))
-    }
-    const { procs, kinds } = census(crowd, 100, 500)
-    expect(procs).toHaveLength(TELEMETRY_LIMITS.procs)
-    expect(procs[0]?.pid).toBe(500 + children)
-    expect(kinds.find((k) => k.kind === 'other')?.procs).toBe(children)
-    expect(kinds.reduce((sum, kind) => sum + kind.procs, 0)).toBe(children + 1)
-  })
-
-  it('is empty when the root is not in the list', () => {
-    expect(census([row({ pid: 7, ppid: 1 })], 100, 500)).toEqual({ procs: [], kinds: [] })
+  it('clips a child older than the machine, which a restored process can be', () => {
+    const taken = census(
+      [row({ pid: 1, ppid: 0 }), row({ pid: 2, ppid: 1, elapsedSec: 9999 })],
+      1,
+      10,
+    )
+    expect(taken.procs.map((p) => p.uptimeSec)).toEqual([10, 10])
   })
 })
 
-describe('memory files', () => {
-  it('reads the fields it trusts from /proc/meminfo', () => {
+describe('memory that Node does not report', () => {
+  it('takes the reclaimable pages and swap out of /proc/meminfo', () => {
+    expect(
+      parseMemInfo(['MemTotal: 16384 kB', 'Buffers: 100 kB', 'Cached: 200 kB'].join('\n')),
+    ).toEqual({ cache: 300 * 1024, swapTotal: 0, swapUsed: 0 })
     expect(
       parseMemInfo(
-        [
-          'MemTotal: 32000000 kB',
-          'MemFree: 1000 kB',
-          'Buffers: 2000 kB',
-          'Cached: 3000 kB',
-          'SReclaimable: 500 kB',
-          'SwapTotal: 8000 kB',
-          'SwapFree: 6000 kB',
-        ].join('\n'),
+        ['SwapTotal: 2048 kB', 'SwapFree: 512 kB', 'SReclaimable: 64 kB', 'MemTotal: 8 kB'].join(
+          '\n',
+        ),
       ),
-    ).toEqual({ cache: 5_500 * 1024, swapTotal: 8_000 * 1024, swapUsed: 2_000 * 1024 })
+    ).toEqual({ cache: 64 * 1024, swapTotal: 2048 * 1024, swapUsed: 1536 * 1024 })
+    expect(parseMemInfo('')).toEqual({ cache: 0, swapTotal: 0, swapUsed: 0 })
   })
 
-  it('reads macOS swap usage', () => {
-    expect(parseSwapUsage('total = 2048.00M  used = 312.25M  free = 1735.75M')).toEqual({
+  it('reads macOS swap', () => {
+    expect(parseSwapUsage('total = 2048.00M  used = 312.50M  free = 1735.50M')).toEqual({
       swapTotal: 2048 * 1024 * 1024,
-      swapUsed: 312.25 * 1024 * 1024,
+      swapUsed: 312.5 * 1024 * 1024,
     })
-    expect(parseSwapUsage('')).toEqual({ swapTotal: 0, swapUsed: 0 })
+    expect(parseSwapUsage('total = 0.00M  used = 0.00M  free = 0.00M')).toEqual({
+      swapTotal: 0,
+      swapUsed: 0,
+    })
+  })
+})
+
+describe('cpu counters', () => {
+  it('counts an optional cpu slice a platform leaves out as zero, not as NaN', () => {
+    // Node's types declare these present; Linux has not reported `softirq` since 2.6.36.
+    expect(coreCounters({ idle: 100 })).toEqual({ idle: 100, busy: 0 })
+    expect(coreCounters({ idle: 100, user: 5, sys: 2.5 })).toEqual({ idle: 100, busy: 7.5 })
+    expect(coreCounters({ idle: 0, nice: 1, irq: 1, softirq: 1 }).busy).toBe(3)
   })
 })
 
 describe('sampleTelemetry', () => {
-  it('answers with a sample a client will accept, and no argv', async () => {
+  it('answers with the whole machine and parses as the contract says it must', async () => {
     const sample = await sampleTelemetry({
       home: process.cwd(),
-      rows: async () => [
-        row({ pid: process.pid, ppid: 1 }),
-        row({ pid: process.pid + 1, ppid: process.pid, args: 'pi --mode rpc', comm: 'pi' }),
-      ],
+      now: () => 1_700_000_000_000,
+      rows: async () => [row({ pid: process.pid, ppid: 1, argv0: 'node' })],
     })
+    expect(sample.cpu.perCore.length).toBeGreaterThan(0)
+    expect(sample.census?.kinds.find((k) => k.kind === 'host')?.procs).toBe(1)
+    expect(sample.at).toBe(1_700_000_000_000)
     expect(parseMachineTelemetry(sample)).not.toBeNull()
-    expect(sample.load).toHaveLength(3)
-    expect(sample.cpu.perCore).toHaveLength(sample.cpu.cores)
-    expect(sample.cpu.perCore.every((c) => c.idle > 0)).toBe(true)
-    expect(sample.mem.used).toBeLessThan(sample.mem.total)
-    expect(sample.disk.total).toBeGreaterThan(0)
-    expect(sample.kinds.find((k) => k.kind === 'pi')?.procs).toBe(1)
-    expect(JSON.stringify(sample)).not.toContain('--mode')
-    expect(JSON.stringify(sample)).not.toContain(process.cwd())
+  })
+
+  it('answers with a null census when ps fails, and still reports the machine', async () => {
+    const sample = await sampleTelemetry({
+      home: process.cwd(),
+      now: () => 1_700_000_001_000,
+      rows: async () => null,
+    })
+    expect(sample.census).toBeNull()
+    expect(sample.cpu.perCore.length).toBeGreaterThan(0)
+    expect(parseMachineTelemetry(sample)).not.toBeNull()
   })
 })

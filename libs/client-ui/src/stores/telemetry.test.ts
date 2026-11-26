@@ -1,47 +1,64 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
+import {
+  TELEMETRY_POLL_MS,
+  setTelemetryAllowed,
+  telemetryUnreadable,
+  telemetryView,
+  useTelemetry,
+  watchTelemetry,
+} from './telemetry'
+import { useRemoteLanesStore } from './remoteLanes'
+import { MOCK_HOST_ID, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 import type { MachineTelemetry } from '@phosphor/shared/host-protocol-telemetry'
-import { TELEMETRY_POLL_MS, telemetryOf, useTelemetryStore, watchTelemetry } from './telemetry'
 
-const HOST = 'host-one'
+const hostId = MOCK_HOST_ID
+/** Typed so the mock's implementation keeps its promise return. */
+type TelemetryInvoke = (hostId: string) => Promise<MachineTelemetry | null>
+let invoke: Mock<TelemetryInvoke>
 
-/** `busy` is each core's busy counter, so consecutive samples make a rate. */
-function sample(at: number, busy: number, procCpuSec = busy, rss = 1_000): MachineTelemetry {
-  const core = (value: number) => ({ idle: 100, busy: value })
-  return {
-    at,
-    uptimeSec: 1000,
-    load: [0.5, 0.5, 0.5],
-    cpu: {
-      cores: 2,
-      total: { idle: 200, busy: busy * 2 },
-      perCore: [core(busy), core(busy)],
-    },
-    mem: { total: 8000, free: 2000, used: 5000, cache: 1000, swapTotal: 0, swapUsed: 0 },
-    disk: { total: 100_000, free: 40_000 },
-    kinds: [{ kind: 'pi', procs: 1, cpuSec: procCpuSec, rss }],
-    procs: [{ pid: 10, ppid: 1, kind: 'pi', label: 'pi', cpuSec: procCpuSec, rss, uptimeSec: 10 }],
-  }
+/** The mock Host, with the grant this read rides on. */
+const readableHost = () => {
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.capabilities.push('skills.read')
+  return host
 }
 
-/** Let a poll already in flight land, without firing another one. */
-async function settle(): Promise<void> {
-  for (let tick = 0; tick < 8; tick++) await Promise.resolve()
+/** A wire-shaped sample; `busy` and `cpuSec` step with `round` so rates move. */
+const sample = (round = 0, over: Partial<MachineTelemetry> = {}): MachineTelemetry => ({
+  at: 1_700_000_000_000 + round * TELEMETRY_POLL_MS,
+  uptimeSec: 1_000 + round * TELEMETRY_POLL_MS,
+  load: [1, 1, 1],
+  cpu: {
+    perCore: [
+      { idle: 100 + round * 50, busy: 50 + round * 50 },
+      { idle: 100 + round * 50, busy: 50 + round * 50 },
+    ],
+  },
+  mem: { total: 1000, free: 200, used: 600, cache: 200, swapTotal: 100, swapUsed: 20 },
+  disk: { total: 5_000, free: 1_000 },
+  census: {
+    kinds: [{ kind: 'pi', procs: 2, cpuSec: 10 + round, rss: 500 }],
+    procs: [],
+  },
+  ...over,
+})
+
+/** Let the loop's read settle and its pause expire. */
+const tick = async (ms = 0): Promise<void> => {
+  await vi.advanceTimersByTimeAsync(ms)
 }
 
-const state = () => useTelemetryStore.getState()
-const host = () => telemetryOf(state(), HOST)
-
-let invoke: Mock<(channel: string, hostId: string) => Promise<unknown>>
-let clock = 1_000_000
+const view = () => telemetryView(useTelemetry.getState(), hostId)
 
 beforeEach(() => {
-  clock = 1_000_000
-  useTelemetryStore.setState({ hosts: {} })
-  invoke = vi.fn<(channel: string, hostId: string) => Promise<unknown>>(async () =>
-    sample(clock++, 10),
-  )
-  vi.stubGlobal('window', { phosphor: { invoke } })
   vi.useFakeTimers()
+  let round = 0
+  invoke = vi.fn<TelemetryInvoke>(async () => sample(round++))
+  vi.stubGlobal('window', { phosphor: { invoke } })
+  useRemoteLanesStore.setState({ hosts: { [hostId]: readableHost() } })
+  useTelemetry.setState({ byHost: {} })
+  setTelemetryAllowed(true)
 })
 
 afterEach(() => {
@@ -49,152 +66,145 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('telemetry polling', () => {
-  it('polls a Host only while a viewer is open', async () => {
-    const close = watchTelemetry(HOST)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
+describe('watching a Host', () => {
+  it('reads on open and every interval after, and stops with the last viewer', async () => {
+    const stop = watchTelemetry(hostId)
+    await tick()
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(view().current).not.toBeNull()
+    // The first sample has no predecessor, so it has no rate to show.
+    expect(view().cpu).toBeNull()
+    expect(view().receivedAt).not.toBeNull()
+
+    await tick(TELEMETRY_POLL_MS)
     expect(invoke).toHaveBeenCalledTimes(2)
-    close()
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS * 5)
+    expect(view().cpu).not.toBeNull()
+
+    stop()
+    await tick(TELEMETRY_POLL_MS * 5)
     expect(invoke).toHaveBeenCalledTimes(2)
   })
 
-  it('shares one interval between two viewers of the same Host', async () => {
-    const first = watchTelemetry(HOST)
-    const second = watchTelemetry(HOST)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
+  it('serves two viewers from one poll, and stops only when both have gone', async () => {
+    const first = watchTelemetry(hostId)
+    const second = watchTelemetry(hostId)
+    await tick(TELEMETRY_POLL_MS)
     expect(invoke).toHaveBeenCalledTimes(2)
     first()
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
+    await tick(TELEMETRY_POLL_MS)
     expect(invoke).toHaveBeenCalledTimes(3)
     second()
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS * 3)
+    await tick(TELEMETRY_POLL_MS * 3)
     expect(invoke).toHaveBeenCalledTimes(3)
   })
 
-  it('never overlaps a request still in flight', async () => {
-    let release: (value: MachineTelemetry) => void = () => undefined
-    invoke.mockImplementation(() => new Promise<MachineTelemetry>((resolve) => (release = resolve)))
-    const close = watchTelemetry(HOST)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS * 4)
+  it('never has two reads in flight, however slow the Host is', async () => {
+    const waiting: (() => void)[] = []
+    invoke.mockImplementation(async () => {
+      await new Promise<void>((resolve) => {
+        waiting.push(resolve)
+      })
+      return sample(1)
+    })
+    const stop = watchTelemetry(hostId)
+    await tick(TELEMETRY_POLL_MS * 10)
     expect(invoke).toHaveBeenCalledTimes(1)
-    release(sample(clock++, 20))
-    await settle()
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
+    expect(waiting.length).toBe(1)
+    waiting.shift()?.()
+    await tick(TELEMETRY_POLL_MS)
     expect(invoke).toHaveBeenCalledTimes(2)
-    // Let the second request land too, or its in-flight guard outlives the test.
-    release(sample(clock++, 25))
-    await settle()
-    close()
+    stop()
   })
 
-  it('drops a reply to a poll nobody is waiting for any more', async () => {
-    let release: (value: MachineTelemetry) => void = () => undefined
-    invoke.mockImplementation(() => new Promise<MachineTelemetry>((resolve) => (release = resolve)))
-    watchTelemetry(HOST)()
-    expect(host().loading).toBe(false)
-    release(sample(clock++, 20))
-    await settle()
-    expect(host().sample).toBeNull()
-  })
-
-  it('asks a wedged request no longer than the stall window', async () => {
-    invoke.mockImplementation(() => new Promise<MachineTelemetry>(() => undefined))
-    const close = watchTelemetry(HOST)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS * 14)
-    expect(invoke).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(invoke).toHaveBeenCalledTimes(2)
-    close()
-  })
-
-  it('asks nothing while paused', async () => {
-    const close = watchTelemetry(HOST)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    const calls = invoke.mock.calls.length
-    state().setPaused(HOST, true)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS * 5)
-    expect(invoke).toHaveBeenCalledTimes(calls)
-    state().setPaused(HOST, false)
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(invoke).toHaveBeenCalledTimes(calls + 1)
-    close()
-  })
-})
-
-describe('telemetry projection', () => {
-  it('has no rate for the first sample and a real one after it', async () => {
-    invoke
-      .mockResolvedValueOnce(sample(1_000, 0, 0))
-      .mockResolvedValueOnce(sample(3_000, 15, 1))
-      .mockResolvedValueOnce(sample(5_000, 45, 1))
-    const close = watchTelemetry(HOST)
-    await settle()
-    expect(host().sample?.at).toBe(1_000)
-    expect(host().points.map((p) => p.cpu)).toEqual([null])
-
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(host().points.map((p) => p.cpu)).toEqual([null, 100])
-    expect(host().procPct).toEqual({ 10: 50 })
-    expect(host().corePct).toEqual([100, 100])
-    expect(host().points[1]).toMatchObject({ memUsed: 5000, phosphor: 1000, procs: 1 })
-
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(host().points.map((p) => p.cpu)).toEqual([null, 100, 100])
-    close()
-  })
-
-  it('makes no rate across a gap too wide to describe the present', async () => {
-    invoke
-      .mockResolvedValueOnce(sample(1_000, 0, 0))
-      .mockResolvedValueOnce(sample(1_000 + 600_000, 30, 5))
-    const close = watchTelemetry(HOST)
-    await settle()
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(host().points.map((p) => p.cpu)).toEqual([null, null])
-    expect(host().procPct).toEqual({})
-    expect(host().corePct).toEqual([])
-    close()
-  })
-
-  it('keeps the ring bounded and drops the oldest points', async () => {
-    let at = 1_000
-    invoke.mockImplementation(async () => sample(++at, 10))
-    const close = watchTelemetry(HOST)
-    for (let tick = 0; tick < 1_802; tick++) await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(host().points).toHaveLength(1_800)
-    expect(host().points.at(-1)?.at).toBe(at)
-    close()
-  })
-
-  it('says so when the Host is too old, without inventing numbers', async () => {
+  it('keeps the last sample through a failed read, and starts a new series after it', async () => {
+    const stop = watchTelemetry(hostId)
+    await tick(TELEMETRY_POLL_MS)
+    const cpuBefore = view().cpu
+    const pointsBefore = view().points.length
+    expect(cpuBefore).not.toBeNull()
     invoke.mockResolvedValueOnce(null)
-    const close = watchTelemetry(HOST)
-    await settle()
-    expect(host()).toMatchObject({ sample: null, unsupported: true, loading: false })
-    expect(host().error).toContain('does not report')
-    close()
+    await tick(TELEMETRY_POLL_MS)
+    // Nothing on screen changes: the sample there is still the last known truth,
+    // and its `receivedAt` is what tells the popover it is going stale.
+    expect(view().cpu).toBe(cpuBefore)
+    expect(view().points.length).toBe(pointsBefore)
+    // The read that follows a miss would compare against a sample two intervals
+    // old; that is a rate over a period nobody watched, so it shows nothing.
+    await tick(TELEMETRY_POLL_MS)
+    expect(view().cpu).toBeNull()
+    expect(view().points.length).toBe(pointsBefore + 1)
+    await tick(TELEMETRY_POLL_MS)
+    expect(view().cpu).not.toBeNull()
+    stop()
   })
 
-  it('keeps the last good sample through a failure and recovers on the next tick', async () => {
-    invoke.mockResolvedValueOnce(sample(1_000, 10)).mockRejectedValueOnce(new Error('gone'))
-    const close = watchTelemetry(HOST)
-    await settle()
-    expect(host().error).toBeNull()
-
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(host().sample?.at).toBe(1_000)
-    expect(host().error).toBe('Telemetry unavailable.')
-
-    invoke.mockResolvedValueOnce(sample(3_000, 40))
-    await vi.advanceTimersByTimeAsync(TELEMETRY_POLL_MS)
-    expect(host().error).toBeNull()
-    expect(host().points.at(-1)?.at).toBe(3_000)
-    close()
+  it('starts a clean series on a new connection rather than a rate across it', async () => {
+    const stop = watchTelemetry(hostId)
+    await tick(TELEMETRY_POLL_MS * 3)
+    expect(view().points.length).toBe(4)
+    const host = readableHost()
+    useRemoteLanesStore.setState({
+      hosts: { [hostId]: { ...host, connectionToken: 'next-connection' } },
+    })
+    await tick(TELEMETRY_POLL_MS * 2)
+    // Reading never stopped, but the series did: a new connection's counters have
+    // no honest relationship to the old connection's, so it starts over.
+    expect(invoke.mock.calls.length).toBeGreaterThan(4)
+    expect(view().points.length).toBeLessThan(4)
+    expect(view().current).not.toBeNull()
+    stop()
   })
 
-  it('gives every Host without data the same frozen empty value', () => {
-    expect(telemetryOf(state(), 'nobody')).toBe(telemetryOf(state(), 'nobody-else'))
-    expect(telemetryOf(state(), 'nobody').points).toHaveLength(0)
+  it('stops reading while the tab is hidden and keeps the sample it has', async () => {
+    const stop = watchTelemetry(hostId)
+    await tick(TELEMETRY_POLL_MS)
+    const held = view().current
+    const before = invoke.mock.calls.length
+    setTelemetryAllowed(false)
+    await tick(TELEMETRY_POLL_MS * 5)
+    expect(invoke.mock.calls.length).toBe(before)
+    expect(view().current).toBe(held)
+    setTelemetryAllowed(true)
+    await tick()
+    expect(invoke.mock.calls.length).toBe(before + 1)
+    stop()
+  })
+
+  it('says so when this connection cannot read the machine, without asking it', async () => {
+    const host = mockRemoteHosts[MOCK_HOST_ID]!
+    useRemoteLanesStore.setState({
+      hosts: {
+        [hostId]: { ...host, capabilities: host.capabilities.filter((c) => c !== 'skills.read') },
+      },
+    })
+    const stop = watchTelemetry(hostId)
+    await tick(TELEMETRY_POLL_MS * 3)
+    expect(invoke).not.toHaveBeenCalled()
+    expect(telemetryUnreadable(useTelemetry.getState(), hostId)).toBe(true)
+    stop()
+  })
+
+  it('begins reading when the grant arrives while the popover is open', async () => {
+    const host = readableHost()
+    useRemoteLanesStore.setState({
+      hosts: {
+        [hostId]: { ...host, capabilities: host.capabilities.filter((c) => c !== 'skills.read') },
+      },
+    })
+    const stop = watchTelemetry(hostId)
+    await tick()
+    expect(invoke).not.toHaveBeenCalled()
+    useRemoteLanesStore.setState({ hosts: { [hostId]: host } })
+    await tick()
+    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(telemetryUnreadable(useTelemetry.getState(), hostId)).toBe(false)
+    stop()
+  })
+
+  it('keeps one stable empty view for a Host it has never seen', () => {
+    const state = useTelemetry.getState()
+    expect(telemetryView(state, 'nope')).toBe(telemetryView(state, 'nope'))
+    expect(telemetryView(state, 'nope')).toBe(telemetryView(state, null))
+    expect(telemetryView(state, 'nope').current).toBeNull()
   })
 })
