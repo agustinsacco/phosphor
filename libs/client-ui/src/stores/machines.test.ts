@@ -27,10 +27,11 @@ describe('the enrolled machines projection', () => {
     off = undefined
     vi.useRealTimers()
   })
-  async function start(signedIn = true, onDemand = false) {
+  async function start(signedIn = true, onDemand = false, remoteDiscoveryActive = false) {
     const { attachMachinesListener, useMachinesStore } = await import('./machines')
     invoke.mockResolvedValueOnce({
       account: { status: signedIn ? 'signed-in' : 'signed-out' },
+      remoteDiscoveryActive,
     })
     off = attachMachinesListener(onDemand)
     await Promise.resolve()
@@ -57,6 +58,13 @@ describe('the enrolled machines projection', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(invoke.mock.calls).toEqual([['account:get'], ['control:machines']])
     useLayoutStore.getState().setPage(null)
+  })
+  it('loads the directory for a new Desktop window when discovery is already active in main', async () => {
+    invoke.mockResolvedValue({ ok: true, machines: [], serverTime: new Date().toISOString() })
+    const store = await start(true, true, true)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(invoke.mock.calls).toEqual([['account:get'], ['control:machines']])
+    expect(store.getState().directoryLoaded).toBe(true)
   })
   it('coalesces signals during a request into one follow-up and ignores late signed-out data', async () => {
     const { MACHINE } = await import('@/features/machines/__fixtures__/control')
