@@ -1,5 +1,7 @@
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
+import { requestPage } from '@phosphor/session-runtime/ops/ports'
+import { prefs } from '../prefs/backend'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
@@ -136,10 +138,10 @@ export const inventoryHandlers = {
       throw new OpRefusal('bad-request', 'Use --project from a local workspace lane.')
     if (project && !c.lane?.cwd)
       throw new OpRefusal('bad-request', 'Use --project from a local workspace lane.')
-    const prefs = (await import('../store')).getPrefs()
+    const store = prefs()
     return directiveResult(
-      prefs.agentDirectives,
-      project ? (prefs.agentDirectivesByProject[c.lane!.cwd] ?? null) : undefined,
+      store.get('agentDirectives'),
+      project ? (store.get('agentDirectivesByProject')?.[c.lane!.cwd] ?? null) : undefined,
     )
   }),
   'settings.read': op<{ section?: string; project?: string }>(async (a, c) =>

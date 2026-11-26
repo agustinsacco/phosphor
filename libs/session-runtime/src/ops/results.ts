@@ -227,7 +227,7 @@ export function directiveResult(
   const effective = normalizeAgentDirectives(project ?? global)
   const data = AGENT_DIRECTIVE_KEYS.map((key) => ({
     key,
-    override: overrides?.[key] ?? null,
+    override: typeof overrides?.[key] === 'boolean' ? overrides[key] : null,
     effective: effective[key],
   }))
   return { text: inventoryText(data, fields('key', 'override', 'effective')), data }
