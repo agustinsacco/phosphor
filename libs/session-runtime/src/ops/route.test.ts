@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   OPS_LIMITS,
+  parseOpsRunResult,
   type OpsRunRequest,
   type OpsRunResult,
 } from '@phosphor/shared/host-protocol-ops'
@@ -140,35 +141,75 @@ describe('--host fan-out', () => {
     })
   })
 
-  it('binds per-host cursors even when the siblings return the same offset', async () => {
-    const page = async () => ({ ...ok('first'), data: { rows: [1] }, next: '20' })
-    const r = remoteOf({ a: page, b: page })
-    const h = harness(r.remote)
+  it('keeps raw per-host cursors and continues on the selected host only', async () => {
+    const a = '20'
+    const b = 'h1_000000000000000000000000_30'
+    const r = remoteOf({
+      idA: async () => ({ ...ok('first'), data: { rows: [1] }, next: a }),
+      idB: async () => ({ ...ok('second'), data: { rows: [2] }, next: b }),
+    })
+    const h = harness(r.remote, {
+      hosts: {
+        resolve: async (hosts) => ({
+          ok: true,
+          hosts: (hosts === 'all' ? ['a', 'b'] : hosts).map((label) => ({
+            id: label === 'a' ? 'idA' : 'idB',
+            label,
+          })),
+        }),
+      },
+    })
     const result = await h.tool({ ...list, hosts: ['a', 'b'] })
     expect(result).toMatchObject({
       status: 'ok',
+      text: expect.stringContaining(`--host "b" --page "${b}"`),
       data: {
         hosts: [
-          { hostId: 'a', data: { rows: [1] }, next: expect.any(String) },
-          { hostId: 'b', data: { rows: [1] }, next: expect.any(String) },
+          { hostId: 'idA', label: 'a', data: { rows: [1] }, next: a },
+          { hostId: 'idB', label: 'b', data: { rows: [2] }, next: b },
         ],
       },
     })
     expect(result).not.toHaveProperty('next')
-    if (result.status !== 'ok') throw new Error('expected batch')
-    const [a, b] = (result.data as { hosts: { next: string }[] }).hosts
-    expect(a!.next).not.toBe(b!.next)
-    expect(await h.tool({ ...list, ...{ page: a!.next }, hosts: ['a', 'b'] })).toMatchObject({
-      code: 'bad-request',
-      text: expect.stringContaining('one host'),
-    })
-    expect(await h.tool({ ...list, ...{ page: a!.next }, hosts: ['b'] })).toMatchObject({
-      code: 'bad-request',
-    })
-    expect(await h.tool({ ...list, ...{ page: a!.next } })).toMatchObject({ code: 'bad-request' })
+    for (const hosts of [['a', 'b'], 'all'] as const) {
+      expect(await h.tool({ ...list, ...{ page: a }, hosts })).toMatchObject({
+        code: 'bad-request',
+        text: expect.stringContaining('one host'),
+      })
+    }
     expect(r.sent).toHaveLength(2)
-    await h.tool({ ...list, ...{ page: a!.next }, hosts: ['a'] })
-    expect(r.sent[2]).toMatchObject({ hostId: 'a', request: { page: '20' } })
+    await h.tool({ ...list, ...{ page: b }, hosts: ['b'] })
+    expect(r.sent[2]).toMatchObject({ hostId: 'idB', request: { page: b } })
+  })
+
+  it('omits only the oversized host data and keeps its continuation', async () => {
+    const r = remoteOf({
+      a: async () => ({
+        ...ok('large'),
+        next: '20',
+        data: 'x'.repeat(OPS_LIMITS.callDataBytes / 2),
+      }),
+      b: async () => ({
+        status: 'denied',
+        code: 'policy',
+        text: 'refused',
+        data: { detail: 'read only' },
+      }),
+    })
+    const out = await harness(r.remote).tool({ ...list, hosts: ['a', 'b'] })
+    expect(parseOpsRunResult(out)).toMatchObject({
+      data: {
+        hosts: [
+          {
+            status: 'ok',
+            text: 'large',
+            next: '20',
+            data: { omitted: true, reason: expect.stringContaining('--host "a"') },
+          },
+          { status: 'denied', code: 'policy', text: 'refused', data: { detail: 'read only' } },
+        ],
+      },
+    })
   })
 
   it('routes a qualified ref and refuses conflicting or ambiguous host selections before sends', async () => {

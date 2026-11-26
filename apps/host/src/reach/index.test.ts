@@ -101,6 +101,20 @@ describe('machine reach', () => {
     }
   })
 
+  it('names the version and requested op when an older Host is not enrolled for reach', async () => {
+    const bee2 = sibling('bee2')
+    const { reach } = setup([bee2], { overrides: { hostVersion: '0.2.99', machineGrants: false } })
+    try {
+      await expect(reach.run(bee2.id, read, { write: false })).resolves.toMatchObject({
+        code: 'unsupported',
+        message: expect.stringContaining('bee2 runs Host 0.2.99, which does not serve lane.list'),
+      })
+      expect(bee2.sockets).toHaveLength(0)
+    } finally {
+      await reach.close()
+    }
+  })
+
   it.each([
     [
       { machineReach: false },
