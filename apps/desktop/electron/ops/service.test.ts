@@ -22,14 +22,24 @@ const h = vi.hoisted(() => ({
 vi.mock('../broadcast', () => ({ broadcast: h.broadcast }))
 vi.mock('../prefs/backend', () => ({
   prefs: () => ({
-    get: () => h.policy,
+    get: (key: string) =>
+      key === 'agentDirectives'
+        ? { worktreeGuard: false }
+        : key === 'agentDirectivesByProject'
+          ? { [dir]: { laneCharter: false } }
+          : h.policy,
     set: (_: string, policy: typeof h.policy) => {
       h.policy = policy
     },
   }),
 }))
 vi.mock('../store', () => ({
-  getPrefs: () => ({ pinnedSessions: h.pins, recentWorkspaces: [] }),
+  getPrefs: () => ({
+    pinnedSessions: h.pins,
+    recentWorkspaces: [],
+    agentDirectives: { worktreeGuard: false, laneCharter: true },
+    agentDirectivesByProject: { [dir]: { worktreeGuard: true, laneCharter: false } },
+  }),
   setPinnedSessions: (pins: string[]) => {
     h.pins = pins
   },
@@ -365,4 +375,23 @@ it('queries effective lane controls without applying pending changes', async () 
     },
   })
   expect(h.command.mock.calls).toEqual([['mine', { type: 'get_state' }]])
+})
+
+it('reads stored directive overrides without mistaking normalized defaults for overrides', async () => {
+  expect(await tool(['directives', 'read'])).toMatchObject({
+    status: 'ok',
+    data: expect.arrayContaining([
+      { key: 'worktreeGuard', override: false, effective: false },
+      { key: 'laneCharter', override: null, effective: true },
+    ]),
+  })
+  expect(await tool(['directives', 'read', '--project'])).toMatchObject({
+    status: 'ok',
+    data: expect.arrayContaining([
+      { key: 'worktreeGuard', override: null, effective: true },
+      { key: 'laneCharter', override: false, effective: false },
+    ]),
+  })
+  expect(h.command).not.toHaveBeenCalled()
+  expect(h.broadcast).not.toHaveBeenCalled()
 })

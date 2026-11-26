@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import * as results from './results'
 
 const text = '"😀\\'.repeat(1500)
@@ -37,4 +37,16 @@ it('leaves qualified refs copyable and presents UTC timestamps at minute precisi
     updated: (row) => results.rowTime(row.updated),
   })
   expect(page.text).toBe(`ref | updated\n${ref} | 2026-11-26T10:56Z`)
+})
+
+it('labels cached MCP status with the snapshot age, or says the age is unknown', () => {
+  const now = vi.spyOn(Date, 'now').mockReturnValue(20_000)
+  try {
+    expect(results.cachedMcpStatus({ name: 'docs', state: 'ready' }, 7_500)).toContain(
+      'Cached status (12s old)',
+    )
+    expect(results.cachedMcpStatus({ name: 'docs' })).toContain('Cached status (age unknown)')
+  } finally {
+    now.mockRestore()
+  }
 })
