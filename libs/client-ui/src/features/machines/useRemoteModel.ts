@@ -50,7 +50,11 @@ export function useRemoteModel(hostId: string) {
     host?.state === 'ready' ? defaultRemoteModel(models, providers, preferences) : undefined
   const degraded = catalogue.source === 'config'
   const missingModel =
-    host?.state === 'ready' && catalogue.status === 'ready' && !model && !degraded
+    host?.state === 'ready' &&
+    catalogue.status === 'ready' &&
+    !model &&
+    !degraded &&
+    !catalogue.error
   const hint = hostReconnecting(host?.state)
     ? 'Connecting…'
     : (hostFeatureRefusal(host, 'skills.read', 'models') ??

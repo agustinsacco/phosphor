@@ -103,9 +103,12 @@ export function ModelMenu({
   const [activeIndex, setActiveIndex] = useState(0)
   const [providerFilter, setProviderFilter] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
+  const cold = loading && models.length === 0
 
   const { starred, recent, groupMode, setGroupMode, toggleStarred, recordUse } = useModelPicks()
-  useEffect(() => inputRef.current?.focus(), [])
+  useEffect(() => {
+    if (!cold) inputRef.current?.focus()
+  }, [cold])
 
   const unavailable = useMemo(() => blocked ?? unavailableModels(models), [blocked, models])
   const starredSet = useMemo(() => new Set(starred), [starred])
@@ -238,8 +241,6 @@ export function ModelMenu({
       current.includes(provider) ? current.filter((p) => p !== provider) : [...current, provider],
     )
   }
-
-  const cold = loading && models.length === 0
 
   // Not anchored to the trigger: an absolutely-positioned popup wide enough
   // to hold model names could sit partly outside the viewport, and focusing

@@ -41,7 +41,7 @@ const catalogueCache = createTtlCache(
     // Discovery errors reject the load, while launch errors use the config fallback.
     // Keep this preflight outside resolveCatalogueModels to preserve that distinction.
     const health = stub ? null : await cachedPiHealth()
-    const result = await resolveCatalogueModels(
+    return resolveCatalogueModels(
       async () => {
         if (stub) return process.execPath
         return health?.ok ? (health.binaryPath ?? null) : null
@@ -54,18 +54,21 @@ const catalogueCache = createTtlCache(
           : listModelsViaRpc(invoker.binaryPath, invoker.prefixArgs, invoker.env)
       },
     )
-    if (result.models.length === 0) throw new Error('no models available')
-    return result
   },
-  (result) => (result.source === 'pi' ? CATALOGUE_TTL_MS : CATALOGUE_FALLBACK_TTL_MS),
+  (result) => {
+    if (result.models.length === 0) return 0
+    return result.source === 'pi' ? CATALOGUE_TTL_MS : CATALOGUE_FALLBACK_TTL_MS
+  },
 )
 
 /** The cached catalogue's models, loading it if needed (session naming). */
 export async function catalogueModels(): Promise<CatalogueModel[]> {
-  return (await catalogueCache.get()).models
+  const { models } = await catalogueCache.get()
+  if (models.length === 0) throw new Error('no models available')
+  return models
 }
 
-/** An empty load is retryable, but the picker still receives a result, not an error. */
+/** Discovery/config errors use the same empty fallback as a failed launch with no config. */
 export async function catalogueResult(): Promise<CatalogueResult> {
   try {
     return await catalogueCache.get()
