@@ -169,6 +169,16 @@ describe('Codex usage', () => {
     expect((await read()).ok).toBe(true)
   })
 
+  it('does not replace a good cached snapshot when a forced refresh fails', async () => {
+    const fetcher = request()
+    const read = createCodexUsageReader(async () => authOutput(), fetcher)
+    const good = await read()
+    fetcher.mockResolvedValueOnce(new Response(null, { status: 429 }))
+    expect(await read(true)).toEqual({ ok: false, error: 'rate-limited' })
+    expect(await read()).toEqual(good)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
   it('sanitizes subprocess, network and JSON errors', async () => {
     expect(
       await createCodexUsageReader(async () => {
