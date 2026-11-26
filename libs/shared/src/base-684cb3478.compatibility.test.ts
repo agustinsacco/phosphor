@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { parseHeartbeatRequest, parseHeartbeatResponse, parseMachineView } from './control-api'
 import { parseGrantPayload, type GrantPayload } from './host-grant'
 import { parseLaneSummary } from './host-protocol/host-lanes'
+import { parseResultFrame } from './host-protocol/host-receipts'
 import { parseReadyFrame } from './host-protocol/host-ready'
 import { parseCallFrame, parseCommandFrame } from './host-protocol/client-commands'
 import { HOST_FRAMES, CLIENT_FRAMES } from '../test/__fixtures__/protocol-freeze'
@@ -162,6 +163,32 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
       reason: 'command',
       reply: { kind: 'receipt', requestId: frame.requestId, code: 'unsupported' },
     })
+  })
+
+  it('keeps service.pause in an ops.run command and its discovery bit inside opaque result data', () => {
+    const frame = {
+      ...CLIENT_FRAMES.command.ops,
+      op: { type: 'ops.run', op: 'service.pause', args: { action: 'cancel' } },
+    }
+    expect(parseCommandFrame(frame)).toStrictEqual({ ok: true, frame })
+    expect(baseCommands.parseCommandFrame(frame)).toStrictEqual({
+      ok: false,
+      reason: 'command',
+      reply: { kind: 'receipt', requestId: frame.requestId, code: 'unsupported' },
+    })
+    // host-receipts.ts (including parseResultFrame) is unchanged since 684cb3478.
+    const result = {
+      type: 'result',
+      id: UUID(8),
+      ok: true,
+      data: {
+        status: 'ok',
+        text: 'Machine status',
+        applies: 'now',
+        data: { pause: { kind: 'none' }, update: { pauseControl: true } },
+      },
+    }
+    expect(parseResultFrame(result)).toStrictEqual(result)
   })
 
   it('negotiates partial catalogue reads without changing the legacy call', () => {

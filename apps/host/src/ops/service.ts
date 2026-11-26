@@ -313,6 +313,7 @@ export interface RunOpsPorts extends Pick<
   | 'writes'
   | 'serviceUpdate'
   | 'pauseState'
+  | 'pauseControl'
   | 'log'
   | 'now'
 > {
