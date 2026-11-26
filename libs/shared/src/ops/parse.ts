@@ -33,7 +33,7 @@ function unknownFlag(key: string, spec: CatalogSpec): never {
     'json',
     ...(spec.paged ? ['page', 'limit'] : []),
     ...(spec.routable === false ? [] : ['host']),
-    ...Object.keys(spec.args.properties).filter((name) => name !== 'limit'),
+    ...Object.keys(spec.args.properties),
   ].map((flag) => `--${kebab(flag)}`)
   const safe = /^[a-zA-Z][\w-]{0,63}$/.test(key) ? ` --${key}` : ''
   return fail(`Unknown flag${safe}.${safe ? suggestion(`--${key}`, flags) : ''}`)
@@ -123,7 +123,8 @@ function readTokens(tokens: readonly string[], spec: CatalogSpec, tool: ToolFiel
       continue
     }
     if (key === 'host' && spec.routable === false) fail('This operation does not accept --host.')
-    if ((key === 'page' || key === 'limit') && !spec.paged)
+    const commonLimit = key === 'limit' && !Object.hasOwn(spec.args.properties, 'limit')
+    if ((key === 'page' || commonLimit) && !spec.paged)
       fail(`This operation does not accept --${key}; only paged operations do.`)
     if (
       !['host', 'reason', 'page', 'limit'].includes(key) &&
@@ -136,7 +137,7 @@ function readTokens(tokens: readonly string[], spec: CatalogSpec, tool: ToolFiel
     if (key === 'host') {
       if (options.hosts !== undefined) fail('Duplicate --host.')
       options.hosts = hostsOption(value)
-    } else if (key === 'limit') {
+    } else if (commonLimit) {
       const limit = Number(value)
       if (
         !/^\d+$/.test(value) ||
@@ -145,11 +146,8 @@ function readTokens(tokens: readonly string[], spec: CatalogSpec, tool: ToolFiel
         limit > OPS_MAX_PAGE_ROWS
       )
         fail(`limit: expected an integer 1–${OPS_MAX_PAGE_ROWS}.`)
-      if (Object.hasOwn(spec.args.properties, key)) setArg(args, spec, key, String(limit))
-      else {
-        if (options.limit !== undefined) fail('Duplicate --limit.')
-        options.limit = limit
-      }
+      if (options.limit !== undefined) fail('Duplicate --limit.')
+      options.limit = limit
     } else if (key === 'page' || key === 'reason') {
       if (options[key] !== undefined) fail(`Duplicate --${key}.`)
       options[key] = value

@@ -4,25 +4,41 @@ import { record } from '../host-protocol/primitives'
 import type { CatalogSpec } from './domains/spec'
 
 export function integerRange(schema: TSchema): string | undefined {
+  if (!Type.IsInteger(schema) || !record(schema)) return undefined
   const { minimum, maximum } = schema
-  if (!Type.IsInteger(schema)) return undefined
   if (typeof minimum === 'number' && typeof maximum === 'number') return `${minimum}–${maximum}`
   if (typeof minimum === 'number') return `≥ ${minimum}`
   if (typeof maximum === 'number') return `≤ ${maximum}`
 }
 
 export function choices(schema: TSchema): string | undefined {
-  const { enum: values } = schema
-  if (Type.IsString(schema) && Array.isArray(values) && values.length) return values.join('|')
+  if (Type.IsString(schema) && record(schema)) {
+    const values = schema.enum
+    if (Array.isArray(values) && values.length) return values.join('|')
+  }
   if (Type.IsLiteral(schema)) return String(schema.const)
+}
+
+/** A schema may require exactly one of several single-field selectors. */
+function exclusiveFields(options: unknown): string | undefined {
+  if (!Array.isArray(options) || options.length < 2) return
+  const fields = []
+  for (const option of options) {
+    if (!record(option) || Object.keys(option).length !== 1) return
+    const { required } = option
+    if (!Array.isArray(required) || required.length !== 1 || typeof required[0] !== 'string') return
+    fields.push(required[0])
+  }
+  return fields.join(', ')
 }
 
 export function constraint(schema: TSchema): string {
   if (Type.IsLiteral(schema)) return String(schema.const)
   const allowed = choices(schema)
   if (allowed !== undefined) return `one of ${allowed}`
+  const options = record(schema) ? schema : {}
   const { minLength, maxLength, minItems, maxItems, uniqueItems, minProperties, maxProperties } =
-    schema
+    options
   const range = integerRange(schema)
   if (Type.IsInteger(schema)) return range ? `an integer ${range}` : 'an integer'
   if (Type.IsBoolean(schema)) return 'on, off, true or false'
@@ -39,6 +55,8 @@ export function constraint(schema: TSchema): string {
   }
   if (Type.IsNull(schema)) return 'null'
   if (Type.IsObject(schema)) {
+    const exclusive = exclusiveFields(options.oneOf)
+    if (exclusive) return `exactly one of ${exclusive}`
     if (minProperties === 1 && maxProperties === 1)
       return `exactly one of ${Object.keys(schema.properties).join(', ')}`
     const required = schema.required?.join(', ')

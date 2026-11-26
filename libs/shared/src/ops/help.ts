@@ -27,7 +27,9 @@ export function opUsage(spec?: CatalogSpec): string {
   const positional = spec.positional ?? []
   const keys = [
     ...positional,
-    ...Object.keys(spec.args.properties).filter((k) => !positional.includes(k) && k !== 'limit'),
+    ...Object.keys(spec.args.properties).filter(
+      (k) => !positional.includes(k) && !(spec.paged && k === 'limit'),
+    ),
   ]
   return [
     'Usage: phosphor',
