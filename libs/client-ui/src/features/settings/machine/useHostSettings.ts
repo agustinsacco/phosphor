@@ -124,10 +124,7 @@ export function useHostSettings(
   repositoryId?: string,
   suspended = false,
 ) {
-  const revision = useHostResourceRevision(
-    section ? hostId : null,
-    section === 'connectors' ? 'connectors' : section === 'resources' ? 'packages' : 'settings',
-  )
+  const revision = useHostResourceRevision(section ? hostId : null, resourceKind(section))
   const supported = usePlatform().machineSettings
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
@@ -188,4 +185,9 @@ export function useHostSettings(
     },
   }
 }
+function resourceKind(section: MachineSettingsSection | null) {
+  if (section === 'connectors') return 'connectors'
+  return section === 'resources' ? 'packages' : 'settings'
+}
+
 export type HostSettingsState = ReturnType<typeof useHostSettings>

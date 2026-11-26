@@ -36,8 +36,8 @@ import {
   requestReveal,
 } from '@/features/sessions/laneReveal'
 
-const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
 const laneRemoved = (machine = localMachineLabel()): string => `This lane was removed on ${machine}`
+const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
 export { REMOTE_NOT_READY } from './hostRefusals'
 export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
   // A first attempt is not a reconnection; the wait notes (`connectingTo`) say the same.
@@ -283,7 +283,6 @@ function acceptSnapshot(hosts: HostsSnapshot): void {
   }))
 }
 
-/** Main owns the bounded cache. Refetch serially, and reject replies after detach. */
 export function attachRemoteLanesListener(): () => void {
   useRemoteLanesStore.setState({ snapshotStatus: 'loading' })
   let active = true
@@ -358,8 +357,8 @@ export function attachRemoteLanesListener(): () => void {
       if (state.activeSessionId) void refreshRemoteArtifacts(state.activeSessionId)
     }
   })
-  reportFocus()
   const offResources = attachHostResourceChanges()
+  reportFocus()
   const offChanged = window.phosphor.onHostsChanged(() => void refresh())
   const offAttention = window.phosphor.onHostAttention((event) => {
     void refresh()

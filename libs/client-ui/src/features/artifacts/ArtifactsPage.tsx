@@ -53,11 +53,13 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
   const override = useMachinePagesStore((s) => s.artifactsMachine)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const machine = serviceScope(pageMachine(filter, override, true), hosts)
-  const revision = useHostResourceRevision(machine === 'local' ? null : machine === 'all' ? '*' : machine, 'artifacts')
+  const revision = useHostResourceRevision(
+    machine === 'local' ? null : machine === 'all' ? '*' : machine,
+    'artifacts',
+  )
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
-  // Reload when a session opens, closes or changes on disk, so a session
-  // deleted while this page is open shows as deleted instead of going stale.
+  // Refresh deletion status after changes to the session inventory.
   const liveIds = useSessionsStore((s) => Object.keys(s.live).join('\n'))
   const disk = useSessionsStore((s) => s.disk)
   const [listingError, setListingError] = useState(false)
