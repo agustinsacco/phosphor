@@ -1,6 +1,5 @@
 import { useSessionsStore, sessionIsOpen } from '@/stores/sessions'
-import { useChatStore } from '@/stores/chat'
-import { readSessionModels } from '@/stores/sessionModels'
+import { loadSessionModels } from '@/stores/sessionModels'
 import { useSignInAction } from '../useSignInAction'
 import type { SettingsMachine } from '@/features/settings/settingsUiStore'
 import type { ModelAction } from './ModelActionButtons'
@@ -9,17 +8,15 @@ import type { ModelAction } from './ModelActionButtons'
 export function useSessionModelActions(sessionId: string): {
   machine: SettingsMachine
   actions: ModelAction[]
+  retry: () => void
 } {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
   const machine = target?.kind === 'remote' ? target.hostId : 'local'
   const signIn = useSignInAction(machine)
+  const retry = () => void loadSessionModels(sessionId, () => sessionIsOpen(sessionId))
   return {
     machine,
-    actions: [{ label: 'Retry models', run: () => void retrySessionModels(sessionId) }, signIn],
+    actions: [{ label: 'Retry models', run: retry }, signIn],
+    retry,
   }
-}
-
-async function retrySessionModels(sessionId: string): Promise<void> {
-  const models = await readSessionModels(sessionId)
-  if (sessionIsOpen(sessionId)) useChatStore.getState().setModels(sessionId, models)
 }

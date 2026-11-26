@@ -22,6 +22,7 @@ export function PopupMenu({
   triggerRef,
   fitViewport = false,
   escapeContainer = false,
+  withinOverlay = false,
   role,
   id,
   ariaLabel,
@@ -33,8 +34,9 @@ export function PopupMenu({
   className?: string
   triggerRef?: React.RefObject<HTMLElement | null>
   fitViewport?: boolean
-  /** Portal an anchored menu out of a scrolling feature container. */
   escapeContainer?: boolean
+  /** A body-portaled overlay already owns positioning and stacking. */
+  withinOverlay?: boolean
   /**
    * `listbox` for a typeahead list whose rows are `MenuRow role="option"`.
    * Pair with `ariaActiveDescendant` so a screen reader follows the ↑/↓
@@ -78,9 +80,7 @@ export function PopupMenu({
     <div
       ref={ref}
       style={{ ...computedStyle, ...anchorStyle, ...liftStyle }}
-      // Marks the subtree as no-drag (see .titlebar-drag in styles/index.css):
-      // a menu opened from inside a window-drag region must stay clickable,
-      // including its non-button rows (labels, separators).
+      // Keep menus clickable inside titlebar drag regions.
       data-popup-menu
       data-compact-menu={compact || undefined}
       role={role}
@@ -93,7 +93,7 @@ export function PopupMenu({
       {children}
     </div>
   )
-  const placed = compact || anchored ? createPortal(menu, document.body) : menu
+  const placed = !withinOverlay && (compact || anchored) ? createPortal(menu, document.body) : menu
   return (
     <>
       {liftMarker}

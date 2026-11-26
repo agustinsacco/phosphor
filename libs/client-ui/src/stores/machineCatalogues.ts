@@ -81,11 +81,13 @@ export const useMachineCataloguesStore = create<{
       const reply = await window.phosphor.invoke('hosts:models', hostId)
       const list = parseMachineModelList(reply)
       if (!current()) return
+      if (!list || (list.source === 'config' && list.models.length === 0))
+        throw new Error(MODELS_READ_FAILED)
       const providers = parseMachineProviders(
         await window.phosphor.invoke('hosts:providers', hostId),
       )
       if (!current()) return
-      if (!list || !providers) throw new Error(MODELS_READ_FAILED)
+      if (!providers) throw new Error(MODELS_READ_FAILED)
       // A config fallback can populate a cold picker, never demote a complete list (even []).
       const visible = list.source === 'config' && previous && !previous.source ? previous : list
       finish({

@@ -6,10 +6,12 @@ import {
   createFakePhosphor,
   installFakePhosphor,
 } from '../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
-import { COMPACT_PLATFORM, PlatformProvider } from '@/platform/Platform'
+import { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider } from '@/platform/Platform'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
+import { DEFAULT_APP_PREFS } from '@shared/models/prefs'
+import type { MachineModelList } from '@shared/host-protocol-machine'
 import { useRemoteModelPicks } from '@/stores/remoteModelPicks'
 import { RemoteModelPicker } from './RemoteModelPicker'
 import { useRemoteModel } from './useRemoteModel'
@@ -20,6 +22,7 @@ let restore: () => void
 let fake: ReturnType<typeof createFakePhosphor>
 let degraded = false
 let attempts: number
+let readModels: (() => Promise<MachineModelList>) | undefined
 function Picker(): React.JSX.Element {
   const selection = useRemoteModel(MOCK_HOST_ID)
   return <RemoteModelPicker selection={selection} />
@@ -29,10 +32,14 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn()
   attempts = 0
   degraded = false
+  readModels = undefined
   fake = createFakePhosphor({
+    'app:getPrefs': () => DEFAULT_APP_PREFS,
+    'pi:agentSettings': () => ({}),
     'hosts:skills': () => ({ skills: [], probe: 'rpc', userRoot: 'opaque' }),
     'hosts:models': () => {
       attempts++
+      if (readModels) return readModels()
       if (degraded) return { source: 'config' as const, models: [] }
       if (attempts === 1) throw new Error('temporary failure')
       return { models: [{ id: 'model', name: 'Recovered model', provider: 'p', reasoning: false }] }
@@ -72,6 +79,72 @@ it('lets the user retry a failed initial catalogue read without leaving the comp
   expect(el.textContent).toContain('Recovered model')
   expect(attempts).toBe(2)
 })
+
+it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
+  'keeps the Host popover visible as it loads and retries ($formFactor)',
+  async (platform) => {
+    let fail!: (error: Error) => void
+    readModels = () =>
+      new Promise((_resolve, reject) => {
+        fail = reject
+      })
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <Picker />
+        </PlatformProvider>,
+      ),
+    )
+    act(() => el.querySelector<HTMLButtonElement>('[data-testid="remote-model-picker"]')!.click())
+    const list = document.querySelector('[data-testid="model-list"]')!
+    expect(list.textContent).toContain('Loading models…')
+    expect(list.closest('[data-popup-menu]')?.parentElement).not.toBe(document.body)
+
+    await act(async () => fail(new Error('unavailable')))
+    expect(list.textContent).toContain('Could not read models.')
+    const retry = [...list.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+    expect(retry).toBeDefined()
+    let finish!: (value: MachineModelList) => void
+    readModels = () =>
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    act(() => retry!.click())
+    expect(list.textContent).toContain('Loading models…')
+    await act(async () =>
+      finish({
+        models: [{ id: 'model', name: 'Recovered model', provider: 'p', reasoning: false }],
+      }),
+    )
+    expect(list.textContent).toContain('Recovered model')
+    expect(list.textContent).not.toContain('Loading models…')
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('model-search')
+  },
+)
+
+it.each([DESKTOP_PLATFORM, COMPACT_PLATFORM])(
+  'retries an empty config fallback in the open Host menu ($formFactor)',
+  async (platform) => {
+    degraded = true
+    await act(async () =>
+      root.render(
+        <PlatformProvider value={platform}>
+          <Picker />
+        </PlatformProvider>,
+      ),
+    )
+    act(() => el.querySelector<HTMLButtonElement>('[data-testid="remote-model-picker"]')!.click())
+    const list = document.querySelector('[data-testid="model-list"]')!
+    expect(list.textContent).toContain('Could not read models.')
+    const retry = [...list.querySelectorAll('button')].find((b) => b.textContent === 'Retry')!
+    readModels = async () => ({ models: [] })
+    await act(async () => retry.click())
+    expect(attempts).toBe(2)
+    expect(list.textContent).toContain('No signed-in model')
+    expect(list.textContent).not.toContain('Could not read models.')
+    expect(list.textContent).not.toContain('Retry')
+  },
+)
 
 it('retries a transient error automatically while the picker is mounted', async () => {
   vi.useFakeTimers()

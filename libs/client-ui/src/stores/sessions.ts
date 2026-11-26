@@ -17,7 +17,7 @@ import type {
 } from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
-import { readSessionModels } from './sessionModels'
+import { loadSessionModels } from './sessionModels'
 import { useNamingStore } from './naming'
 import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
@@ -417,7 +417,7 @@ export async function bootstrapSession(phosphorId: string): Promise<boolean> {
   // relaunch e2e caught on Linux CI once a fifth call joined the batch.
   const statePromise = window.phosphor.piCommand(phosphorId, { type: 'get_state' })
   const restPromise = Promise.allSettled([
-    readSessionModels(phosphorId),
+    loadSessionModels(phosphorId, () => sessionIsOpen(phosphorId)),
     window.phosphor.piCommand(phosphorId, { type: 'get_commands' }),
     window.phosphor.piCommand(phosphorId, { type: 'get_session_stats' }),
     window.phosphor.piCommand(phosphorId, { type: 'get_available_thinking_levels' }),
@@ -463,9 +463,8 @@ export async function bootstrapSession(phosphorId: string): Promise<boolean> {
       if (workspacePath) void useSessionsStore.getState().refreshDisk(workspacePath)
     }
   }
-  const [models, commands, stats, thinkingLevels] = await restPromise
+  const [, commands, stats, thinkingLevels] = await restPromise
   if (!sessionIsOpen(phosphorId)) return false
-  if (models.status === 'fulfilled') chat.setModels(phosphorId, models.value)
   if (commands.status === 'fulfilled' && commands.value.success && commands.value.data) {
     chat.setCommands(phosphorId, commands.value.data.commands)
     commandsRefreshedAt.set(phosphorId, Date.now())

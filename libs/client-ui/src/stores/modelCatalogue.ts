@@ -96,6 +96,8 @@ export const useModelCatalogueStore = create<ModelCatalogueState>((set, get) => 
           window.phosphor.invoke('pi:catalogueModels'),
           readLocalSubscriptionAuth().catch(() => []),
         ])
+        if (catalogue.source === 'config' && catalogue.models.length === 0)
+          throw new Error('Could not read the model list from pi.')
         set({
           status: 'ready',
           models: catalogue.models,
