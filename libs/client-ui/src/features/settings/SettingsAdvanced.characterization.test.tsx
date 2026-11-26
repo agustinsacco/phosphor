@@ -212,6 +212,55 @@ it.each([
 )
 
 it.each([
+  ['Desktop service', 'Download and verify', true],
+  ['Desktop service', 'Wait for working lanes', true],
+  ['PWA Host', 'Download and verify', false],
+  ['PWA Host', 'Wait for working lanes', false],
+] as const)('%s resumes %s after a same-instance reconnect', async (_surface, phase, owner) => {
+  connection({ ops: true, ...(owner ? { local: true } : {}) })
+  startWatch(owner)
+  await showHostSettings(root, machine.id, 'advanced', owner ? undefined : COMPACT_PLATFORM)
+  vi.mocked(promptChoice).mockResolvedValue('update')
+  await click()
+  const draining = phase === 'Wait for working lanes'
+  if (draining) {
+    pause = waiting
+    await tick(2200)
+  }
+  expect(step()).toBe(phase)
+
+  await act(async () => {
+    changed?.({ ...status, service: 'down', pause: undefined })
+    connection({ state: 'reconnecting' })
+  })
+  await tick(1600)
+  expect(container.textContent).toContain('/usr/bin')
+  expect(container.textContent).not.toMatch(/Start service|service unavailable/)
+  expect.soft(step()).toBe(phase)
+  await act(async () => {
+    connection({ state: 'ready', connectionToken: 'new-link' }) // Same epoch.
+    changed?.({ ...status, pause })
+  })
+  if (draining) {
+    expect.soft(text()).toContain('Stop turns and update now')
+    expect.soft(text()).toContain('Cancel update')
+  }
+
+  await tick(4 * 60_000)
+  pause = { kind: 'none' }
+  job = draining
+    ? { state: 'done', result: { text: '', data: { outcome: 'not-paused', pause: 'deadline' } } }
+    : { state: 'failed', result: { text: 'Staging the update failed.' } }
+  await tick(2200)
+  expect(text()).toContain(
+    draining
+      ? 'Lanes were still working. Nothing changed.'
+      : 'Couldn’t download and verify the update. Nothing changed.',
+  )
+  expect(button().disabled).toBe(false)
+})
+
+it.each([
   ['Desktop service', 'the initiating window', true],
   ['Desktop service', 'a second window', true],
   ['PWA Host', 'the initiating window', false],
