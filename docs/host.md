@@ -1842,6 +1842,21 @@ in the Host's home without one, projected to the fields the `/` menu reads
 (`parseMachineCommands`, at most 2,000 entries). The repository is one of the
 Host's own; a path is never accepted, and an unknown id is `bad-request`.
 
+`machine.telemetry` answers one machine-wide resource sample: idle and busy
+counters per core and in total, three load averages and machine uptime, memory
+totals with cache and swap where the OS reports them, the state volume's size
+and free space, and a census of the Host's own process subtree. Every CPU number
+is a monotonic counter and never a rate, so the Host holds no sampler state and
+the client's second sample is what makes a percent. The census carries at most
+96 processes — pid, parent pid, a kind (`host`, `pi`, `mcp`, `shell` or `other`),
+the executable's basename, CPU seconds, RSS and age — plus one total per kind,
+which covers every process the walk saw even when the list is capped. Full argv
+is read only to choose a kind and never crosses the wire, nor does any path,
+command line, user or environment. The read needs no pi, no repository and no
+inspection, and it runs outside the resource-probe queue so a doctor inspection
+cannot delay it (`src/machine/telemetry.ts`). A Host older than the call refuses
+it, and clients then show no numbers rather than invented ones.
+
 The Host caches successful model, repository command and lane-scoped skill lists by
 launch identity/version and agent config/auth file metadata. It forgets them after
 its own settings, package, skill install and sign-in changes. After a minute a read returns the

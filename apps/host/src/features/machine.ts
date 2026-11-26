@@ -11,6 +11,7 @@ import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { machineRecord, parseMachineProviders } from '@phosphor/shared/host-protocol-machine'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import { inspectHost } from '../commands/doctor'
+import { sampleTelemetry } from '../machine/telemetry'
 import { defaultConfigPath } from '../config/load'
 import type { HostInspection } from '../commands/doctor'
 import type { ClaudeUsageSnapshotResult } from '@phosphor/shared/models'
@@ -187,6 +188,10 @@ export async function machineCall(
     if (params.laneId && (!lane || lane.removedAt !== null))
       throw new FeatureFailure('unknown-lane')
     return { ok: true, data: await ports.claudeUsage(params.laneId, params.force === true) }
+  }
+  if (method === 'machine.telemetry') {
+    // No pi, no inspection, no repository: the kernel answers for the machine.
+    return { ok: true, data: await sampleTelemetry({ home: context.home }) }
   }
   const inspection = ports.pi ? null : await featureInspection(context, ports)
   const pi = ports.pi ?? inspection?.pi
