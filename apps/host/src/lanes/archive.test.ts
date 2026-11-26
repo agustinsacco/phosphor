@@ -12,6 +12,7 @@ let store: HostStore, archives: HostArchives
 const removed = vi.fn(),
   forget = vi.fn(),
   announce = vi.fn(),
+  changed = vi.fn(),
   reap = vi.fn(),
   abort = vi.fn()
 const stop = vi.fn<() => Promise<void>>()
@@ -34,6 +35,7 @@ function service(leases?: WorkspaceLeases) {
     stop,
     forget,
     announce,
+    changed,
     terminals: { reap },
     attachments: { abort },
   })
@@ -225,4 +227,27 @@ it('a workspace lease blocks restore before moving the transcript', async () => 
   ).toEqual({ ok: false, code: 'busy' })
   expect(store.listLanes()).toEqual([])
   expect(await readFile(`${transcript}.archived`, 'utf8')).toBe('original conversation')
+})
+
+
+it('invalidates open archive inventories after archive, restore and permanent cleanup', async () => {
+  // Warm the inventory before the write; notification must come after cache invalidation.
+  expect(await listed()).toEqual([])
+  const observed: Promise<unknown[]>[] = []
+  changed.mockImplementation(() => observed.push(listed()))
+  const archive = { type: 'lane.archive', laneId } as const
+  const restore = { type: 'archive.restore', archiveId: laneId } as const
+  const purge = { type: 'archive.purge', archiveId: laneId, removeWorktree: false } as const
+  for (const action of [archive, restore, archive, purge]) {
+    expect(await archives.execute(action, () => true)).toEqual({ ok: true })
+    await observed.at(-1)
+  }
+  expect(changed.mock.calls).toEqual([[laneId], [laneId], [laneId], [laneId]])
+  expect(await Promise.all(observed)).toEqual([
+    [expect.objectContaining({ id: laneId })],
+    [],
+    [expect.objectContaining({ id: laneId })],
+    [],
+  ])
+  expect(forget).toHaveBeenCalledTimes(3)
 })
