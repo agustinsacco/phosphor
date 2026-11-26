@@ -5,6 +5,7 @@ import type { LiveSessionInfo } from '@shared/models'
 import { remoteLaneKey } from '@shared/remote-host'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useSessionsStore } from './sessions'
+import { bindHostsSnapshotRead } from './hostsSnapshotRead'
 import { useChatStore } from './chat'
 import { useLayoutStore } from './layout'
 import { useExtensionUiStore } from './extensionUi'
@@ -186,3 +187,56 @@ it.each(['offline', 'removed'])(
     expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
   },
 )
+
+it.each(['page', 'machine'])('leaving a failed lane via %s clears its Retry view', async (via) => {
+  const opened = openRemoteLane(MOCK_HOST_ID, LANE)
+  opens[0]!.reject(new Error('down'))
+  expect(await opened).toBe(false)
+  expect(useSessionsStore.getState().opening?.failure).toBeDefined()
+  if (via === 'page') {
+    useLayoutStore.getState().setPage('routines')
+    useLayoutStore.getState().setPage(null)
+  } else useRemoteLanesStore.getState().setFilter('local')
+  expect(useSessionsStore.getState().opening).toBeNull()
+})
+
+it('selects a rejoined lane until both bootstrap and the snapshot refresh finish', async () => {
+  let finishBootstrap!: () => void
+  const bootstrap = new Promise<{ success: false }>((resolve) => {
+    finishBootstrap = () => resolve({ success: false })
+  })
+  vi.mocked(window.phosphor.piCommand).mockImplementation(async (_id, command) =>
+    command.type === 'get_state' ? bootstrap : { success: false },
+  )
+  let finishSnapshot!: () => void
+  const snapshot = new Promise<void>((resolve) => (finishSnapshot = resolve))
+  const refresh = vi.fn(() => snapshot)
+  bindHostsSnapshotRead(refresh)
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.warmOnOpen = true
+  try {
+    const first = openRemoteLane(MOCK_HOST_ID, LANE)
+    opens[0]!.resolve(mockRemoteInfo)
+    await vi.waitFor(() =>
+      expect(window.phosphor.piCommand).toHaveBeenCalledWith(mockRemoteInfo.sessionId, {
+        type: 'get_state',
+      }),
+    )
+    expect(useSessionsStore.getState().live[mockRemoteInfo.sessionId]).toBeDefined()
+    useSessionsStore.getState().activate('mac')
+    const second = openRemoteLane(MOCK_HOST_ID, LANE)
+    const duringBootstrap = useSessionsStore.getState().opening?.lane
+    finishBootstrap()
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1))
+    const duringSnapshot = useSessionsStore.getState().opening?.lane
+    expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+    finishSnapshot()
+    expect(await first).toBe(false)
+    expect(await second).toBe(true)
+    expect(openCalls()).toHaveLength(1)
+    expect(duringBootstrap).toEqual({ hostId: MOCK_HOST_ID, laneId: LANE })
+    expect(duringSnapshot).toEqual(duringBootstrap)
+    expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
+  } finally {
+    bindHostsSnapshotRead(async () => undefined)
+  }
+})
