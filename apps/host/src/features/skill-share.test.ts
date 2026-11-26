@@ -44,6 +44,7 @@ beforeEach(async () => {
     home: root,
     env: {},
     log: (event, fields) => logs.push(`${event} ${JSON.stringify(fields)}`),
+    resourceChanged: vi.fn(),
     store: { getLane: () => null, listRepositories: () => [] },
   }
   ports = {
@@ -110,6 +111,7 @@ describe('skills.install', () => {
       data: { status: 'installed', replaced: false },
     })
     expect(await readFile(join(skillsRoot, 'demo', 'lib', 'tool.py'), 'utf8')).toBe('print(1)')
+    expect(context.resourceChanged).toHaveBeenCalledExactlyOnceWith({ kind: 'skills' })
     commands.push(skill(join(skillsRoot, 'demo', 'SKILL.md')))
     const again = { bundle: bundle('second') }
     expect(await feature().call('skills.install', again, allowed)).toEqual({

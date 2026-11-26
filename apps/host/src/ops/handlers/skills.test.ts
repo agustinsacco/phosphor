@@ -4,20 +4,46 @@ import { tmpdir } from 'node:os'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { skillHandlers } from './skills'
 import type { DaemonHandlerDeps } from './index'
+import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
+
+vi.mock('@phosphor/session-runtime/skills/catalog', () => ({
+  resolveCatalogBundle: async () => ({
+    bundle: [{ rel: 'SKILL.md', data: Buffer.from('catalog') }],
+  }),
+}))
+const agent = {
+  kind: 'agent',
+  laneRef: 'host:self/lane:one',
+  sessionId: 'one',
+  unattended: false,
+  lineage: 0,
+} as const
+const surface = { kind: 'surface', clientId: 'desktop', label: 'Desktop', via: 'owner' } as const
 let base: string, repo: string, agentDir: string
 const target = { name: 'demo', scope: 'project' }
 function fixture() {
   const call = vi.fn(async () => ({ ok: true, data: { skills: [] } }))
+  const resourceChanged = vi.fn()
   const handlers = skillHandlers({
     store: { listRepositories: () => [{ path: repo }] },
     lanes: { calls: { call } },
-    skills: { agentDir, context: { home: base, env: {} } },
+    skills: {
+      agentDir,
+      context: { home: base, env: {}, resourceChanged },
+      resolveProject: async () => [],
+    },
   } as unknown as DaemonHandlerDeps)
   const ctx = {
     lane: { ref: 'host:self/lane:one', cwd: repo },
     signal: new AbortController().signal,
-  } as never
-  return { call, run: (name: string, args: unknown) => handlers[name]!(args, ctx) }
+    log: () => {},
+  } as Omit<OpHandlerContext, 'principal'>
+  return {
+    call,
+    resourceChanged,
+    run: (name: string, args: unknown, principal: OpHandlerContext['principal'] = agent) =>
+      handlers[name]!(args, { ...ctx, principal }),
+  }
 }
 beforeEach(async () => {
   base = await realpath(await mkdtemp(join(tmpdir(), 'ops-skills-')))
@@ -65,11 +91,43 @@ it('resolves reads against only the asking lane through the Host feature', async
   )
 })
 
-
 it('keeps a bundle unchanged when a second create collides with it', async () => {
   const { run } = fixture()
   await run('skill.create', { ...target, description: 'First', content: 'Keep me' })
-  await expect(run('skill.create', { ...target, description: 'Second', content: 'Replace me' }))
-    .rejects.toThrow('already exists')
+  await expect(
+    run('skill.create', { ...target, description: 'Second', content: 'Replace me' }),
+  ).rejects.toThrow('already exists')
   expect(await readFile(join(repo, '.pi/skills/demo/SKILL.md'), 'utf8')).toContain('Keep me')
+})
+
+it.each([agent, surface])(
+  'invalidates Skills once after a global edit by $kind',
+  async (principal) => {
+    const { run, resourceChanged } = fixture()
+    const user = { ...target, scope: 'user' }
+    await run('skill.create', { ...user, description: 'Demo' })
+    resourceChanged.mockClear()
+    await run('skill.edit', { ...user, content: 'edited' }, principal)
+    expect(await readFile(join(agentDir, 'skills/demo/SKILL.md'), 'utf8')).toBe('edited')
+    expect(resourceChanged).toHaveBeenCalledExactlyOnceWith({ kind: 'skills' })
+  },
+)
+
+it('invalidates Skills after each agent create, delete and project install, but not a conflict', async () => {
+  const { run, resourceChanged } = fixture()
+  for (const [name, args] of [
+    ['skill.create', { ...target, description: 'Demo' }],
+    ['skill.delete', target],
+    ['skill.install', { ...target, libraryId: 'fixture' }],
+  ] as const) {
+    resourceChanged.mockClear()
+    await run(name, args)
+    expect(resourceChanged).toHaveBeenCalledExactlyOnceWith({ kind: 'skills' })
+  }
+  expect(await readFile(join(repo, '.pi/skills/demo/SKILL.md'), 'utf8')).toBe('catalog')
+  resourceChanged.mockClear()
+  await expect(run('skill.install', { ...target, libraryId: 'fixture' })).rejects.toThrow(
+    'already exists',
+  )
+  expect(resourceChanged).not.toHaveBeenCalled()
 })
