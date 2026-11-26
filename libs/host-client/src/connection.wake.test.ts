@@ -79,9 +79,12 @@ function setup() {
     opened,
     last,
     setOffline: (value: boolean) => (offline = value),
-    async handshake() {
+    async handshake(capabilities: string[] = []) {
       await vi.advanceTimersByTimeAsync(0)
-      last().message(ready)
+      const frame = JSON.parse(ready)
+      last().message(
+        JSON.stringify({ ...frame, hello: { ...frame.hello, capabilities }, capabilities }),
+      )
       await vi.advanceTimersByTimeAsync(0)
     },
   }
@@ -159,4 +162,46 @@ it('does not wake through a rate limit, and stays closed after sign-out', async 
   await vi.advanceTimersByTimeAsync(60_000)
   expect(t.opened).toHaveBeenCalledTimes(2)
   expect(t.connection.snapshot().state).toBe('signed-out')
+})
+
+/*
+ * A local service restarting accepts the socket before its lanes start and grants nothing,
+ * then closes 1001 and reconnects with its capabilities. A command pending across the
+ * restart waits for that connection instead of replaying into a definite refusal.
+ */
+it('holds a pending command through a ready that grants nothing, then replays it once', async () => {
+  const caps = ['sessions.read', 'sessions.control']
+  const commands = (socket: Fake) =>
+    socket.sent.filter((f): f is { type: 'command'; requestId: string } => f.type === 'command')
+  const t = setup()
+  try {
+    await t.handshake(caps)
+    const sending = t.connection.send({ type: 'prompt', message: 'hi' }, hostId, 1)
+    const [sent] = commands(t.last())
+    expect(sent).toBeDefined()
+    t.last().drop(1001)
+    await vi.advanceTimersByTimeAsync(1000)
+    await t.handshake([])
+    const booting = t.last()
+    // The booting service refuses whatever reaches it before its lanes start.
+    for (const frame of commands(booting))
+      booting.message(
+        JSON.stringify({
+          type: 'receipt',
+          receipt: { requestId: frame.requestId, status: 'rejected', code: 'forbidden' },
+        }),
+      )
+    await vi.advanceTimersByTimeAsync(0)
+    expect(commands(booting)).toEqual([])
+    booting.drop(1001)
+    await vi.advanceTimersByTimeAsync(1000)
+    await t.handshake(caps)
+    expect(commands(t.last()).map((f) => f.requestId)).toEqual([sent!.requestId])
+    t.last().message(
+      JSON.stringify({ type: 'receipt', receipt: { requestId: sent!.requestId, status: 'done' } }),
+    )
+    expect(await sending).toMatchObject({ status: 'done' })
+  } finally {
+    t.connection.close()
+  }
 })
