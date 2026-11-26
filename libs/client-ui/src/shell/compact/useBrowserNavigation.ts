@@ -36,6 +36,7 @@ function showCreateRoute(location: Location): boolean {
 
 type HostLaneKey = Extract<LaneKey, { hostId: string }>
 
+/** Whether the route shows this Host lane. A placeholder becoming its lane replaces its URL. */
 function isLaneLocation(location: Location, lane: HostLaneKey): boolean {
   return (
     location.to === 'lane' &&
@@ -73,11 +74,10 @@ export function useBrowserNavigation() {
     if (!remoteEnabled) return
     const machine = locationMachine(location)
     applying.current = true
-    const sessions = useSessionsStore.getState()
-    const opening = sessions.opening
+    const { opening } = useSessionsStore.getState()
     if (location.to !== 'lane' && !showCreateRoute(location)) {
       // Native activate(null) persists app:setLastSession; browser home has no local resume target.
-      sessions.claimNav()
+      useSessionsStore.getState().claimNav()
       useSessionsStore.setState({ activeSessionId: null })
     } else if (opening?.lane && !isLaneLocation(location, opening.lane)) {
       releaseHostLaneNav(opening.nav)
@@ -114,7 +114,6 @@ export function useBrowserNavigation() {
       const lane = { hostId: entry.target.hostId, laneId: entry.laneId }
       const current = history.getSnapshot()
       if (isLaneLocation(current, lane)) return
-      // A placeholder becoming its lane replaces its URL, so Back skips the dead one.
       history.navigate({ to: 'lane', lane, pane: 'chat' }, current.to === 'new' && !!current.create)
     })
     const offLayout = useLayoutStore.subscribe((state, previous) => {
