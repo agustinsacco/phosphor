@@ -136,6 +136,5 @@ it('recovers a failed first Phosphor service read, without offering in-app lanes
   expect(container.textContent).toContain('Start service')
   expect(container.textContent).not.toContain('pi health')
   act(() => changed?.({ mode: 'daemon', migration: 'committed', service: 'ready' }))
-  expect(container.textContent).toContain('Update Phosphor service')
   expect(container.textContent).not.toContain('Start service')
 })

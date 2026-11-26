@@ -1,3 +1,4 @@
+import { mockMachineUpdate } from './machineUpdate'
 import { mockSandboxOp } from './sandboxOps'
 import type { HostsSnapshot, IpcInvokeMap, OpsChangedEvent } from '@phosphor/shared/ipc'
 import { parseOpsRunRequest, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
@@ -85,6 +86,8 @@ export async function mockOpsInvoke(args: unknown[]): Promise<OpsRunResult> {
   if (!req || !target) return { status: 'denied', code: 'bad-request', text: 'Invalid operation.' }
   if (target.kind === 'remote' && localStorage.getItem('mock:ops') !== '1') return unsupported
   const key = target.kind === 'local' ? 'local' : `host:${target.hostId}`
+  const update = mockMachineUpdate(key, req)
+  if (update) return update
   const sandbox = target.kind === 'remote' ? mockSandboxOp(key, req) : undefined
   if (sandbox) return sandbox
   const m = fixture(key)

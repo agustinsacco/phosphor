@@ -41,6 +41,13 @@ export const machineOps = [
     undefined,
     { job: true },
   ),
+  machine(
+    'service.pause',
+    'Stop working turns or cancel a pending service update.',
+    'never',
+    object({ action: choice('abort-now', 'cancel') }),
+    { surfaceOnly: true, routable: false },
+  ),
   machine('maintenance.scan', 'Scan for cleanup candidates.', 'read'),
   machine('maintenance.run', 'Run destructive workspace cleanup.', 'destructive'),
   read('hosts.list', 'List machines available to this lane.', 'read', undefined, {

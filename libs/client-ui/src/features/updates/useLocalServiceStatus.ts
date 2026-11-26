@@ -33,11 +33,12 @@ export function useLocalServiceStatus() {
     }
   }, [reload, serial])
   useEffect(() => {
-    if (status?.mode !== 'daemon') return
+    // Healthy update reads belong to the shell observer. Only recovery retries here.
+    if (status?.mode !== 'daemon' || status.service === 'ready') return
     const timer = window.setInterval(() => {
       if (!document.hidden) reload()
     }, 5000)
     return () => window.clearInterval(timer)
-  }, [reload, status?.mode])
+  }, [reload, status?.mode, status?.service])
   return { status, error, reload }
 }

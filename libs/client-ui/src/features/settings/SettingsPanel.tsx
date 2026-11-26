@@ -1,3 +1,4 @@
+import { HostSoftware } from './sections/advanced/HostSoftware'
 import { LocalServiceSection } from './sections/advanced/LocalServiceSection'
 import { AgentControl } from '@/features/agent-control/AgentControl'
 import { HostGate } from './machine/HostGate'
@@ -70,7 +71,12 @@ function SectionViews({
         <HostRefresh />
       </SettingsScopeLine>
       <div data-testid="settings-host-section">
-        {tab === 'advanced' && <LocalServiceSection machine={machine.id} />}
+        {tab === 'advanced' && (
+          <>
+            <LocalServiceSection machine={machine.id} />
+            <HostSoftware />
+          </>
+        )}
         <HostGate>
           <views.Host />
         </HostGate>

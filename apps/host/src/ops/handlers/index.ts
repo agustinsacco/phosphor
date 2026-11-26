@@ -71,6 +71,7 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly serviceUpdate?: ServiceUpdatePorts
   /** The service pause, for `machine.status`. */
   readonly pauseState?: () => ServicePauseState
+  readonly pauseControl?: (action: 'abort-now' | 'cancel') => boolean
 }
 
 /** Every domain file's handlers. Meta ops come from `meta.ts`, bound over the dispatcher's stores. */

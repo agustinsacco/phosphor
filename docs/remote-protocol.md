@@ -538,6 +538,13 @@ each share as `batch: {id, index, size}`. `OpsRunResult` is `ok`, `confirm` or
 code, text}` on both paths; frame-level refusal stays for malformed frames. An op
 that may outlast the Host's answer deadline answers `ok` with `data: {jobId}`.
 
+`machine.status` may include `data.update: {pauseControl: true}` in its result.
+This advertises the catalog name `service.pause`, a write in the existing
+`ops.run` envelope with `args: {action: 'abort-now' | 'cancel'}`. It requires a
+human surface with configuration and session-control access and acts only on a
+waiting update. An older Host omits the bit; clients do not offer those controls.
+No new frame type or connection capability is involved.
+
 `OPS_LIMITS`: the `args` JSON is at most 300 KiB, a content argument inside it at
 most 256 KiB, a command result and tool text 64 KiB, a call's `data` 1 MiB, a reason
 300 characters, 200 ids per op, 20 Hosts per batch reached four at a time, and a

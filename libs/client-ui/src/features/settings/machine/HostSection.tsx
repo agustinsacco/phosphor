@@ -1,3 +1,5 @@
+import { holdUpdatePage } from '@/features/updates/machineUpdateState'
+import { useMachineUpdatesStore } from '@/stores/machineUpdates'
 import { recheckMachineCatalogue } from '@/stores/machineCatalogues'
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { MachineView } from '@shared/control-api'
@@ -30,10 +32,12 @@ function useHostSectionState(
   const folder = useSettingsUiStore((s) => s.folder)
   const repositoryId = scoped ? (folder ?? undefined) : undefined
   const reads: 'settings' | 'connection' = section === 'connection' ? 'connection' : 'settings'
+  const updating = useMachineUpdatesStore((s) => holdUpdatePage(s.byMachine[machine.id]?.run))
   const settings = useHostSettings(
     machine.id,
     section === 'connection' ? null : section,
     repositoryId,
+    updating,
   )
   const { connection, allowed } = settings
   const programs = useMachinePrograms(machine, settings)
@@ -62,8 +66,9 @@ function useHostSectionState(
     connection,
     allowed,
     reads,
+    updating,
     /** The section can be read now: its link is up, and its settings need the grant. */
-    readable: reads === 'connection' ? connection?.state === 'ready' : allowed,
+    readable: !updating && (reads === 'connection' ? connection?.state === 'ready' : allowed),
     /**
      * Reads the section again: its settings, or the link's folders, through the
      * remote-lanes listener, the only writer of the Host snapshot.

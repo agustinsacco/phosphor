@@ -24,21 +24,21 @@ export function MachineUpdateRow({
   )
 }
 
-/** Each product's row titles, written out so Settings search indexes them. */
-const RUNTIME_TITLES = {
-  Phosphor: { update: 'Phosphor updates', version: 'Phosphor version' },
-  Host: { update: 'Host updates', version: 'Host version' },
-} as const
-
 /** What runs the machine: its update, version and platform, and a Host's config file. */
 export function MachineRuntimeRows({ runtime }: { runtime: MachineRuntime }): React.JSX.Element {
-  const titles = RUNTIME_TITLES[runtime.product]
   return (
     <>
-      {runtime.update && <MachineUpdateRow title={titles.update} update={runtime.update} />}
-      <Row title={titles.version} description={runtime.platform && platformName(runtime.platform)}>
-        <code className="font-mono text-sm">{runtime.version}</code>
-      </Row>
+      {runtime.product === 'Phosphor' && (
+        <>
+          {runtime.update && <MachineUpdateRow title="Phosphor updates" update={runtime.update} />}
+          <Row
+            title="Phosphor version"
+            description={runtime.platform && platformName(runtime.platform)}
+          >
+            <code className="font-mono text-sm">{runtime.version}</code>
+          </Row>
+        </>
+      )}
       {runtime.configPath && (
         <Row title="Host config" description="Folders, policy and the allowlisted environment.">
           <code className="break-all font-mono text-sm">{runtime.configPath}</code>

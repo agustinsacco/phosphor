@@ -82,24 +82,9 @@ function useLive(key: string) {
   return { live, attempt }
 }
 
-/**
- * One Host settings section, for `repositoryId` or the whole machine; a null
- * `section` reads nothing. A read, check or change belongs to the connection
- * generation, section and scope it started in: one that completes after they
- * changed, or after unmount, is dropped, and of overlapping reads only the newest lands.
- * A check is such a read (it settles its own failure); `checking` is true only for it.
- */
-export function useHostSettings(
-  hostId: string,
-  section: MachineSettingsSection | null,
-  repositoryId?: string,
-) {
-  const supported = usePlatform().machineSettings
-  const connection = useRemoteLanesStore((s) => s.hosts[hostId])
-  const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
-  const key = `${hostId}/${generation}/${section ?? ''}/${repositoryId ?? ''}/${supported}`
-  const allowed = canConfigureHost(supported, connection)
-  const { live, attempt } = useLive(key)
+/** The section's state and its one read path; of overlapping reads only the newest lands. */
+function useSettingsReads(key: string, allowed: boolean, suspended: boolean) {
+  const { live, attempt } = useLive(`${key}/${suspended}`)
   const [state, setState] = useState(IDLE)
   const update = useCallback(
     (patch: Partial<SettingsState>) => setState((s) => ({ ...s, ...patch })),
@@ -122,20 +107,47 @@ export function useHostSettings(
     },
     [live, allowed, attempt, key, update],
   )
+  return { live, state, setState, update, read }
+}
+
+/**
+ * One Host settings section, for `repositoryId` or the whole machine; a null
+ * `section` reads nothing. A read, check or change belongs to the connection
+ * generation, section and scope it started in: one that completes after they
+ * changed, or after unmount, is dropped, and of overlapping reads only the newest lands.
+ * A check is such a read (it settles its own failure); `checking` is true only for it.
+ */
+export function useHostSettings(
+  hostId: string,
+  section: MachineSettingsSection | null,
+  repositoryId?: string,
+  suspended = false,
+) {
+  const supported = usePlatform().machineSettings
+  const connection = useRemoteLanesStore((s) => s.hosts[hostId])
+  const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
+  const key = `${hostId}/${generation}/${section ?? ''}/${repositoryId ?? ''}/${supported}`
+  const allowed = canConfigureHost(supported, connection)
+  const { live, state, setState, update, read } = useSettingsReads(
+    key,
+    allowed && !suspended,
+    suspended,
+  )
   const refresh = useCallback(async (): Promise<void> => {
     if (section)
       await read(() => window.phosphor.invoke('hosts:settingsRead', hostId, section, repositoryId))
   }, [read, hostId, section, repositoryId])
   useEffect(() => {
+    if (suspended) return
     setState(IDLE)
     void refresh()
-  }, [refresh])
-  const data = state.result?.key === key ? state.result.data : null
+  }, [refresh, suspended, setState])
+  const data = state.result && (suspended || state.result.key === key) ? state.result.data : null
   const writer: Writer = { live, saving: state.saving, update }
   return {
     supported,
     data,
-    error: state.error,
+    error: suspended ? null : state.error,
     loading: state.loading,
     saving: state.saving,
     checking: state.checking,
@@ -143,7 +155,7 @@ export function useHostSettings(
     connection,
     refresh,
     change: async (change: MachineSettingsChange): Promise<MachineSettings | null> => {
-      if (!data || !allowed || !section) return null
+      if (!data || !allowed || !section || suspended) return null
       const patch = { section, repositoryId, revision: data.revision, change }
       const saved = await write(
         writer,
@@ -153,13 +165,13 @@ export function useHostSettings(
       return saved?.value ?? null
     },
     check: async (): Promise<void> => {
-      if (section !== 'connectors' || state.loading || state.saving) return
+      if (suspended || section !== 'connectors' || state.loading || state.saving) return
       update({ checking: true })
       await read(() => window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId))
       if (live()) update({ checking: false })
     },
     moveAccount: async (laneId: string, accountId: string): Promise<void> => {
-      if (!allowed) return
+      if (!allowed || suspended) return
       const moved = await write(
         writer,
         () => window.phosphor.invoke('hosts:claudeAccount', hostId, laneId, accountId),

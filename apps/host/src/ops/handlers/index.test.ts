@@ -44,7 +44,7 @@ it('keeps the allowed gap list to reconcile B8 minus N7', () => {
 
 it('serves the surface-only never ops: policy, Undo and the user’s confirmation answers', () => {
   expect(surfaceOnlyNever.map((s) => s.name).sort()).toEqual(
-    ['audit.undo', 'confirm.approve', 'confirm.deny', 'policy.set'].sort(),
+    ['audit.undo', 'confirm.approve', 'confirm.deny', 'policy.set', 'service.pause'].sort(),
   )
   for (const spec of surfaceOnlyNever) expect(served).toHaveProperty([spec.name])
 })
@@ -131,4 +131,29 @@ it('reports the machine’s lanes, version and pause, and its inventory through 
     ['machine.claudeUsage', {}],
     ['machine.models', {}],
   ])
+})
+
+it('advertises service.pause and serves only a human action during a live pause', async () => {
+  const pauseControl = vi.fn<(action: 'abort-now' | 'cancel') => boolean>(() => true)
+  const handlers = domainHandlers({
+    ...deps,
+    pauseControl,
+    store: { listLanes: () => [] } as never,
+  })
+  const surface = { principal: { kind: 'surface' } } as never
+  const agent = { principal: { kind: 'agent' } } as never
+  expect(await handlers['machine.status']!({}, surface)).toMatchObject({
+    data: { update: { pauseControl: true } },
+  })
+  await expect(handlers['service.pause']!({ action: 'abort-now' }, agent)).rejects.toMatchObject({
+    code: 'forbidden',
+  })
+  expect(pauseControl).not.toHaveBeenCalled()
+  await handlers['service.pause']!({ action: 'abort-now' }, surface)
+  await handlers['service.pause']!({ action: 'cancel' }, surface)
+  expect(pauseControl.mock.calls).toEqual([['abort-now'], ['cancel']])
+  pauseControl.mockReturnValue(false)
+  await expect(handlers['service.pause']!({ action: 'cancel' }, surface)).rejects.toMatchObject({
+    code: 'unavailable',
+  })
 })

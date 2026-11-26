@@ -103,6 +103,10 @@ describe('principals', () => {
       reason: 'x',
     })
     expect(set).toMatchObject({ status: 'denied', code: 'never' })
+    expect(await h.run(p, { op: 'service.pause', args: { action: 'abort-now' } })).toMatchObject({
+      status: 'denied',
+      code: 'never',
+    })
     expect(h.calls.handled).toEqual([])
   })
 

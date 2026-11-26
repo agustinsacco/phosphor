@@ -19,7 +19,9 @@ let gate: LocalMachineGate | null = null
 let off: (() => void) | undefined
 let lastPush = ''
 type Slot = NonNullable<ReturnType<typeof localSlotConnection>>
-let facts: { token?: string; pause: LocalMachineStatus['pause']; version: string } | undefined
+let facts:
+  | (Pick<LocalMachineStatus, 'pause' | 'lastUpdate'> & { token?: string; version: string })
+  | undefined
 let read: { slot: Slot; token?: string; done: Promise<LocalMachineStatus> } | undefined
 
 export function bindLocalMachineGate(next: LocalMachineGate | null): void {
@@ -42,6 +44,7 @@ function snapshot(): LocalMachineStatus {
       service: 'ready',
       serviceVersion: known?.version ?? slot.hostVersion,
       pause: known?.pause,
+      lastUpdate: known?.lastUpdate,
     }
   }
   facts = undefined
@@ -89,7 +92,12 @@ function status(): LocalMachineStatus | Promise<LocalMachineStatus> {
         slot.snapshot().connectionToken === token &&
         result.machineId === local.hostId
       ) {
-        facts = { token, version: result.hostVersion, pause: result.pause }
+        facts = {
+          token,
+          version: result.hostVersion,
+          pause: result.pause,
+          lastUpdate: result.lastUpdate,
+        }
         notifyLocalMachineChanged()
       }
       return snapshot()

@@ -40,6 +40,7 @@ export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string
           working: live.filter((s) => s.activity === 'working').length,
         },
         pause: deps.pauseState?.() ?? { kind: 'none' },
+        ...(deps.pauseControl ? { update: { pauseControl: true } } : {}),
       })
     }),
     'machine.doctor': op(async () => {
@@ -59,6 +60,16 @@ export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string
             text: 'Could not read the login-shell environment. Lanes keep the last one that worked.',
             data: { shellEnvironment: 'unavailable' },
           }
+    }),
+    'service.pause': op<{ action: 'abort-now' | 'cancel' }>(({ action }, ctx) => {
+      if (ctx.principal.kind !== 'surface')
+        throw new OpRefusal('forbidden', 'Only a person can control this update.')
+      if (!deps.pauseControl?.(action))
+        throw new OpRefusal('unavailable', 'The service is no longer waiting to pause.')
+      return {
+        text:
+          action === 'cancel' ? 'Update cancelled. Nothing changed.' : 'Stopping working turns.',
+      }
     }),
     'service.update': op(() => {
       const update = deps.serviceUpdate

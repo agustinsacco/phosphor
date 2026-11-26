@@ -54,7 +54,9 @@ The service owns the lanes, routine scheduler and [artifact library](remote-desk
 
 Signing in can enroll the service over the owner socket without restarting lanes. Desktop checks the account-side fingerprint before approving; an account mismatch is not permission to re-enroll. Signing out leaves the service enrolled. Desktop keeps the local socket slot, not a second connection to the enrolled directory entry.
 
-In **Settings → Advanced → Phosphor service**, use **Start service** or **Retry** when unavailable. A failed move offers Retry or **Export diagnostics** (status-only JSON). **Update Phosphor service** stages a release, waits for working lanes, live sub-agents and routines to pause, then applies the staged version. While waiting, **Abort now** saves and stops unfinished turns; **Cancel** leaves the update unapplied. Timing out does not abort turns. An update starting is not confirmation that the version changed. The browser has no same-machine service card.
+In **Settings → Advanced → Software**, **Update…** stages a signed release and waits for working turns, live sub-agents and routines. **Stop turns and update now** saves and stops unfinished turns; **Cancel update** leaves the service on the same version. A wait that times out stops nothing. Settings stays mounted during the restart and shows success only when the version changes; the same pipeline appears for a remote Host in Desktop and the PWA. A genuine outage outside an update still offers **Start service** or **Retry**. A failed move offers **Retry** or **Export diagnostics** (status-only JSON).
+
+The owner socket reports the most recent update result. Desktop projects it into its optional local-machine status field so Settings can distinguish a rollback from a stale result.
 
 ## Break-glass restore
 

@@ -1,6 +1,6 @@
 import type { LaneEvent, LaneSummary } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import type { LanePauses } from '../lanes/pause'
+import { answerPauseCall, type LanePauses } from '../lanes/pause'
 import type { HostRuntime } from '../session/runtime'
 import { hostUpdateProgram } from '../update/handoff'
 import type { DeferredActions } from './binding'
@@ -29,7 +29,7 @@ export interface DaemonLanePortsInput {
 /** What agent control's lane, machine and reload ops need from the started machine. */
 export function daemonLanePorts(input: DaemonLanePortsInput): Pick<
   DaemonHandlerDeps,
-  'laneRuntime' | 'serviceUpdate' | 'pauseState'
+  'laneRuntime' | 'serviceUpdate' | 'pauseState' | 'pauseControl'
 > & {
   readonly deferredActions: DeferredActions
 } {
@@ -62,6 +62,12 @@ export function daemonLanePorts(input: DaemonLanePortsInput): Pick<
         }
       : {}),
     pauseState: () => pauses()?.state() ?? { kind: 'none' },
+    pauseControl: (action) => {
+      const current = pauses()
+      if (!current || current.state().kind !== 'pausing') return false
+      answerPauseCall(current, { action }, (event, fields) => input.log('host', event, fields))
+      return true
+    },
     deferredActions: {
       reload: laneReloadAction({
         reloadNow: (sessionId) => runtime.reloadNow(sessionId),

@@ -18,8 +18,7 @@ export const ADVANCED_ROWS: SettingEntry[] = [
     'advanced',
     null,
     [
-      ['Host updates', 'update upgrade version phosphor update pause'],
-      ['Host version', 'runtime platform'],
+      ['Software', 'host updates update upgrade version phosphor update pause runtime platform'],
       ['Host config', 'configuration file path'],
     ],
     HOST_ONLY,

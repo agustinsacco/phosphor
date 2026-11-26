@@ -975,6 +975,15 @@ export function installMockPhosphor(): void {
       // Brain remains local-only in the real web bridge.
       if (channel.startsWith('brain:')) return mockBrainCall(channel, args)
       if (channel.startsWith('routines:')) return mockLocalRoutineCall(channel, args)
+      if (
+        channel === 'hosts:machineTask' &&
+        (args[1] as { task?: string } | undefined)?.task === 'host.update'
+      )
+        return Promise.reject(
+          new Error(
+            'This Phosphor service cannot update itself: it was not installed from a release.',
+          ),
+        )
       if (MACHINE_SETTINGS_MOCK.has(channel))
         return mockMachineSettingsInvoke(channel, args) as never
       if (SKILL_SHARE_MOCK.has(channel)) return mockSkillShareInvoke(channel, args) as never

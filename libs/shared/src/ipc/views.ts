@@ -7,7 +7,7 @@ import type {
   StreamCursor,
 } from '../host-protocol'
 import type { ControlErrorCode } from '../control-api'
-import type { ServicePauseState } from '../host-protocol-owner'
+import type { LocalStatus, ServicePauseState } from '../host-protocol-owner'
 
 export type DesktopControlErrorCode = ControlErrorCode | 'signed-out' | 'offline'
 
@@ -133,6 +133,7 @@ export interface LocalMachineStatus {
   service?: 'ready' | 'connecting' | 'down' | 'attestation-failed'
   serviceVersion?: string
   pause?: ServicePauseState
+  lastUpdate?: LocalStatus['lastUpdate']
   /**
    * Why This Mac stays in-app: `no-bundle` (no service build for this Mac),
    * `limits` (a preflight that cannot page), `other-daemon` (a service Desktop

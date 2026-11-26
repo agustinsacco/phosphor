@@ -1,4 +1,6 @@
 import { useCallback, useLayoutEffect, useMemo, useRef } from 'react'
+import { holdUpdatePage } from '@/features/updates/machineUpdateState'
+import { useMachineUpdatesStore } from '@/stores/machineUpdates'
 import { usePlatform } from '@/platform/Platform'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -64,7 +66,10 @@ function useHostPackageRead(hostId: string | null, folder: string | null): void 
   const supported = usePlatform().machineSettings
   const connection = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const generation = useRemoteLanesStore(() => (hostId ? machineReadGeneration(hostId) : 0))
-  const allowed = canConfigureHost(supported, connection)
+  const updating = useMachineUpdatesStore(
+    (s) => hostId !== null && holdUpdatePage(s.byMachine[hostId]?.run),
+  )
+  const allowed = !updating && canConfigureHost(supported, connection)
   // A layout effect: the navigation's read goes out before the open section's own.
   useLayoutEffect(() => {
     if (!hostId || !allowed) return

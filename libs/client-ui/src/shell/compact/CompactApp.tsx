@@ -1,3 +1,4 @@
+import { useMachineUpdateObserver } from '@/features/updates/watchMachineUpdates'
 import { useEffect, useState } from 'react'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { LoadingScreen } from '@/app/LoadingScreen'
@@ -75,6 +76,7 @@ function useClientAppearance(): 'loading' | 'ready' | 'error' {
 }
 
 function AuthenticatedCompact(): React.JSX.Element {
+  useMachineUpdateObserver()
   const navigation = useBrowserNavigation()
   useLaneCreateRoute(navigation)
   const [ready, setReady] = useState(false)
