@@ -10,7 +10,7 @@ import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import type { AuditLog } from './audit'
 import { OpRefusal } from './builtins'
 import type { ConfirmStore } from './confirm'
-import { requestPage } from './ports'
+import { requestPage, type OpRunContext } from './ports'
 import { dataResult, op } from './results'
 import type { OpPrincipal, OpsBinding, OpsDispatcher, PolicyStore } from './types'
 
@@ -24,7 +24,7 @@ export interface MetaOwner {
 }
 
 export function metaHandlers(
-  audit: AuditLog,
+  audit: Pick<AuditLog, 'list'>,
   store: ConfirmStore,
   changed: () => void,
   owner: MetaOwner,
@@ -38,13 +38,23 @@ export function metaHandlers(
   }
   const shown = owner.shownPrincipal ?? ((principal: OpPrincipal) => principal)
   return {
-    help: op<{ topic?: string }>(({ topic }) => ({
-      text: renderHelp(
-        OP_CATALOG.filter((s) => !owner.gaps[s.name]),
-        topic,
-      ),
-    })),
-    whoami: op((_a, c) => dataResult({ machine: owner.machine, principal: shown(c.principal) })),
+    help: op<{ topic?: string }>(({ topic }, ctx) => {
+      const help = (ctx as OpRunContext).help
+      return {
+        text: renderHelp(help?.catalog ?? OP_CATALOG, topic, {
+          unavailableReason: help?.unavailableReason ?? ((spec) => owner.gaps[spec.name]),
+        }),
+      }
+    }),
+    whoami: op((_a, c) => {
+      const principal = shown(c.principal)
+      const laneRef = c.principal.kind === 'agent' ? c.principal.laneRef : undefined
+      return dataResult({
+        machine: owner.machine,
+        principal,
+        ...(laneRef !== undefined ? { laneRef } : {}),
+      })
+    }),
     'audit.list': op<{ lane?: string; limit?: number }>(async ({ lane, limit = 50 }, ctx) => {
       const rows = await audit.list({ laneRef: lane, beforeId: requestPage(ctx), limit: limit + 1 })
       const shownRows = rows.slice(0, limit)

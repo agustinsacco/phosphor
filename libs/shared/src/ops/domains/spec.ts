@@ -2,6 +2,8 @@ import { Type, type TProperties, type TObject } from 'typebox'
 import { OPS_LIMITS } from '../../host-protocol-ops'
 import { record, utf8Length } from '../../host-protocol/primitives'
 import type { LegacyHostCapability } from '../../remote-host'
+import { kebab } from '../aliases'
+
 import type { OpArgs, OpContext, OpSpec } from '../types'
 
 export type CatalogSpec = OpSpec<OpArgs, TObject>
@@ -64,4 +66,18 @@ export function domain(
     ...defaults,
     ...options,
   })
+}
+
+/** Semantic CLI labels; deliberately separate from the wire validation schema. */
+export function argumentLabel(spec: CatalogSpec, key: string): string {
+  if (key === 'target' || key === 'lane' || (key === 'ref' && spec.name.startsWith('lane.')))
+    return 'lane-ref'
+  if (key === 'revision' || key === 'expected' || (key === 'ref' && spec.name.startsWith('git.')))
+    return 'revision'
+  if (['path', 'from', 'to', 'source', 'directory'].includes(key) && spec.name.startsWith('files.'))
+    return 'path'
+  if (/path$/i.test(key)) return 'path'
+  if (/url$/i.test(key)) return 'url'
+  if (/ids?$/i.test(key)) return key.endsWith('s') ? 'id,…' : 'id'
+  return kebab(key)
 }

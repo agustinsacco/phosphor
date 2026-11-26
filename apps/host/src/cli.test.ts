@@ -55,14 +55,13 @@ async function run(argv: readonly string[], context: Partial<CliContext> = {}) {
 
 const CONFIG_RUN_VALUE = ['--config', 'run', 'doctor', '--supervisor=launchd'] as const
 const VERSION_CASES = [['version'], ['version', '--json']] as const
-const HELP_CASES = [['help'], ['--help'], ['-h'], ['doctor', '--help']] as const
+const HELP_CASES = [['--help'], ['-h'], ['doctor', '--help']] as const
 const USAGE_CASES: [string[], string][] = [
   [[], 'no command given'],
   [['tailscale'], 'tailscale needs status, enable or disable'],
   [['tailscale', 'funnel'], 'tailscale needs status, enable or disable'],
   [['tailscale', 'status', 'extra'], 'unexpected argument'],
   [['tailscale', 'status', '--json'], 'tailscale does not take --json'],
-  [['serve'], 'unknown command "serve"'],
   [['accept'], 'accept needs --repository DIR'],
   [['accept', '--repository', 'repo'], '--repository needs an absolute path'],
   [

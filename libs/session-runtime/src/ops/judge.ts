@@ -5,7 +5,7 @@
  * lookup. Pure over the binding's reads; no handler runs here.
  * Living contract: docs/agent-control.md ("Policy and confirmations").
  */
-import { Check, Errors } from 'typebox/value'
+export { validateOpArgs as argsError } from '@phosphor/shared/ops-cli'
 import type { OpsDenyCode, OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 import type { CatalogSpec } from '@phosphor/shared/ops-catalog'
 import type {
@@ -82,13 +82,6 @@ const BUSY_EXEMPT: ReadonlySet<string> = new Set([
 const CONTEXT_FILE_NAMES: Readonly<Record<string, string>> = {
   agents: 'AGENTS.md',
   claude: 'CLAUDE.md',
-}
-
-export function argsError(spec: CatalogSpec, args: OpArgs): string | null {
-  if (Check(spec.args, args)) return null
-  const first = Errors(spec.args, args)[0]
-  if (!first) return 'invalid arguments.'
-  return `${first.instancePath || 'arguments'} ${first.message}.`
 }
 
 function resolveSpecValue<T extends string>(
@@ -191,9 +184,15 @@ export function availability(
   const gap = binding.gaps[spec.name]
   if (gap !== undefined) return { code: 'unsupported', text: gap }
   if (spec.flag && !binding.flags.has(spec.flag))
-    return { code: 'unsupported', text: `${spec.name} needs a newer Phosphor on this machine.` }
+    return {
+      code: 'unsupported',
+      text: `${spec.name} is unavailable on this binding: the ${spec.flag} feature is not ready. Update Phosphor or try a machine that serves it.`,
+    }
   if (!DISPATCHER_OPS.has(spec.name) && !binding.handlers[spec.name])
-    return { code: 'unsupported', text: `${spec.name} is not available on this machine.` }
+    return {
+      code: 'unsupported',
+      text: `${spec.name} is unavailable on this binding: no handler is installed. Run phosphor help to see what this owner serves.`,
+    }
   return null
 }
 

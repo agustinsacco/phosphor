@@ -112,6 +112,7 @@ export type OpsRunResult =
       readonly applies: OpApplies
       readonly data?: unknown
       readonly next?: string
+      readonly read?: true
       readonly undo?: boolean
       readonly auditId?: string
     }
@@ -242,6 +243,7 @@ function okResult(v: Record<string, unknown>): OpsRunResult | null {
     !member(v.applies, OP_APPLIES) ||
     (v.data !== undefined && jsonBytes(v.data) > OPS_LIMITS.callDataBytes) ||
     (v.next !== undefined && !text(v.next, HOST_LIMITS.messageChars)) ||
+    (v.read !== undefined && v.read !== true) ||
     (v.undo !== undefined && typeof v.undo !== 'boolean') ||
     (v.auditId !== undefined && !token(v.auditId, HOST_LIMITS.idChars))
   )
@@ -252,6 +254,7 @@ function okResult(v: Record<string, unknown>): OpsRunResult | null {
     applies: v.applies,
     ...(v.data !== undefined ? { data: v.data } : {}),
     ...(v.next !== undefined ? { next: v.next } : {}),
+    ...(v.read === true ? { read: true as const } : {}),
     ...(v.undo !== undefined ? { undo: v.undo } : {}),
     ...(v.auditId !== undefined ? { auditId: v.auditId } : {}),
   }

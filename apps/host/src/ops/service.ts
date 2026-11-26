@@ -247,7 +247,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   )
   const dispatcher = createOpsDispatcher(binding, {
     catalog: DAEMON_CATALOG,
-    parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
+    parseArgv: (argv, content, reason) => parseOpArgv(argv, undefined, { content, reason }),
     agentFor: daemonAgentFor(ports, laneBinding.lanes.createdBy),
     surfaceAdmits,
     confirms: confirmPort(confirms, changed),

@@ -52,7 +52,7 @@ it('keeps routing, paging, reason and formatting outside the wire args', () => {
       '--reason',
       'context for review',
       '--json',
-    ]),
+    ], OP_CATALOG.map((s) => s.name === 'lane.read' ? { ...s, paged: true as const } : s)),
   ).toEqual({
     ok: true,
     op: 'lane.read',

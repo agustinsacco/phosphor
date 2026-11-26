@@ -145,13 +145,9 @@ function parserProblem(argv: readonly string[]): string {
 }
 
 const HELP: string[][] = [
-  ['help'],
   ['--help'],
   ['-h'],
-  ['help', 'extra', 'more'],
-  ['help', '--json'],
   ['-h', 'run'],
-  ['serve', '--help'],
   ['doctor', '--replace', '-h'],
   ['doctor', 'extra', '--help'],
   ['providers', 'login', '-h'],
@@ -168,9 +164,6 @@ const REFUSED: [string[], string][] = [
   [['--json'], 'no command given'],
   [['--version', 'doctor'], 'no command given'],
   [['--config', 'run'], 'no command given'],
-  [['serve'], 'unknown command "serve"'],
-  [['serve', '--json', 'extra'], 'unknown command "serve"'],
-  [['Doctor'], 'unknown command "Doctor"'],
   [
     ['providers', 'login'],
     'providers login needs a provider: an id phosphor providers lists, or claude',
@@ -459,14 +452,17 @@ describe('runCli supervised usage errors', () => {
 
 describe('runCli prototype names', () => {
   it.each([
-    [['constructor'], 'constructor'],
-    [['toString'], 'toString'],
-    [['__proto__'], '__proto__'],
-    [['constructor', '--json'], 'constructor'],
-    [['hasOwnProperty', '--config', '/x'], 'hasOwnProperty'],
-  ])('refuses %j as an unknown command and never rejects', async (argv, name) => {
-    const result = await cli(argv).catch((error: unknown) => ({ rejected: String(error) }))
-    expect(result).toEqual(refusal(`unknown command "${name}"`))
+    [['constructor']],
+    [['toString']],
+    [['__proto__']],
+    [['constructor', '--json']],
+    [['hasOwnProperty', '--config', '/x']],
+  ])('refuses %j as an unknown domain and never rejects', async (argv) => {
+    expect(await cli(argv)).toEqual({
+      code: 64,
+      stdout: '',
+      stderr: 'phosphor: Unknown domain or command. Use phosphor help.\n',
+    })
     expect(actions.calls).toEqual([])
   })
 })

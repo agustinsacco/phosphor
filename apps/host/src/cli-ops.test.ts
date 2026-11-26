@@ -1,7 +1,7 @@
 import type * as CliOpsModule from './cli-ops'
 import { describe, expect, it, vi } from 'vitest'
 import { readCliRequest } from './cli-args'
-import { runCli, USAGE, type CliContext } from './cli'
+import { runCli, type CliContext } from './cli'
 import { runCliOps } from './cli-ops'
 import { openLocalClient } from './local-client'
 
@@ -47,11 +47,11 @@ describe('catalog ops routing', () => {
       const result = await cli(argv)
       expect(runCliOps).toHaveBeenCalledOnce()
       expect(result.code).toBe(64)
-      expect(result.stderr).toMatch(/^phosphor: unknown command "/)
+      expect(result.stderr).toMatch(/^phosphor: Unknown domain or command/)
     },
   )
 
-  it.each([[['version']], [['help']], [['--help']], [[]], [['doctor', '--bogus']]])(
+  it.each([[['version']], [['--help']], [[]], [['doctor', '--bogus']]])(
     'keeps %j on the command table',
     async (argv) => {
       vi.mocked(runCliOps).mockClear()
@@ -65,8 +65,12 @@ describe('catalog ops routing', () => {
     expect((await cli(['help', 'lane'])).stdout).toContain('lane.read:')
   })
 
-  it('answers help through the ops CLI as the command table does', async () => {
-    expect(await cli(['lane', '--help'])).toEqual({ code: 0, stdout: USAGE, stderr: '' })
+  it('shows a catalog domain for domain --help', async () => {
+    expect(await cli(['lane', '--help'])).toMatchObject({
+      code: 0,
+      stdout: expect.stringContaining('lane.read:'),
+      stderr: '',
+    })
   })
 })
 

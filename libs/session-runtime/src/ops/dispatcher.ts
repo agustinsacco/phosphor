@@ -6,7 +6,7 @@
  * request is always answered: by its result, `timeout` at its deadline, or
  * `aborted` when the lane stops. Living contract: docs/agent-control.md.
  */
-import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
+import { isOpName, type OpsRunRequest, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
 import type { OpReplyEnvelope, OpRequestEnvelope } from '@phosphor/shared/ops'
 import { createLaneDeferred, type LaneDeferredQueue } from './deferred'
 import { createOpLimits } from './limits'
@@ -17,7 +17,7 @@ import type { OpPrincipal, OpsBinding, OpsDispatcher } from './types'
 
 type ToolRequest =
   | { readonly request: OpsRunRequest; readonly hosts?: readonly string[] | 'all' }
-  | { readonly error: string }
+  | { readonly error: string; readonly op?: string }
 
 /** One serial chain per key; a failed task never blocks the next. */
 function createOpQueues() {
@@ -43,8 +43,12 @@ function toolRequest(deps: OpsDispatcherDeps, envelope: OpRequestEnvelope): Tool
     ...(envelope.confirm ? { confirm: envelope.confirm } : {}),
   }
   if (envelope.argv) {
-    const parsed = deps.parseArgv(envelope.argv, envelope.content)
-    if (!parsed.ok) return { error: parsed.error }
+    const parsed = deps.parseArgv(envelope.argv, envelope.content, envelope.reason)
+    if (!parsed.ok)
+      return {
+        op: parsed.op,
+        error: parsed.usage ? `${parsed.error}\n${parsed.usage}` : parsed.error,
+      }
     const reason = envelope.reason ?? parsed.reason
     return {
       request: {
@@ -91,6 +95,7 @@ function toReply(id: string, outcome: OpOutcome, now: number): OpReplyEnvelope {
     applies: r.applies,
     ...(r.data !== undefined ? { data: r.data } : {}),
     ...(r.next !== undefined ? { next: r.next } : {}),
+    ...(r.read ? { read: true as const } : {}),
     ...(outcome.effects?.length ? { effects: outcome.effects } : {}),
     ...(outcome.terminate ? { terminate: true as const } : {}),
     ...(outcome.untrusted ? { untrusted: true as const } : {}),
@@ -146,6 +151,7 @@ function execute(
   request: OpsRunRequest,
   signal: AbortSignal,
   extras: Omit<OpRunExtras, 'signal'> = {},
+  onStart?: () => void,
 ): Promise<OpOutcome | null> {
   // Undo awaits its inverse, which runs on this same principal’s ordinary control queue.
   const group =
@@ -153,16 +159,16 @@ function execute(
   const key = `${principalKey(principal)}|${group}`
   return core.queues.run(key, async () => {
     if (signal.aborted) return null
+    onStart?.()
     try {
       return await core.pipeline.execute(principal, request, { ...extras, signal })
-    } catch (error) {
-      core.deps.log('ops', 'op failed', { op: request.op, error: String(error) })
-      const why = error instanceof Error ? error.message : String(error)
+    } catch {
+      core.deps.log('ops', 'op failed', { op: request.op, phase: 'dispatch' })
       return {
         result: {
           status: 'denied',
           code: 'unavailable',
-          text: `${request.op} failed: ${why}`.slice(0, 1000),
+          text: `${request.op} failed during dispatch. Retry or check the Phosphor service logs.`,
         },
       }
     }
@@ -184,6 +190,18 @@ async function runOp(
   }
 }
 
+/** The lane gives us a backstop; only the owner knows the resolved command. */
+function toolDeadline(core: DispatcherCore, op: string, backstop: number): number {
+  const tier = core.pipeline.spec(op)?.tier
+  const budget =
+    op.startsWith('package.') || op === 'service.update'
+      ? 600_000
+      : tier === 'read'
+        ? 30_000
+        : 60_000
+  return Math.min(backstop, budget)
+}
+
 /** Always answers: the op's reply, `timeout` at the tool's deadline, or `aborted` on Stop. */
 async function runFromTool(
   core: DispatcherCore,
@@ -202,14 +220,24 @@ async function runFromTool(
     }
   const parsed = toolRequest(core.deps, envelope)
   if ('error' in parsed)
-    return { v: 1, id, status: 'denied', code: 'bad-request', text: parsed.error }
+    return { v: 1, id, op: parsed.op, status: 'denied', code: 'bad-request', text: parsed.error }
+  const { op } = parsed.request
+  const deadline = toolDeadline(core, op, envelope.deadlineMs)
+  let phase = 'queue'
   const { controller, release } = track(core, principal)
   let settle: (reply: OpReplyEnvelope) => void = () => undefined
   const early = new Promise<OpReplyEnvelope>((resolve) => (settle = resolve))
   const timer = setTimeout(() => {
-    settle(failed('timeout', id, 'Phosphor did not finish this operation in time.'))
+    core.deps.log('ops', 'op timed out', { op, phase, deadlineMs: deadline })
+    settle(
+      failed(
+        'timeout',
+        id,
+        `Phosphor timed out during ${phase} after ${deadline / 1000} seconds. ${phase === 'queue' ? 'Wait for the earlier operation to finish, then retry.' : 'Check the result before retrying a change.'}`,
+      ),
+    )
     controller.abort()
-  }, envelope.deadlineMs)
+  }, deadline)
   controller.signal.addEventListener('abort', () => settle(failed('aborted', id, STOPPED)), {
     once: true,
   })
@@ -217,11 +245,14 @@ async function runFromTool(
     ...(envelope.facts ? { facts: envelope.facts } : {}),
     ...(parsed.hosts ? { hosts: parsed.hosts } : {}),
   }
-  const work = execute(core, principal, parsed.request, controller.signal, extras).then(
-    (outcome) => (outcome ? toReply(id, outcome, core.now()) : failed('aborted', id, STOPPED)),
+  const work = execute(core, principal, parsed.request, controller.signal, extras, () => {
+    phase = 'execution'
+  }).then((outcome) =>
+    outcome ? toReply(id, outcome, core.now()) : failed('aborted', id, STOPPED),
   )
   try {
-    return await Promise.race([work, early])
+    const reply = await Promise.race([work, early])
+    return isOpName(op) ? { ...reply, op } : reply
   } finally {
     clearTimeout(timer)
     release()

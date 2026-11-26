@@ -1,4 +1,5 @@
-/** Catalog-aware CLI and tool grammar; deliberately outside the wire parser graph. */
-export { OP_ALIASES } from './ops/aliases'
+/** Catalog-aware CLI grammar; deliberately outside the wire parser graph. */
+export { helpArgv, optionsEnd, resolveOp, unknownOperation } from './ops/aliases'
+export { validateOpArgs } from './ops/constraints'
 export { renderHelp } from './ops/help'
 export { parseOpArgv, type OpArgvResult } from './ops/parse'

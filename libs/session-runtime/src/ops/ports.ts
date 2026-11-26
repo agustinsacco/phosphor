@@ -32,7 +32,7 @@ export type ParsedOpArgv =
       readonly limit?: number
       readonly reason?: string
     }
-  | { readonly ok: false; readonly error: string }
+  | { readonly ok: false; readonly error: string; readonly usage?: string; readonly op?: string }
 
 export type OpsConfirmResult = Extract<OpsRunResult, { status: 'confirm' }>
 
@@ -129,7 +129,7 @@ export interface OpsHostResolver {
 export type SurfacePrincipal = Extract<OpPrincipal, { kind: 'surface' }>
 
 export interface OpsDispatcherDeps {
-  parseArgv(argv: readonly string[], content?: string): ParsedOpArgv
+  parseArgv(argv: readonly string[], content?: string, reason?: string): ParsedOpArgv
   /** The agent principal for a live pi session, or null when the owner does not know it. */
   agentFor(sessionId: string): AgentPrincipal | null
   /** Whether a surface's connection holds what the op `requires` (caps, configure authority). */
@@ -159,6 +159,11 @@ export interface OpsDispatcherDeps {
 export interface OpRunContext extends OpHandlerContext {
   readonly page?: string
   readonly limit?: number
+  /** The exact ops and availability used for this owner’s admission. */
+  readonly help?: {
+    readonly catalog: readonly CatalogSpec[]
+    readonly unavailableReason: (spec: CatalogSpec) => string | undefined
+  }
 }
 
 /** The page token a paged handler continues from. */

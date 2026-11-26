@@ -7,12 +7,11 @@ it('builds top-level help from the supplied catalog, including unavailable domai
     ['help', 'lane.list', 'policy.set', 'provider.login'].includes(s.name),
   )
   expect(renderHelp(subset)).toBe(`Usage: phosphor <domain> <verb> [arguments] [options]
-Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json
---host takes a machine name, an ID prefix of 8 or more hex characters, a,b, or all: every other machine, never this one.
 Domains: policy, lane, provider
 Commands: help
 Aliases: lanes
-Use phosphor help <domain> or phosphor help <domain.verb>.
+Use phosphor help <domain> or phosphor help <domain.verb> for arguments and options.
+--host takes a machine name, an ID prefix of 8 or more hex characters, a,b, or all: every other machine, never this one.
 Not available to agents: policy.set, provider.login`)
 })
 
@@ -26,11 +25,8 @@ Not available to agents: audit.undo`)
 it('generates usage, confirmation notes, aliases and supported global options', () => {
   expect(renderHelp(OP_CATALOG, 'folder.remove')).toBe(`Usage: phosphor folder remove <id> [options]
 Remove a folder from the machine’s list. Asks the user first.
-Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json`)
-  expect(renderHelp(OP_CATALOG, 'lanes'))
-    .toBe(`Usage: phosphor lane list [--folder <value>] [--state <value>] [options]
-List a page of lanes.
-Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json`)
+Options: --host H|a,b|all, --reason <text>, --json, --help`)
+  expect(renderHelp(OP_CATALOG, 'lanes')).toContain('Usage: phosphor lane list [--folder <folder>] [--state <state>]')
   expect(renderHelp(OP_CATALOG, 'lane.stop')).toContain('Asks the user first for another lane.')
   expect(renderHelp(OP_CATALOG, 'folder.remove', { tierNotes: false })).not.toContain('Asks')
   expect(renderHelp(OP_CATALOG, 'swarm.on')).not.toContain('--host')
@@ -39,7 +35,7 @@ Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json`)
 
 it('shows semantic labels, schema choices and only the options an op accepts', () => {
   const catalog = OP_CATALOG.map((s) =>
-    s.name === 'lane.list' ? { ...s, paged: true as const } : s,
+    s.name === 'lane.list' ? { ...s, paged: true as const } : { ...s, paged: undefined },
   )
   const read = renderHelp(catalog, 'lane read')
   expect(read).toContain('<lane-ref>')

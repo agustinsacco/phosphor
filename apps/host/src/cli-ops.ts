@@ -4,24 +4,47 @@ import { errorText } from '@phosphor/shared/errors'
 import { OPS_LIMITS, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
 import type { OpRequestEnvelope } from '@phosphor/shared/ops'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
-import { OP_ALIASES, renderHelp } from '@phosphor/shared/ops-cli'
+import {
+  helpArgv,
+  optionsEnd,
+  renderHelp,
+  resolveOp,
+  unknownOperation,
+} from '@phosphor/shared/ops-cli'
 import { EXIT } from './checks'
 import type { CliContext, CliIo } from './cli-handlers'
 import { openLocalClient } from './local-client'
 
-export type CommandTable = (
+type Client = ReturnType<typeof openLocalClient>
+
+export const catalogOp = (argv: readonly string[]) => resolveOp(argv, OP_CATALOG).spec?.name
+
+/** Ask the owner first; static help must not imply every listed handler is installed. */
+async function runCatalogHelp(
   argv: readonly string[],
   io: CliIo,
   context: CliContext,
-) => Promise<number>
-
-type Client = ReturnType<typeof openLocalClient>
-const topics = new Set([
-  ...Object.keys(OP_ALIASES),
-  ...OP_CATALOG.flatMap(({ name }) => [name, name.split('.')[0]!]),
-])
-export const catalogTopic = (word?: string) =>
-  word && topics.has(word) ? `${renderHelp(OP_CATALOG, word)}\n` : null
+): Promise<number> {
+  let client: Client | undefined
+  try {
+    client = openLocalClient(context)
+    const result = await client.run(envelope(argv))
+    if (result.status === 'ok') {
+      io.stdout(`${result.text}\n`)
+      return EXIT.ok
+    }
+    if (result.status === 'denied' && result.code !== 'unsupported') {
+      io.stderr(`${result.text}\n`)
+      return 1
+    }
+  } catch {
+    // No owner reachable; static schema help remains useful during setup.
+  } finally {
+    client?.close()
+  }
+  io.stdout(`Static catalog (service unavailable):\n${renderHelp(OP_CATALOG, argv[1])}\n`)
+  return EXIT.ok
+}
 
 const denied = (
   code: Extract<OpsRunResult, { status: 'denied' }>['code'],
@@ -72,17 +95,20 @@ async function afterApproval(
   }
 }
 
-/** The fixed command table still owns unknown commands and its existing help forms. */
+/** Catalog args execute on the installed owner; this binary only routes help and command names. */
 export async function runCliOps(
   argv: readonly string[],
   io: CliIo,
   context: CliContext,
-  commandTable: CommandTable,
 ): Promise<number> {
-  if (!topics.has(argv[0] ?? '') || (argv.length === 2 && ['-h', '--help'].includes(argv[1]!)))
-    return commandTable(argv, io, context)
-  const end = argv.indexOf('--')
-  const json = argv.slice(0, end < 0 ? argv.length : end).includes('--json')
+  const normalized = helpArgv(argv, OP_CATALOG)
+  const op = catalogOp(normalized)
+  if (!op) {
+    io.stderr(`phosphor: ${unknownOperation(argv, OP_CATALOG)}\n`)
+    return EXIT.usage
+  }
+  if (op === 'help') return runCatalogHelp(normalized, io, context)
+  const json = argv.slice(0, optionsEnd(argv)).includes('--json')
   let client: Client | undefined
   let result: OpsRunResult
   try {

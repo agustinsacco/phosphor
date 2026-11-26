@@ -69,6 +69,8 @@ export interface OpSpec<A extends OpArgs = OpArgs, S = unknown> {
   readonly untrustedResult?: true
   /** False: never accepted with `--host`. */
   readonly routable?: false
+  /** Pages with --page and --limit; the result carries a top-level next. */
+  readonly paged?: true
   /** May outlast the Host's answer deadline: answers `OpsJobData` and reports through `job.status`. */
   readonly job?: true
 }

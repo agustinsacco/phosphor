@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest'
 import { agent, createHarness, local, OWN } from './__fixtures__/dispatcher-harness'
-import type { AuditLog } from './audit'
 import { createConfirmStore } from './confirm'
 import { createOpsDispatcher } from './dispatcher'
 import { metaHandlers } from './meta-handlers'
@@ -41,7 +40,7 @@ it('keeps parser usage for CLI and tool callers', async () => {
 
 it('shows only served ops in help and gives the same unavailability reason as execution', async () => {
   const h = createHarness({ flags: [], gaps: { 'lane.read': 'Try the other owner.' } })
-  const handlers = metaHandlers(h.binding.audit as AuditLog, createConfirmStore(), () => {}, {
+  const handlers = metaHandlers(h.binding.audit, createConfirmStore(), () => {}, {
     gaps: h.binding.gaps,
     machine: 'Test',
   })

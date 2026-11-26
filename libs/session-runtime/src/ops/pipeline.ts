@@ -27,6 +27,7 @@ import type { UndoRecord } from './audit'
 import { orderDeferred, type LaneDeferredQueue } from './deferred'
 import {
   argsError,
+  availability,
   judgeOp,
   laneRefArg,
   policyCheck,
@@ -106,6 +107,7 @@ async function audit(
       decision,
       result: result.slice(0, 200),
       applies: j.spec.applies,
+      ...(j.tier === 'read' ? { read: true as const } : {}),
       undo: undoRecord !== null,
       undoRecord,
     })
@@ -254,7 +256,7 @@ async function perform(
   signal: AbortSignal,
 ): Promise<OpOutcome> {
   const handler = env.builtins[j.spec.name] ?? env.binding.handlers[j.spec.name]
-  if (!handler) return denied('unsupported', `${j.spec.name} is not available on this machine.`)
+  if (!handler) return denied('unsupported', availability(env.binding, j.spec)!.text)
   const ctx = (s: AbortSignal): OpRunContext => ({
     principal: j.principal,
     reason: j.request.reason,
@@ -263,6 +265,14 @@ async function perform(
     ...(j.lane ? { lane: j.lane } : {}),
     ...(j.request.page !== undefined ? { page: j.request.page } : {}),
     ...(j.request.limit !== undefined ? { limit: j.request.limit } : {}),
+    ...(j.spec.name === 'help'
+      ? {
+          help: {
+            catalog: [...env.specs.values()],
+            unavailableReason: (spec: CatalogSpec) => availability(env.binding, spec)?.text,
+          },
+        }
+      : {}),
   })
   try {
     if ((j.spec.job || env.deps.background?.(j.request, j.self)) && env.deps.jobs) {
@@ -313,7 +323,10 @@ async function executeRouted(
   if ('code' in routed) return refuse(env, j, routed)
   const { result } = routed
   await audit(env, j, routed.decision, result.status === 'ok' ? result.text : result.status)
-  return { result, ...(j.spec.untrustedResult ? { untrusted: true as const } : {}) }
+  return {
+    result: result.status === 'ok' && j.tier === 'read' ? { ...result, read: true } : result,
+    ...(j.spec.untrustedResult ? { untrusted: true as const } : {}),
+  }
 }
 
 async function execute(

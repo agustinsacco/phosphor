@@ -17,7 +17,7 @@ const CONTENT_BYTES = 256 * 1024
 const PREFILL_BYTES = 2 * ARGS_BYTES
 /** The mirrored limits; a test keeps them equal to OPS_LIMITS and OP_CHANNEL_LIMITS. */
 export const LANE_OP_LIMITS = { ARGS_BYTES, CONTENT_BYTES, PREFILL_BYTES } as const
-const MAX_DEADLINE = 600_000
+export const MAX_DEADLINE = 600_000
 const error = (
   id: string,
   code: Extract<OpReplyEnvelope, { status: 'denied' | 'error' }>['code'],
@@ -49,6 +49,13 @@ function decode(raw: string | undefined, id: string): OpReplyEnvelope {
     return invalid
   }
   if (r?.v !== 1 || r.id !== id) return invalid
+  if (
+    r.op !== undefined &&
+    (typeof r.op !== 'string' ||
+      r.op.length > 64 ||
+      !/^[a-z][A-Za-z0-9]*(\.[a-z][A-Za-z0-9]*){0,2}$/.test(r.op))
+  )
+    return invalid
   switch (r.status) {
     case 'unsupported':
       return r.code === 'no-owner' ? r : invalid
@@ -70,6 +77,7 @@ function decode(raw: string | undefined, id: string): OpReplyEnvelope {
       return typeof r.text === 'string' &&
         ['now', 'next-request', 'after-run', 'reload', 'new-lanes'].includes(r.applies) &&
         (r.effects === undefined || (Array.isArray(r.effects) && r.effects.every(validEffect))) &&
+        (r.read === undefined || r.read === true) &&
         (r.untrusted === undefined || r.untrusted === true) &&
         (r.terminate === undefined || r.terminate === true) &&
         (r.auditId === undefined || typeof r.auditId === 'string') &&
@@ -116,7 +124,14 @@ export async function sendOpRequest(
       abort = () => resolve(aborted())
       signal?.addEventListener('abort', abort, { once: true })
       timer = setTimeout(
-        () => resolve(error(id, 'timeout', 'Phosphor did not answer in time.')),
+        () =>
+          resolve(
+            error(
+              id,
+              'timeout',
+              `Phosphor timed out waiting for the owner after ${(deadlineMs + 2000) / 1000} seconds. Check whether the owner is running.`,
+            ),
+          ),
         deadlineMs + 2000,
       )
     })

@@ -63,7 +63,7 @@ export function openDesktopOps(userData: string) {
       notifySurfaces: notify,
     }
     const dispatcher = createOpsDispatcher(binding, {
-      parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
+      parseArgv: (argv, content, reason) => parseOpArgv(argv, undefined, { content, reason }),
       agentFor: (id) => {
         const laneRef = liveOpRef(id)
         const lane = liveOpLane(id)
