@@ -159,7 +159,9 @@ describe('foundation CI wiring', () => {
   it('runs the whole macOS suite nightly, off the release path, and reports failures', () => {
     const nightly = read('.github/workflows/macos-nightly.yml')
     expect(nightly).toMatch(/schedule:\n\s+- cron:/)
-    expect(nightly).toContain('runs-on: [self-hosted, macOS, ARM64]')
+    expect(nightly).toContain('runs-on: macos-15')
+    expect(nightly).not.toContain('self-hosted')
+    expect(nightly).toContain('NODE_OPTIONS: --max-old-space-size=4096')
     expect(nightly).toContain(
       'run: npx playwright test --config apps/desktop/playwright.config.ts\n',
     )
@@ -231,21 +233,15 @@ describe('foundation CI wiring', () => {
     ])
   })
 
-  it('runs every job on the project runners, selected by OS and architecture', () => {
+  it('keeps Linux CI self-hosted and always runs macOS CI on GitHub', () => {
     const runsOn = [...workflow.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1])
     const linux = '[self-hosted, Linux, X64]'
     expect(runsOn.filter((value) => value === linux)).toHaveLength(7)
-    // The macOS leg alone falls back to a GitHub Mac, as mac-runner.mjs decides.
     expect(runsOn.filter((value) => value !== linux)).toEqual([
-      `\${{ matrix.os == 'macos' && fromJSON(needs.changes.outputs.mac || '"macos-15"') || fromJSON('["self-hosted","Linux","X64"]') }}`,
+      `\${{ matrix.os == 'macos' && 'macos-15' || fromJSON('["self-hosted","Linux","X64"]') }}`,
     ])
-    expect(job('changes')).toContain('run: node tools/scripts/mac-runner.mjs >> "$GITHUB_OUTPUT"')
-    expect(job('changes')).toContain('mac: ${{ steps.mac.outputs.mac }}')
-    // A bare `self-hosted` would hand Linux work to the Mac; no other job leaves the project.
+    expect(job('changes')).not.toMatch(/RUNNER_STATUS_TOKEN|mac-runner|steps\.mac/)
     expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-/m)
-    // The two fallbacks (the picker's and runs-on's own) are the only GitHub Mac.
-    const config = workflow.replace(/^\s*#.*$/gm, '')
-    expect(config.match(/macos-15/g)).toHaveLength(2)
   })
 
   it('narrows only the app jobs, by the changes job, and always runs the checks', () => {

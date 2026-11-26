@@ -1,15 +1,14 @@
 name: macOS nightly
 
-# The whole Desktop e2e suite on the macOS runner, once a day against main.
-# CI runs only the @macos tests there (ci.yml), so a release never waits on the
-# one Mac runner for a serial full run. A Mac-only regression is caught here
-# within a day instead. The decisions live in tools/scripts/macos-nightly.mjs.
+# The whole Desktop e2e suite on GitHub-hosted macos-15, once a day against main.
+# CI runs only the @macos tests (ci.yml), so a release does not wait for the
+# full suite. The decisions live in tools/scripts/macos-nightly.mjs.
 #
 # - GitHub drops scheduled runs under load, so there are three daily slots and
 #   the suite runs in the first one that fires, at most once a day.
 # - A failed or cancelled suite opens an issue labelled `macos-nightly`, or
 #   comments on the open one; a green run closes it. Manual runs report too.
-# - Every main push checks, without touching the Mac, that the suite finished
+# - Every main push checks, without starting the suite, that it finished
 #   in the last 30 hours, and opens the issue when it has not: a nightly that
 #   silently stops running is a failure too.
 on:
@@ -72,7 +71,7 @@ jobs:
     name: E2E full suite (macOS)
     needs: decide
     if: needs.decide.outputs.run == 'true'
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +90,9 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Same hosted-runner heap limit as the macOS CI leg.
+          NODE_OPTIONS: --max-old-space-size=4096
 
       - name: E2E (macOS, whole suite)
         run: npx playwright test --config apps/desktop/playwright.config.ts
