@@ -45,6 +45,8 @@ export interface UpdateRun {
   finish?: UpdateFinish
   settled?: true
   jobId?: string
+  awaitingJob?: true
+  taskExit?: { code: number; at: number }
   details?: string
   controlling?: 'abort-now' | 'cancel'
 }
@@ -106,7 +108,13 @@ export function observePause(
     return { ...reach(run, 'waiting', now), waiting: pause }
   if (pause?.kind === 'paused') return reach(run, 'paused', now)
   // An externally started pause has no job for this principal; its deadline is still authoritative.
-  if (pause?.kind === 'none' && !run.jobId && run.reached === 'waiting')
+  if (
+    pause?.kind === 'none' &&
+    !run.jobId &&
+    !run.awaitingJob &&
+    !run.controlling &&
+    run.reached === 'waiting'
+  )
     return { ...run, finish: 'still-working' }
   return run
 }
@@ -150,8 +158,17 @@ export function observeConnection(
 
 export function tickRun(run: UpdateRun, now: number): UpdateRun {
   if (!run.finish) {
+    if (
+      run.taskExit &&
+      !run.wentOffline &&
+      now - run.taskExit.at >= 4000 &&
+      run.taskExit.code !== 0
+    )
+      return nextRun({ ...run, finish: 'download' }, now)
     if (run.restartAt !== undefined && now - run.restartAt >= 4 * 60_000)
       return nextRun({ ...run, finish: 'not-back' }, now)
+    if (run.reached === 'paused' && now - run.shownAt >= 5 * 60_000)
+      return nextRun({ ...run, finish: 'apply' }, now)
     if (run.reached === 'downloading' && now - run.started >= 15 * 60_000)
       return nextRun({ ...run, finish: 'download' }, now)
   }
@@ -159,7 +176,11 @@ export function tickRun(run: UpdateRun, now: number): UpdateRun {
 }
 
 export function holdUpdatePage(run: UpdateRun | undefined): boolean {
-  return !!run && !run.settled && (run.reached === 'paused' || run.restartAt !== undefined)
+  return (
+    !!run &&
+    (run.finish === 'not-back' ||
+      (!run.settled && (run.reached === 'paused' || run.restartAt !== undefined)))
+  )
 }
 
 export function deriveMachineUpdate(input: {

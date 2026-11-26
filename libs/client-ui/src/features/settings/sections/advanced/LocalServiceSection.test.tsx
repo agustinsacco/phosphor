@@ -8,10 +8,8 @@ import {
   installFakePhosphor,
 } from '../../../../../../../apps/desktop/test/renderer/helpers/fakePhosphor'
 import { PlatformProvider, WIDE_BROWSER_PLATFORM, DESKTOP_PLATFORM } from '@/platform/Platform'
-import { promptChoice } from '@/stores/prompt'
 import { LocalServiceSection } from './LocalServiceSection'
 
-vi.mock('@/stores/prompt', () => ({ promptChoice: vi.fn(async () => 'update') }))
 const ready: LocalMachineStatus = {
   mode: 'daemon',
   migration: 'committed',
@@ -60,70 +58,10 @@ async function click(label: string) {
   expect(b, label).toBeDefined()
   await act(async () => b!.click())
 }
-async function start() {
-  await show()
-  await click('Update Phosphor service')
-  expect(promptChoice).toHaveBeenCalledOnce()
-  expect(action).toHaveBeenCalledWith('update-service')
-  expect(el.textContent).toContain('Started')
-}
-const pausing: LocalMachineStatus = {
-  ...ready,
-  pause: {
-    kind: 'pausing',
-    purpose: 'update',
-    since: 'now',
-    deadline: 'later',
-    waitingOn: { turns: 1, routines: 0, subagents: 2 },
-  },
-}
-
-it('reports an unsuccessful update only after the pause ends on the old version', async () => {
-  await start()
-  expect(el.textContent).not.toContain("didn't finish")
-  push(pausing)
-  expect(el.textContent).toContain('Abort now')
-  push(ready)
-  expect(el.textContent).toContain(
-    "The update didn't finish. The Phosphor service is still on 1.2.3.",
-  )
-  expect(el.textContent).toContain('Update again')
-  push({ ...ready, serviceVersion: '2.0.0' })
-  expect(el.textContent).not.toContain("didn't finish")
-})
-it('reports the new version after a successful pause and update', async () => {
-  await start()
-  push(pausing)
-  push({ ...ready, serviceVersion: '2.0.0' })
-  expect(el.textContent).toContain('Version 2.0.0')
-  expect(el.textContent).not.toContain('Started')
-})
-it('keeps restart visible when the local slot clears its pause and flaps between down and ready', async () => {
-  await start()
-  push(pausing)
-  push({ ...ready, pause: { kind: 'paused', purpose: 'update', since: 'now' } })
-  push({ mode: 'daemon', migration: 'committed', service: 'down' })
-  expect(el.textContent).not.toContain('Start service')
-  expect(el.textContent).not.toContain('service unavailable')
-  push(ready)
-  push({ mode: 'daemon', migration: 'committed', service: 'connecting' })
-  expect(el.textContent).toContain('Restart')
-  expect(el.textContent).not.toContain("didn't finish")
-})
 it('never reads or shows the local service card on the PWA', async () => {
   await show(true)
   expect(read).not.toHaveBeenCalled()
   expect(el.textContent).toBe('')
-})
-it('shows an unavailable action answer rather than claiming the update started', async () => {
-  action.mockResolvedValueOnce({
-    ok: false,
-    message: "This Mac's Phosphor service isn't ready yet. Try again in a moment.",
-  })
-  await show()
-  await click('Update Phosphor service')
-  expect(el.textContent).toContain("isn't ready yet")
-  expect(el.textContent).not.toContain('Started')
 })
 it('shows the consent notice and explicit action and limits restart to a committed in-app migration', async () => {
   current = { mode: 'in-app', migration: 'consent-needed' }
@@ -137,18 +75,6 @@ it('shows the consent notice and explicit action and limits restart to a committ
   expect(el.textContent).toContain('Restart to finish setting up this Mac')
   push(ready)
   expect(el.textContent).not.toContain('Restart to finish')
-})
-
-it('does not let an Abort now acknowledgement hide a failed update after the pause', async () => {
-  await start()
-  push(pausing)
-  action.mockResolvedValueOnce({ ok: true, message: 'Saved the unfinished turns.' })
-  await click('Abort now')
-  expect(action).toHaveBeenCalledWith('update-abort-now')
-  push(ready)
-  expect(el.textContent).toContain(
-    "The update didn't finish. The Phosphor service is still on 1.2.3.",
-  )
 })
 
 it('says in-app why the Phosphor service is not set up yet, and what happens next', async () => {
@@ -169,11 +95,10 @@ it('says in-app why the Phosphor service is not set up yet, and what happens nex
   )
 })
 
-it('does not mistake an unchanged version after Cancel for a failed update', async () => {
-  await start()
-  push(pausing)
-  await click('Cancel')
+it('offers Start service for a genuine outage, not a shutdown during an update', async () => {
+  current = { ...ready, service: 'down' }
+  await show()
+  expect(el.textContent).toContain('Start service')
   push(ready)
-  expect(el.textContent).toContain('Update cancelled. Nothing changed.')
-  expect(el.textContent).not.toContain("didn't finish")
+  expect(el.textContent).not.toContain('Start service')
 })

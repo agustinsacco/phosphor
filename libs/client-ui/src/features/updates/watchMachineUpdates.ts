@@ -98,7 +98,9 @@ export function watchMachineUpdates(owner: boolean): () => void {
     clock.reading = true
     try {
       const reads = await Promise.all([
-        updateOp(id, 'machine.status').catch(() => undefined),
+        host.ops && host.capabilities.includes('sessions.read')
+          ? updateOp(id, 'machine.status').catch(() => undefined)
+          : undefined,
         run?.jobId && !run.finish
           ? updateOp(id, 'job.status', { jobId: run.jobId }).catch(() => undefined)
           : undefined,

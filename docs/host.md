@@ -391,7 +391,7 @@ replacement itself, with renames and deletions that fail.
 
 ## Updating
 
-`update --stage` verifies, downloads and probes a release without selecting it. `update --apply X.Y.Z` selects a staged release and health-checks the restart, rolling back if unhealthy; it does not update pi packages. For local mode health requires a fresh `local.json` from the selected version, plus a new heartbeat if the previous service had a recent one. The service reports `update-result.json` for 24 hours. Plain CLI update does not wait for a coordinated pause; use the [service card](local-service.md#using-the-service) to stage and pause first.
+`update --stage` verifies, downloads and probes a release without selecting it. `update --apply X.Y.Z` selects a staged release and health-checks the restart, rolling back if unhealthy; it does not update pi packages. For local mode health requires a fresh `local.json` from the selected version, plus a new heartbeat if the previous service had a recent one. The service reports `update-result.json` for 24 hours. Plain CLI update does not wait for a coordinated pause; use [Settings → Advanced → Software](settings.md) to stage and pause first.
 
 Release installs support `phosphor update`, `phosphor update --check` and
 `phosphor update --version X.Y.Z`. Add `--json` for a machine-readable result.
@@ -454,19 +454,9 @@ prints `Installed: X; available: Y` and where to follow it
 the Host restarts. If `systemd-run` fails, nothing changes and the update
 exits 75. `--check` restarts nothing and stays in the terminal.
 
-**Pause and update** (Machines → a Host → Settings → Advanced, also
-**Update Host…** in Machine actions) sends the fixed-purpose
-`machine.task` `host.update`. It carries no version, folder or argument. The
-Host runs its own installed release's `node lib/phosphor.mjs update` in a
-private configuration PTY, with pi's environment plus only
-`PHOSPHOR_HOST_RELEASE_URL`, `XDG_CONFIG_HOME`, `XDG_STATE_HOME`,
-`XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS`, so the handoff above moves
-it out of the unit. The restart's drain ([Lifecycle](#lifecycle)) is the
-pause: a turn in flight is aborted and saved, and each lane resumes on its next
-message. The confirmation counts the lanes that are working. The Host refuses
-the task (`unavailable`) on a source install. On macOS an update inside the service hands off to a one-shot launchd job outside the restarting service. A Host
-older than this task rejects it as `bad-request`, and the client says to run
-`phosphor update` there once.
+**Update…** in Settings → Advanced → Software (also reached through **Update Host…** in Machine actions) uses `service.update` on an ops-enabled Host. The Host stages the signed release, waits up to ten minutes for working turns, sub-agents and routines, pauses lanes, then restarts. If the Host advertises pause controls, a person can stop working turns and update now, or cancel without applying. Otherwise the waiting step shows when the Host gives up. The inline pipeline stays visible across reconnects; raw output stays in **Show details**.
+
+A Host that does not advertise `ops` uses the existing fixed-purpose `machine.task` `host.update`. The confirmation explains that the legacy path cannot wait: the restart saves and stops working turns, and lanes continue on their next message. It captures PTY output without opening a terminal. Source installs refuse self-update. On macOS an update inside the service hands off to a one-shot launchd job outside the restarting service.
 
 `phosphor update --rollback` selects the recorded previous installed version
 without network access; an installed service is restarted and health-checked even

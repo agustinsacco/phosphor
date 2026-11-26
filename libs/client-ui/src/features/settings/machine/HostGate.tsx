@@ -16,7 +16,8 @@ import { hostSettingsStatus, type HostGateAction, type HostGateNotice } from './
  */
 export function HostGate({ children }: { children: React.ReactNode }): React.JSX.Element {
   const host = useHostSection()
-  const { machine, settings, connection, allowed, reads, error, terminalLink, starting } = host
+  const { machine, settings, connection, allowed, reads, error, terminalLink, starting, updating } =
+    host
   const record = useMachinesStore((s) => s.machines.find((m) => m.id === machine.id))
   // Signed out the store holds no clock reading (0); a selector reading the clock would never settle.
   const nowMs = useMachinesStore((s) => s.nowMs)
@@ -36,21 +37,21 @@ export function HostGate({ children }: { children: React.ReactNode }): React.JSX
     error ?? (status.kind === 'notice' && status.action === 'retry' ? null : settings.error)
   return (
     <div className="min-w-0 space-y-4">
-      {problem && <SettingsNotice tone="danger" title={problem} />}
-      {status.kind === 'notice' ? (
+      {!updating && problem && <SettingsNotice tone="danger" title={problem} />}
+      {!updating && status.kind === 'notice' ? (
         <GateNotice notice={status} host={host} />
-      ) : status.kind === 'loading' ? (
+      ) : !updating && status.kind === 'loading' ? (
         <WaitingNote className="py-4">Loading machine settings…</WaitingNote>
       ) : (
         <>
-          {!terminalLink && (
+          {!updating && !terminalLink && (
             <SettingsNotice
               tone="warning"
               title="Native Host terminal support is unavailable or not granted."
               body="Sign-in and setup actions are disabled; read-only checks remain available."
             />
           )}
-          {starting && (
+          {!updating && starting && (
             <p role="status" className="text-text-secondary flex items-center gap-2 text-base">
               <Spinner />
               Starting the private program on {machine.label}…

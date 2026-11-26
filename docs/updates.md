@@ -13,7 +13,7 @@ Everything here is **hard-gated on `app.isPackaged`**. Dev runs, the browser
 harness and the Playwright suite never reach the network for an update check,
 and `electron-updater` is imported lazily so an unpackaged run does not load it.
 
-Desktop and This Mac’s lane service update independently. [This Mac’s service](local-service.md) owns release gating, staged service updates and migration recovery.
+Desktop and This Mac’s lane service update independently. Desktop and the PWA show the same step-by-step Software pipeline for a lane service or Host in Settings → Advanced. It reports a changed version as success, a rollback as the version running now, and a slow restart with **Reconnect**. The Desktop app’s own updater stays separate. [This Mac’s service](local-service.md) owns release gating, staged service updates and migration recovery.
 
 ## Three paths, chosen once at startup
 

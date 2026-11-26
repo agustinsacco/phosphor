@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type {
   LocalMachineAction,
   LocalMachineStatus,
@@ -6,8 +6,9 @@ import type {
 } from '@phosphor/shared/ipc'
 import { Button, SectionTitle } from '@/components/form'
 import { TooltipSummary } from '@/components/Tooltip'
-import { useServiceAction, laneCount } from '@/features/updates/useServiceAction'
-import { hostTasks } from '@/features/machines/runningTasks'
+import { useOpAction } from '@/features/agent-control/useOpRead'
+import { holdUpdatePage } from '@/features/updates/machineUpdateState'
+import { useMachineUpdatesStore } from '@/stores/machineUpdates'
 import { useLocalServiceStatus } from '@/features/updates/useLocalServiceStatus'
 import { usePlatform } from '@/platform/Platform'
 import { localServiceId } from '@/stores/localServiceScope'
@@ -97,92 +98,68 @@ function migrationRow(status: LocalMachineStatus, button: Click) {
   }
 }
 
-function ServiceRows({
-  status,
-  working,
-  button,
-  reload,
-}: {
-  status: LocalMachineStatus
-  working: number | undefined
-  button: Click
-  reload(): void
-}) {
-  if (status.mode !== 'daemon') return null
-  if (status.service !== 'ready')
-    return (
-      <>
-        <p>
-          Phosphor service unavailable.{' '}
-          {status.service === 'attestation-failed'
-            ? 'Phosphor could not verify this service.'
-            : 'This Mac’s lanes stay on the service. They will reappear when it reconnects.'}
-        </p>
-        {status.notice !== 'dev-build' && button('start-service', 'Start service')}
-        <Button onClick={reload}>Retry</Button>
-      </>
-    )
-  const pause = status.pause
-  if (pause?.kind === 'pausing')
-    return (
-      <>
-        <p>
-          Waiting to pause for the update: {pause.waitingOn.turns} turns,{' '}
-          {pause.waitingOn.subagents} sub-agents and {pause.waitingOn.routines} routines remaining.
-          Abort now saves and stops unfinished turns. Cancel leaves the update unapplied.
-        </p>
-        {button('update-abort-now', 'Abort now')}
-        {button('update-cancel', 'Cancel')}
-      </>
-    )
-  if (pause?.kind === 'paused') return <p>Lanes paused. The service is applying the update.</p>
-  return (
-    <>
-      <p>
-        {status.serviceVersion && `Version ${status.serviceVersion}. `}
-        {laneCount(working)}. Lanes keep running after Desktop quits.
-      </p>
-      {button('update-service', 'Update Phosphor service')}
-    </>
-  )
-}
-
 function ServiceCard({ machine, children }: { machine: string; children?: ReactNode }) {
   const { status, error, reload } = useLocalServiceStatus()
-  const working = useRemoteLanesStore((s) => {
-    const id = localServiceId(s.hosts)
-    return id && s.hosts[id]?.state === 'ready' ? hostTasks(id, s.hosts[id]).length : undefined
-  })
-  const action = useServiceAction(status, working, reload)
-  const retryService = () =>
+  const updating = useMachineUpdatesStore(
+    (s) =>
+      holdUpdatePage(s.byMachine[machine]?.run) || s.byMachine[machine]?.run?.finish === 'not-back',
+  )
+  const action = useOpAction()
+  const [message, setMessage] = useState<string>()
+  function retryService() {
     action.run(async () => {
       const id = localServiceId(useRemoteLanesStore.getState().hosts)
       if (id) await window.phosphor.invoke('hosts:reconnect', id)
       reload()
     })
+  }
   const button: Click = (name, label) => (
-    <Button disabled={action.busy} onClick={() => action.invoke(name)}>
-      {action.failed && name === 'update-service' ? 'Update again' : label}
+    <Button
+      disabled={action.busy}
+      onClick={() =>
+        action.run(async () => {
+          setMessage('')
+          const result = await window.phosphor.invoke('app:localMachineAction', name)
+          setMessage(result.message ?? (result.ok ? '' : 'The service refused the action.'))
+          reload()
+        })
+      }
+    >
+      {label}
     </Button>
   )
-  return (
-    <>
-      <section className="space-y-2 pb-3">
-        <SectionTitle small>Phosphor service</SectionTitle>
-        {error && (
-          <div role="alert">
-            Couldn’t check the Phosphor service: {error} <Button onClick={reload}>Retry</Button>
-          </div>
-        )}
-        {status && migrationRow(status, button)}
-        {status && (
-          <ServiceRows status={status} working={working} reload={retryService} button={button} />
-        )}
-        {action.message && <p role="status">{action.message}</p>}
-      </section>
-      {(machine !== 'local' || status?.mode === 'in-app') && children}
-    </>
-  )
+  const recovery = status?.mode === 'daemon' && status.service !== 'ready'
+  const migration = status && migrationRow(status, button)
+  if (!updating && (error || recovery || migration || message || action.error)) {
+    return (
+      <>
+        <section className="space-y-2 pb-3">
+          <SectionTitle small>Phosphor service</SectionTitle>
+          {error && (
+            <div role="alert">
+              Couldn’t check the Phosphor service: {error} <Button onClick={reload}>Retry</Button>
+            </div>
+          )}
+          {migration}
+          {recovery && (
+            <>
+              <p>
+                Phosphor service unavailable.{' '}
+                {status.service === 'attestation-failed'
+                  ? 'Phosphor could not verify this service.'
+                  : 'This Mac’s lanes stay on the service. They will reappear when it reconnects.'}
+              </p>
+              {status.notice !== 'dev-build' && button('start-service', 'Start service')}
+              <Button onClick={retryService}>Retry</Button>
+            </>
+          )}
+          {(action.error || message) && <p role="status">{action.error || message}</p>}
+        </section>
+        {(machine !== 'local' || status?.mode === 'in-app') && children}
+      </>
+    )
+  }
+  return <>{(machine !== 'local' || status?.mode === 'in-app') && children}</>
 }
 
 /** Outside the Host gate: the service controls must remain reachable even before its first ready. */

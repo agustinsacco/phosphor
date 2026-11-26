@@ -188,9 +188,7 @@ withholds:
   which a refusal names, and reviews pi trust explicitly, which first asks for
   configuration access (a Host without settings support offers no review). Its
   Refresh reads the link's folders again.
-- **Advanced** offers Pause and update (the Host's own signed `phosphor update`) and
-  shows its pi, read-only paths, PATH and environment names: never values, never a
-  raw-JSON editor.
+- **Advanced → Software** shows the selected machine’s Phosphor version and platform. **Update…** confirms once, then shows the download, lane wait, pause, restart and health check inline. It shows the same steps in Desktop and the PWA, without percentages or a terminal. A completed update names the installed version; **Show details** is closed by default. Advanced also shows the Host’s pi, configuration path, executable search path and the names of environment variables, never their values.
 
 Claude uses the same account routing, cooldowns and transcript bindings as
 Desktop. Credentials stay in the Host's Claude credential store. Reauthentication
@@ -268,7 +266,7 @@ platform and repository names in the machine block, as its lanes receive them; t
 config. On a Host with `ops` and `folderDirectives`, a registered folder can override machine directives. The `directives.set` op pushes changes to live lanes in scope for their next request. A Host without the section asks to be updated. Source URLs and non-allowlisted
 package sources are hidden and read-only, not offered as guessed mutations.
 
-On a machine with `configFiles` and the required configuration access, the raw settings editor exposes only reviewed agent behavior fields. The skill editor can save user skill source there; it does not retain old content for Undo. For approvals and audit see [Agent control](agent-control.md#policy-and-confirmations); for Desktop’s Advanced service card see [This Mac’s service](local-service.md#using-the-service).
+On a machine with `configFiles` and the required configuration access, the raw settings editor exposes only reviewed agent behavior fields. The skill editor can save user skill source there; it does not retain old content for Undo. For approvals and audit see [Agent control](agent-control.md#policy-and-confirmations); for This Mac’s recovery controls see [This Mac’s service](local-service.md#using-the-service).
 
 ## How a settings section is built
 

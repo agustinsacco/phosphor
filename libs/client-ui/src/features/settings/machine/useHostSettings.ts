@@ -93,13 +93,14 @@ export function useHostSettings(
   hostId: string,
   section: MachineSettingsSection | null,
   repositoryId?: string,
+  suspended = false,
 ) {
   const supported = usePlatform().machineSettings
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
   const key = `${hostId}/${generation}/${section ?? ''}/${repositoryId ?? ''}/${supported}`
   const allowed = canConfigureHost(supported, connection)
-  const { live, attempt } = useLive(key)
+  const { live, attempt } = useLive(`${key}/${suspended}`)
   const [state, setState] = useState(IDLE)
   const update = useCallback(
     (patch: Partial<SettingsState>) => setState((s) => ({ ...s, ...patch })),
@@ -107,7 +108,7 @@ export function useHostSettings(
   )
   const read = useCallback(
     async (request: () => Promise<MachineSettings>): Promise<void> => {
-      if (!live() || !allowed) return
+      if (!live() || !allowed || suspended) return
       const id = ++attempt.current
       const latest = () => live() && attempt.current === id
       update({ loading: true, error: null })
@@ -120,22 +121,23 @@ export function useHostSettings(
         if (latest()) update({ loading: false })
       }
     },
-    [live, allowed, attempt, key, update],
+    [live, allowed, suspended, attempt, key, update],
   )
   const refresh = useCallback(async (): Promise<void> => {
     if (section)
       await read(() => window.phosphor.invoke('hosts:settingsRead', hostId, section, repositoryId))
   }, [read, hostId, section, repositoryId])
   useEffect(() => {
+    if (suspended) return
     setState(IDLE)
     void refresh()
-  }, [refresh])
-  const data = state.result?.key === key ? state.result.data : null
+  }, [refresh, suspended])
+  const data = state.result && (suspended || state.result.key === key) ? state.result.data : null
   const writer: Writer = { live, saving: state.saving, update }
   return {
     supported,
     data,
-    error: state.error,
+    error: suspended ? null : state.error,
     loading: state.loading,
     saving: state.saving,
     checking: state.checking,
@@ -143,7 +145,7 @@ export function useHostSettings(
     connection,
     refresh,
     change: async (change: MachineSettingsChange): Promise<MachineSettings | null> => {
-      if (!data || !allowed || !section) return null
+      if (!data || !allowed || !section || suspended) return null
       const patch = { section, repositoryId, revision: data.revision, change }
       const saved = await write(
         writer,
@@ -153,13 +155,13 @@ export function useHostSettings(
       return saved?.value ?? null
     },
     check: async (): Promise<void> => {
-      if (section !== 'connectors' || state.loading || state.saving) return
+      if (suspended || section !== 'connectors' || state.loading || state.saving) return
       update({ checking: true })
       await read(() => window.phosphor.invoke('hosts:settingsCheck', hostId, repositoryId))
       if (live()) update({ checking: false })
     },
     moveAccount: async (laneId: string, accountId: string): Promise<void> => {
-      if (!allowed) return
+      if (!allowed || suspended) return
       const moved = await write(
         writer,
         () => window.phosphor.invoke('hosts:claudeAccount', hostId, laneId, accountId),

@@ -30,7 +30,11 @@ async function startOp(id: string, started: number) {
   changeUpdateRun(id, started, (run) => {
     if (run.finish) return run
     if (answer.status === 'ok' && record(answer.data) && typeof answer.data.jobId === 'string')
-      return { ...appendUpdateDetails(run, answer.text), jobId: answer.data.jobId }
+      return {
+        ...appendUpdateDetails(run, answer.text),
+        jobId: answer.data.jobId,
+        awaitingJob: undefined,
+      }
     const message = answer.status === 'confirm' ? answer.message : answer.text
     return { ...appendUpdateDetails(run, message), finish: 'refused' }
   })
@@ -55,6 +59,7 @@ async function startTask(id: string, started: number) {
       // On restart the task's PTY may close before the disconnect is published.
       if (exited === 0 && run.details?.includes('already up to date'))
         return { ...run, finish: 'current' }
+      if (exited !== undefined) return { ...run, taskExit: { code: exited, at: Date.now() } }
       return run
     })
   }
@@ -80,7 +85,10 @@ export async function beginMachineUpdate(id: string, path: UpdatePath): Promise<
   if (previous && !previous.settled) return
   const host = useRemoteLanesStore.getState().hosts[id]
   if (host?.state !== 'ready') return
-  const run = startRun(path, machineUpdateEntry(id), host, Date.now())
+  const run = {
+    ...startRun(path, machineUpdateEntry(id), host, Date.now()),
+    awaitingJob: path === 'op' ? (true as const) : undefined,
+  }
   updateMachineEntry(id, (entry) => ({ ...entry, run }))
   try {
     await (path === 'op' ? startOp(id, run.started) : startTask(id, run.started))
