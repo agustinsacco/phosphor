@@ -123,10 +123,12 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
         db.prepare('SELECT * FROM agent_jobs WHERE id=? AND principal=?').get(jobId, creator),
       )
     },
-    list(creator: string): AgentJob[] {
+    list(creator: string, offset = 0, limit = LIST_LIMIT): AgentJob[] {
       return db
-        .prepare('SELECT * FROM agent_jobs WHERE principal=? ORDER BY created_at DESC, id LIMIT ?')
-        .all(creator, LIST_LIMIT)
+        .prepare(
+          'SELECT * FROM agent_jobs WHERE principal=? ORDER BY created_at DESC, id LIMIT ? OFFSET ?',
+        )
+        .all(creator, limit, offset)
         .flatMap((row) => jobFrom(row) ?? [])
     },
     /** Owner shutdown: running jobs are aborted and read `interrupted` on the next open. */

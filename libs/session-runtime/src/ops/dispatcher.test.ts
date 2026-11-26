@@ -119,7 +119,11 @@ describe('principals', () => {
       code: 'forbidden',
     })
     expect(h.calls.created).toEqual([])
-    expect((await h.run(agent(), { op, args: {} })).status).toBe('confirm')
+    expect(await h.run(agent(), { op, args: {} })).toMatchObject({
+      status: 'denied',
+      code: 'bad-request',
+    })
+    expect((await h.run(agent(), { op, args: { id: args.runId } })).status).toBe('confirm')
     expect((await h.run(surface(), { op, args })).status).toBe('ok')
   })
 

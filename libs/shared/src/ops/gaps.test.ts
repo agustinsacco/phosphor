@@ -43,7 +43,13 @@ it('offers only the pre-migration subset and explains every other op', () => {
       .map((op) => op.name)
       .sort(),
   ).toEqual(available.sort())
-  expect(new Set(Object.values(OP_GAPS.desktop))).toEqual(
+  expect(
+    new Set(
+      Object.entries(OP_GAPS.desktop)
+        .filter(([op]) => !['folder.browse', 'job.list', 'job.status'].includes(op))
+        .map(([, reason]) => reason),
+    ),
+  ).toEqual(
     new Set([
       'This Mac gets this once Phosphor finishes moving its lanes to the Phosphor service.',
     ]),

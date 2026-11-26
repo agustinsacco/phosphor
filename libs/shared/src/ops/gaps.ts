@@ -64,6 +64,13 @@ const desktop = new Set([
 ])
 const moveNotice =
   'This Mac gets this once Phosphor finishes moving its lanes to the Phosphor service.'
+const jobNotice =
+  "Background operations run on the Phosphor service; this Mac hasn't moved its lanes there yet."
+const desktopGap: Readonly<Record<string, string>> = {
+  'folder.browse': 'Use the app’s folder picker until this Mac moves to the Phosphor service.',
+  'job.list': jobNotice,
+  'job.status': jobNotice,
+}
 const daemon = [
   'brain.find',
   'brain.queue',
@@ -98,7 +105,10 @@ export const OP_GAPS: Readonly<
 > = Object.freeze({
   desktop: Object.freeze(
     Object.fromEntries(
-      OP_CATALOG.filter((op) => !desktop.has(op.name)).map((op) => [op.name, moveNotice]),
+      OP_CATALOG.filter((op) => !desktop.has(op.name)).map((op) => [
+        op.name,
+        desktopGap[op.name] ?? moveNotice,
+      ]),
     ),
   ),
   daemon: Object.freeze({

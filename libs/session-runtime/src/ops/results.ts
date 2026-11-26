@@ -77,7 +77,7 @@ function fitOversizedRow<T>(row: T): T {
   return best as T
 }
 
-export function fitInventory<T>(rows: readonly T[], limit: number): T[] {
+function fitInventory<T>(rows: readonly T[], limit: number): T[] {
   const shown: T[] = []
   let used = 2 // brackets
   for (const row of rows.slice(0, limit)) {
@@ -100,12 +100,18 @@ export function rowTime(value: unknown) {
   return Number.isFinite(time.getTime()) ? `${time.toISOString().slice(0, 16)}Z` : ''
 }
 
-function cell(value: unknown, identifier: boolean) {
-  const text = typeof value === 'string' ? value : (JSON.stringify(value) ?? '')
+export function compactRowField(text: string, identifier = false) {
   const line = text.replace(/[\r\n\u2028\u2029]+/g, ' ')
   if (identifier) return line
   const chars = Array.from(line)
-  return chars.length > 80 ? `${chars.slice(0, 79).join('')}…` : chars.join('')
+  return chars.length > 80 ? `${chars.slice(0, 79).join('')}…` : line
+}
+
+function cell(value: unknown, identifier: boolean) {
+  return compactRowField(
+    typeof value === 'string' ? value : (JSON.stringify(value) ?? ''),
+    identifier,
+  )
 }
 
 export function inventoryText<T>(rows: readonly T[], columns: Columns<T>) {
@@ -147,15 +153,20 @@ export function pageInventory<T, D = T[], A = T>(
   options?: {
     wrap?: (rows: T[], next?: string) => D
     windowOffset?: number
+    /** A pre-fetched keyset window; continue after the final delivered row. */
+    keyset?: (row: T) => string
     limit?: number
     surface?: LegacyPage
     agent?: { row: (row: T) => A; columns: Columns<A> }
   },
 ) {
-  const start = options?.windowOffset ?? pageOffset(ctx)
-  const remaining = options?.windowOffset === undefined ? rows.slice(start) : rows
+  const keyset = options?.keyset
+  const start = keyset ? 0 : (options?.windowOffset ?? pageOffset(ctx))
+  const remaining = keyset || options?.windowOffset !== undefined ? rows : rows.slice(start)
   const cursor = (count: number) =>
-    remaining.length > count ? { next: String(start + count) } : {}
+    remaining.length > count
+      ? { next: keyset ? keyset(remaining[count - 1]!) : String(start + count) }
+      : {}
   const surface = surfaceInventory(ctx)
   const limit = options?.limit ?? pageLimit(ctx)
   if (!surface && options?.agent) {
