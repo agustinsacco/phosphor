@@ -147,6 +147,8 @@ it.each(['idle', 'working', 'stopped', 'failed', 'needs-input'] as const)(
     } finally {
       act(() => root.unmount())
       container.remove()
+      // The next case's lane must not read as this one's pi coming up.
+      useRemoteLanesStore.setState({ hosts: {} })
       vi.unstubAllGlobals()
     }
   },

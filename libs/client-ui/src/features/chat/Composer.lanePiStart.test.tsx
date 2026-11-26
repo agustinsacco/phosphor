@@ -22,7 +22,8 @@ const { installMockPhosphor } = await import('@/dev/mockPhosphor')
 installMockPhosphor()
 const { useChatStore } = await import('@/stores/chat')
 const { forgetRemoteSession, useSessionsStore } = await import('@/stores/sessions')
-const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+const { navigateToLane, useRemoteLanesStore } = await import('@/stores/remoteLanes')
+const { runLaneAction } = await import('@/platform/serviceLaneControl')
 const { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
 const { COMPACT_PLATFORM, DESKTOP_PLATFORM, PlatformProvider, WIDE_BROWSER_PLATFORM } =
   await import('@/platform/Platform')
@@ -74,16 +75,14 @@ const reads = (type: RpcCommand['type']) =>
 function answerLikeHost(): void {
   piCommand.mockImplementation((_id, command) => {
     const running = !lane()?.activity || !['stopped', 'failed'].includes(lane()!.activity)
-    const base = { type: 'response', command: command.type } as const
-    if (command.type === 'get_messages')
-      return Promise.resolve({ ...base, success: true, data: { messages: [] } } as RpcResponse)
-    if (!running)
-      return Promise.resolve({ ...base, success: false, error: 'Lane is stopped.' } as RpcResponse)
-    if (command.type === 'get_state')
-      return Promise.resolve({ ...base, success: true, data: META } as RpcResponse)
+    const answer = (reply: Partial<RpcResponse>) =>
+      Promise.resolve({ type: 'response', command: command.type, ...reply } as never)
+    if (command.type === 'get_messages') return answer({ success: true, data: { messages: [] } })
+    if (!running) return answer({ success: false, error: 'Lane is stopped.' })
+    if (command.type === 'get_state') return answer({ success: true, data: META })
     if (command.type === 'get_available_models')
-      return Promise.resolve({ ...base, success: true, data: { models: [OPUS] } } as RpcResponse)
-    return Promise.resolve({ ...base, success: false, error: 'Unsupported.' } as RpcResponse)
+      return answer({ success: true, data: { models: [OPUS] } })
+    return answer({ success: false, error: 'Unsupported.' })
   })
 }
 const lane = (): HostLaneView | undefined =>
@@ -160,6 +159,54 @@ describe.each(SHELLS)('a stopped Host lane’s model picker on %s', (_shell, pla
   })
 })
 
+describe.each(SHELLS)('the starts that bring a lane’s pi up on %s', (_shell, platform) => {
+  /** The Host starts the lane's pi; its next snapshot shows the lane running. */
+  function hostStartsLanes(): void {
+    const invoke = window.phosphor.invoke.bind(window.phosphor) as (
+      channel: string,
+      ...args: unknown[]
+    ) => Promise<unknown>
+    vi.spyOn(window.phosphor, 'invoke').mockImplementation(((
+      channel: string,
+      ...args: unknown[]
+    ) => {
+      if (channel === 'hosts:openLane') return Promise.resolve(mockRemoteInfo)
+      if (channel === 'hosts:snapshot')
+        return Promise.resolve(structuredClone(useRemoteLanesStore.getState().hosts))
+      if (channel === 'hosts:resumeLane') {
+        setActivity('idle')
+        return Promise.resolve()
+      }
+      return invoke(channel, ...args)
+    }) as typeof window.phosphor.invoke)
+  }
+  afterEach(() => vi.mocked(window.phosphor.invoke).mockRestore())
+
+  it('This Mac’s warm on open', async () => {
+    stoppedHost(true)
+    Object.assign(useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!, { warmOnOpen: true })
+    hostStartsLanes()
+    await act(() => navigateToLane({ hostId: MOCK_HOST_ID, laneId: mockRemoteInfo.laneId! }))
+    render(platform)
+    await settle()
+    expect(lane()?.activity).toBe('idle')
+    expect(chip()?.disabled).toBe(false)
+    expect(chip()?.textContent).toBe(OPUS.name)
+  })
+
+  it('Resume from the lane menu on a remote Host', async () => {
+    stoppedHost(false)
+    await openLane()
+    render(platform)
+    expect(chip()?.disabled).toBe(true)
+    hostStartsLanes()
+    await act(() => runLaneAction('hosts:resumeLane', MOCK_HOST_ID, mockRemoteInfo.laneId!))
+    await settle()
+    expect(chip()?.disabled).toBe(false)
+    expect(chip()?.textContent).toBe(OPUS.name)
+  })
+})
+
 describe('re-reading a lane whose pi comes up', () => {
   it('reads once per start, never stacks reads, and leaves the transcript alone', async () => {
     stoppedHost(true)
@@ -174,6 +221,20 @@ describe('re-reading a lane whose pi comes up', () => {
     expect(reads('get_state') - before.state).toBe(1)
     expect(reads('get_messages')).toBe(before.messages)
     expect(useChatStore.getState().sessions[SESSION]?.meta?.model?.id).toBe(OPUS.id)
+
+    // A restart during a read waits for it, then reads once more.
+    const afterFirst = reads('get_state')
+    act(() => {
+      setActivity('stopped')
+      setActivity('idle')
+      setActivity('failed')
+      setActivity('idle')
+      setActivity('stopped')
+      setActivity('idle')
+    })
+    expect(reads('get_state') - afterFirst).toBe(1)
+    await settle()
+    expect(reads('get_state') - afterFirst).toBe(2)
   })
 
   it('ignores a lane closed before its pi comes up', async () => {
