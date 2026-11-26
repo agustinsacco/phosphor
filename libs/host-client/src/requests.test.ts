@@ -101,3 +101,34 @@ it('bounds the client wait for a create at three minutes', () => {
   expect(resolve).toHaveBeenCalledExactlyOnceWith({ requestId: 'create', status: 'unknown' })
   requests.close()
 })
+
+it('waits for a replacement pi instead of expiring a set_model at 60 seconds', () => {
+  vi.useFakeTimers()
+  const write = vi.fn(() => true)
+  const requests = createRequests({
+    now: Date.now,
+    write,
+    later: setTimeout,
+    canReplay: () => true,
+    changed: () => {},
+    transportFailed: () => {},
+  })
+  const resolve = vi.fn()
+  requests.track(
+    {
+      type: 'command',
+      requestId: 'switch',
+      op: { type: 'set_model', provider: 'pi-claude-cli', modelId: 'claude-opus' },
+    },
+    resolve,
+  )
+  try {
+    vi.advanceTimersByTime(65_000)
+    expect(resolve).not.toHaveBeenCalled()
+    const receipt = { requestId: 'switch', status: 'done' } as const
+    requests.receipt(receipt)
+    expect(resolve).toHaveBeenCalledExactlyOnceWith(receipt)
+  } finally {
+    requests.close()
+  }
+})

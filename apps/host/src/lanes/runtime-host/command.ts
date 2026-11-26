@@ -4,7 +4,12 @@ import type { HostRuntime } from '../../session/runtime'
 import { advertisesExtensionCommand } from '../pi-results'
 import type { Binding, RuntimeLaneState } from './state'
 import { firstPrompt, recordManualName } from './naming'
-import { guardModelChange, replaceProviderProcess, finishModelSelection } from './model-switch'
+import {
+  guardModelChange,
+  replaceProviderProcess,
+  finishModelSelection,
+  logModelSwitch,
+} from './model-switch'
 
 /**
  * pi runs an extension command (`/phosphor-swarm on`, `/subagents-inspect-rpc …`) without a
@@ -60,12 +65,14 @@ export async function command(
       binding.renameRevision = (binding.renameRevision ?? 0) + 1
       binding.namingEligible = false
     }
+    const startedAt = performance.now()
     const guarded =
       args[1].type === 'set_model'
         ? await guardModelChange(context, args[0], binding, args[1])
         : { beforeModel: null }
     if (guarded.refusal) return guarded.refusal
     const { beforeModel } = guarded
+    const dispatchedAt = performance.now()
     const response = await runtime.command(...args)
     if (
       response.success &&
@@ -74,8 +81,12 @@ export async function command(
       beforeModel?.model &&
       beforeModel.model.provider !== args[1].provider
     ) {
+      logModelSwitch(context, binding.laneId, {
+        guardMs: Math.round(dispatchedAt - startedAt),
+        dispatchMs: Math.round(performance.now() - dispatchedAt),
+      })
       const refusal = await replaceProviderProcess(context, args[0], binding, binding.laneId)
-      if (refusal) return refusal
+      return refusal ?? response
     }
     if (
       response.success &&

@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { HostAttention } from '@shared/ipc'
 import type { SessionPush } from '@shared/models'
-import type { RpcCommand } from '@shared/rpc'
+import type { RpcCommand, RpcSessionState } from '@shared/rpc'
 import { parseHostFrame } from '@shared/host-protocol'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useSessionsStore } from './sessions'
@@ -752,3 +752,47 @@ it.each(['resume', 'paused', 'foreign'] as const)(
     }
   },
 )
+
+it('reconciles both provider switches from snapshots without a command receipt', async () => {
+  const id = mockRemoteInfo.sessionId
+  const opus = { provider: 'pi-claude-cli', id: 'opus', name: 'Claude Opus' }
+  const astra = { provider: 'openai-codex', id: 'astra', name: 'GPT-6.2 Astra' }
+  let model = opus
+  const command = vi.mocked(window.phosphor.piCommand)
+  const read = command.getMockImplementation()!
+  command.mockImplementation(async (sessionId, rpc) =>
+    rpc.type === 'get_state'
+      ? { type: 'response', command: rpc.type, success: true, data: { model } as RpcSessionState }
+      : read(sessionId, rpc),
+  )
+  const chat = () => useChatStore.getState().sessions[id]
+  await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+  const common = { 'phosphor-swarm': 'swarm' }
+  useExtensionUiStore.setState({
+    statuses: {
+      [id]: {
+        ...common,
+        'claude-rate-limit': 'rate',
+        'claude-subagents': 'agents',
+        'pi-claude-cli': 'provider',
+      },
+    },
+  })
+  useChatStore.getState().setError(id, 'Outcome unknown')
+  model = astra
+  push?.({ kind: 'resync' })
+  await vi.waitFor(() => expect(chat()?.meta?.model).toEqual(astra))
+  expect(chat()?.error).toBeNull()
+  expect(useExtensionUiStore.getState().statuses[id]).toEqual(common)
+  const incoming = { ...common, 'pi-claude-cli': 'new provider status' }
+  useExtensionUiStore.setState({ statuses: { [id]: { ...incoming, 'openai-codex': 'old' } } })
+  model = opus
+  push?.({ kind: 'resync' })
+  await vi.waitFor(() => expect(chat()?.meta?.model).toEqual(opus))
+  expect(useExtensionUiStore.getState().statuses[id]).toEqual(incoming)
+  expect(chat()?.items).toMatchObject([
+    { kind: 'user', text },
+    { kind: 'custom', text: 'Switched to GPT-6.2 Astra', inContext: false },
+    { kind: 'custom', text: 'Switched to Claude Opus', inContext: false },
+  ])
+})

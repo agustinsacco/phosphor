@@ -1,5 +1,5 @@
 import type { RpcCommand } from '@phosphor/shared/rpc'
-import { attach, hasSavedSession, learnFile, persistModel, start, stop } from './lifecycle'
+import { attach, hasSavedSession, learnFile, persistModel, startWithState, stop } from './lifecycle'
 import { MODEL_TRANSCRIPT_REFUSAL, type Binding, type RuntimeLaneState } from './state'
 
 type ModelCommand = Extract<RpcCommand, { type: 'set_model' }>
@@ -84,6 +84,7 @@ export async function replaceProviderProcess(
   binding: Binding,
   laneId: string,
 ) {
+  const startedAt = performance.now()
   const verified = await verifySelectedModel(context, sessionId, binding, laneId)
   if (verified.refusal) return verified.refusal
   const { selected, model, lane, persisted } = verified
@@ -99,22 +100,52 @@ export async function replaceProviderProcess(
     throw new Error('Lane unavailable.')
   persistModel(context, laneId, model)
   await stop(context, sessionId)
-  const resumed = await start(context, {
+  const stoppedAt = performance.now()
+  const resumed = await startWithState(context, {
     repository: lane.cwd,
     ...(persisted ? { sessionPath: selected.sessionFile } : {}),
     provider: model.provider,
     model: model.id,
     thinkingLevel: selected.thinkingLevel,
   })
+  const readyAt = performance.now()
+  const replacement = bindings.get(resumed.sessionId)
+  if (replacement) replacement.switching = true
   try {
     // The replacement's get_state supplies its identity, not the old allocated path.
     if (resumed.sessionFile) context.options.store.bindSessionFile(laneId, resumed.sessionFile)
     if (!persisted && selected.sessionName)
       await restoreUnsavedName(context, resumed.sessionId, selected.sessionName, persisted)
-    await attach(context, laneId, resumed.sessionId)
+    const startupState = {
+      ...resumed.state,
+      ...(!persisted && selected.sessionName ? { sessionName: selected.sessionName } : {}),
+    }
+    if (startupState.model) persistModel(context, laneId, startupState.model)
+    await attach(context, laneId, resumed.sessionId, startupState)
+    logModelSwitch(context, laneId, {
+      verifyAndStopMs: Math.round(stoppedAt - startedAt),
+      startMs: Math.round(readyAt - stoppedAt),
+      attachMs: Math.round(performance.now() - readyAt),
+    })
+    if (startupState.model?.provider !== model.provider || startupState.model.id !== model.id)
+      return refusal('The restarted lane did not select the requested model.')
   } catch (error) {
     await stop(context, resumed.sessionId)
     throw error
+  } finally {
+    if (replacement) replacement.switching = false
+  }
+}
+
+export function logModelSwitch(
+  context: RuntimeLaneState,
+  laneId: string | undefined,
+  timings: Record<string, number>,
+) {
+  try {
+    context.options.log('host', 'lane.model_switch_timing', { laneId, ...timings })
+  } catch {
+    // Timing is diagnostic only.
   }
 }
 
