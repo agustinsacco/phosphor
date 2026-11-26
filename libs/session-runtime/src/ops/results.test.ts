@@ -25,3 +25,13 @@ it('delivers one oversized row with a visible omission marker and keeps projecti
   expect(page.text).toMatch(/^id \| title\n0 \| Line 1 Line 2 [^\n]+…$/u)
   expect(Array.from(page.text.split(' | ').at(-1)!)).toHaveLength(80)
 })
+
+it('leaves qualified refs copyable and presents UTC timestamps at minute precision', () => {
+  const ref = `host:${'a'.repeat(36)}/lane:${'b'.repeat(36)}`
+  const rows = [{ ref, updated: '2026-11-26T10:56:43.123Z' }]
+  const page = results.pageInventory(rows, {} as never, {
+    ref: (row) => row.ref,
+    updated: (row) => results.rowTime(row.updated),
+  })
+  expect(page.text).toBe(`ref | updated\n${ref} | 2026-11-26T10:56Z`)
+})
