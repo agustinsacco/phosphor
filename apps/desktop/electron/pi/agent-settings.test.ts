@@ -266,7 +266,13 @@ describe('pi agent settings', () => {
 
       const models = await listCatalogueModels()
       expect(models).toEqual([
-        { id: 'Qwen 3.5 122b', name: 'Qwen 3.5 122b', provider: 'local-stark', reasoning: false },
+        {
+          id: 'Qwen 3.5 122b',
+          name: 'Qwen 3.5 122b',
+          provider: 'local-stark',
+          reasoning: false,
+          contextWindow: 128000,
+        },
         // No name key → falls back to the id; no compat → reasoning defaults on.
         { id: 'm-1', name: 'm-1', provider: 'other', reasoning: true },
       ])
