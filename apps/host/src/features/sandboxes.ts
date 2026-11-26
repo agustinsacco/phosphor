@@ -1,7 +1,7 @@
 import { guardSandboxTranscripts } from './sandbox-transcript-guard'
 import { lstatSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
+import { HOST_LIMITS, type HostResourceChange } from '@phosphor/shared/host-protocol'
 import { isWithinFolder } from '@phosphor/shared/paths'
 import { isOwnerPrivate } from '@phosphor/session-runtime/fs-safety'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
@@ -38,6 +38,7 @@ export interface SandboxPorts {
   leases: WorkspaceLeases
   live(path: string): boolean
   trashItem(path: string, owner: boolean): Promise<void>
+  resourceChanged?(change: HostResourceChange): void
   changed(roots: readonly string[]): void
   /** The folder service's queue, so a sandbox write never races a folder change. */
   serialize?<T>(work: () => Promise<T>): Promise<T>
@@ -79,6 +80,12 @@ function publish(p: SandboxPorts, r: Records, items: OwnerFolders['items']) {
   return p.store.syncRepositories(paths)
 }
 
+function publishSandboxChange(p: SandboxPorts, repos: ReturnType<HostStore['syncRepositories']>) {
+  p.changed(repos.map((repository) => repository.path))
+  p.resourceChanged?.({ kind: 'folders' })
+  p.resourceChanged?.({ kind: 'sandboxes' })
+}
+
 function sandboxOwner(p: SandboxPorts, r: Records, path: string, owner: boolean): SandboxOwner {
   // Canonicalize aliases while the sandbox still exists, not after moving it.
   const items = r.file.items.map((i) => ({ ...i, path: realOrLexical(i.path) }))
@@ -101,7 +108,7 @@ function sandboxOwner(p: SandboxPorts, r: Records, path: string, owner: boolean)
       const repos = publish(p, r, next)
       const target = repos.find((v) => v.path === to)
       if (repo && target) p.store.folders.repoint(moves, repo.id, target.id)
-      p.changed(repos.map((v) => v.path))
+      publishSandboxChange(p, repos)
     },
     forgetWorkspace() {
       const repos = publish(
@@ -110,7 +117,7 @@ function sandboxOwner(p: SandboxPorts, r: Records, path: string, owner: boolean)
         items.filter((i) => i.path !== path),
       )
       for (const lane of rows) p.store.markRemoved(lane.laneId)
-      p.changed(repos.map((v) => v.path))
+      publishSandboxChange(p, repos)
     },
   }
 }
@@ -141,7 +148,7 @@ export function createHostSandboxes(p: SandboxPorts) {
           ...r.file.items,
           { path, name: basename(path), order, sandbox: true },
         ])
-        p.changed(repos.map((v) => v.path))
+        publishSandboxChange(p, repos)
         return { path }
       }),
     change: (input: string, name: string | null, owner: boolean) =>

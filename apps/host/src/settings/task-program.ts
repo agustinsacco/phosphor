@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { parseMachineTask } from '@phosphor/shared/machine-settings'
+import type { MachineTaskOp, parseMachineTask } from '@phosphor/shared/machine-settings'
 import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { readMcpConfigs } from '@phosphor/session-runtime/pi/mcp-config'
@@ -15,7 +15,8 @@ export interface MachineTaskOptions {
   settings: Pick<
     ReturnType<typeof createMachineSettings>,
     'workspace' | 'agentDir' | 'invalidateConnectors'
-  >
+  > &
+    Partial<Pick<ReturnType<typeof createMachineSettings>, 'resourceChanged'>>
   home: string
   env: Record<string, string>
   pi: { binaryPath: string; prefixArgs: string[] }
@@ -108,8 +109,18 @@ export async function runMachineTask(
     } else if (op.task === 'provider.logout') args.push('auth', 'logout', op.name!)
     else args.push('--no-session', '--no-extensions')
     if (!authorized()) throw new TerminalForbidden('forbidden')
-    await run(file, args, { cwd, env: { ...env, TERM: 'xterm-256color' } })
+    const result = await run(file, args, { cwd, env: { ...env, TERM: 'xterm-256color' } })
+    if (result.code === 0) publishTaskChange(options, op)
   } finally {
     if (temporary) await rm(temporary, { recursive: true, force: true })
   }
+}
+
+function publishTaskChange(options: Omit<MachineTaskOptions, 'terminals'>, op: MachineTaskOp) {
+  if (op.task.startsWith('package.') || op.task === 'claude.installProvider')
+    options.settings.resourceChanged?.({ kind: 'packages', repositoryId: op.repositoryId })
+  if (op.task.startsWith('mcp.'))
+    options.settings.resourceChanged?.({ kind: 'connectors', repositoryId: op.repositoryId })
+  if (op.task.startsWith('claude.') || op.task === 'provider.logout')
+    options.settings.resourceChanged?.({ kind: 'settings' })
 }

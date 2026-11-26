@@ -18,6 +18,7 @@ export function createMachineSettings(options: MachineSettingsOptions) {
     accountMetadata: readAccountSettings.bind(null, state),
     usageAccounts: usageAccounts.bind(null, options.accounts),
     codexUsage: hostCodexUsage(options.pi, options.env),
+    resourceChanged: options.changed,
     workspace: state.workspace,
     agentDir: state.agentDir,
     invalidateConnectors: state.invalidateConnectors,

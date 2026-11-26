@@ -73,7 +73,7 @@ async function fixture() {
     repositories,
     sandboxes,
     seen,
-    deps: { store, repositories, sandboxes } as DaemonHandlerDeps,
+    deps: { store, repositories, sandboxes } as unknown as DaemonHandlerDeps,
   }
 }
 

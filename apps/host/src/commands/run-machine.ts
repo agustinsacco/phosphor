@@ -142,7 +142,10 @@ async function startRuntime(
     uid: context.uid,
     store,
     runtime,
-    changed: () => activeTopic.routinesChanged(),
+    changed: () => {
+      activeTopic.routinesChanged()
+      activeTopic.resourceChanged({ kind: 'routines' })
+    },
     now: context.now,
     paused: () => (parts.services?.pauses?.state().kind ?? 'none') !== 'none',
   })
@@ -179,6 +182,7 @@ function runRepositories(
       parts.store
         ?.listLanes()
         .some((l) => l.repositoryId === id && parts.live?.sessionFor(l.laneId) !== null) ?? false,
+    resourceChanged: live.lanesTopic.resourceChanged,
     changed: (roots) => {
       runtime.replaceRoots(roots)
       live.lanesTopic.repositoriesChanged()

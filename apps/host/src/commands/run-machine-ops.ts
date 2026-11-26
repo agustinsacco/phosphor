@@ -55,6 +55,7 @@ function runSandboxes(
         ownerTrash(!!ports.local && owner, context.platform, context.trashRunner) ??
         transcriptTrash(ports.stateDirectory).move
       )(file),
+    resourceChanged: live.lanesTopic.resourceChanged,
     changed: (roots) => {
       runtime.replaceRoots(roots)
       live.lanesTopic.repositoriesChanged()
