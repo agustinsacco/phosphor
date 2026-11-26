@@ -11,7 +11,7 @@ import {
   type UndoRecord,
 } from './audit'
 import { auditInventory } from './meta-inventory'
-import type { OpHandlerContext } from './types'
+import type { OpRunContext } from './ports'
 import { argsSummary } from './redact'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -224,7 +224,13 @@ it('walks byte-fitted keyset pages without picking up concurrent audit appends',
   const read = auditInventory(log)
   let page: string | undefined
   for (let i = 0; i < expected.length; i++) {
-    const answer = await read({}, { page, principal: { kind: 'agent' } } as OpHandlerContext)
+    const context: OpRunContext = {
+      page,
+      principal: { kind: 'local', clientId: 'fixture' },
+      signal: new AbortController().signal,
+      log: () => {},
+    }
+    const answer = await read({}, context)
     expect(answer.text).toMatch(/^id \| at \| op \| decision \| laneRef \| result\n/)
     expect(Buffer.byteLength(JSON.stringify(answer.data))).toBeLessThanOrEqual(12 * 1024)
     expect(answer.next).toBe(expected[i + 1] === undefined ? undefined : expected[i])
