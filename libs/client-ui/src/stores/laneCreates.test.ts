@@ -17,6 +17,7 @@ import {
   dismissLaneCreate,
   laneCreate as laneCreateRecord,
   editLaneCreate,
+  failLaneCreate,
   pendingLaneCreates,
   reconcileLaneCreate,
   useLaneCreatesStore,
@@ -450,4 +451,32 @@ it('a lane recovered by the check says its first message was not sent', async ()
   expect(useExtensionUiStore.getState().toasts.map((t) => t.message)).toContain(
     "Lane created. Your first message wasn't sent; it's in the composer.",
   )
+})
+
+it('a refused placeholder stays listed when another create lists a lane on its branch', () => {
+  submit('Same slug')
+  runs[0]!.hooks.trying?.('phosphor/same-slug')
+  const [refused] = creates()
+  failLaneCreate(refused!.id, 'The Host is at capacity.', false)
+  addSnapshotLane('lane-other', 'phosphor/same-slug')
+  expect(
+    pendingLaneCreates(useLaneCreatesStore.getState().creates, MOCK_HOST_ID, REPO).map((c) => c.id),
+  ).toEqual([refused!.id])
+})
+
+it('an in-place lane listed late is not taken by a later create while an earlier one may have made it', async () => {
+  vi.useFakeTimers()
+  try {
+    submit('First', false)
+    runs[0]!.reject(new Error('timeout'))
+    await vi.advanceTimersByTimeAsync(181_000)
+    useDraftsStore.getState().clear(key)
+    submit('Second', false)
+    runs[1]!.reject(new Error('timeout'))
+    await vi.advanceTimersByTimeAsync(0)
+    addSnapshotLane('lane-late', null)
+    expect(creates()).toHaveLength(2)
+  } finally {
+    vi.useRealTimers()
+  }
 })
