@@ -1,3 +1,4 @@
+import type { HostResourceChange } from '@phosphor/shared/host-protocol'
 import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -14,7 +15,7 @@ export async function removeSettingsFixtures() {
   await Promise.all(dirs.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 }
 /** A Host settings service over a temporary home, agent dir, registered folder and config. */
-export async function settingsServiceFixture() {
+export async function settingsServiceFixture(changed?: (change: HostResourceChange) => void) {
   const home = await realpath(await mkdtemp(join(tmpdir(), 'machine-settings-')))
   dirs.push(home)
   const agentDir = join(home, 'agent')
@@ -34,6 +35,7 @@ export async function settingsServiceFixture() {
   const env = { HOME: home, PATH: '', PI_CODING_AGENT_DIR: agentDir }
   const accounts = createHostClaudeAccounts({ directory: join(home, 'state'), home, env })
   const settings = createMachineSettings({
+    changed,
     context: { store, home, env: { ...env, TEST_SECRET: 'private-value' }, log: () => {} },
     store,
     runtime: { accountForSession: () => undefined },
