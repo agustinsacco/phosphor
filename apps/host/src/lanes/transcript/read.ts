@@ -15,11 +15,13 @@ import type { TranscriptCache } from './cache'
 
 export type TranscriptUnreadableReason = 'open' | 'type' | 'outside' | 'parse'
 export type TranscriptFailureReason = TranscriptUnreadableReason | PreviewRefused['reason']
-export type TranscriptReadResult =
-  | ({ kind: 'messages' } & TranscriptPreview)
+type TranscriptReadFailure =
   | { kind: 'missing' }
   | { kind: 'unreadable'; reason: TranscriptUnreadableReason }
   | { kind: 'too-large' }
+export type TranscriptReadResult =
+  ({ kind: 'messages' } & Omit<TranscriptPreview, 'composer'>) | TranscriptReadFailure
+type TranscriptReadWithComposer = ({ kind: 'messages' } & TranscriptPreview) | TranscriptReadFailure
 
 /** Opens a session file read-only, never following a link; throws as fs does. */
 export const openTranscriptFile = (sessionFile: string): number =>
@@ -45,15 +47,27 @@ export function verifyTranscriptFile(
   return stat
 }
 
-export function readTranscript(options: {
+type TranscriptReadOptions = {
   sessionFile: string
   sessionsRoot: string
   laneId: string
   cache: TranscriptCache
   onFailure: (reason: TranscriptFailureReason) => void
-}): TranscriptReadResult {
+}
+
+export function readTranscript(options: TranscriptReadOptions): TranscriptReadResult {
+  const result = readTranscriptWithComposer(options)
+  if (result.kind !== 'messages') return result
+  const { composer: _composer, ...messages } = result
+  return messages
+}
+
+/** Gets the saved composer and messages from the same verified, cached preview. */
+export function readTranscriptWithComposer(
+  options: TranscriptReadOptions,
+): TranscriptReadWithComposer {
   // Invalidation and logging precede close, even when close itself throws.
-  const failed = (reason: TranscriptFailureReason): TranscriptReadResult => {
+  const failed = (reason: TranscriptFailureReason): TranscriptReadFailure => {
     options.onFailure(reason)
     return reason === 'limit' || reason === 'line-limit' || reason === 'index-limit'
       ? { kind: 'too-large' }

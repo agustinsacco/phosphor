@@ -1,7 +1,14 @@
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import type { WorkEntry } from './currentWork'
-import { activityParts, elapsed, modelLabel, stateWord, workTime } from './subagentPresentation'
+import {
+  activityParts,
+  batchTitle,
+  elapsed,
+  modelLabel,
+  stateWord,
+  workTime,
+} from './subagentPresentation'
 import { shortId } from './subagentRuns'
 
 /** Section labels above groups of rows, in the app's eyebrow style. */
@@ -126,5 +133,57 @@ export function SubagentWorkRow({
         </span>
       </span>
     </TooltipButton>
+  )
+}
+
+/** Consecutive members split where `nested` changes, so nested work indents together. */
+const nestedRuns = (entries: WorkEntry[]): WorkEntry[][] =>
+  entries.reduce<WorkEntry[][]>((runs, entry) => {
+    const last = runs.at(-1)
+    if (last && !!last[0]!.nested === !!entry.nested) last.push(entry)
+    else runs.push([entry])
+    return runs
+  }, [])
+
+/**
+ * One launch of several agents: a header naming the batch, then its members as
+ * peers. Only work below a member is indented under a rail.
+ */
+export function SubagentBatchGroup({
+  group,
+  members,
+  pressed,
+  onSelect,
+  row,
+}: {
+  group: NonNullable<WorkEntry['group']>
+  members: WorkEntry[]
+  pressed: boolean
+  onSelect: () => void
+  row: (entry: WorkEntry) => React.JSX.Element
+}): React.JSX.Element {
+  const title = batchTitle(group, members.length)
+  return (
+    <div className="min-w-0">
+      <TooltipButton
+        type="button"
+        aria-label={title}
+        tooltip={{ label: title, description: `#${shortId(group.id)}` }}
+        aria-pressed={pressed}
+        onClick={onSelect}
+        className="text-text-secondary hover:text-text aria-pressed:bg-accent-soft block w-full truncate rounded px-2 py-1 text-left text-xs"
+      >
+        {title}
+      </TooltipButton>
+      {nestedRuns(members).map((run) =>
+        run[0]!.nested ? (
+          <div key={run[0]!.id} data-nested className="border-border ml-3 border-l pl-1">
+            {run.map(row)}
+          </div>
+        ) : (
+          run.map(row)
+        ),
+      )}
+    </div>
   )
 }

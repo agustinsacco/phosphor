@@ -35,6 +35,7 @@ export type {
   LaneSnapshot,
   LaneSummary,
   RepositorySummary,
+  StoppedComposer,
   StreamCursor,
 } from './host-protocol/lanes'
 export {

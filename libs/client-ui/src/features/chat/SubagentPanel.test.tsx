@@ -290,14 +290,14 @@ it('lists working groups first, selects a run by its header and never invents a 
     ),
   ).toEqual([
     'Working',
-    'reviewer, qa run',
+    'Batch · 2 agents',
     'reviewer: complete',
     'qa: running',
     'Earlier',
     'scout: complete',
   ])
   await act(async () =>
-    nav.querySelector<HTMLButtonElement>('[aria-label="reviewer, qa run"]')!.click(),
+    nav.querySelector<HTMLButtonElement>('[aria-label="Batch · 2 agents"]')!.click(),
   )
   expect(inspectSubagent).toHaveBeenLastCalledWith(
     'process',
@@ -305,7 +305,7 @@ it('lists working groups first, selects a run by its header and never invents a 
     undefined,
     expect.any(AbortSignal),
   )
-  expect(pressed()).toEqual(['reviewer, qa run'])
+  expect(pressed()).toEqual(['Batch · 2 agents'])
   await act(async () =>
     nav.querySelector<HTMLButtonElement>('[aria-label="scout: complete"]')!.click(),
   )
@@ -351,4 +351,55 @@ it.each([
     for (const other of ['process', 'bee1-a', 'bee1-b'].filter((x) => x !== id))
       expect(el.textContent).not.toContain(`Work for ${other}`)
   }
+})
+
+it('names a parallel batch plainly and lists its members by task, without nesting them', async () => {
+  const chat = useChatStore.getState().sessions.process!
+  const tasks = ['Audit the login flow', 'Fix the cache key', 'Write the release notes']
+  useChatStore.setState({
+    sessions: {
+      process: {
+        ...chat,
+        tools: {
+          batch: {
+            ...soloLaunch,
+            toolCallId: 'batch',
+            args: { tasks: tasks.map((task) => ({ agent: 'worker', task })), async: true },
+            result: {
+              content: [],
+              details: { mode: 'parallel', asyncId: '3c2743cb-run', background: true },
+            },
+          },
+        },
+      },
+    },
+  })
+  await publishRuns([
+    {
+      id: '3c2743cb-run',
+      kind: 'subagent',
+      label: 'worker, worker, worker',
+      state: 'running',
+      children: [0, 1, 2].map((i) => ({
+        id: `step:${i}`,
+        kind: 'step',
+        label: `task-${i + 1}`,
+        state: 'running',
+        // A step that runs its own agent is real nesting, and still looks nested.
+        children:
+          i === 2 ? [{ id: 'step:2:0', kind: 'step', label: 'scout', state: 'running' }] : [],
+      })),
+    },
+  ])
+  await render()
+  const nav = el.querySelector('nav')!
+  const batch = nav.querySelector<HTMLButtonElement>('[aria-label="Parallel run · 3 agents"]')
+  expect(batch?.textContent).toBe('Parallel run · 3 agents')
+  const rows = [...nav.querySelectorAll<HTMLElement>('[data-testid="subagent-work-row"]')]
+  expect(rows.map((r) => r.querySelector('.font-medium')?.textContent)).toEqual([
+    ...tasks.slice(0, 2),
+    'scout',
+  ])
+  expect(rows.map((r) => !!r.closest('[data-nested]'))).toEqual([false, false, true])
+  expect(nav.querySelector('.border-l')).toBe(nav.querySelector('[data-nested]'))
 })

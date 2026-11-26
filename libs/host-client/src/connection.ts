@@ -1,6 +1,7 @@
 import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
 import { browserCrypto, type IdentityCrypto } from './crypto'
 import { createHandshake } from './handshake'
+import { acceptLaneFrame, connectionView, type LaneWatch } from './lane-watch'
 import { readyView } from './ready-view'
 import { createRetry, WAKE_PROBE_MS } from './retry'
 export { WAKE_PROBE_MS } from './retry'
@@ -17,12 +18,15 @@ import {
   type HostFrame,
   type LaneOp,
   type LaneSummary,
+  type StoppedComposer,
   type StreamCursor,
 } from '@phosphor/shared/host-protocol'
 import type { HostConnectionView } from '@phosphor/shared/ipc'
 import type { TraceLog } from './ports'
 
-export type HostConnectionSnapshot = Omit<HostConnectionView, 'lanes'> & { lanes: LaneSummary[] }
+export type HostConnectionSnapshot = Omit<HostConnectionView, 'lanes'> & {
+  lanes: (LaneSummary & { stoppedComposer?: StoppedComposer })[]
+}
 
 export type LaneFrame = Extract<HostFrame, { type: 'snapshot' | 'event' | 'subscribe-failed' }>
 export function hostEndpoint(value: unknown): value is string {
@@ -79,10 +83,7 @@ export function createHostConnection(ports: {
     unrefTimer: ports.unrefTimer,
     transportFailed: () => socket?.close(1000, 'Transport failed'),
   })
-  const watches = new Map<
-    string,
-    { laneId: string; cursor?: StreamCursor; listener: (frame: LaneFrame) => void }
-  >()
+  const watches = new Map<string, LaneWatch>()
   let runtimeEpoch = ''
   const terminals = new Map<
     string,
@@ -350,39 +351,12 @@ export function createHostConnection(ports: {
     } else if (f.type === 'subscribe-failed' && terminals.has(f.id)) {
       terminals.get(f.id)?.listener(f)
     } else if (f.type === 'snapshot' || f.type === 'event' || f.type === 'subscribe-failed') {
-      const w = watches.get(f.id)
-      if (w && (f.type === 'subscribe-failed' || f.laneId === w.laneId)) {
-        if (
-          f.type === 'event' &&
-          (!w.cursor || w.cursor.epoch !== f.cursor.epoch || f.cursor.seq !== w.cursor.seq + 1)
-        ) {
-          subscribe(f.id, w.laneId)
-          return
-        }
-        const reset =
-          f.type === 'snapshot' &&
-          (f.reset || (!!w.cursor && w.cursor.epoch !== f.snapshot.cursor.epoch))
-        if (f.type !== 'subscribe-failed')
-          w.cursor = f.type === 'snapshot' ? f.snapshot.cursor : f.cursor
-        if (f.type === 'snapshot') {
-          update({ lanes: view.lanes.map((l) => (l.laneId === f.laneId ? f.snapshot.summary : l)) })
-        } else if (
-          f.type === 'event' &&
-          (f.event.kind === 'control' || f.event.kind === 'summary')
-        ) {
-          const event = f.event
-          update({
-            lanes: view.lanes.map((l) =>
-              l.laneId !== f.laneId
-                ? l
-                : event.kind === 'summary'
-                  ? event.summary
-                  : { ...l, control: event.control },
-            ),
-          })
-        }
-        w.listener(f.type === 'snapshot' ? { ...f, reset } : f)
-      } else if (f.type === 'subscribe-failed' && f.id === 'lanes') update({ lastError: f.code })
+      if (
+        !acceptLaneFrame(watches.get(f.id), f, view, update, subscribe) &&
+        f.type === 'subscribe-failed' &&
+        f.id === 'lanes'
+      )
+        update({ lastError: f.code })
     } else if (f.type === 'receipt' && f.receipt.status !== 'pending') {
       const receiptOp = requests.receipt(f.receipt)
       if (receiptOp && !receiptOp.startsWith('terminal.'))
@@ -450,7 +424,7 @@ export function createHostConnection(ports: {
   }
   void connect()
   return {
-    snapshot: () => structuredClone(view),
+    snapshot: () => connectionView(view, watches.values(), runtimeEpoch),
     incarnation: () => ({ generation, runtimeEpoch }),
     watchTerminal(
       terminalId: string,

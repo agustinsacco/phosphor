@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { DEFAULT_BRAIN_PREFS, type BrainStatus } from '@shared/brain'
 import { mockBrainStatus } from '@/features/brain/mockBrainData'
 import { useBrain } from '@/features/brain/useBrain'
-import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
+import { desktopPlatform, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { BrainTab } from './BrainTab'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useModelPicksStore } from '@/stores/modelPicks'
@@ -48,7 +48,13 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 const render = async (): Promise<void> => {
-  await act(async () => root.render(<BrainTab />))
+  await act(async () =>
+    root.render(
+      <PlatformProvider value={desktopPlatform(false, true)}>
+        <BrainTab />
+      </PlatformProvider>,
+    ),
+  )
 }
 async function click(label: string): Promise<void> {
   const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(

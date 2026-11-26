@@ -1,6 +1,8 @@
+import type { LaneSummary } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { createLiveLanes } from './live'
 import type { LiveOptions } from './live/state'
+import type { HostStore } from './store'
 import { createUnattachedSnapshots } from './transcript'
 import { gitTracking } from './worktree'
 import { createLanePrReader } from './live/lane-pr-fold'
@@ -15,15 +17,30 @@ export function createHostLiveLanes(
   options: Pick<LiveOptions, 'epoch' | 'store' | 'runtime' | 'now' | 'pauseFor'> & {
     log: RuntimeLog
     sessionsRoot: string
+    composerWindows?: HostStore['composerWindows']
+    contextBudget?: () => string
   },
 ) {
-  const { log: write, sessionsRoot, ...rest } = options
+  const { log: write, sessionsRoot, composerWindows, contextBudget, ...rest } = options
+  let modelWindow: (model: NonNullable<LaneSummary['model']>) => number | undefined = () =>
+    undefined
   let unattached: ReturnType<typeof createUnattachedSnapshots> = () => null
   const log = (event: string, fields: Record<string, unknown>) => write('host', event, fields)
   const live = createLiveLanes({
     ...rest,
     log,
     gitTracking,
+    readStoppedComposer: (laneId) => {
+      const result = unattached(laneId, 'composer')
+      return result === null ? null : result.ok ? result.snapshot.stoppedComposer : undefined
+    },
+    rememberComposer: (laneId, session) => {
+      try {
+        composerWindows?.remember(laneId, session)
+      } catch {
+        log('lane.composer_window_unsaved', { laneId })
+      }
+    },
     lanePrs: createLanePrReader(),
     unattached: (id) => unattached(id),
   })
@@ -32,7 +49,20 @@ export function createHostLiveLanes(
     summary: live.summaryFor,
     cursor: live.streams.cursor,
     sessionsRoot,
+    window: (laneId, model) => {
+      try {
+        return composerWindows?.read(laneId, model, modelWindow(model), contextBudget?.() ?? '')
+      } catch {
+        return undefined
+      }
+    },
     log,
   })
-  return { live, unattached }
+  return {
+    live,
+    unattached,
+    bindModelWindow: (read: typeof modelWindow) => {
+      modelWindow = read
+    },
+  }
 }

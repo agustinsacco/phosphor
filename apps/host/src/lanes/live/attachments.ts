@@ -25,10 +25,12 @@ export function attach(state: LiveState, laneId: string, sessionId: string) {
     ...projection,
     setState(sessionState) {
       projection.setState(sessionState)
+      if (sessionState) state.options.rememberComposer?.(laneId, sessionState)
       changed(state, laneId)
     },
     settle(messages, sessionState) {
       projection.settle(messages, sessionState)
+      if (sessionState) state.options.rememberComposer?.(laneId, sessionState)
       changed(state, laneId)
     },
     resolveDialog(id) {
@@ -94,9 +96,19 @@ export function push(state: LiveState, laneId: string, push: SessionPush) {
 }
 export function detach(state: LiveState, laneId: string) {
   const before = summaryFor(state, laneId)
-  state.attached.get(laneId)?.binding.dispose()
+  const attached = state.attached.get(laneId)
+  attached?.binding.dispose()
   state.attached.delete(laneId)
   const summary = summaryFor(state, laneId)
-  if (summary && JSON.stringify(before) !== JSON.stringify(summary))
-    publish(state, laneId, { kind: 'summary', summary })
+  if (!summary) return
+  const stoppedComposer = attached ? state.options.readStoppedComposer?.(laneId) : undefined
+  // Replay the composer update even if exit already published the stopped summary.
+  // A snapshot would replace the chat with the shorter on-disk context.
+  if (stoppedComposer || JSON.stringify(before) !== JSON.stringify(summary))
+    publish(state, laneId, {
+      kind: 'summary',
+      summary,
+      ...(stoppedComposer ? { stoppedComposer } : {}),
+    })
+  if (stoppedComposer === null && !state.attached.has(laneId)) state.streams.reset(laneId)
 }

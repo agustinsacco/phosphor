@@ -1,6 +1,11 @@
 import type { LaneReceipt } from '../lane-receipt'
 import type { HostCapability } from '../remote-host'
-import type { RepositorySummary, LaneSummary, StreamCursor } from '../host-protocol'
+import type {
+  RepositorySummary,
+  LaneSummary,
+  StoppedComposer,
+  StreamCursor,
+} from '../host-protocol'
 import type { ControlErrorCode } from '../control-api'
 import type { ServicePauseState } from '../host-protocol-owner'
 
@@ -40,6 +45,7 @@ export interface SessionTree {
 export type HostLaneView = Omit<LaneSummary, 'control' | 'pinned'> & {
   /** Pinned on the Host; `marker` is the Host's explicit marker choice. */
   pinned?: boolean
+  stoppedComposer?: StoppedComposer
   control: {
     fence: number
     controller: { label: string; connected: boolean; self: boolean } | null

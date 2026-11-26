@@ -13,6 +13,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RpcSessionState } from '@phosphor/shared/rpc'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { loadSqlite } from './sqlite'
 import { prepareStateDirectory, prepareStateFile } from './state-dir'
@@ -542,4 +543,25 @@ describe('corrupt summary rows', () => {
       db.close()
     }
   })
+})
+
+it('prefers the budget-capped catalogue, then remembers an effective window only for the same model', async () => {
+  const { laneId } = lane()
+  const model = { provider: 'one', id: 'shared' }
+  store.composerWindows.remember(laneId, {
+    model: { ...model, contextWindow: 128_000 },
+    autoCompactionEnabled: true,
+  } as RpcSessionState)
+  await reopen()
+  const read = (window?: number, identity = model) =>
+    store.composerWindows.read(laneId, identity, window, '')
+  expect(read(1_000_000)).toBe(200_000)
+  expect(read(64_000)).toBe(64_000)
+  expect(read()).toBe(128_000)
+  expect(read(undefined, { ...model, provider: 'two' })).toBeUndefined()
+  store.composerWindows.remember(laneId, {
+    model: { ...model, contextWindow: 1_000_000 },
+    autoCompactionEnabled: false,
+  } as RpcSessionState)
+  expect(read(1_000_000)).toBe(1_000_000)
 })

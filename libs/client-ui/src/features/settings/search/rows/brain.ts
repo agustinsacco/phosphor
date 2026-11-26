@@ -7,4 +7,4 @@ export const BRAIN_ROWS: SettingEntry[] = section('brain', null, [
   ['Model that reads lanes', 'reader provider model extraction'],
   ['Knowledge', 'open brain memories'],
   ['Reset Brain knowledge', 'delete memories entities jobs extraction records keep model'],
-])
+]).map((row) => ({ ...row, requires: 'localBrain' }))

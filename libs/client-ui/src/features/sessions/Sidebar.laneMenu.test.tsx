@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SessionMeta } from '@shared/models'
 import { ContextMenuHost } from '@/components/ContextMenu'
+import { desktopPlatform, PlatformProvider } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
 import { useBrain } from '@/features/brain/useBrain'
 import { mockBrainStatus, mockBrainJob } from '@/features/brain/mockBrainData'
@@ -83,10 +84,10 @@ afterEach(() => {
 async function menuFor(title: string): Promise<string[]> {
   await act(async () =>
     root.render(
-      <>
+      <PlatformProvider value={desktopPlatform(true, false)}>
         <Sidebar workspacePath="/repo" />
         <ContextMenuHost />
-      </>,
+      </PlatformProvider>,
     ),
   )
   await act(async () => {})

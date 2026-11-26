@@ -122,18 +122,27 @@ export function ThinkingChip({
   active,
   onClick,
   label,
+  disabled = false,
 }: {
   testId: string
   agentHint?: string | undefined
   active: boolean
   onClick: () => void
   label: string
+  disabled?: boolean
 }): React.JSX.Element {
   return (
     <TooltipButton
       onClick={onClick}
+      disabled={disabled}
       data-testid={testId}
-      tooltip={agentHint ? `Thinking level · ${agentHint}` : 'Thinking level'}
+      tooltip={
+        disabled
+          ? 'Last known thinking level'
+          : agentHint
+            ? `Thinking level · ${agentHint}`
+            : 'Thinking level'
+      }
       className={clsx(
         CHIP_CLASS,
         'border-border flex shrink-0 cursor-pointer items-center gap-1 rounded-r-md border-l',
@@ -141,7 +150,7 @@ export function ThinkingChip({
       )}
     >
       {label}
-      <ChevronDownIcon size={10} className="text-text-tertiary" />
+      {!disabled && <ChevronDownIcon size={10} className="text-text-tertiary" />}
     </TooltipButton>
   )
 }

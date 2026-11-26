@@ -15,9 +15,10 @@ export function configModels(providers: unknown): MachineModel[] {
     const reasoning = compat?.supportsReasoningEffort !== false
     for (const entry of list) {
       if (!entry || typeof entry !== 'object') continue
-      const { id, name, thinkingLevelMap } = entry as {
+      const { id, name, contextWindow, thinkingLevelMap } = entry as {
         id?: unknown
         name?: unknown
+        contextWindow?: unknown
         thinkingLevelMap?: MachineModel['thinkingLevelMap']
       }
       if (typeof id !== 'string' || id.length === 0) continue
@@ -26,6 +27,11 @@ export function configModels(providers: unknown): MachineModel[] {
         name: typeof name === 'string' && name ? name : id,
         provider,
         reasoning,
+        ...(typeof contextWindow === 'number' &&
+        Number.isSafeInteger(contextWindow) &&
+        contextWindow > 0
+          ? { contextWindow }
+          : {}),
         // Passed through when the user declared it in models.json, so the
         // home picker's level derivation stays per-model even on fallback.
         thinkingLevelMap: typeof thinkingLevelMap === 'object' ? thinkingLevelMap : undefined,

@@ -4,7 +4,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useBrain } from '@/features/brain/useBrain'
 import { mockBrainStatus } from '@/features/brain/mockBrainData'
-import { PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
+import { desktopPlatform, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { PageLinks } from './PageLinks'
 
 let container: HTMLDivElement
@@ -24,6 +24,13 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+const previewPlatform = desktopPlatform(false, true)
+const desktopLinks = (activePage?: 'brain') => (
+  <PlatformProvider value={previewPlatform}>
+    <PageLinks activePage={activePage} onPage={onPage} />
+  </PlatformProvider>
+)
+
 it('puts Archive below Machines and enabled Brain after Archive', async () => {
   useBrain.setState({
     status: {
@@ -37,7 +44,7 @@ it('puts Archive below Machines and enabled Brain after Archive', async () => {
       },
     },
   })
-  await act(async () => root.render(<PageLinks activePage="brain" onPage={onPage} />))
+  await act(async () => root.render(desktopLinks('brain')))
   const buttons = [...container.querySelectorAll('button')]
   const machines = buttons.findIndex((b) => b.textContent === 'Machines')
   expect(buttons[machines + 1]!.textContent).toBe('Archive')
@@ -48,7 +55,7 @@ it('puts Archive below Machines and enabled Brain after Archive', async () => {
 })
 
 it('hides Brain while off and reacts to enabling without hiding other pages', async () => {
-  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  await act(async () => root.render(desktopLinks()))
   expect(container.textContent).not.toContain('Brain')
   expect(container.textContent).toContain('Machines')
   act(() =>
@@ -111,7 +118,7 @@ it('counts what waits for Brain Agent at the right edge and removes the count li
   }
   status.agent.waiting.unlinked = 2
   useBrain.setState({ status })
-  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  await act(async () => root.render(desktopLinks()))
   const count = container.querySelector('[aria-label="2 waiting"]')!
   expect(count.textContent).toBe('2')
   expect(count.className).toContain('ml-auto')
@@ -146,7 +153,7 @@ it('counts one waiting unlinked pair', async () => {
       },
     },
   })
-  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  await act(async () => root.render(desktopLinks()))
   expect(container.querySelector('[aria-label="1 waiting"]')).not.toBeNull()
 })
 
@@ -174,6 +181,6 @@ it('counts the whole Defrag queue, not the read queue', async () => {
       },
     },
   })
-  await act(async () => root.render(<PageLinks onPage={onPage} />))
+  await act(async () => root.render(desktopLinks()))
   expect(container.querySelector('[aria-label="5 waiting"]')?.textContent).toBe('5')
 })

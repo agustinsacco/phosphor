@@ -118,7 +118,7 @@ function contextMessages(entry: SessionEntryLike): unknown[] | null {
   return []
 }
 
-export function sessionContextPlan<T extends SessionEntryLike>(entries: T[]) {
+export function sessionBranch<T extends SessionEntryLike>(entries: T[]) {
   const index = new Map<unknown, T>()
   let leaf: T | undefined
   for (const entry of entries) {
@@ -134,7 +134,15 @@ export function sessionContextPlan<T extends SessionEntryLike>(entries: T[]) {
     path.push(leaf)
     leaf = leaf.parentId ? index.get(leaf.parentId) : undefined
   }
-  path.reverse()
+  return path.reverse()
+}
+
+export function sessionContextPlan<T extends SessionEntryLike>(entries: T[]) {
+  const path = sessionBranch(entries)
+  return path && planSessionContext(path)
+}
+
+export function planSessionContext<T extends SessionEntryLike>(path: T[]) {
   let compactionIndex = -1
   for (const [i, entry] of path.entries()) if (entry.type === 'compaction') compactionIndex = i
   const compaction = path[compactionIndex]

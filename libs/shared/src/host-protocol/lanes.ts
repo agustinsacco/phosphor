@@ -1,6 +1,12 @@
 /** Lane state as the Host protocol carries it: cursors, summaries, snapshots and events. */
 import type { LanePrSignals, SessionPush } from '../models'
-import type { AgentMessage, ExtensionUIRequest, PiEvent, RpcSessionState } from '../rpc'
+import type {
+  AgentMessage,
+  ExtensionUIRequest,
+  PiEvent,
+  RpcSessionState,
+  ThinkingLevel,
+} from '../rpc'
 
 /** Last event held, or seq 0 when none. A different `epoch` means take a snapshot. */
 export interface StreamCursor {
@@ -83,12 +89,22 @@ export interface LanePause {
   readonly at: string
 }
 
+/** Last known composer facts from the saved lane, independent of live pi state. */
+export interface StoppedComposer {
+  readonly model?: NonNullable<LaneSummary['model']>
+  readonly thinkingLevel?: ThinkingLevel
+  readonly tokens?: number
+  /** Effective window (including the Host's compaction budget when enabled). */
+  readonly contextWindow?: number
+}
+
 /** One consistent view of a lane at `(epoch, seq)`; events continue from `seq + 1`. */
 export interface LaneSnapshot {
   readonly cursor: StreamCursor
   readonly summary: LaneSummary
   /** pi's `get_state` while live; null when stopped or failed. */
   readonly state: RpcSessionState | null
+  readonly stoppedComposer?: StoppedComposer
   /** pi's settled messages, as `get_messages` returns them. */
   readonly messages: readonly AgentMessage[]
   /** Settled history did not fit this snapshot. Live events continue from its cursor. */
@@ -107,7 +123,12 @@ export type LanePiPush = Exclude<SessionPush, { kind: 'stderr' | 'resync' }>
 export type LaneEvent =
   | { readonly kind: 'pi'; readonly push: LanePiPush }
   | { readonly kind: 'control'; readonly control: LaneControl }
-  | { readonly kind: 'summary'; readonly summary: LaneSummary }
+  | {
+      readonly kind: 'summary'
+      readonly summary: LaneSummary
+      /** Saved composer facts on detach, without replacing the open transcript. */
+      readonly stoppedComposer?: StoppedComposer
+    }
   | { readonly kind: 'dialog-resolved'; readonly dialogId: string }
 
 export type AttentionKind =

@@ -1,3 +1,6 @@
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { desktopPlatform, usePlatform } from './Platform'
 import { expect, it } from 'vitest'
 import {
   COMPACT_PLATFORM,
@@ -19,6 +22,7 @@ it('the phone and the wide browser differ only in form factor', () => {
 
 /* Every Desktop/browser difference is a declared capability; a new one must be added here. */
 it('Desktop and the browser differ only in the capabilities each declares', () => {
+  const DESKTOP_PLATFORM = desktopPlatform(true, false)
   expect(differing(DESKTOP_PLATFORM, WIDE_BROWSER_PLATFORM)).toEqual([
     'appInfo',
     'appShortcuts',
@@ -39,4 +43,24 @@ it('Desktop and the browser differ only in the capabilities each declares', () =
     'splitPanes',
     'writingAssist',
   ])
+})
+
+it('does not grant Brain by default', () => {
+  expect(DESKTOP_PLATFORM.localBrain).toBe(false)
+  expect(COMPACT_PLATFORM.localBrain).toBe(false)
+  expect(WIDE_BROWSER_PLATFORM.localBrain).toBe(false)
+})
+
+it('does not grant Brain when there is no platform provider', () => {
+  const Capability = () => String(usePlatform().localBrain)
+  expect(renderToStaticMarkup(createElement(Capability))).toBe('false')
+})
+
+it.each([
+  [false, false, false],
+  [true, false, true],
+  [false, true, true],
+  [true, true, true],
+])('exposes Desktop Brain by enabled (%s) or preview (%s) state', (enabled, preview, visible) => {
+  expect(desktopPlatform(enabled, preview).localBrain).toBe(visible)
 })

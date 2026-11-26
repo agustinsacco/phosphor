@@ -19,7 +19,7 @@ import { hostLaneOf, type SessionHostLane } from './hostLaneOf'
 import { useMachinesStore } from './machines'
 import { machineCaps } from './machineCaps'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
-import { bindHostsSnapshotRead } from './hostsSnapshotRead'
+import { bindHostsSnapshotRead, refreshHostsSnapshot } from './hostsSnapshotRead'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
 import { localRevealGroup } from '@/features/sessions/localRevealGroup'
@@ -32,7 +32,6 @@ import {
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
 const laneRemoved = (machine = localMachineLabel()): string => `This lane was removed on ${machine}`
 export { REMOTE_NOT_READY } from './hostRefusals'
-
 export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
   // A first attempt is not a reconnection; the wait notes (`connectingTo`) say the same.
   return state === 'ready'
@@ -211,13 +210,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const problem = unavailable()
     if (problem) throw new Error(problem)
     let sessionId = 'sessionId' in destination ? destination.sessionId : undefined
-    if (remote) {
-      const info = await window.phosphor.invoke('hosts:openLane', remote.hostId, remote.laneId)
-      await useSessionsStore
-        .getState()
-        .adoptSession(info.sessionId, info.workspacePath, undefined, info)
-      sessionId = info.sessionId
-    }
+    if (remote) sessionId = await openRemoteHandle(remote)
     if (!current()) return false
     const problemAfterOpen = unavailable()
     if (problemAfterOpen) throw new Error(problemAfterOpen)
@@ -234,10 +227,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     )
     useRemoteLanesStore.setState({ error: null })
     if (remote) await prepareOpenedLane(sessionId)
-    return (
-      useSessionsStore.getState().activeSessionId === sessionId &&
-      useLayoutStore.getState().page === null
-    )
+    return isActiveLane(sessionId)
   } catch {
     if (!current()) return false
     let problem = unavailable()
@@ -258,15 +248,28 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
   }
 }
 
+async function openRemoteHandle({ hostId, laneId }: { hostId: string; laneId: string }) {
+  const info = await window.phosphor.invoke('hosts:openLane', hostId, laneId)
+  await useSessionsStore
+    .getState()
+    .adoptSession(info.sessionId, info.workspacePath, undefined, info)
+  // The lane snapshot lands in the bridge before its debounced host notification.
+  const host = hostView(hostId)
+  if (host?.local || host?.warmOnOpen) await refreshHostsSnapshot()
+  return info.sessionId
+}
+
+const isActiveLane = (id: string) =>
+  useSessionsStore.getState().activeSessionId === id && useLayoutStore.getState().page === null
+
 async function prepareOpenedLane(sessionId: string) {
   warmOpenedLane(
     sessionId,
-    () => useSessionsStore.getState().activeSessionId === sessionId,
+    () => isActiveLane(sessionId),
     (message) => useExtensionUiStore.getState().pushToast(message, 'error'),
   )
   await refreshRemoteArtifacts(sessionId)
 }
-
 export async function openRemoteLane(hostId: string, laneId: string): Promise<boolean> {
   return navigateToLane({ hostId, laneId })
 }
