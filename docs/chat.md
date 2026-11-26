@@ -968,6 +968,9 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   terminal with `pi`** when the platform has a terminal and the lane runs on
   This Mac. Retry models reads through `stores/sessionModels.ts`, as the lane's
   bootstrap does.
+  The popover opens while models load, keeps cached choices available with
+  **Refreshing…**, and offers **Retry** inside the popover after a failed read.
+  New results replace the list in place on Desktop and the PWA.
   The picker grows into the toolbar's free width on every machine.
   Both owners render `composer/ModelChip.tsx`: the model name as the left segment,
   the thinking level (with a caret) as the right. The provider is not on the

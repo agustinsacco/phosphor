@@ -1,22 +1,11 @@
-import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import clsx from 'clsx'
 import type { ModelCost } from '@shared/rpc'
-import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { Highlighted } from '@/components/search/Highlighted'
-import { CheckIcon, StarIcon } from '@/components/icons'
-import { formatTokens } from '@/lib/format'
+import { PopupMenu } from '@/components/PopupMenu'
 import { availabilityKey, unavailableModels } from '@/lib/modelAvailability'
-import {
-  groupModels,
-  modelKey,
-  searchModels,
-  stripRegionSuffix,
-  type GroupMode,
-  type ModelGroup,
-  type ModelSearchResult,
-} from '@/lib/modelSearch'
+import { groupModels, modelKey, searchModels } from '@/lib/modelSearch'
+import { buildRows, FilterChip, GroupChip, isResult, ModelRow } from './ModelMenuRows'
+import { ModelMenuStatus } from './ModelMenuStatus'
 import { useModelPicksStore } from '@/stores/modelPicks'
 
 /** Minimal shape both pickers share (session RPC models / catalogue models). */
@@ -68,6 +57,8 @@ export function ModelMenu({
   onClose,
   emptyText,
   loading = false,
+  error,
+  onRetry,
   notice,
   unavailable: blocked,
   className,
@@ -82,6 +73,8 @@ export function ModelMenu({
    * "none configured", and the menu answers a question it has not asked yet.
    */
   loading?: boolean
+  error?: string | null | undefined
+  onRetry?: (() => void) | undefined
   /** Shown above a NON-empty list that is known to be incomplete. */
   notice?: string
   /** Replaces the catalogue's own rule, keyed `provider/id`, when the caller knows more. */
@@ -102,7 +95,10 @@ export function ModelMenu({
 
   useEffect(() => {
     inputRef.current?.focus()
-    void useModelPicksStore.getState().hydrate()
+    useModelPicksStore
+      .getState()
+      .hydrate()
+      .catch(() => undefined)
   }, [])
 
   const unavailable = useMemo(() => blocked ?? unavailableModels(models), [blocked, models])
@@ -237,6 +233,8 @@ export function ModelMenu({
     )
   }
 
+  const cold = loading && models.length === 0
+
   // Not anchored to the trigger: an absolutely-positioned popup wide enough
   // to hold model names could sit partly outside the viewport, and focusing
   // its search input then made the browser auto-scroll the nearest
@@ -245,7 +243,7 @@ export function ModelMenu({
   // paints above the rest of the UI regardless of stacking contexts upstream.
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]">
-      <PopupMenu onClose={onClose} className={className}>
+      <PopupMenu withinOverlay onClose={onClose} className={className}>
         <div className="border-border border-b">
           <input
             ref={inputRef}
@@ -255,9 +253,9 @@ export function ModelMenu({
               setActiveIndex(0)
             }}
             onKeyDown={handleKeyDown}
-            disabled={loading}
+            disabled={cold}
             placeholder={
-              loading ? 'Loading models…' : 'Search models — try “opus bedrock” or “provider:aws”'
+              cold ? 'Loading models…' : 'Search models — try “opus bedrock” or “provider:aws”'
             }
             data-testid="model-search"
             // composer-field: opt out of the global accent focus outline — the
@@ -289,6 +287,7 @@ export function ModelMenu({
         )}
 
         <div className="max-h-80 overflow-y-auto py-1.5" data-testid="model-list">
+          <ModelMenuStatus loading={loading} cold={cold} error={error} onRetry={onRetry} />
           {rows.map((row, index) =>
             row.kind === 'header' ? (
               <div
@@ -318,8 +317,7 @@ export function ModelMenu({
             ),
           )}
 
-          {loading && models.length === 0 && <ModelRowSkeletons />}
-          {!loading && models.length === 0 && (
+          {!cold && !error && models.length === 0 && (
             <div className="text-text-tertiary px-3 py-2 text-base">{emptyText}</div>
           )}
           {/* A short list is indistinguishable from a complete one, so when we
@@ -339,9 +337,7 @@ export function ModelMenu({
         </div>
 
         <div className="border-border text-text-tertiary flex items-center gap-2 border-t px-2.5 py-1.5 text-xs">
-          <span className="tabular-nums">
-            {loading && models.length === 0 ? 'Loading…' : `${results.length} of ${models.length}`}
-          </span>
+          <span className="tabular-nums">{!cold && `${results.length} of ${models.length}`}</span>
           <span className="ml-auto flex items-center gap-1">
             <span className="hidden sm:inline">Group</span>
             <GroupChip
@@ -364,267 +360,3 @@ export function ModelMenu({
 
 /** ↑/↓ steps per PageUp/PageDown — roughly one visible screen of rows. */
 const PAGE_STEP = 8
-
-// ------------------------------------------------------------------ row model
-
-type Section = 'starred' | 'recent' | 'main'
-
-type Row =
-  | { kind: 'header'; id: string; label: string; count: number }
-  | {
-      kind: 'model'
-      section: Section
-      result: ModelSearchResult<ModelMenuEntry>
-      /** `provider` inside a family group, `name` everywhere else. */
-      lead: 'name' | 'provider'
-      /** The family header's text, so a row can render only what it adds to it. */
-      familyLabel?: string
-    }
-
-function isResult(
-  value: ModelSearchResult<ModelMenuEntry> | undefined,
-): value is ModelSearchResult<ModelMenuEntry> {
-  return value !== undefined
-}
-
-/**
- * Flatten sections and groups into the exact sequence rendered.
- *
- * A family header only appears when the family has more than one route:
- * a header over a single row would double the height of most of the list to
- * restate the row's own name.
- */
-function buildRows({
-  groups,
-  groupMode,
-  starred,
-  recent,
-}: {
-  groups: ModelGroup<ModelMenuEntry>[]
-  groupMode: GroupMode
-  starred: ModelSearchResult<ModelMenuEntry>[]
-  recent: ModelSearchResult<ModelMenuEntry>[]
-}): Row[] {
-  const rows: Row[] = []
-
-  const shortcut = (section: Section, label: string, items: typeof starred): void => {
-    if (items.length === 0) return
-    rows.push({ kind: 'header', id: section, label, count: items.length })
-    for (const result of items) rows.push({ kind: 'model', section, result, lead: 'name' })
-  }
-  shortcut('starred', 'Starred', starred)
-  shortcut('recent', 'Recent', recent)
-
-  for (const group of groups) {
-    const family = groupMode === 'family'
-    // Family: a header earns its line only when it covers more than one route.
-    // Provider: the header IS the answer to "from whom", so it stays unless
-    // there is only one provider and it would be restating the obvious.
-    const headed = family ? group.items.length > 1 : groups.length > 1
-    if (headed) {
-      rows.push({ kind: 'header', id: group.key, label: group.label, count: group.items.length })
-    }
-    for (const result of group.items) {
-      rows.push({
-        kind: 'model',
-        section: 'main',
-        result,
-        lead: family && headed ? 'provider' : 'name',
-        ...(family && headed ? { familyLabel: group.label } : {}),
-      })
-    }
-  }
-  return rows
-}
-
-// ------------------------------------------------------------------ rendering
-
-function ModelRow({
-  result,
-  query,
-  lead,
-  familyLabel,
-  active,
-  blocked,
-  current,
-  starred,
-  onHover,
-  onClick,
-  onToggleStar,
-}: {
-  result: ModelSearchResult<ModelMenuEntry>
-  query: string
-  lead: 'name' | 'provider'
-  familyLabel?: string
-  active: boolean
-  blocked: { detail: string } | undefined
-  current: boolean
-  starred: boolean
-  onHover: () => void
-  onClick: () => void
-  onToggleStar: () => void
-}): React.JSX.Element {
-  const model = result.model
-  const name = model.name || model.id
-  // Under a family header the name is already on screen; what distinguishes
-  // this row is the route, plus whatever the name adds beyond the family
-  // ("(US)", "(EU)") — which is exactly the region that decides latency.
-  const variant = familyLabel ? name.slice(stripRegionSuffix(name).length).trim() : ''
-  const primary = lead === 'provider' ? model.provider : name
-  const facts = modelFacts(model)
-
-  return (
-    <MenuRow
-      active={active}
-      disabled={blocked !== undefined}
-      onHover={onHover}
-      onClick={onClick}
-      testId="model-row"
-      title={blocked ? `${model.id} — ${blocked.detail}` : `${model.provider}/${model.id}`}
-      trailing={
-        <TooltipButton
-          // A row is a <button>; this must not be nested inside it (see MenuRow).
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggleStar()
-          }}
-          aria-label={starred ? `Unstar ${name}` : `Star ${name}`}
-          aria-pressed={starred}
-          title={starred ? 'Unstar (⌘D)' : 'Star (⌘D)'}
-          // Never emit opacity-0 and opacity-100 together: Tailwind resolves a
-          // conflict by stylesheet order, not by the order of the class string,
-          // so which one wins would be an accident.
-          className={clsx(
-            'hover:bg-bg-secondary cursor-pointer rounded p-1 transition-colors',
-            starred
-              ? 'text-accent'
-              : clsx(
-                  'text-text-tertiary hover:text-text',
-                  // An unstarred control is quiet until the row is reachable —
-                  // hovered, highlighted, or tabbed to.
-                  active
-                    ? 'opacity-100'
-                    : 'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100',
-                ),
-          )}
-        >
-          <StarIcon filled={starred} />
-        </TooltipButton>
-      }
-    >
-      <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className={clsx('truncate', lead === 'provider' && 'font-mono text-base')}>
-            <Highlighted text={primary} query={query} />
-          </span>
-          {variant && <span className="text-text-secondary shrink-0 text-sm">{variant}</span>}
-          {current && <CheckIcon className="text-text shrink-0" />}
-        </span>
-
-        <span className="text-text-tertiary flex min-w-0 items-baseline gap-1.5 text-sm leading-snug">
-          {lead === 'name' && (
-            <span className="shrink-0 font-mono">
-              <Highlighted text={model.provider} query={query} />
-            </span>
-          )}
-          <span className="truncate font-mono opacity-80">
-            <Highlighted text={model.id} query={query} />
-          </span>
-          {facts && <span className="ml-auto shrink-0 tabular-nums opacity-80">{facts}</span>}
-        </span>
-
-        {/* Wraps rather than truncates: a clipped "pick a region-pr…" tells
-            the user nothing, and this row is the only place the reason
-            appears. */}
-        {blocked && (
-          <span className="text-text-tertiary block text-sm leading-snug">{blocked.detail}</span>
-        )}
-      </span>
-    </MenuRow>
-  )
-}
-
-/**
- * The one-line comparison summary: context window, then input price.
- *
- * Only what the catalogue actually supplied — the models.json fallback has no
- * pricing, and an invented number here would be read as authoritative.
- */
-function modelFacts(model: ModelMenuEntry): string {
-  const parts: string[] = []
-  if (typeof model.contextWindow === 'number' && model.contextWindow > 0) {
-    parts.push(`${formatTokens(model.contextWindow)} ctx`)
-  }
-  if (model.input?.includes('image')) parts.push('vision')
-  if (model.cost && model.cost.input > 0) parts.push(`$${trimZeros(model.cost.input)}/M`)
-  return parts.join(' · ')
-}
-
-function trimZeros(value: number): string {
-  return String(Number(value.toFixed(2)))
-}
-
-function FilterChip({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string
-  count?: number
-  active: boolean
-  onClick: () => void
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      onClick={onClick}
-      aria-pressed={active}
-      className={clsx(
-        'shrink-0 cursor-pointer rounded-md px-2 py-0.5 font-mono text-xs transition-colors',
-        active
-          ? 'bg-bg-secondary text-text'
-          : 'text-text-tertiary hover:bg-bg-secondary hover:text-text',
-      )}
-    >
-      {label}
-      {count !== undefined && <span className="ml-1 opacity-60 tabular-nums">{count}</span>}
-    </TooltipButton>
-  )
-}
-
-function GroupChip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-}): React.JSX.Element {
-  return (
-    <TooltipButton
-      onClick={onClick}
-      aria-pressed={active}
-      className={clsx(
-        'cursor-pointer rounded px-1.5 py-0.5 transition-colors',
-        active ? 'bg-bg-secondary text-text' : 'hover:text-text',
-      )}
-    >
-      {label}
-    </TooltipButton>
-  )
-}
-
-/** Placeholder rows while the catalogue is still being fetched. */
-function ModelRowSkeletons(): React.JSX.Element {
-  return (
-    <div className="space-y-2 px-3 py-2" data-testid="model-list-loading" aria-busy="true">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} className="flex items-center gap-2">
-          <div className="bg-bg-secondary h-3.5 flex-1 animate-pulse rounded" />
-          <div className="bg-bg-secondary h-3.5 w-16 animate-pulse rounded" />
-        </div>
-      ))}
-    </div>
-  )
-}
