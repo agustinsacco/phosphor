@@ -11,7 +11,7 @@ import {
 } from '@phosphor/session-runtime/ops/results'
 import type { OpHandlerContext, OpHandlerResult } from '@phosphor/session-runtime/ops/types'
 import { PAGED_LANES_LIMITS } from '@phosphor/shared/host-protocol-paged-lanes'
-import { matchesLaneState } from '@phosphor/shared/host-protocol/lanes'
+import { matchesLaneState } from '@phosphor/shared/host-protocol'
 import { laneRefFor } from '../lane-ref'
 import type { DaemonHandlerDeps } from './index'
 import { artifactList, contentPage } from './artifacts'

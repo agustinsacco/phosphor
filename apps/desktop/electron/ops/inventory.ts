@@ -1,7 +1,5 @@
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
-import { requestPage } from '@phosphor/session-runtime/ops/ports'
-import { prefs } from '../prefs/backend'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
@@ -9,6 +7,7 @@ import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { readGlobalInstructions } from '@phosphor/session-runtime/pi/global-instructions'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
+import { prefs } from '../prefs/backend'
 import { liveOpLanes, projectFolders } from './lanes'
 import {
   op,

@@ -38,6 +38,7 @@ export type {
   StoppedComposer,
   StreamCursor,
 } from './host-protocol/lanes'
+export { isLiveActivity, matchesLaneState } from './host-protocol/lanes'
 export {
   CAPABILITY_FOR,
   HOST_CALL_METHODS,

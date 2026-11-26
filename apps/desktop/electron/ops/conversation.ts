@@ -10,7 +10,7 @@ import {
   rowTime,
 } from '@phosphor/session-runtime/ops/results'
 
-import { matchesLaneState, type LaneActivity } from '@phosphor/shared/host-protocol/lanes'
+import { matchesLaneState, type LaneActivity } from '@phosphor/shared/host-protocol'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 
 const artifactColumns = {

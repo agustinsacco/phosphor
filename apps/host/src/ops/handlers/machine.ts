@@ -16,7 +16,7 @@ import { laneCall } from './lane-target'
 import { laneIdOfRef } from '../lane-ref'
 import { CLAUDE_CLI_PROVIDER } from '../../machine/providers'
 
-import { isLiveActivity } from '@phosphor/shared/host-protocol/lanes'
+import { isLiveActivity } from '@phosphor/shared/host-protocol'
 import {
   machineRecord,
   parseMachineProviders,
