@@ -9,6 +9,7 @@ import type { PendingAttachment } from '@/features/chat/attachments'
 import { composePrompt, toImageContents } from '@/features/chat/attachments'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, canControlSession, adoptRemoteLane } from '@/stores/remoteLanes'
+import { machineCaps } from '@/stores/machineCaps'
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import { piCallOk } from '@/lib/rpc'
 import { requestSwarm } from '@/lib/swarm'
@@ -40,7 +41,7 @@ export async function startRemoteChat(
   hooks: LaneCreateHooks = {},
 ): Promise<void> {
   const host = useRemoteLanesStore.getState().hosts[hostId]
-  if (host?.state !== 'ready' || !host.capabilities.includes('sessions.control')) throw new Error()
+  if (!host || !machineCaps(host).can('sessions.control')) throw new Error()
   const nav = hooks.nav ?? useSessionsStore.getState().claimNav()
   const create = async () => {
     for (let attempt = 1; attempt <= 5; attempt++) {

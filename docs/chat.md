@@ -1327,7 +1327,12 @@ Controllers can prompt, steer, queue, abort, compact, change model and thinking,
 answer dialogs, stop and resume. The machine's capabilities and current control
 are checked in main and again by the Host. A prompt to a stopped lane resumes it
 once and then delivers the message: a Host restart stops every lane, and sending
-is the intent to run it. Steer, follow-up and the rest stay refused.
+is the intent to run it. The resume waits as long as a model switch for pi to
+start, so the message stays pending under the lane's starting state; only a
+resume that still times out restores the draft. Steer, follow-up and the rest
+stay refused. While the lane's machine is still starting (connected, no
+capabilities granted yet), the composer waits under "Starting <machine>…" and
+sends nothing.
 
 Remote creation uses the target machine's configured repositories and model
 catalogue. An unavailable Host never starts a local session instead.

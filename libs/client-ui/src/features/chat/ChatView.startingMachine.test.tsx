@@ -59,7 +59,7 @@ afterEach(() => {
 function startingService(local: boolean): void {
   const { hosts, live } = hostLaneSession({ activity: 'stopped', self: true })
   const host = hosts[MOCK_HOST_ID]!
-  host.local = local
+  if (local) host.local = true
   host.capabilities = []
   useRemoteLanesStore.setState({ hosts })
   useSessionsStore.setState({ live })

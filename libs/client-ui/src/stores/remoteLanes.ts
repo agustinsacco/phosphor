@@ -14,6 +14,7 @@ import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { hostLaneOf, type SessionHostLane } from './hostLaneOf'
 import { useMachinesStore } from './machines'
 import { machineCaps } from './machineCaps'
+import { hostReady } from './hostReadiness'
 import { migrateLegacyLaneMarks } from './remoteLaneMarks'
 import { rereadLanesWhosePiStarted } from './lanePiStart'
 import { bindHostsSnapshotRead } from './hostsSnapshotRead'
@@ -115,12 +116,12 @@ function heldLane(sessionId: string) {
   const { host, lane } = remote
   const held =
     machineCaps(host).granted('sessions.control') && laneControlPolicy(host?.local, lane).actionable
-  return { state: host?.state, held }
+  return { ready: hostReady(host), held }
 }
 
 export function canControlSession(sessionId: string): boolean {
   const lane = heldLane(sessionId)
-  return !lane || (lane.state === 'ready' && lane.held)
+  return !lane || (lane.ready && lane.held)
 }
 
 /**
@@ -129,7 +130,7 @@ export function canControlSession(sessionId: string): boolean {
  */
 export function readOnlyLane(sessionId: string): boolean {
   const lane = heldLane(sessionId)
-  return !!lane && lane.state === 'ready' && !lane.held
+  return !!lane && lane.ready && !lane.held
 }
 
 export const useRemoteLanesStore = create<{

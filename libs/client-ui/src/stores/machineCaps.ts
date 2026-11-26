@@ -3,6 +3,7 @@ import type { HostConnectionView } from '@shared/ipc'
 import type { HostCapability } from '@shared/remote-host'
 import { featureNotOffered, REMOTE_NOT_READY, type GrantedCapability } from './hostRefusals'
 import { useRemoteLanesStore } from './remoteLanes'
+import { hostReady } from './hostReadiness'
 
 type HostCapsSource = Pick<
   HostConnectionView,
@@ -41,9 +42,9 @@ export interface MachineCaps {
   fileBytes: boolean
 }
 
-/** A Host's caps from its view; an unknown Host is not ready and grants nothing. */
+/** A Host's caps from its view; an unknown or starting Host is not ready. */
 export function machineCaps(host: HostCapsSource | undefined): MachineCaps {
-  const ready = host?.state === 'ready'
+  const ready = hostReady(host)
   const granted = (cap: HostCapability): boolean => !!host?.capabilities.includes(cap)
   const refusalAs = (cap: GrantedCapability, feature?: string): string | undefined =>
     !ready ? REMOTE_NOT_READY : granted(cap) ? undefined : featureNotOffered(cap, feature)

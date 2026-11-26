@@ -270,7 +270,9 @@ export function createHostConnection(ports: {
       if (ports.lanes !== false) subscribe('lanes', undefined, view.cursor)
       for (const [id, w] of watches) subscribe(id, w.laneId, w.cursor)
       for (const [id, w] of terminals) subscribeTerminal(id, w.terminalId)
-      requests.flushReplay()
+      // A booting local service grants nothing until its lanes start, then reconnects with
+      // them. Pending commands replay there; here they would only be refused.
+      if (f.capabilities.length) requests.flushReplay()
       renew(f.grantExpiresAt)
       beat()
       return

@@ -3,6 +3,7 @@ import { COMPACTING_DRAFT, sendComposerPrompt } from './sendComposerPrompt'
 import { laneBusyNow, useLaneBusy } from './laneBusy'
 import { offersLaneEditing } from './hostLaneEditing'
 import { useRemoteLanesStore, canControlSession, useSessionHostLane } from '@/stores/remoteLanes'
+import { machineCaps } from '@/stores/machineCaps'
 import { HostWaitNote, useRemoteLock } from '@/features/machines/HostWaitNote'
 import { BusyPromptButtons } from './composer/BusyPromptButtons'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -54,9 +55,7 @@ export function Composer({
   const restoring = !!transition || !!resuming
   const remoteAttachments =
     remote &&
-    host?.state === 'ready' &&
-    host.capabilities.includes('workspaces.write') &&
-    host.capabilities.includes('sessions.control') &&
+    machineCaps(host).can('workspaces.write', 'sessions.control') &&
     canControlSession(sessionId)
   const draftKey = composerDraftKey(entry, sessionId)
   const draft = useDraftsStore((s) => s.drafts[draftKey])

@@ -20,7 +20,9 @@ const COMMAND_WAIT_MS = 60_000
 const PI_START_WAIT_MS = 180_000
 
 function commandWait(frame: Command): number {
-  return frame.op.type === 'lane.create' || frame.op.type === 'set_model'
+  return frame.op.type === 'lane.create' ||
+    frame.op.type === 'set_model' ||
+    frame.op.type === 'lane.resume'
     ? PI_START_WAIT_MS
     : COMMAND_WAIT_MS
 }

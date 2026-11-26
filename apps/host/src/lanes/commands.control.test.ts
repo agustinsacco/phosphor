@@ -4,6 +4,7 @@ import { HOST_LIMITS, type LaneOp, type LanePiOp } from '@phosphor/shared/host-p
 import { commandRefusal } from '../session/runtime'
 import * as folders from './worktree'
 import { createLaneCommands, type LaneCommandFrame } from './commands'
+import { PI_START_ANSWER_MS } from './commands/queue'
 import {
   createCommandsFixture,
   deferred,
@@ -363,7 +364,10 @@ describe('lane command guards and operations', () => {
       f.ports.stopLane = () => response.promise
       const request = f.frame({ type })
       const running = f.service.submit(f.one, request)
-      await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+      // A resume starts pi, which is slow under load: it waits as long as a model switch.
+      await vi.advanceTimersByTimeAsync(
+        type === 'lane.resume' ? PI_START_ANSWER_MS : HOST_LIMITS.commandAnswerMs,
+      )
       await running
       expect(f.last(request.requestId)?.status).toBe('unknown')
       response.release()
