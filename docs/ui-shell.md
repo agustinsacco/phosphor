@@ -7,6 +7,12 @@
   application menu**, so every command reaches you through the top bar, the
   command palette or a key binding. Chromium's zoom accelerators are
   re-implemented by hand in `useGlobalShortcuts.ts`.
+- **The window reopens where you left it.** Desktop saves its size, position
+  and maximized state to `<userData>/window-state.json` shortly after a move or
+  resize and on close (`electron/window-state.ts`). A position is kept only when
+  the window's top strip lands on a connected display; otherwise it opens at the
+  saved size, fitted to the main display. Full screen is not restored. Wayland
+  does not let apps place windows, so there only the size comes back.
 - **The window never scrolls.** `<body>` is `position: relative; overflow: clip`
   and `<html>` is `overflow: hidden`, in `styles/index.css`. With only
   `overflow: hidden`, focus and `scrollIntoView` still scrolled the viewport

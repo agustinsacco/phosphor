@@ -82,6 +82,12 @@ vi.mock('electron', () => ({
   },
   dialog: { showMessageBox: async () => ({ response: 1 }) },
   protocol: { registerSchemesAsPrivileged: fake.record('registerSchemesAsPrivileged') },
+  screen: { getPrimaryDisplay: () => ({ id: 1 }), getAllDisplays: () => [] },
+}))
+vi.mock('./window-state', () => ({
+  windowPlacement: () => ({ bounds: { width: 1440, height: 920 }, maximized: false }),
+  showRestored: (window: { show(): void }) => window.show(),
+  trackWindowState: () => {},
 }))
 vi.mock('./routines', () => ({
   startRoutines: fake.record('startRoutines'),
