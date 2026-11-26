@@ -272,17 +272,9 @@ the code imports now, or delete the mock.
 
 ## CI boundary
 
-CI runs on the project's own runners, three Linux (x64) and one macOS (ARM64),
-selected by their `[self-hosted, Linux, X64]` and `[self-hosted, macOS, ARM64]`
-labels. The one exception is the macOS e2e leg: `changes` asks the runners API
-whether the project Mac is online (`tools/scripts/mac-runner.mjs`), and while it
-is offline the leg runs on GitHub's `macos-15` instead of queueing until it
-returns. A busy Mac still takes it. The check needs the `RUNNER_STATUS_TOKEN`
-secret, a token with Administration (read) on this repository; without it (forks
-included) and on any doubt, the leg goes to GitHub's Mac. Each runner takes one job
-at a time, so jobs on the same OS queue and a split pays only when there is a
-runner instance to take it. Each job installs what it needs and runs each
-mandatory command exactly once:
+Linux CI uses the project's three `[self-hosted, Linux, X64]` runners. The
+macOS e2e leg and the full nightly suite run only on GitHub-hosted `macos-15`.
+Each job installs what it needs and runs each mandatory command exactly once:
 
 - `changes`: on a pull request, which app jobs (`e2e`, `web-e2e`,
   `control-schema`, `site`) the PR affects, from Nx
@@ -309,22 +301,20 @@ mandatory command exactly once:
   path: a failed or cancelled run opens an issue labelled `macos-nightly` (or
   comments on the open one) and the next green run closes it. GitHub drops
   scheduled runs, so the suite has three daily slots (07:00, 09:00, 11:00 UTC)
-  and runs in the first that fires. Every main push checks, without the Mac,
-  that the suite finished in the last 30 hours, and opens the issue when it
-  has not. The decisions are in `tools/scripts/macos-nightly.mjs`. The one Mac runner takes one job
-  at a time, and a serial full run there used to hold every release. Linux runs
+  and runs in the first that fires. Every main push checks, without starting
+  the suite, that it finished in the last 30 hours, and opens the issue when it
+  has not. The decisions are in `tools/scripts/macos-nightly.mjs`. Linux runs
   four tests at a time: each has its own userData, pi agent dir, ports, Xvfb display
   (`tools/scripts/xvfb-workers.sh`; one display has one focused window) and Host
   build (the remote fixture builds the Host into a per-worker temp folder, never
   the shared `apps/host/dist`). Its `@system-clipboard` tests share the
   display's one clipboard, so they run afterwards, one at a time. Linux sets `PHOSPHOR_E2E_SHOW=1`:
   windows that are never mapped barely render there, which made the suite several
-  times slower. macOS keeps the windows hidden, as local runs do, so nothing
-  appears on the Mac runner's screen. On Linux the suite's global setup (`apps/desktop/e2e/warm-up.ts`)
-  first launches Electron until one launch paints a frame: on a fresh runner the
-  first launch never does, so the first test of every run used to time out a
-  click and pass on retry. The macOS runner must run inside a logged-in user
-  session, and its `@system-clipboard` tests overwrite that user's clipboard.
+  times slower. macOS keeps windows hidden, and its clipboard tests use the
+  hosted runner's clipboard. On Linux the suite's global setup
+  (`apps/desktop/e2e/warm-up.ts`) first launches Electron until one launch paints
+  a frame: on a fresh runner the first launch never does, so the first test of
+  every run used to time out a click and pass on retry.
 - `control-schema` and `site`: the local Supabase stack and the site image.
   The stack's project id and ports are fixed and the Linux runners share one
   Docker daemon, so `control-schema` runs it in one step under a machine-wide

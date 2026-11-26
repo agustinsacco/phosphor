@@ -13,13 +13,8 @@ env:
   # electron-builder's postinstall isn't needed for checks and slows CI down.
   ELECTRON_BUILDER_SKIP_REBUILD: '1'
 
-# Every job runs on the project's own runners: two Linux (x64) and one macOS
-# (ARM64), each taking one job at a time. The one exception: the macOS e2e leg
-# runs on a GitHub-hosted Mac while the project Mac is offline
-# (tools/scripts/mac-runner.mjs). Jobs on the same OS queue, so a job is
-# split only where the split pays for its extra checkout and `npm ci`; adding
-# runner instances is what buys back parallelism. The Linux runners share one
-# 32-core machine, so no job may assume it has all the cores.
+# Linux jobs use the project's self-hosted x64 runners, which share one
+# 32-core machine. The macOS e2e leg always uses GitHub-hosted macos-15.
 jobs:
   # What a pull request needs. typecheck, lint, format and unit tests always
   # run; the e2e, web, Supabase and site jobs run only when Nx says the PR
@@ -36,7 +31,6 @@ jobs:
       web: ${{ steps.scope.outputs.web }}
       control: ${{ steps.scope.outputs.control }}
       site: ${{ steps.scope.outputs.site }}
-      mac: ${{ steps.mac.outputs.mac }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,12 +39,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Pick the macOS e2e runner
-        id: mac
-        env:
-          # Administration (read) on this repository; absent on forks.
-          RUNNER_STATUS_TOKEN: ${{ secrets.RUNNER_STATUS_TOKEN }}
-        run: node tools/scripts/mac-runner.mjs >> "$GITHUB_OUTPUT" || echo 'mac="macos-15"' >> "$GITHUB_OUTPUT"
       - name: Decide which jobs run
         id: scope
         run: |
@@ -65,13 +53,12 @@ jobs:
   # tagged @macos (native quit, undo, context menus, Meta shortcuts, the system
   # clipboard and the login shell), on PRs and on main alike. The whole suite
   # on macOS runs nightly in the "macOS nightly" workflow, off the release
-  # path: the one Mac runner takes one job at a time, and a serial full run
-  # there held every release for 15-30 minutes, or hours when the Mac was busy.
+  # path, so the full suite does not delay publication.
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shard }})
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
-    runs-on: ${{ matrix.os == 'macos' && fromJSON(needs.changes.outputs.mac || '"macos-15"') || fromJSON('["self-hosted","Linux","X64"]') }}
+    runs-on: ${{ matrix.os == 'macos' && 'macos-15' || fromJSON('["self-hosted","Linux","X64"]') }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -88,8 +75,7 @@ jobs:
       # the macOS runner's login session. The first-test click
       # timeouts were Electron's first launch on a fresh runner, which never
       # paints: apps/desktop/e2e/warm-up.ts absorbs it.
-      # Linux only. macOS renders hidden windows at full speed, and the Mac is a
-      # shared machine: hidden windows never appear on its screen or take focus.
+      # Linux only. macOS keeps the windows hidden.
       PHOSPHOR_E2E_SHOW: ${{ matrix.os == 'linux' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4

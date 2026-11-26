@@ -83,7 +83,7 @@ export async function report(github, repo, { decided, e2e, stale, lastAt, runUrl
     // One notice per outage, not one per push.
     if (issue) return 'already open'
     const since = lastAt ? `since ${new Date(lastAt).toISOString()}` : 'since it was added'
-    body = `The macOS nightly e2e has not finished ${since}. Check that the Mac runner is online and that its scheduled runs fire, then run it by hand from Actions: ${runUrl}`
+    body = `The macOS nightly e2e has not finished ${since}. Check that scheduled runs fire and the GitHub-hosted macOS jobs start, then run it by hand from Actions: ${runUrl}`
   } else return 'nothing to report'
   if (issue) await github.rest.issues.createComment({ ...repo, issue_number: issue.number, body })
   else
