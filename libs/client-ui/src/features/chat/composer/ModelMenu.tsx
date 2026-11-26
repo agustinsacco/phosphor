@@ -50,6 +50,24 @@ export interface ModelMenuEntry {
  * (a Host's signed-out provider). They stay visible rather than hidden so that
  * searching "fable" still explains where Fable went.
  */
+/** Starred, recent and grouping picks, hydrated once per open menu. */
+function useModelPicks() {
+  useEffect(() => {
+    useModelPicksStore
+      .getState()
+      .hydrate()
+      .catch(() => undefined)
+  }, [])
+  return {
+    starred: useModelPicksStore((s) => s.starred),
+    recent: useModelPicksStore((s) => s.recent),
+    groupMode: useModelPicksStore((s) => s.groupMode),
+    setGroupMode: useModelPicksStore((s) => s.setGroupMode),
+    toggleStarred: useModelPicksStore((s) => s.toggleStarred),
+    recordUse: useModelPicksStore((s) => s.recordUse),
+  }
+}
+
 export function ModelMenu({
   models,
   isCurrent,
@@ -86,20 +104,8 @@ export function ModelMenu({
   const [providerFilter, setProviderFilter] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const starred = useModelPicksStore((s) => s.starred)
-  const recent = useModelPicksStore((s) => s.recent)
-  const groupMode = useModelPicksStore((s) => s.groupMode)
-  const setGroupMode = useModelPicksStore((s) => s.setGroupMode)
-  const toggleStarred = useModelPicksStore((s) => s.toggleStarred)
-  const recordUse = useModelPicksStore((s) => s.recordUse)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-    useModelPicksStore
-      .getState()
-      .hydrate()
-      .catch(() => undefined)
-  }, [])
+  const { starred, recent, groupMode, setGroupMode, toggleStarred, recordUse } = useModelPicks()
+  useEffect(() => inputRef.current?.focus(), [])
 
   const unavailable = useMemo(() => blocked ?? unavailableModels(models), [blocked, models])
   const starredSet = useMemo(() => new Set(starred), [starred])
