@@ -1,4 +1,4 @@
-import type { RpcResponse } from '@phosphor/shared/rpc'
+import type { RpcResponse, RpcSessionState } from '@phosphor/shared/rpc'
 import type { LaneProjection } from '@phosphor/session-runtime/lanes/projection'
 import type { HostRuntime } from '../../session/runtime'
 import { PI_MESSAGES_MAX, piMessages, piState } from '../pi-results'
@@ -8,6 +8,7 @@ export type ProjectionRefreshOptions = {
   sessionId: string
   laneId: string
   projection: LaneProjection
+  startupState?: RpcSessionState
   log: (message: string, data: { laneId: string; reason: 'rpc' | 'shape' | 'size' }) => void
 }
 
@@ -17,6 +18,7 @@ type RefreshState = {
   settle: boolean
   stopped: boolean
   refreshing: Promise<void> | undefined
+  startupState?: RpcSessionState
 }
 
 function data(response: RpcResponse): unknown {
@@ -31,6 +33,8 @@ async function runRefresh(state: RefreshState, options: ProjectionRefreshOptions
     const full = state.settle
     state.settle = false
     const before = state.revision
+    const startup = state.startupState
+    state.startupState = undefined
     if (full) projection.markSettle()
     let reason: 'rpc' | 'shape' | 'size' = 'rpc'
     try {
@@ -39,9 +43,12 @@ async function runRefresh(state: RefreshState, options: ProjectionRefreshOptions
         : undefined
       if (state.stopped) return
       if (full) projection.markRead()
-      const stateResult = data(
-        await options.runtime.command(options.sessionId, { type: 'get_state' }),
-      )
+      // The replacement is idle and commands are blocked while it attaches. Reuse
+      // its verified startup state unless a push made it obsolete during hydration.
+      const stateResult =
+        startup && before === state.revision
+          ? startup
+          : data(await options.runtime.command(options.sessionId, { type: 'get_state' }))
       if (state.stopped) return
       // Newer requests supersede this pair. Full reads reconcile delivered messages;
       // state-only reads require an unchanged event revision.
@@ -61,7 +68,10 @@ async function runRefresh(state: RefreshState, options: ProjectionRefreshOptions
       if (full) projection.settle(messages, nextState)
       else projection.setState(nextState)
     } catch {
-      if (!state.stopped) options.log('lanes.refresh_failed', { laneId: options.laneId, reason })
+      if (!state.stopped) {
+        if (startup && before === state.revision && !state.requested) projection.setState(startup)
+        options.log('lanes.refresh_failed', { laneId: options.laneId, reason })
+      }
     }
   }
 }
@@ -95,6 +105,7 @@ export function createProjectionRefresh(options: ProjectionRefreshOptions) {
     settle: false,
     stopped: false,
     refreshing: undefined,
+    startupState: options.startupState,
   }
   return {
     refresh: (full = true) => refresh(state, options, full),

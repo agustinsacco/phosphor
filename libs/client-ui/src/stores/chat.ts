@@ -18,6 +18,7 @@ import {
   type ChatSessionState,
 } from '@/features/chat/reducer'
 import { hydrateRunning } from '@/features/chat/runningHydration'
+import { modelChangePatch, modelSwitchNotice, retainModelSwitches } from './chatModel'
 import { drop, keyedSliceFrom } from './keyedSlice'
 
 export interface ChatSession extends ChatSessionState {
@@ -97,6 +98,7 @@ interface ChatStore {
   doneResuming: (sessionId: string) => void
   setHistoryNotice: (sessionId: string, notice: string) => void
   setError: (sessionId: string, error: string | null) => void
+  noteModelSwitch: (sessionId: string, model: Model) => void
   setMeta: (sessionId: string, meta: RpcSessionState) => void
   patchMeta: (sessionId: string, patch: Partial<RpcSessionState>) => void
   setStats: (sessionId: string, stats: SessionStats) => void
@@ -178,12 +180,18 @@ function historyActions(
   return {
     hydrate: (sessionId, messages, events) =>
       set((state) => ({
-        sessions: chats.patch(state.sessions, sessionId, (session) => ({
-          ...session,
-          ...(events ? hydrateRunning(messages, events, session) : hydrateFromMessages(messages)),
-          historyNotice: null,
-          resuming: false,
-        })),
+        sessions: chats.patch(state.sessions, sessionId, (session) => {
+          const hydrated = events
+            ? hydrateRunning(messages, events, session)
+            : hydrateFromMessages(messages)
+          return {
+            ...session,
+            ...hydrated,
+            items: retainModelSwitches(session.items, hydrated.items),
+            historyNotice: null,
+            resuming: false,
+          }
+        }),
       })),
 
     doneResuming: (sessionId) =>
@@ -265,14 +273,30 @@ export const useChatStore = create<ChatStore>((set) => ({
         ...(error ? { resuming: false, promptSentAt: null } : {}),
       }),
     })),
+  noteModelSwitch: (sessionId, model) =>
+    set((s) => ({
+      sessions: chats.patch(s.sessions, sessionId, (session) => ({
+        ...session,
+        items: [...session.items, modelSwitchNotice(model)],
+      })),
+    })),
   setMeta: (sessionId, meta) =>
-    set((s) => ({ sessions: patchSession(s.sessions, sessionId, { meta }) })),
+    set((s) => ({
+      sessions: chats.patch(s.sessions, sessionId, (session) => ({
+        ...session,
+        ...modelChangePatch(sessionId, session, meta.model),
+        meta,
+      })),
+    })),
   patchMeta: (sessionId, patch) =>
     set((s) => {
       const session = s.sessions[sessionId]
       if (!session?.meta) return s
       return {
-        sessions: patchSession(s.sessions, sessionId, { meta: { ...session.meta, ...patch } }),
+        sessions: patchSession(s.sessions, sessionId, {
+          ...modelChangePatch(sessionId, session, patch.model),
+          meta: { ...session.meta, ...patch },
+        }),
       }
     }),
   setStats: (sessionId, stats) =>

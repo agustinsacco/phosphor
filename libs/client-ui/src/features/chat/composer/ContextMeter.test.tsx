@@ -653,6 +653,7 @@ it('refreshes the open meter from a Mac lane to a Host lane and back without sta
 })
 
 it('recalculates from the confirmed model window before a fresh stats reading', () => {
+  useChatStore.getState().ensure(SESSION)
   seed({ tokens: 100_000, contextWindow: 200_000, percent: 50 }, 'pi-claude-cli', false)
   render()
   expect(container?.textContent).toContain('50% of 200k')

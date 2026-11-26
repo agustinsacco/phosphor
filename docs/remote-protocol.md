@@ -55,9 +55,10 @@ not release control.
 A request id deduplicates one action. Receipts are pending, done, failed,
 rejected or unknown. Unknown means the outcome is uncertain, not permission to
 repeat the action with a new id. A pi command unanswered after 30 seconds becomes
-unknown. `lane.create` has a 120-second Host answer window once dispatched, to
-allow for a worktree checkout and pi startup. A later completion cannot replace
-an unknown receipt or send another terminal receipt.
+unknown. `lane.create` and `set_model` have a 120-second Host answer window once
+dispatched, with a 180-second client wait, because they may start pi. A later
+completion cannot replace an unknown receipt or send another terminal receipt.
+A provider switch still publishes the replacement lane snapshot when it attaches.
 
 The pi commands a controller may send are `LANE_PI_OPS`: prompt, steer,
 follow-up, abort, abort-retry, model, thinking level, compact, session name,

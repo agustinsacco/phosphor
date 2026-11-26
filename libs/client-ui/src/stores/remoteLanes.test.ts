@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { HostAttention } from '@shared/ipc'
 import type { SessionPush } from '@shared/models'
-import type { RpcCommand } from '@shared/rpc'
+import type { RpcCommand, RpcSessionState } from '@shared/rpc'
 import { parseHostFrame } from '@shared/host-protocol'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useSessionsStore } from './sessions'
@@ -753,66 +753,46 @@ it.each(['resume', 'paused', 'foreign'] as const)(
   },
 )
 
-it('reconciles both provider switches from snapshots with no successful command receipt', async () => {
+it('reconciles both provider switches from snapshots without a command receipt', async () => {
   const id = mockRemoteInfo.sessionId
-  const opus = {
-    provider: 'pi-claude-cli',
-    id: 'opus',
-    name: 'Claude Opus',
-    contextWindow: 200_000,
-  }
-  const astra = {
-    provider: 'openai-codex',
-    id: 'astra',
-    name: 'GPT-6.2 Astra',
-    contextWindow: 272_000,
-  }
+  const opus = { provider: 'pi-claude-cli', id: 'opus', name: 'Claude Opus' }
+  const astra = { provider: 'openai-codex', id: 'astra', name: 'GPT-6.2 Astra' }
   let model = opus
-  const piCommand = vi.spyOn(window.phosphor, 'piCommand')
-  const read = piCommand.getMockImplementation()!
-  piCommand.mockImplementation((sessionId, command) =>
-    command.type === 'get_state'
-      ? Promise.resolve({ type: 'response', command: 'get_state', success: true, data: { model } })
-      : read(sessionId, command),
+  const command = vi.mocked(window.phosphor.piCommand)
+  const read = command.getMockImplementation()!
+  command.mockImplementation(async (sessionId, rpc) =>
+    rpc.type === 'get_state'
+      ? { type: 'response', command: rpc.type, success: true, data: { model } as RpcSessionState }
+      : read(sessionId, rpc),
   )
-  const ui = useExtensionUiStore.getState()
-  const status = (statusKey: string) =>
-    ui.handleRequest(id, {
-      type: 'extension_ui_request',
-      id: statusKey,
-      method: 'setStatus',
-      statusKey,
-      statusText: statusKey,
-    })
-  const statuses = () => useExtensionUiStore.getState().statuses[id]
   const chat = () => useChatStore.getState().sessions[id]
   await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
-  status('claude-rate-limit')
-  status('claude-subagents')
-  status('pi-claude-cli')
-  status('phosphor-swarm')
+  const common = { 'phosphor-swarm': 'swarm' }
+  useExtensionUiStore.setState({
+    statuses: {
+      [id]: {
+        ...common,
+        'claude-rate-limit': 'rate',
+        'claude-subagents': 'agents',
+        'pi-claude-cli': 'provider',
+      },
+    },
+  })
   useChatStore.getState().setError(id, 'Outcome unknown')
   model = astra
   push?.({ kind: 'resync' })
   await vi.waitFor(() => expect(chat()?.meta?.model).toEqual(astra))
   expect(chat()?.error).toBeNull()
-  expect(statuses()).toEqual({ 'phosphor-swarm': 'phosphor-swarm' })
-  expect(chat()?.items).toMatchObject([
-    { kind: 'user', text },
-    { kind: 'custom', text: 'Switched to GPT-6.2 Astra', inContext: false },
-  ])
-  status('openai-codex')
-  status('pi-claude-cli') // The incoming provider may publish before get_state resolves.
+  expect(useExtensionUiStore.getState().statuses[id]).toEqual(common)
+  const incoming = { ...common, 'pi-claude-cli': 'new provider status' }
+  useExtensionUiStore.setState({ statuses: { [id]: { ...incoming, 'openai-codex': 'old' } } })
   model = opus
   push?.({ kind: 'resync' })
   await vi.waitFor(() => expect(chat()?.meta?.model).toEqual(opus))
-  expect(statuses()).toEqual({
-    'pi-claude-cli': 'pi-claude-cli',
-    'phosphor-swarm': 'phosphor-swarm',
-  })
+  expect(useExtensionUiStore.getState().statuses[id]).toEqual(incoming)
   expect(chat()?.items).toMatchObject([
     { kind: 'user', text },
-    { kind: 'custom', text: 'Switched to GPT-6.2 Astra' },
-    { kind: 'custom', text: 'Switched to Claude Opus' },
+    { kind: 'custom', text: 'Switched to GPT-6.2 Astra', inContext: false },
+    { kind: 'custom', text: 'Switched to Claude Opus', inContext: false },
   ])
 })

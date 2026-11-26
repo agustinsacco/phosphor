@@ -2,7 +2,7 @@ import { basename } from 'node:path'
 import type { CreateSessionOptions, LiveSessionInfo, SessionPush } from '@shared/models'
 import { RATE_LIMIT_STATUS_KEY, accountExhaustedUntil } from '@shared/claude-limits'
 import type { RuntimeLog } from '../file-log'
-import { syncContextBudget } from './context-budget'
+import { readBudgetState, syncContextBudget } from './context-budget'
 import { verifyStartupAccount } from './session-account'
 import { healMissingSessionCwd } from './session-cwd'
 import { bindSessionEvents, type SessionEventRuntime } from './session-events'
@@ -147,15 +147,15 @@ async function spawnSession(
   try {
     bindStartupEvents(runtime, session, sink, accountId)
     attachSpawnContributions(contributions, session, { execution, options, log: runtime.log })
-    if (!launch.stub) {
-      await verifyStartupAccount(session.client, runtime.policy.strictAccountSelection, accountId)
-      await syncContextBudget(session.client, runtime.budget.read())
-    }
+    const readyAt = launch.stub ? spawned : await prepareRpc(runtime, session, accountId)
+    const stagedAt = performance.now()
     // Where a slow start went: Phosphor's own preparation, or pi's boot.
     runtime.log('pi', 'ready', {
       sessionId: session.sessionId,
       prepareMs: Math.round(spawned - started),
-      bootMs: Math.round(performance.now() - spawned),
+      bootMs: Math.round(stagedAt - spawned),
+      rpcReadyMs: Math.round(readyAt - spawned),
+      budgetStageMs: Math.round(stagedAt - readyAt),
     })
     return completeStartup(runtime, session, options, execution, accountId, laneConfig)
   } catch (error) {
@@ -166,6 +166,22 @@ async function spawnSession(
   } finally {
     execution.signal?.removeEventListener('abort', stopOnAbort)
   }
+}
+
+async function prepareRpc(
+  runtime: SessionStartupRuntime,
+  session: LiveSession,
+  accountId: string | undefined,
+): Promise<number> {
+  const state =
+    (await verifyStartupAccount(
+      session.client,
+      runtime.policy.strictAccountSelection,
+      accountId,
+    )) ?? (await readBudgetState(session.client))
+  const readyAt = performance.now()
+  await syncContextBudget(session.client, runtime.budget.read(), state)
+  return readyAt
 }
 
 /** Low-level spawn; resumed files must be admitted through the owner's path lock. */

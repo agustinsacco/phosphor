@@ -32,7 +32,7 @@ export function forgetStagedBudget(client: BudgetClient): void {
   staged.delete(client)
 }
 
-async function readBudgetState(client: BudgetClient): Promise<RpcSessionState> {
+export async function readBudgetState(client: BudgetClient): Promise<RpcSessionState> {
   const state = await client.request({ type: 'get_state' })
   if (!state.success || !state.data) throw new Error('Cannot read pi context budget state.')
   return state.data

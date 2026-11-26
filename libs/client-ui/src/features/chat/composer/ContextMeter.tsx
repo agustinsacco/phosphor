@@ -89,7 +89,9 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // The extension reports live window changes at tool boundaries, ahead of
   // the end-of-run stats poll (including restoring capacity after opt-out).
   const effectiveWindow =
-    parseContextBreakdown(breakdownStatus)?.contextWindow ?? usage?.contextWindow
+    parseContextBreakdown(breakdownStatus)?.contextWindow ??
+    usage?.contextWindow ??
+    model?.contextWindow
   // The Host reports its effective window. This Mac's policy cannot cap it.
   const budget = remote
     ? (effectiveWindow ?? null)
