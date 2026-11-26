@@ -600,6 +600,10 @@
       "types": "./src/ops/pipeline.ts",
       "default": "./src/ops/pipeline.ts"
     },
+    "./ops/pipeline-deferred": {
+      "types": "./src/ops/pipeline-deferred.ts",
+      "default": "./src/ops/pipeline-deferred.ts"
+    },
     "./ops/policy": {
       "types": "./src/ops/policy.ts",
       "default": "./src/ops/policy.ts"
@@ -619,6 +623,10 @@
     "./ops/route-batch": {
       "types": "./src/ops/route-batch.ts",
       "default": "./src/ops/route-batch.ts"
+    },
+    "./ops/route-result": {
+      "types": "./src/ops/route-result.ts",
+      "default": "./src/ops/route-result.ts"
     },
     "./owner-lock/types": {
       "types": "./src/owner-lock/types.ts",
