@@ -385,7 +385,7 @@ it('reads stored directive overrides without mistaking normalized defaults for o
       { key: 'laneCharter', override: null, effective: true },
     ]),
   })
-  expect(await tool(['directives', 'read', '--project'])).toMatchObject({
+  expect(await tool(['directives', 'read', '--project', 'on'])).toMatchObject({
     status: 'ok',
     data: expect.arrayContaining([
       { key: 'worktreeGuard', override: null, effective: true },
