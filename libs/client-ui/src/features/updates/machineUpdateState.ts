@@ -151,7 +151,10 @@ export function observeConnection(
 ): UpdateRun {
   if (run.finish && run.finish !== 'not-back') return run
   if (host?.state === 'ready') return returned(run, entry, host, now)
-  if (run.reached === 'paused' || run.path === 'task' || run.restartAt)
+  // A quiet Host can pause and hand off between polls, before the job reports applying.
+  const pause = entry.status?.pause.kind
+  const activeOp = run.path === 'op' && (run.jobId || pause === 'pausing' || pause === 'paused')
+  if (activeOp || run.reached === 'paused' || run.path === 'task' || run.restartAt !== undefined)
     return run.wentOffline ? run : { ...reach(run, 'restarting', now), wentOffline: true }
   return run
 }
