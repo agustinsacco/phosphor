@@ -99,7 +99,7 @@ it('a failed open whose view lost its claim still offers Retry, never a bare spi
   await act(async () => opens[0]!.reject(new Error('down')))
   await vi.waitFor(() => expect(el.querySelector('[role="alert"]')).not.toBeNull())
   // Another navigation claimed and dropped the failure without opening anything.
-  act(() => useSessionsStore.getState().claimNav())
+  act(() => void useSessionsStore.getState().claimNav())
   act(() => useSessionsStore.setState({ opening: null }))
   const view = el.querySelector('[data-testid="opening-lane"]')
   expect(view?.getAttribute('aria-busy')).toBe('false')
