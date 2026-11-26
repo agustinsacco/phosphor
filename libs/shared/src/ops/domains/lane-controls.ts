@@ -137,7 +137,7 @@ export const laneControls = [
   conversation(
     'mcp.lane',
     'Inspect or reconnect a server in a lane.',
-    ownOrNever,
+    (a, c) => (a.action === 'inspect' ? 'read' : ownOrNever(a, c)),
     object({ ref: target, server: id, action: choice('inspect', 'reconnect') }),
     { positional: ['server', 'action'], flag: 'laneContext', untrustedResult: true },
   ),

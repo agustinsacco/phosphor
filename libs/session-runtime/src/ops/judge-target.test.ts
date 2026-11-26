@@ -1,10 +1,9 @@
 import { expect, it } from 'vitest'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
-import { parseOpArgv } from "@phosphor/shared/ops/parse"
-import { createOpsDispatcher } from "./dispatcher"
+import { parseOpArgv } from '@phosphor/shared/ops-cli'
+import { createOpsDispatcher } from './dispatcher'
 
 import { agent, createHarness, OTHER, OWN, surface } from './__fixtures__/dispatcher-harness'
-import { LANE_TARGET_OPS } from './policy'
 
 const write = (target: string) => ({
   op: 'files.write',
@@ -55,32 +54,58 @@ it('lists exactly the catalog ops whose target is a lane', () => {
     const properties = (spec.args as { properties?: Record<string, unknown> }).properties
     return properties !== undefined && 'target' in properties && spec.name !== 'ui.open'
   }).map((spec) => spec.name)
-  expect([...LANE_TARGET_OPS].sort()).toEqual(withTarget.sort())
+  expect(
+    OP_CATALOG.filter((spec) => spec.laneArg === 'target')
+      .map((spec) => spec.name)
+      .sort(),
+  ).toEqual(withTarget.sort())
 })
 
 it.each([
   { argv: ['git', 'show', 'HEAD', 'README.md'], ref: 'HEAD', path: 'README.md' },
-  { argv: ['pr', 'detail', 'https://github.com/example/repo/pull/42'], ref: 'https://github.com/example/repo/pull/42' },
+  {
+    argv: ['pr', 'detail', 'https://github.com/example/repo/pull/42'],
+    ref: 'https://github.com/example/repo/pull/42',
+  },
   { argv: ['git', 'restoreFile', 'HEAD', 'README.md'], ref: 'HEAD', path: 'README.md', ask: true },
 ])('uses --target for the lane and preserves $ref', async ({ argv, ref, path, ask }) => {
   const h = createHarness()
-  const dispatcher = createOpsDispatcher(h.binding, { ...h.deps, parseArgv: parseOpArgv })
+  const dispatcher = createOpsDispatcher(h.binding, {
+    ...h.deps,
+    parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
+  })
   const result = await dispatcher.runFromTool('s1', {
-    v: 1, id: 'target', argv: [...argv, '--target', OTHER], reason: 'test', deadlineMs: 30_000,
+    v: 1,
+    id: 'target',
+    argv: [...argv, '--target', OTHER],
+    reason: 'test',
+    deadlineMs: 30_000,
   })
   if (ask) {
     expect(result.status).toBe('confirm')
     expect(h.calls.created[0]?.lane?.ref).toBe(OTHER)
   } else {
     expect(result.status).toBe('ok')
-    expect(h.calls.handled[0]).toMatchObject({ args: { target: OTHER, ref, ...(path ? { path } : {}) }, ctx: { lane: { ref: OTHER } } })
+    expect(h.calls.handled[0]).toMatchObject({
+      args: { target: OTHER, ref, ...(path ? { path } : {}) },
+      ctx: { lane: { ref: OTHER } },
+    })
   }
 })
 
 it('can inspect a busy, controlled lane under read-only policy', async () => {
   const h = createHarness({
     policy: { agentControl: 'read' },
-    lanes: [{ ref: OTHER, sessionId: 's2', title: 'Other', cwd: '/tmp', busy: true, controller: { clientId: 'other', label: 'Other' } }],
+    lanes: [
+      {
+        ref: OTHER,
+        sessionId: 's2',
+        title: 'Other',
+        cwd: '/tmp',
+        busy: true,
+        controller: { clientId: 'other', label: 'Other' },
+      },
+    ],
   })
   const op = 'mcp.lane'
   const args = { ref: OTHER, server: 'fixture', action: 'inspect' }

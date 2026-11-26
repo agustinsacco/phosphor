@@ -17,7 +17,7 @@ import type {
   OpTier,
 } from '@phosphor/shared/ops'
 import { effectiveLimits, type OpLimits } from './limits'
-import { gateVerdict, LANE_TARGET_OPS, type PolicyCheck, type PolicyVerdict } from './policy'
+import { gateVerdict, type PolicyCheck, type PolicyVerdict } from './policy'
 import { askingLane, governedAs, principalKey, type GovernedAs } from './principals'
 import type { OpsDispatcherDeps } from './ports'
 import type { LaneFacts, OpPrincipal, OpsBinding } from './types'
@@ -99,22 +99,21 @@ function resolveSpecValue<T extends string>(
   return typeof value === 'function' ? value(args, { self }) : value
 }
 
-/** The lane an op names (`ref`, or `lane` for artifacts and Brain), or the agent's own lane. */
-/** The lane an op's args name: `ref`, `lane`, or `target` for the ops whose target is a lane. */
-export function laneRefArg(op: string, args: OpArgs): string | undefined {
-  const named = args.ref ?? args.lane ?? (LANE_TARGET_OPS.has(op) ? args.target : undefined)
+/** The declared selector wins even when omitted; a revision is never a lane. */
+export function laneRefArg(spec: Pick<CatalogSpec, 'laneArg'>, args: OpArgs): string | undefined {
+  const named = spec.laneArg ? args[spec.laneArg] : (args.ref ?? args.lane)
   return typeof named === 'string' ? named : undefined
 }
 
 export function resolveTarget(
   binding: Pick<OpsBinding, 'lanes'>,
   principal: OpPrincipal,
-  op: string,
+  spec: CatalogSpec,
   args: OpArgs,
   facts: OpFacts | undefined,
   discovered?: LaneFacts | null,
 ): { readonly self: boolean; readonly lane?: LaneFacts } | Refusal {
-  const ref = laneRefArg(op, args)
+  const ref = laneRefArg(spec, args)
   const withFacts = (lane: LaneFacts) => (facts ? { ...lane, facts } : lane)
   if (principal.kind === 'agent' && ref === undefined) {
     const own = binding.lanes.resolve(principal.laneRef)
@@ -170,6 +169,7 @@ export function policyCheck(j: Judged): PolicyCheck {
     op: j.spec.name,
     tier: j.tier,
     scope: j.scope,
+    ...(j.spec.laneArg ? { laneArg: j.spec.laneArg } : {}),
     ...(j.spec.class ? { class: j.spec.class } : {}),
     ...(surfaceOnly ? { surfaceOnly: true as const } : {}),
     governed: j.governed,
@@ -203,6 +203,7 @@ function surfaceRefusal(j: Judged, deps: Pick<OpsDispatcherDeps, 'surfaceAdmits'
     return { code: 'forbidden', text: `This connection is not allowed to run ${j.spec.name}.` }
   const controller = j.lane?.controller
   if (
+    j.tier !== 'read' &&
     CONVERSATION_OPS.has(j.spec.name) &&
     controller &&
     controller.clientId !== j.principal.clientId
@@ -269,9 +270,7 @@ export function refuseOp(
   if (j.principal.kind === 'local' && j.principal.lane !== undefined) {
     const lane = j.principal.lane
     const own =
-      (j.args.ref === undefined && j.args.lane === undefined) ||
-      j.lane?.sessionId === lane ||
-      j.lane?.ref === lane
+      laneRefArg(j.spec, j.args) === undefined || j.lane?.sessionId === lane || j.lane?.ref === lane
     if (resolveSpecValue(j.spec.scope, j.args, own) === 'self')
       return { code: 'forbidden', text: 'Use the phosphor tool for this lane.' }
   }

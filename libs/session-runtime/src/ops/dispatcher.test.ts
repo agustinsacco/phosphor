@@ -286,7 +286,7 @@ describe('other lanes', () => {
       const args = {
         ref: OTHER,
         ...(op === 'contextFiles.set' ? { agents: false } : {}),
-        ...(op === 'mcp.lane' ? { server: 'gh', action: 'inspect' } : {}),
+        ...(op === 'mcp.lane' ? { server: 'gh', action: 'reconnect' } : {}),
       }
       const h = controlled('c2')
       expect(await h.tool({ op, args })).toMatchObject({ status: 'denied', code: 'never' })

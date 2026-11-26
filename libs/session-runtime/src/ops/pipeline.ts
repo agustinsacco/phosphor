@@ -333,12 +333,12 @@ async function execute(
   // An audit filter names a historical ref, not an execution target. A gap has no target
   // to discover; let the usual kill/never/gap checks decide without probing disk.
   const args = request.op === 'audit.list' || env.binding.gaps[spec.name] ? {} : request.args
-  const ref = laneRefArg(spec.name, args)
+  const ref = laneRefArg(spec, args)
   const discovered =
     ref !== undefined && env.binding.lanes.lookup && !env.binding.lanes.resolve(ref)
       ? await env.binding.lanes.lookup(ref)
       : null
-  const target = resolveTarget(env.binding, principal, spec.name, args, extras.facts, discovered)
+  const target = resolveTarget(env.binding, principal, spec, args, extras.facts, discovered)
   if ('code' in target) return denied(target.code, target.text)
   let j = judgeOp(env.binding, { principal, request, spec, target, policy })
   const refusal = refuseOp(env.binding, env.deps, env.limits, j)

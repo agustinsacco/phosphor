@@ -1,4 +1,5 @@
 import { Type } from 'typebox'
+import type { OpArgs } from '../types'
 import { MCP_EXPOSURES } from '../../mcp'
 import { validMcpConfig } from '../../machine-settings-mcp'
 import {
@@ -41,6 +42,9 @@ const config = Type.Refine(
   }),
   validMcpConfig,
 )
+const connectorTier = ({ config }: OpArgs) =>
+  validMcpConfig(config) && typeof config.command === 'string' ? 'destructive' : 'persistence'
+
 export const resources = [
   read('skill.list', 'List available skills.', 'read', object({ project: optional(path) }), {
     requires: caps('skills.read'),
@@ -98,7 +102,7 @@ export const resources = [
     object({ name: id, project: optional(path) }),
     byName,
   ),
-  change('mcp.add', 'Add an MCP server.', 'persistence', object({ ...connector, config }), {
+  change('mcp.add', 'Add an MCP server.', connectorTier, object({ ...connector, config }), {
     ...byName,
     sensitive: ['config'],
     inverse: ({ name, scope, project }) => ({
@@ -106,7 +110,7 @@ export const resources = [
       args: { name, scope, ...(project ? { project } : {}) },
     }),
   }),
-  change('mcp.update', 'Update an MCP server.', 'persistence', object({ ...connector, config }), {
+  change('mcp.update', 'Update an MCP server.', connectorTier, object({ ...connector, config }), {
     ...byName,
     sensitive: ['config'],
     inverse: previous('mcp.update'),

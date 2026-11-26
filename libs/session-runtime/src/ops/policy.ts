@@ -14,6 +14,7 @@ import type {
   AuditDecision,
   OpClass,
   OpScope,
+  OpSpec,
   OpTier,
   PolicyDecision,
 } from '@phosphor/shared/ops'
@@ -34,6 +35,7 @@ export interface PolicyCheck {
   readonly op: string
   readonly tier: OpTier
   readonly scope: OpScope
+  readonly laneArg?: OpSpec['laneArg']
   readonly class?: OpClass
   readonly surfaceOnly?: true
   readonly governed: GovernedAs
@@ -78,18 +80,6 @@ export function stricterDecision(a: PolicyDecision, b: PolicyDecision): PolicyDe
   return DECISION_RANK[a] >= DECISION_RANK[b] ? a : b
 }
 
-/**
- * Ops whose `target` argument names a lane (its folder, checkout or PRs). The
- * judge resolves it like `ref`, and a write into another lane's folder asks.
- * `ui.open`'s target is a view, not a lane.
- */
-export const LANE_TARGET_OPS: ReadonlySet<string> = new Set(
-  `files.list files.read files.search files.write files.create files.mkdir files.trash files.rename
- files.transfer git.info git.status git.diff git.show git.branches git.worktrees git.fetch git.pull
- git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge pr.list
- pr.status pr.detail`.split(/\s+/),
-)
-
 /** Destructive ops ask, everything else is allowed (and audited). */
 export function defaultDecision(tier: Exclude<OpTier, 'never'>): PolicyDecision {
   return tier === 'destructive' ? 'ask' : 'allow'
@@ -104,14 +94,15 @@ export function policyDecision(check: Omit<PolicyCheck, 'governed'>): PolicyDeci
   if (check.tier === 'never') return 'deny'
   const byTier = check.policy.tiers?.[check.tier]
   const otherLane = check.scope === 'other-lane' && check.tier !== 'read'
-  const otherLaneWrite = otherLane && LANE_TARGET_OPS.has(check.op)
+  const otherLaneWrite = otherLane && check.laneArg === 'target'
+  const codeConnector = check.tier === 'destructive' && (check.op === 'mcp.add' || check.op === 'mcp.update')
   const base = stricterDecision(
     otherLaneWrite ? 'ask' : defaultDecision(check.tier),
     byTier ?? 'allow',
   )
   const byOp = check.policy.ops?.[check.op]
   if (byOp === undefined) return base
-  return otherLaneWrite || (otherLane && check.tier === 'destructive')
+  return codeConnector || otherLaneWrite || (otherLane && check.tier === 'destructive')
     ? stricterDecision(base, byOp)
     : byOp
 }

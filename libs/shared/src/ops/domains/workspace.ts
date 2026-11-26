@@ -22,8 +22,9 @@ const target = ref
 const at = object({ target })
 const file = object({ target, path })
 const atRevision = object({ target, ref: id, path })
-const read = domain(laneScope, caps('workspaces.read'), untrusted)
-const write = domain(laneScope, workspaceWrite)
+const laneTarget = { laneArg: 'target' } as const
+const read = domain(laneScope, caps('workspaces.read'), { ...untrusted, ...laneTarget })
+const write = domain(laneScope, workspaceWrite, laneTarget)
 const positionalPath = { positional: ['path'] } as const
 const worktree = domain('machine', workspaceWrite)
 

@@ -47,6 +47,8 @@ export interface OpSpec<A extends OpArgs = OpArgs, S = unknown> {
   readonly args: S
   /** Argument order for the command-line parser. */
   readonly positional?: readonly (keyof A & string)[]
+  /** Which argument identifies the lane (instead of the legacy ref/lane fallback). */
+  readonly laneArg?: 'target' | 'ref' | 'lane'
   readonly tier: OpTier | ((a: A, c: OpContext) => OpTier)
   readonly scope: OpScope | ((a: A, c: OpContext) => OpScope)
   readonly applies: OpApplies

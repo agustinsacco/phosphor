@@ -1,10 +1,7 @@
 import { guardedEntry, AGENT_CONNECTOR_FIELDS } from './agent-connectors'
 import { join } from 'node:path'
-import {
-  parseSettingsPatch,
-  type MachineSettings,
-  type MachineSettingsChange,
-} from '@phosphor/shared/machine-settings'
+import { type MachineSettings, type MachineSettingsChange } from '@phosphor/shared/machine-settings'
+import { validConnectorChange } from '@phosphor/shared/machine-settings-change'
 import { machineRecord } from '@phosphor/shared/host-protocol-machine'
 import { mcpNamespace, mcpUsesOAuth } from '@phosphor/shared/mcp'
 import { readMcpConfigs, serverProblem } from '@phosphor/session-runtime/pi/mcp-config'
@@ -163,30 +160,18 @@ export async function changeAgentConnector(
   replace: boolean,
   authorized: () => boolean,
 ) {
-  const input = parseSettingsPatch({
-    section: 'connectors',
-    repositoryId: before.repositoryId,
-    revision: before.revision,
-    change,
-  })
-  if (
-    !input ||
-    !(
-      input.change.type === 'mcp.remove' ||
-      input.change.type === 'mcp.upsert' ||
-      input.change.type === 'mcp.enabled'
-    )
-  )
+  if (!machineRecord(change) || !validConnectorChange(change, before, 'admitted-op'))
     throw new SettingsFailure('bad-request', 'Invalid connector configuration.')
+  const mutation = change as ConnectorChange
   if (
-    input.change.type === 'mcp.upsert' &&
-    Object.keys(input.change.config).some((k) => !AGENT_CONNECTOR_FIELDS.has(k))
+    mutation.type === 'mcp.upsert' &&
+    Object.keys(mutation.config).some((k) => !AGENT_CONNECTOR_FIELDS.has(k))
   )
     throw new SettingsFailure('forbidden', 'Only Settings can edit private connector fields.')
   const cwd = state.workspace(before.repositoryId)
   await changeConnectorSettings(
     state,
-    input.change,
+    mutation,
     before,
     cwd,
     before.revision,

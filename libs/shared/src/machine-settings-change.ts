@@ -123,7 +123,11 @@ function validInstructionsChange(c: Record<string, unknown>, read: Scope): boole
   )
 }
 
-function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean {
+export function validConnectorChange(
+  c: Record<string, unknown>,
+  read: Scope,
+  source: 'settings' | 'admitted-op' = 'settings',
+): boolean {
   let valid = false
   switch (c.type) {
     case 'mcp.remove':
@@ -152,8 +156,10 @@ function validConnectorChange(c: Record<string, unknown>, read: Scope): boolean 
         !c.name.startsWith('-') &&
         validMcpConfig(c.config) &&
         !mcpSecretProblem(c.config, read.repositoryId ? 'project' : 'global') &&
-        (c.approveCode === undefined || c.approveCode === true) &&
-        (typeof c.config.command !== 'string' || c.approveCode === true)
+        (source === 'admitted-op'
+          ? !Object.hasOwn(c, 'approveCode')
+          : (c.approveCode === undefined || c.approveCode === true) &&
+            (typeof c.config.command !== 'string' || c.approveCode === true))
       break
   }
   return valid

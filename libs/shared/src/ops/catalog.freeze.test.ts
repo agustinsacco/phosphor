@@ -37,7 +37,7 @@ lane.autoRetry lane self after-run - - local - 747277e2e03bcd747b9bb8f7d09989bdf
 lane.queueMode lane self after-run - - local - 3af915363b23553ae96974c4f1a959542bbd62519fea03ac477a4bed932fceaf
 lane.reload lane/never self/other-lane reload laneReload - local - 9eb3030695c5a31deb3f75fce35fac70add152588f6b45a181047dd25a3dc3c2
 notify lane self now - - local - 3af0e74ed7b972a0784ddbf3ef32ed963f2ef621be162f5c9483e37d71679c64
-mcp.lane lane/never self/other-lane now laneContext - local - 645a2c1fbdfcef399dac5ff8fdc445047851c2279fca85c8c1aef3b10e841dfa
+mcp.lane lane/never/read self/other-lane now laneContext - local - 645a2c1fbdfcef399dac5ff8fdc445047851c2279fca85c8c1aef3b10e841dfa
 account.move configure self reload - - local - 439252a416678fb7efbad406ecb6831f5d3803752351cb651c4f0b8117032ca9
 lane.list read machine now pagedLanes - - - 8552951b8539e4f24a2918ff9a313f1f05af691598df7dd2a288b00db716fba1
 lane.search read machine now - - - - d77496d582b31579076f80c7083a68682949b8b0c9bf8a793ea0a7c21414b559
@@ -127,8 +127,8 @@ skill.share persistence machine reload - - - - 9054935b2fc58b9673fe54c2056ee8fda
 skill.delete destructive machine now configFiles - - - f16f2498673e932012df57539890a0ec21f855c5f74bf0135bc86e43dc7aed3c
 mcp.list read machine now - - - - c57e5987bdbbc8d6bf059cc32f8702b76da3f75ff2e38e6a4d7e9bfebb8d2f48
 mcp.check read machine now - - - - d59da275452fdfe196154d19c54a42076e994c4d4a59ab6a89ed2083408e7fac
-mcp.add persistence machine reload - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
-mcp.update persistence machine reload - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
+mcp.add persistence/destructive machine reload - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
+mcp.update persistence/destructive machine reload - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
 mcp.enable persistence machine reload - - - - af625573641fa2ccdce40c019f4abd038812a87bd0a2291afe1c4118b10186ff
 mcp.disable persistence machine reload - - - - af625573641fa2ccdce40c019f4abd038812a87bd0a2291afe1c4118b10186ff
 mcp.expose persistence machine reload - - - - a36358f1137d419a45a601383cf6811144b952527a081b8f9551dde93bf1d040
@@ -206,6 +206,7 @@ function variants<T extends string>(field: T | ((a: OpArgs, c: OpContext) => T))
       field({ file: 'settings' }, { self: true }),
       field({ file: 'settings', lane: 'other', ref: 'other' }, { self: false }),
       field({ file: 'models' }, { self: false }),
+      field({ action: 'inspect', config: { command: 'fixture' } }, { self: true }),
     ]),
   ].join('/')
 }

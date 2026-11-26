@@ -12,7 +12,7 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
       const name = String(a.name)
       const change =
         action === 'add' || action === 'update'
-          ? { type: 'mcp.upsert', name, config: a.config, approveCode: true }
+          ? { type: 'mcp.upsert', name, config: a.config }
           : action === 'remove'
             ? { type: 'mcp.remove', name }
             : { type: 'mcp.enabled', name, enabled: action === 'enable' }
