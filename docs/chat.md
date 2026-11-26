@@ -1330,7 +1330,7 @@ once and then delivers the message: a Host restart stops every lane, and sending
 is the intent to run it. The resume waits as long as a model switch for pi to
 start, so the message stays pending under the lane's starting state; only a
 resume that still times out restores the draft. Steer, follow-up and the rest
-stay refused. While the lane's machine is still starting (connected, no
+stay refused. While This Mac's service is still starting (connected, no
 capabilities granted yet), the composer waits under "Starting <machine>…" and
 sends nothing.
 

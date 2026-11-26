@@ -57,7 +57,9 @@ rejected or unknown. Unknown means the outcome is uncertain, not permission to
 repeat the action with a new id. A pi command unanswered after 30 seconds becomes
 unknown. `lane.create`, `set_model` and `lane.resume` have a 120-second Host answer
 window once dispatched, with a 180-second client wait, because they may start pi,
-which is slow under load. A later
+which is slow under load. A `control.take` or `control.release` that waited in the
+lane's queue longer than the 30-second answer window (behind a slow resume, say)
+is rejected `busy` rather than applied after its client stopped waiting. A later
 completion cannot replace an unknown receipt or send another terminal receipt.
 A provider switch still publishes the replacement lane snapshot when it attaches.
 

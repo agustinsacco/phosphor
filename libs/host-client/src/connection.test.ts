@@ -88,7 +88,20 @@ async function setup(sendReady = true, options: SetupOptions = {}) {
   }
 }
 it('refuses commands and queries and withholds subscriptions before async proof', async () => {
-  const t = await setup()
+  // A granting Host: one that grants nothing withholds lane watches (connection.wake.test.ts).
+  const caps = ['sessions.read']
+  const t = await setup(true, {
+    frame: {
+      capabilities: caps,
+      hello: {
+        hostId,
+        hostVersion: '1.0.0',
+        protocolVersion: 1,
+        runtimeEpoch: 'a'.repeat(16),
+        capabilities: caps,
+      },
+    },
+  })
   try {
     t.connection.watchLane(hostId, () => {})
     expect(await t.connection.send({ type: 'abort' }, hostId)).toMatchObject({ status: 'not-sent' })

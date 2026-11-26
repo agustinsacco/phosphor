@@ -56,8 +56,10 @@ commands. Other reconnects resend unchanged commands under 60 seconds, then
 ask receipt status. Replay waits for queue space in original order, rechecking
 that age rule on each retry. New sends answer `not-connected` until replay drains.
 A ready frame that grants no capabilities (a [local service](local-service.md)
-still starting its lanes) does not replay: pending commands wait, within their
-usual deadlines, for the next connection that grants capabilities.
+still starting its lanes) neither replays nor subscribes lane watches: pending
+commands wait, within their usual deadlines, and open lanes keep their handles
+for the next connection that grants capabilities, so they send normally after
+startup without reopening.
 Unknown means the action's outcome remains uncertain.
 Local `not-sent` results (`too-large`, `too-many-pending`, `not-connected` or
 `closed`) never write or queue a command. `not-connected` is transient; callers
@@ -235,11 +237,16 @@ Reconnecting or Down from the connection snapshot. Directory-down Hosts retain
 greyed, disabled lanes labelled "last known". While a Host connects or
 reconnects, the composer is locked with its draft under a spinner note naming
 the machine, and the header holds its control buttons. A ready connection that
-grants no capabilities yet is starting, not ready (`hostReady` in
+grants no capabilities is never usable (`hostReady` in
 `libs/client-ui/src/stores/hostReadiness.ts`, the one readiness check for sending,
-control and warm-on-open): the composer is locked under "Starting <machine>…"
-with the Phosphor loader, the lane is not read-only and offers no control, and
-nothing is sent. Desktop and the PWA decide this from the same data. A down Host's composer
+control and warm-on-open). On This Mac's local socket that is the service's boot
+window (`hostStarting`): the composer is locked under "Starting <machine>…" with
+the Phosphor loader, the lane is not read-only and offers no control, and nothing
+is sent. An enrolled Host serves TCP only after its lanes start, so one that
+grants nothing reads as not connected. The PWA reaches This Mac over TCP, which
+the service opens only after its lanes start: during the same boot it shows the
+reconnecting note, or "Machine not connected" once the directory marks the
+machine down, with the composer locked either way. A down Host's composer
 and panes show "Machine not connected. Wait for reconnection." Both recover
 from snapshots without reload.
 

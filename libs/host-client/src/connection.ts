@@ -110,6 +110,7 @@ export function createHostConnection(ports: {
     timers.add(timer)
     return timer
   }
+  const granting = () => view.state === 'ready' && view.capabilities.length > 0
   function update(next: Partial<HostConnectionSnapshot>) {
     view = { ...view, ...next }
     ports.changed()
@@ -268,11 +269,14 @@ export function createHostConnection(ports: {
         caps: f.capabilities,
       })
       if (ports.lanes !== false) subscribe('lanes', undefined, view.cursor)
-      for (const [id, w] of watches) subscribe(id, w.laneId, w.cursor)
       for (const [id, w] of terminals) subscribeTerminal(id, w.terminalId)
       // A booting local service grants nothing until its lanes start, then reconnects with
-      // them. Pending commands replay there; here they would only be refused.
-      if (f.capabilities.length) requests.flushReplay()
+      // them. Lane watches and pending commands wait for that; here they would be refused,
+      // and a refused watch disposes its open lane.
+      if (granting()) {
+        for (const [id, w] of watches) subscribe(id, w.laneId, w.cursor)
+        requests.flushReplay()
+      }
       renew(f.grantExpiresAt)
       beat()
       return
@@ -537,7 +541,7 @@ export function createHostConnection(ports: {
         throw new Error('Subscription unavailable.')
       const id = identity.randomUUID()
       watches.set(id, { laneId, listener })
-      if (view.state === 'ready') subscribe(id, laneId)
+      if (granting()) subscribe(id, laneId)
       return () => {
         watches.delete(id)
         if (view.state === 'ready') write({ type: 'unsubscribe', id })
