@@ -292,6 +292,35 @@ it('keeps Advanced mounted when the local slot clears its pause and flaps betwee
   expect(text()).toContain('Updated to 1.1.0')
 })
 
+it.each([
+  ['Desktop service', true],
+  ['PWA Host', false],
+] as const)(
+  '%s resumes Settings reads and allows a retry if the update never restarts',
+  async (_surface, owner) => {
+    connection({ ops: true, ...(owner ? { local: true } : {}) })
+    startWatch(owner)
+    await showHostSettings(root, machine.id, 'advanced', owner ? undefined : COMPACT_PLATFORM)
+    vi.mocked(promptChoice).mockResolvedValue('update')
+    await click()
+    job = {
+      state: 'done',
+      result: { text: 'Applying the update', data: { outcome: 'applying', version: '1.1.0' } },
+    }
+    await tick(2000) // The job reports applying, but the connection stays ready on 1.0.0.
+    invoke.mockClear()
+    await tick(4 * 60_000 - 200)
+    expect(step()).toBe('Restart')
+    expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:settingsRead')).toBe(false)
+
+    await tick(400)
+    expect(text()).toContain('Couldn’t apply the update. Still on 1.0.0.')
+    expect(button().disabled).toBe(false)
+    expect(invoke).toHaveBeenCalledWith('hosts:settingsRead', machine.id, 'advanced', undefined)
+    expect(container.textContent).toContain('/usr/bin')
+  },
+)
+
 it('gives a deadline instead of Stop or Cancel on an older ops Host', async () => {
   connection({ ops: true })
   pauseControl = false
