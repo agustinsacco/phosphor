@@ -1,3 +1,4 @@
+import { writeInstructionsSettings } from './instructions-settings'
 import { setFolderDirective, readDirectiveOverrides } from './folder-directives'
 import { changeAgentConnector } from './connector-settings'
 import { SettingsContext, type MachineSettingsOptions } from './context'
@@ -11,6 +12,7 @@ export function createMachineSettings(options: MachineSettingsOptions) {
   const snapshot = createSettingsSnapshot(state)
   return {
     readDirectiveOverrides: readDirectiveOverrides.bind(null, state),
+    writeInstructions: writeInstructionsSettings.bind(null, state),
     setFolderDirective: setFolderDirective.bind(null, state),
     changeAgentConnector: changeAgentConnector.bind(null, state),
     feature: createSettingsFeature(state, snapshot),

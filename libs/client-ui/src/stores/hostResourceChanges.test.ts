@@ -27,8 +27,11 @@ it('coalesces only matching machines and kinds and cancels queued notifications 
   expect(useHostResourceChanges.getState()).toEqual({})
   vi.advanceTimersByTime(100)
   expect(useHostResourceChanges.getState()).toEqual({
-    'a:archives': 1, 'b:archives': 1, 'a:connectors': 1,
-    '*:archives': 2, '*:connectors': 1,
+    'a:archives': 1,
+    'b:archives': 1,
+    'a:connectors': 1,
+    '*:archives': 2,
+    '*:connectors': 1,
   })
   emit({ hostId: 'b', kind: 'settings' })
   stop()

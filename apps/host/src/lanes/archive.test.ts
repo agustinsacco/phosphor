@@ -229,7 +229,6 @@ it('a workspace lease blocks restore before moving the transcript', async () => 
   expect(await readFile(`${transcript}.archived`, 'utf8')).toBe('original conversation')
 })
 
-
 it('invalidates open archive inventories after archive, restore and permanent cleanup', async () => {
   // Warm the inventory before the write; notification must come after cache invalidation.
   expect(await listed()).toEqual([])

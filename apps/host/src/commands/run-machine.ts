@@ -136,14 +136,13 @@ async function startRuntime(
   })
   const live = hosted.live
   parts.live = live
-  const activeTopic = live.lanesTopic
   const routines = createHostRoutines({
     directory: hostStateDirectory(context.env, context.home),
     uid: context.uid,
     store,
     runtime,
-    changed: activeTopic.routinesChanged,
-    resourceChanged: activeTopic.resourceChanged,
+    changed: live.lanesTopic.routinesChanged,
+    resourceChanged: live.lanesTopic.resourceChanged,
     now: context.now,
     paused: () => (parts.services?.pauses?.state().kind ?? 'none') !== 'none',
   })

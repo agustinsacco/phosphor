@@ -16,10 +16,7 @@ import {
   dataResult,
   pageInventory,
 } from '@phosphor/session-runtime/ops/results'
-import {
-  readGlobalInstructions,
-  writeGlobalInstructions,
-} from '@phosphor/session-runtime/pi/global-instructions'
+import { readGlobalInstructions } from '@phosphor/session-runtime/pi/global-instructions'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import type { DaemonHandlerDeps } from './index'
 import { readSection, patchSection, projectId, settingsOps } from './settings-access'
@@ -160,7 +157,7 @@ function instructionHandlers(deps: DaemonHandlerDeps) {
     'instructions.read': op((a, c) =>
       dataResult(readGlobalInstructions(instructions(deps, a.project, c), { followLinks: false })),
     ),
-    'instructions.edit': op((a, c) => {
+    'instructions.edit': op(async (a, c) => {
       const dir = instructions(deps, a.project, c)
       const base = readGlobalInstructions(dir, { followLinks: false })
       if (
@@ -169,12 +166,11 @@ function instructionHandlers(deps: DaemonHandlerDeps) {
           : a.revision !== null && a.revision !== base.revision
       )
         throw new OpRefusal('bad-request', 'Instructions changed. Read them again.')
-      writeGlobalInstructions(
-        dir,
+      await settingsOps(deps).settings.writeInstructions(
         a.content as string,
         base.revision,
-        { followLinks: false },
         () => !c.signal.aborted,
+        dir,
       )
       return { text: 'Updated instructions.' }
     }),

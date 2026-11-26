@@ -14,14 +14,17 @@ export function attachHostResourceChanges(): () => void {
   const off = window.phosphor.onHostResourceChanged?.(({ hostId, kind }) => {
     const key = `${hostId}:${kind}`
     clearTimeout(pending.get(key))
-    pending.set(key, setTimeout(() => {
-      pending.delete(key)
-      const all = `*:${kind}`
-      useHostResourceChanges.setState((state) => ({
-        [key]: (state[key] ?? 0) + 1,
-        [all]: (state[all] ?? 0) + 1,
-      }))
-    }, 100))
+    pending.set(
+      key,
+      setTimeout(() => {
+        pending.delete(key)
+        const all = `*:${kind}`
+        useHostResourceChanges.setState((state) => ({
+          [key]: (state[key] ?? 0) + 1,
+          [all]: (state[all] ?? 0) + 1,
+        }))
+      }, 100),
+    )
   })
   return () => {
     off?.()
