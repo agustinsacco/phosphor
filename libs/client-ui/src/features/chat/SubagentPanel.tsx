@@ -26,7 +26,12 @@ import { SubagentStop } from './SubagentStopControl'
 import { SubagentPreview } from './SubagentPreview'
 import { useCurrentWork, type WorkEntry } from './currentWork'
 import { SubagentDetail } from './tools/SubagentDetail'
-import { SubagentStateDot, SubagentWorkRow, WORK_SECTION_CLASS } from './SubagentWorkRow'
+import {
+  SubagentBatchGroup,
+  SubagentStateDot,
+  SubagentWorkRow,
+  WORK_SECTION_CLASS,
+} from './SubagentWorkRow'
 import {
   activityText,
   elapsed,
@@ -208,21 +213,15 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       'entry' in item ? (
         row(item.entry)
       ) : (
-        <div key={item.group.id} className="min-w-0">
-          <TooltipButton
-            type="button"
-            aria-label={`${item.group.label} run`}
-            aria-pressed={!foregroundId && resolved?.runId === item.group.id && !resolved?.childId}
-            onClick={() => select({ runId: item.group.id })}
-            className="text-text-secondary hover:text-text aria-pressed:bg-accent-soft block w-full truncate rounded px-2 py-1 text-left text-xs"
-          >
-            {item.group.label} · #{shortId(item.group.id)}
-          </TooltipButton>
-          {/* The run's own entry is its header, not a row of its own. */}
-          <div className="border-border ml-3 border-l pl-1">
-            {item.entries.filter((entry) => entry.childId).map((entry) => row(entry, true))}
-          </div>
-        </div>
+        <SubagentBatchGroup
+          key={item.group.id}
+          group={item.group}
+          // The run's own entry is its header, not a row of its own.
+          members={item.entries.filter((entry) => entry.childId)}
+          pressed={!foregroundId && resolved?.runId === item.group.id && !resolved?.childId}
+          onSelect={() => select({ runId: item.group.id })}
+          row={(entry) => row(entry, true)}
+        />
       ),
     )
   const header = (entry: WorkEntry | undefined, fallback: string): React.JSX.Element => (
@@ -472,7 +471,8 @@ const VIEWS = [
   ['live', 'Agents'],
   ['history', 'Coordination log'],
 ] as const
-type NavItem = { entry: WorkEntry } | { group: { id: string; label: string }; entries: WorkEntry[] }
+type NavItem =
+  { entry: WorkEntry } | { group: NonNullable<WorkEntry['group']>; entries: WorkEntry[] }
 const isCurrent = (entry: WorkEntry): boolean =>
   entry.active > 0 || entry.state === 'status unavailable'
 const itemEntries = (item: NavItem): WorkEntry[] => ('entry' in item ? [item.entry] : item.entries)

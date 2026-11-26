@@ -290,14 +290,14 @@ it('lists working groups first, selects a run by its header and never invents a 
     ),
   ).toEqual([
     'Working',
-    'reviewer, qa run',
+    'Batch · 2 agents',
     'reviewer: complete',
     'qa: running',
     'Earlier',
     'scout: complete',
   ])
   await act(async () =>
-    nav.querySelector<HTMLButtonElement>('[aria-label="reviewer, qa run"]')!.click(),
+    nav.querySelector<HTMLButtonElement>('[aria-label="Batch · 2 agents"]')!.click(),
   )
   expect(inspectSubagent).toHaveBeenLastCalledWith(
     'process',
@@ -305,7 +305,7 @@ it('lists working groups first, selects a run by its header and never invents a 
     undefined,
     expect.any(AbortSignal),
   )
-  expect(pressed()).toEqual(['reviewer, qa run'])
+  expect(pressed()).toEqual(['Batch · 2 agents'])
   await act(async () =>
     nav.querySelector<HTMLButtonElement>('[aria-label="scout: complete"]')!.click(),
   )
