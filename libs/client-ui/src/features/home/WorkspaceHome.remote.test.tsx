@@ -9,7 +9,8 @@ import { useSessionsStore } from '@/stores/sessions'
 import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
+import { useLaneCreatesStore } from '@/stores/laneCreates'
+import { hostResourceKey } from '@shared/remote-host'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
@@ -42,6 +43,7 @@ vi.mock('@/features/chat/composer/ComposerInput', () => ({
   ),
 }))
 const key = homeDraftKey('/ws')
+const placeholder = () => Object.values(useLaneCreatesStore.getState().creates)[0]
 const other = 'other-host'
 let root: Root
 let el: HTMLDivElement
@@ -87,7 +89,7 @@ beforeEach(() => {
     },
   })
   useMachineCataloguesStore.setState({ catalogues: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
+  useLaneCreatesStore.setState({ creates: {} })
   useMachinePagesStore.setState({ skillsMachine: null })
   useDraftsStore.setState({ drafts: {}, revisions: {} })
   useDraftsStore.getState().setText(key, 'First prompt')
@@ -229,10 +231,8 @@ it.each([true, false])(
 )
 
 it.each(['none', 'text', 'attachment'] as const)(
-  'clears accepted content after persistence debounce, preserving newer edits=%s',
+  'clears the composer at Enter and never touches a newer edit when the lane lands, edit=%s',
   async (edit) => {
-    vi.useFakeTimers()
-    useDraftsStore.getState().setText(key, 'First prompt')
     let finish!: (value: unknown) => void
     receipt.mockImplementation(
       () =>
@@ -241,15 +241,9 @@ it.each(['none', 'text', 'attachment'] as const)(
         }),
     )
     await render()
-    const originalAttachments = useDraftsStore.getState().drafts[key]!.attachments
     await send()
-    expect(receipt).toHaveBeenCalledOnce()
-    await act(async () => vi.advanceTimersByTimeAsync(500))
-    expect(invoke).toHaveBeenCalledWith(
-      'app:setDraft',
-      expect.objectContaining({ key, text: 'First prompt' }),
-    )
-    expect(useDraftsStore.getState().drafts[key]!.attachments).not.toBe(originalAttachments)
+    expect(useDraftsStore.getState().drafts[key]?.text ?? '').toBe('')
+    expect(placeholder()?.text).toBe('First prompt')
     if (edit === 'text') act(() => useDraftsStore.getState().setText(key, 'Genuinely newer text'))
     if (edit === 'attachment')
       act(() =>
@@ -257,14 +251,16 @@ it.each(['none', 'text', 'attachment'] as const)(
           .getState()
           .setAttachments(key, [{ kind: 'file', name: 'new.txt', path: '/new.txt', size: 3 }]),
       )
+    await vi.waitFor(() => expect(receipt).toHaveBeenCalledOnce())
     await act(async () => finish({ success: true }))
-    expect(useDraftsStore.getState().drafts[key]?.text).toBe(
-      edit === 'none' ? undefined : edit === 'text' ? 'Genuinely newer text' : 'First prompt',
+    expect(useDraftsStore.getState().drafts[key]?.text ?? '').toBe(
+      edit === 'text' ? 'Genuinely newer text' : '',
     )
+    expect(placeholder()).toBeUndefined()
   },
 )
 
-it('keeps one create pending through a slow start and sends one first prompt after opening', async () => {
+it('runs a slow create behind its placeholder and sends one first prompt when it lands', async () => {
   vi.useFakeTimers()
   const fallback = invoke.getMockImplementation()!
   invoke.mockImplementation(async (channel, ...args) => {
@@ -274,37 +270,26 @@ it('keeps one create pending through a slow start and sends one first prompt aft
     }
     return fallback(channel, ...args)
   })
-  let finish!: (value: unknown) => void
-  receipt.mockImplementation(
-    () =>
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-  )
   function NavigatingHome(): React.JSX.Element {
     const active = useSessionsStore((s) => s.activeSessionId)
     return active ? <p>Lane open</p> : <WorkspaceHome workspacePath="/ws" />
   }
   await act(async () => root.render(<NavigatingHome />))
   await send()
+  // At once: the placeholder is the screen and the composer is empty.
+  expect(useSessionsStore.getState().opening?.create).toBe(placeholder()?.id)
+  expect(useDraftsStore.getState().drafts[key]?.text ?? '').toBe('')
   await act(async () => vi.advanceTimersByTimeAsync(74_999))
-  await send()
-  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(1)
-  expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
   expect(receipt).not.toHaveBeenCalled()
   await act(async () => vi.advanceTimersByTimeAsync(1))
-  expect(el.textContent).toBe('Lane open')
-  await act(async () => useSessionsStore.setState({ activeSessionId: null }))
-  await send()
   expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(1)
   expect(receipt).toHaveBeenCalledExactlyOnceWith(mockRemoteInfo.sessionId, {
     type: 'prompt',
     message: 'First prompt',
     images: [],
   })
-  await act(async () => finish({ success: true }))
-  expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
-  expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
+  expect(el.textContent).toBe('Lane open')
+  expect(placeholder()).toBeUndefined()
 })
 
 it('renders This Mac -> Host -> This Mac dashboards without leaking lanes, ledger or stats', async () => {
@@ -360,21 +345,23 @@ it.each(['down', 'capability'] as const)(
   },
 )
 
-it('releases a failed submission claim without clearing its draft', async () => {
+it('files the text on the new lane when only its first prompt fails', async () => {
   receipt.mockResolvedValue({ success: false, error: 'Not accepted' })
   await render()
   await send()
-  expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
-  expect(useHomeSubmissionsStore.getState().pending[key]).toBeUndefined()
-  expect(el.textContent).toContain('The Host could not confirm this.')
-  receipt.mockResolvedValue({ success: true })
-  await send()
-  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(2)
-  expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
+  const laneDraft = hostResourceKey(
+    { kind: 'remote', hostId: MOCK_HOST_ID },
+    'session',
+    mockRemoteInfo.laneId!,
+  )
+  await vi.waitFor(() => expect(placeholder()).toBeUndefined())
+  expect(useDraftsStore.getState().drafts[laneDraft]?.text).toBe('First prompt')
+  expect(useDraftsStore.getState().drafts[key]?.text ?? '').toBe('')
+  expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(1)
 })
 
 it.each(['exhausted', 'prefix'] as const)(
-  'keeps the draft and explains a %s fresh branch failure',
+  'keeps the text on the placeholder and explains a %s fresh branch failure',
   async (mode) => {
     useWorktreesStore.setState({
       preferWorktree: true,
@@ -387,11 +374,12 @@ it.each(['exhausted', 'prefix'] as const)(
     })
     await render()
     await send()
-    expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
+    await vi.waitFor(() => expect(placeholder()?.failure).toBeDefined())
+    expect(placeholder()?.text).toBe('First prompt')
     expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(
       mode === 'prefix' ? 0 : 5,
     )
-    expect(el.textContent).toContain(
+    expect(placeholder()?.failure).toContain(
       mode === 'prefix'
         ? 'Branch prefix is too long for a Host worktree.'
         : `Couldn't find a free branch name on ${MOCK_HOST_ID}.`,
@@ -405,8 +393,7 @@ it.each(['exhausted', 'prefix'] as const)(
 it.each([
   ['lane-create-failed', `${MOCK_HOST_ID} couldn't start this lane.`],
   ['lane-limit', `${MOCK_HOST_ID} is at its lane limit or too busy.`],
-  ['Lane creation not confirmed.', 'The Host could not confirm this.'],
-])('keeps the draft and names a %s creation outcome', async (code, message) => {
+])('keeps the text on the placeholder and names a %s creation outcome', async (code, message) => {
   useWorktreesStore.setState({ preferWorktree: false, branchPrefix: 'phosphor/' })
   const original = invoke.getMockImplementation()
   invoke.mockImplementation(async (channel, ...args) => {
@@ -415,10 +402,24 @@ it.each([
   })
   await render()
   await send()
-  expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
+  await vi.waitFor(() => expect(placeholder()?.failure).toBeDefined())
+  expect(placeholder()?.text).toBe('First prompt')
   expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(1)
-  expect(el.textContent).toContain(message)
+  expect(placeholder()?.failure).toContain(message)
   expect(receipt).not.toHaveBeenCalled()
+})
+
+it('an unconfirmed creation keeps checking with the Host instead of failing', async () => {
+  const original = invoke.getMockImplementation()
+  invoke.mockImplementation(async (channel, ...args) => {
+    if (channel === 'hosts:createLane') throw new Error('Lane creation not confirmed.')
+    return original?.(channel, ...args)
+  })
+  await render()
+  await send()
+  await vi.waitFor(() => expect(placeholder()?.checking).toBe(true))
+  expect(placeholder()?.failure).toBeUndefined()
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(1)
 })
 
 it('keeps a Host home reachable while This Mac’s home shows its setup', async () => {

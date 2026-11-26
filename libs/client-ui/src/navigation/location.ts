@@ -19,7 +19,13 @@ export const PAGES = [
 export type Page = (typeof PAGES)[number]
 export type LaneKey = { hostId: string; laneId: string } | { sessionId: string }
 export type Location =
-  | { to: 'lanes' | 'new'; machine?: string }
+  | { to: 'lanes'; machine?: string }
+  | {
+      to: 'new'
+      machine?: string
+      /** A create's placeholder (`laneCreates.ts`) on that machine, until its lane takes over. */
+      create?: string
+    }
   | { to: 'lane'; lane: LaneKey; pane?: LanePane }
   | { to: 'page'; page: Page; machine?: string }
   | { to: 'unavailable' }
@@ -57,6 +63,11 @@ export function decodeLocation(pathname: string): Location {
   }
   // The browser once had an Inbox. Neither client has one, so an old link opens the lane list.
   const list = parts[0] === 'inbox' ? 'lanes' : parts[0]
+  if (list === 'new' && parts.length === 3) {
+    const machine = id(parts[1])
+    const create = id(parts[2])
+    if (machine && create) return { to: 'new', machine, create }
+  }
   if ((list === 'lanes' || list === 'new') && parts.length <= 2) {
     const machine = id(parts[1])
     if (parts.length === 1 || machine) return { to: list, ...(machine ? { machine } : {}) }
@@ -79,6 +90,10 @@ export function encodeLocation(location: Location): string {
     return `/lanes/${encode(location.lane.hostId)}/${encode(location.lane.laneId)}/${location.pane ?? 'chat'}`
   }
   if (location.to === 'unavailable') return '/unavailable'
-  const suffix = location.machine ? `/${encode(location.machine)}` : ''
+  const create =
+    location.to === 'new' && location.machine && location.create
+      ? `/${encode(location.create)}`
+      : ''
+  const suffix = location.machine ? `/${encode(location.machine)}${create}` : ''
   return location.to === 'page' ? `/pages/${location.page}${suffix}` : `/${location.to}${suffix}`
 }

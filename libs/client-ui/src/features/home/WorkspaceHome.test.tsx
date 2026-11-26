@@ -146,6 +146,8 @@ it.each([true, false])(
       'Keep my draft',
       [],
       expect.any(Function),
+      false,
+      expect.objectContaining({ nav: -1 }),
     )
     act(() => useMachinesStore.setState({ remoteEnabled: false }))
     expect(useRemoteComposer.getState().target).toBeNull()

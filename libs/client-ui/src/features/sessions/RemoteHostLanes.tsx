@@ -7,6 +7,7 @@ import { useMachineCaps } from '@/stores/machineCaps'
 import { machineLabel, useRemoteLanesStore, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { compareLanesByCreation, groupRemoteLanes } from './groupRemoteLanes'
 import { RemoteLaneList } from './RemoteLaneList'
+import { LaneCreateRows } from './LaneCreateRows'
 import { RemoteRepositoryGroup, useRemoteLaneOrder } from './RemoteRepositoryGroup'
 import type { LaneGroupDensity } from './LaneGroup'
 import { SectionLabel } from './SidebarPrimitives'
@@ -33,7 +34,14 @@ export function RemoteHostLanes({
     lanes.filter((lane) => lane.pinned).sort(compareLanesByCreation),
   )
   const local = useRemoteLanesStore((s) => s.hosts[hostId]?.local)
-  if (local && !ready) return <p role="status">{REMOTE_NOT_READY}</p>
+  // A failed placeholder stays reachable while This Mac's service is down.
+  if (local && !ready)
+    return (
+      <>
+        <LaneCreateRows hostId={hostId} unlisted />
+        <p role="status">{REMOTE_NOT_READY}</p>
+      </>
+    )
   if (ready && !repositories.length && !lanes.length) return <NoFolders hostId={hostId} />
   return (
     <>

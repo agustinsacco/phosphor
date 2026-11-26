@@ -1,6 +1,6 @@
 import { useMachinesStore } from '@/stores/machines'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { createHistoryNavigation } from '@/navigation/history'
+import { createHistoryNavigation, type HistoryNavigation } from '@/navigation/history'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -8,6 +8,8 @@ import { releaseHostLaneNav } from '@/stores/hostLaneOpen'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { locationMachine, type LaneKey, type Location } from '@/navigation/location'
 import { useDefaultMachine } from './useDefaultMachine'
+import { laneCreate, showLaneCreate, useLaneCreatesStore } from '@/stores/laneCreates'
+import type { Navigation } from '@/navigation/Navigation'
 import {
   guardHostDrafts,
   unsavedDraftHost,
@@ -19,8 +21,22 @@ const draftToLeave = (from: Location, to: Location): string | null =>
     ? unsavedDraftHost()
     : null
 
+/**
+ * A New lane placeholder's route shows it, as Desktop's opening view does;
+ * false when the route is not one, or its create is gone.
+ */
+function showCreateRoute(location: Location): boolean {
+  const create = location.to === 'new' ? location.create : undefined
+  const placeholder = create ? laneCreate(create) : undefined
+  if (!create || placeholder?.hostId !== locationMachine(location) || placeholder?.retired)
+    return false
+  if (useSessionsStore.getState().opening?.create !== create) showLaneCreate(create)
+  return true
+}
+
 type HostLaneKey = Extract<LaneKey, { hostId: string }>
 
+/** Whether the route shows this Host lane. A placeholder becoming its lane replaces its URL. */
 function isLaneLocation(location: Location, lane: HostLaneKey): boolean {
   return (
     location.to === 'lane' &&
@@ -28,6 +44,20 @@ function isLaneLocation(location: Location, lane: HostLaneKey): boolean {
     location.lane.hostId === lane.hostId &&
     location.lane.laneId === lane.laneId
   )
+}
+
+/** A placeholder's URL that its own lane, or any lane once it is gone, replaces. */
+function deadPlaceholder(current: Location, lane: HostLaneKey): boolean {
+  if (current.to !== 'new' || !current.create) return false
+  const create = laneCreate(current.create)
+  return !create || (create.hostId === lane.hostId && create.laneId === lane.laneId)
+}
+
+/** Leaving a finished placeholder's URL for a lane replaces it: Back never lands on a dead one. */
+function showLaneIn(history: HistoryNavigation, lane: HostLaneKey): void {
+  const current = history.getSnapshot()
+  if (!isLaneLocation(current, lane))
+    history.navigate({ to: 'lane', lane, pane: 'chat' }, deadPlaceholder(current, lane))
 }
 
 export function useBrowserNavigation() {
@@ -58,11 +88,10 @@ export function useBrowserNavigation() {
     if (!remoteEnabled) return
     const machine = locationMachine(location)
     applying.current = true
-    const sessions = useSessionsStore.getState()
-    const opening = sessions.opening
-    if (location.to !== 'lane') {
+    const { opening } = useSessionsStore.getState()
+    if (location.to !== 'lane' && !showCreateRoute(location)) {
       // Native activate(null) persists app:setLastSession; browser home has no local resume target.
-      sessions.claimNav()
+      useSessionsStore.getState().claimNav()
       useSessionsStore.setState({ activeSessionId: null })
     } else if (opening?.lane && !isLaneLocation(location, opening.lane)) {
       releaseHostLaneNav(opening.nav)
@@ -87,16 +116,13 @@ export function useBrowserNavigation() {
     let listening = true
     const offSessions = useSessionsStore.subscribe((state, previous) => {
       if (applying.current) return
-      const showLane = (lane: HostLaneKey): void => {
-        if (!isLaneLocation(history.getSnapshot(), lane))
-          history.navigate({ to: 'lane', lane, pane: 'chat' })
-      }
       const opening = state.opening
-      if (opening?.lane && opening.nav !== previous.opening?.nav) return showLane(opening.lane)
+      if (opening?.lane && opening.nav !== previous.opening?.nav)
+        return showLaneIn(history, opening.lane)
       if (state.activeSessionId === previous.activeSessionId || !state.activeSessionId) return
       const entry = state.live[state.activeSessionId]
       if (entry?.target?.kind === 'remote' && entry.laneId)
-        showLane({ hostId: entry.target.hostId, laneId: entry.laneId })
+        showLaneIn(history, { hostId: entry.target.hostId, laneId: entry.laneId })
     })
     const offLayout = useLayoutStore.subscribe((state, previous) => {
       if (applying.current) return
@@ -180,4 +206,17 @@ export function useBrowserNavigation() {
     }
   }, [history])
   return { location, navigate, pending }
+}
+
+/**
+ * A placeholder put on screen by a send or a row owns the URL, as an activated
+ * lane does (`showCreateRoute` is the other direction).
+ */
+export function useLaneCreateRoute({ navigate }: Pick<Navigation, 'navigate'>): void {
+  const create = useSessionsStore((s) => s.opening?.create)
+  const machine = useLaneCreatesStore((s) => (create ? s.creates[create]?.hostId : undefined))
+  // History skips a route it is already on, so a route-shown placeholder adds no entry.
+  useEffect(() => {
+    if (create && machine) navigate({ to: 'new', machine, create })
+  }, [create, machine, navigate])
 }

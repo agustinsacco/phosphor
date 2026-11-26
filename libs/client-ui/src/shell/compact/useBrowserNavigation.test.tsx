@@ -11,6 +11,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { clearBrowserMemory, useBrowserMemory } from './browserMemory'
+import { useLaneCreatesStore } from '@/stores/laneCreates'
 
 function Harness() {
   const navigation = useBrowserNavigation()
@@ -144,4 +145,52 @@ it('New and Skills open on the machine last looked at, not the first one', async
   await act(async () => root.render(<Harness />))
   expect(window.location.pathname).toBe('/new/other-host')
   clearBrowserMemory()
+})
+
+it('a placeholder recovered into its lane replaces the placeholder URL', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn(async () => undefined) })
+  useMachinesStore.setState({ remoteEnabled: true })
+  useLayoutStore.setState({ page: null })
+  useRemoteLanesStore.setState({ filter: MOCK_HOST_ID })
+  window.history.replaceState(null, '', `/new/${MOCK_HOST_ID}/create-9`)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  roots.push(root)
+  await act(async () => root.render(<Harness />))
+  const push = vi.spyOn(window.history, 'pushState')
+  const lane = { hostId: MOCK_HOST_ID, laneId: mockRemoteInfo.laneId! }
+  await act(async () => {
+    useSessionsStore
+      .getState()
+      .beginOpening({ workspacePath: 'x', title: 't', reason: 'open', lane })
+  })
+  expect(window.location.pathname).toBe(`/lanes/${MOCK_HOST_ID}/${lane.laneId}/chat`)
+  expect(push).not.toHaveBeenCalled()
+})
+
+it('opening another lane from a live placeholder keeps the placeholder in history', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal('phosphor', { invoke: vi.fn(async () => undefined) })
+  useMachinesStore.setState({ remoteEnabled: true })
+  useLayoutStore.setState({ page: null })
+  useRemoteLanesStore.setState({ filter: MOCK_HOST_ID })
+  const live = { id: 'create-live', hostId: MOCK_HOST_ID, repositoryId: 'r', title: 't' }
+  useLaneCreatesStore.setState({
+    creates: { [live.id]: { ...live, text: '', attachments: [], branches: [], seen: [] } as never },
+  })
+  window.history.replaceState(null, '', `/new/${MOCK_HOST_ID}/${live.id}`)
+  const root = createRoot(document.createElement('div'))
+  roots.push(root)
+  await act(async () => root.render(<Harness />))
+  const push = vi.spyOn(window.history, 'pushState')
+  const lane = { hostId: MOCK_HOST_ID, laneId: mockRemoteInfo.laneId! }
+  await act(async () => {
+    useSessionsStore
+      .getState()
+      .beginOpening({ workspacePath: 'x', title: 't', reason: 'open', lane })
+  })
+  expect(window.location.pathname).toBe(`/lanes/${MOCK_HOST_ID}/${lane.laneId}/chat`)
+  expect(push).toHaveBeenCalled()
+  useLaneCreatesStore.setState({ creates: {} })
 })

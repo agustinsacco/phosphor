@@ -2,6 +2,7 @@ import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { Button } from '@/components/form'
 import { openRemoteLane } from '@/stores/remoteLanes'
 import type { OpeningLane as OpeningLaneState } from '@/stores/sessions'
+import { LaneCreateView } from './LaneCreateView'
 
 /** Matches `.opening-lane[data-leaving]` in index.css. */
 export const OPENING_LANE_EXIT_MS = 200
@@ -38,9 +39,11 @@ export function OpeningLane({
   lane,
   leaving = false,
 }: {
-  lane: Pick<OpeningLaneState, 'title' | 'reason' | 'lane' | 'failure'>
+  lane: Pick<OpeningLaneState, 'title' | 'reason' | 'lane' | 'failure' | 'create'>
   leaving?: boolean
-}): React.JSX.Element {
+}): React.JSX.Element | null {
+  // A New lane placeholder shows the message it was started with.
+  if (lane.create) return <LaneCreateView id={lane.create} leaving={leaving} />
   const host = lane.lane
   if (lane.failure)
     return (

@@ -86,7 +86,7 @@
   },
   "libs/client-ui/src/features/home/WorkspaceHome.remote.test.tsx": {
     "typescript/no-misused-promises": {
-      "count": 2
+      "count": 1
     }
   },
   "libs/client-ui/src/features/sessions/BulkDeleteModal.test.tsx": {

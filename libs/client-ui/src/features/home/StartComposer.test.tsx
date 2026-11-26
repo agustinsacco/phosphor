@@ -11,7 +11,6 @@ import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { clearDraftMemory } from '@/stores/drafts'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { LocalHomeComposer } from './LocalHomeComposer'
@@ -58,7 +57,6 @@ beforeEach(() => {
   host.capabilities.push('workspaces.read')
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
   useMachineCataloguesStore.setState({ catalogues: {} })
-  useHomeSubmissionsStore.setState({ pending: {} })
   useStartingChatStore.setState({ starting: null, draft: null })
   useWorktreesStore.setState({ preferWorktree: true })
   clearDraftMemory()

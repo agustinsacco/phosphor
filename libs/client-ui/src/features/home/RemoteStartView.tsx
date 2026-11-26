@@ -85,7 +85,7 @@ function useHostStart(
     modelPicker: <RemoteModelPicker key={generation} selection={c.selection} />,
     targets: <HostStartTargets hostId={hostId} controller={c} />,
     contextSources: null,
-    busy: c.busy,
+    busy: false,
     canSubmit: c.canSend,
     submit: c.send,
     locked: !c.ready,
@@ -136,12 +136,11 @@ function HostStartTargets({
           ...(c.host?.repositories ?? []).map((repo) => ({
             value: repo.id,
             label: repo.name,
-            disabled: c.busy,
           })),
           {
             value: '__add__',
             label: `Add folder on ${machineLabel(hostId)}…`,
-            disabled: c.busy || !c.ready || !c.host?.capabilities.includes('workspaces.write'),
+            disabled: !c.ready || !c.host?.capabilities.includes('workspaces.write'),
           },
         ]}
         onChange={(id) => {
@@ -161,7 +160,7 @@ function HostStartTargets({
       {c.isolate !== undefined && (
         <IsolateToggle
           checked={c.isolate}
-          disabled={c.busy || !c.ready}
+          disabled={!c.ready}
           workspacePath={remotePrKey(hostId, c.repositoryId)}
         />
       )}

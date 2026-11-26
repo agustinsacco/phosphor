@@ -5,6 +5,7 @@ import { navigateToLane, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
+import { showLaneCreate, useLaneCreatesStore } from '@/stores/laneCreates'
 import type { Location } from './location'
 
 /** URL-free facade: persisted native lane/pane semantics remain owned by their stores. */
@@ -14,7 +15,10 @@ export function useDesktopLocation(): Location {
   const pane = useLayoutStore((s) => sessionPanes(s, active).pane)
   const page = useLayoutStore((s) => s.page)
   const starting = useStartingChatStore((s) => s.starting)
+  const create = useSessionsStore((s) => s.opening?.create)
+  const createHost = useLaneCreatesStore((s) => (create ? s.creates[create]?.hostId : undefined))
   if (page) return { to: 'page', page }
+  if (create && createHost) return { to: 'new', machine: createHost, create }
   if (active)
     return {
       to: 'lane',
@@ -40,6 +44,10 @@ export async function navigateDesktop(location: Location): Promise<void> {
       useSettingsUiStore.getState().setOpen(true)
       if (location.machine) useSettingsUiStore.getState().setMachine(location.machine)
     } else useLayoutStore.getState().setPage(location.page)
+    return
+  }
+  if (location.to === 'new' && location.create) {
+    showLaneCreate(location.create)
     return
   }
   // New on a Host opens that Host's composer, as the sidebar's New always has.

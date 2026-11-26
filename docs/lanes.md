@@ -34,7 +34,9 @@ filter. A disconnected machine keeps its memory-only rows greyed, disabled and
 labelled last known. Remote creation uses a machine and its configured repository.
 
 Host + and New open the home composer, not a separate modal. A folder's + (New lane
-in FOLDER) chooses that folder, in Desktop and the browser alike.
+in FOLDER) chooses that folder, in Desktop and the browser alike. Sending from it
+puts a starting placeholder lane at the top of that folder and on screen at once,
+and creates the lane in the background; several can start in parallel.
 [Remote creation](remote-desktop.md#machine-context-and-lane-creation) owns the flow.
 
 This Mac retains the local folder and branch flow. Selecting an unavailable Host never creates a local session.
@@ -722,6 +724,15 @@ selected. The lane activates only if no newer navigation came first; a late
 open is adopted quietly, with no focus change and no toast. A failed open
 stops the loader and offers Retry until the user changes page, machine, or
 lane. Retry starts a fresh open.
+
+A new Host lane is on screen before the Host has it. Sending from a New lane
+composer records a placeholder (`laneCreates.ts`) and puts it in
+`sessions.opening` (with `create`): its row heads its folder saying `Starting`,
+and `OpeningLane` hands over to `LaneCreateView`, which shows the sent message
+under the loader. Selecting the row shows it again; on its row, the lane it
+becomes is the selection. It turns into the real lane in place only if it is
+still on screen when the first prompt is sent
+([Remote creation](remote-desktop.md#machine-context-and-lane-creation)).
 
 **Whatever finishes last does not win.** `sessions.navSeq` counts explicit
 navigations — a click, a palette entry, a send. Every step that would put a

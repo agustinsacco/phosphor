@@ -1,12 +1,20 @@
 import { ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
 import { ipcErrorText } from '@shared/errors'
 import type { RemoteLaneCreate } from '@shared/ipc'
-import type { PendingAttachment } from '@/features/chat/attachments'
-import { useDraftsStore } from '@/stores/drafts'
-import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { machineLabel } from '@/stores/remoteLanes'
+import {
+  beginLaneCreate,
+  failLaneCreate,
+  finishLaneCreate,
+  laneCreate,
+  laneCreateAdopted,
+  laneCreateShown,
+  laneCreated,
+  noteLaneCreateBranch,
+  refuseLaneCreateBranch,
+  type LaneCreate,
+} from '@/stores/laneCreates'
 import { startRemoteChat } from './startRemoteChat'
 import { remoteBranchName } from './remoteBranchName'
 
@@ -14,14 +22,17 @@ interface Submission {
   hostId: string
   draftKey: string
   input: RemoteLaneCreate
-  /** Authorize delegation before the first prompt; the lane is never prompted without it. */
-  swarm?: boolean
   /** False when the Host says git does not track the folder: no worktree to ask for. */
   branch: boolean
-  text: string
-  attachments: PendingAttachment[]
-  onWarning: (message: string) => void
 }
+
+/** Refusals that mean the Host made no lane. Any other code may have made one. */
+const DEFINITE = new Set([
+  'branch-name-exhausted',
+  'branch-prefix-too-long',
+  'lane-create-failed',
+  'lane-limit',
+])
 
 /** Fixed codes from `hosts:createLane` and `startRemoteChat`; anything else stays uncertain. */
 function createWarning(code: string, machine: string): string {
@@ -43,47 +54,63 @@ function createWarning(code: string, machine: string): string {
 }
 
 /**
- * Claims outlive the view, but not an owner reset. Only a confirmed receipt spends a draft.
+ * Sends from a New lane composer without waiting on the Host: the composer
+ * clears, a starting placeholder lane takes the screen and its folder's top
+ * row, and the create, takeover and first prompt run in the background. The
+ * user may start more at once or go anywhere; a create that lands while its
+ * placeholder is on screen becomes that lane in place.
  *
  * Every Host lane asks for a fresh worktree: work never lands on the repository's
  * main checkout, and every lane has a branch to open a PR from. A folder the Host
  * reports outside git asks for none; it runs in place, unbranched.
  */
-export async function submitRemoteHome(s: Submission): Promise<void> {
-  const claims = useHomeSubmissionsStore.getState()
-  if (!claims.begin(s.draftKey)) return
-  let active = true
-  const unsubscribe = useHomeSubmissionsStore.subscribe((state) => {
-    if (!state.pending[s.draftKey]) active = false
+export function submitRemoteHome(s: Submission): Promise<void> {
+  // The draft is read here, at Enter, and taken in the same tick: a second Enter finds it empty.
+  const create = beginLaneCreate({
+    hostId: s.hostId,
+    repositoryId: s.input.repositoryId,
+    draftKey: s.draftKey,
   })
-  const revision = useDraftsStore.getState().revisions[s.draftKey]
-  const generation = machineReadGeneration(s.hostId)
-  const current = () => active && generation === machineReadGeneration(s.hostId)
+  return create ? runLaneCreate(create, s) : Promise.resolve()
+}
+
+async function runLaneCreate(
+  { id, text, attachments, swarm }: LaneCreate,
+  s: Submission,
+): Promise<void> {
   try {
     await startRemoteChat(
       s.hostId,
       s.branch
-        ? { ...s.input, worktree: { branch: remoteBranchName(s.text), fresh: true } }
+        ? { ...s.input, worktree: { branch: remoteBranchName(text), fresh: true } }
         : s.input,
-      s.text,
-      s.attachments,
-      () => {
-        if (current() && useDraftsStore.getState().revisions[s.draftKey] === revision)
-          useDraftsStore.getState().clear(s.draftKey)
+      text,
+      attachments,
+      () => {},
+      swarm,
+      {
+        nav: -1,
+        trying: (branch) => noteLaneCreateBranch(id, branch),
+        refused: (branch) => refuseLaneCreateBranch(id, branch),
+        created: (info) => laneCreated(id, info),
+        adopted: () => laneCreateAdopted(id),
+        uploading: () => laneCreateAdopted(id),
       },
-      // Only an opted-in lane passes the flag, so the call stays what it was without one.
-      ...(s.swarm ? ([true] as const) : ([] as const)),
     )
+    finishLaneCreate(id)
   } catch (failure) {
-    if (!current()) return
+    const create = laneCreate(id)
+    // Dismissed, or retired by an owner reset.
+    if (!create) return
+    const code = ipcErrorText(failure)
     const message =
       failure instanceof ServiceLaneControlRefused
         ? failure.message
-        : createWarning(ipcErrorText(failure), machineLabel(s.hostId))
-    s.onWarning(message)
-    useExtensionUiStore.getState().pushToast(message, 'warning')
-  } finally {
-    unsubscribe()
-    if (active) useHomeSubmissionsStore.getState().finish(s.draftKey)
+        : createWarning(code, machineLabel(s.hostId))
+    const shown = laneCreateShown(id)
+    // The lane exists; only what followed failed. Its text waits on its own composer.
+    if (create.laneId) finishLaneCreate(id, true)
+    else failLaneCreate(id, message, !DEFINITE.has(code))
+    if (!shown || create.laneId) useExtensionUiStore.getState().pushToast(message, 'warning')
   }
 }

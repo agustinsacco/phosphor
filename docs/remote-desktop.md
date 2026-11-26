@@ -167,16 +167,36 @@ that machine's configured repositories, not a local folder.
 
 The repository + opens that Host's home composer with the repository selected.
 Sidebar New under a Host filter uses its last-used available repository, or the
-first configured one. There is no New-lane modal. Submitting creates and opens
-the lane, acquires control if needed, then sends the prompt. Only a confirmed
-prompt clears the draft; failure keeps it.
+first configured one. There is no New-lane modal. Submitting never waits on the
+Host: on the same frame the composer clears, a starting placeholder lane
+(`stores/laneCreates.ts`) heads its folder in every lane list with the prompt as
+its title, and the main view switches to it (`LaneCreateView`: the message as it
+will sit in the transcript, under the Phosphor loader). The browser routes it as
+`/new/<machine>/<create>`. The create, adopt, takeover, Swarm and first prompt run
+in the background, the same on Desktop and in the browser; the user can press +
+and start more at once, each with its own placeholder, or go anywhere. A create
+never takes the screen: only if its placeholder is still on screen when the prompt
+is sent, and no page covers it, does it become that lane in place. The lane is
+recorded as soon as the Host answers, before it is adopted, so the placeholder row
+gives way to the lane's row as soon as the Host snapshot lists it, or lists a new
+worktree lane in its folder on a branch it asked for (the Host lists a lane while
+`hosts:createLane` is still opening it); the placeholder view stays until the lane
+is adopted. The sent text
+and attachments stay with the placeholder until the create settles, with their
+documents still counted against the draft cap. If the Host made the lane but a
+later step failed or went unconfirmed (control, Swarm, the prompt), the text is
+added to that lane's composer instead. Every restore appends, a blank line after
+whatever the destination draft already holds, and never replaces it. Sign-out
+drops the placeholders of every machine but This Mac's service, and the browser's
+owner reset drops them all. A failed placeholder stays listed while its machine is
+unreadable: on Desktop for This Mac's service, in the browser for any Host.
 
 Isolation follows This Mac's worktree preference and branch-naming rule. Generated
 Host branches trim only the slug to fit the 100-character flattened limit; an
 oversized prefix fails before sending. Desktop requests `worktree.fresh: true`,
 trying the base name once, then retrying only confirmed `branch-exists` refusals
-with `-2` through `-5`. Exhaustion shows “Couldn't find a free branch name on <machine>.” and keeps the
-draft. Unknown outcomes never trigger a branch retry. The Host's new-only guarantee
+with `-2` through `-5`. Exhaustion shows “Couldn't find a free branch name on <machine>.” on the
+placeholder. Unknown outcomes never trigger a branch retry. The Host's new-only guarantee
 and older-Host compatibility are in [Creating lanes](host.md#creating-lanes).
 
 A creation that did not succeed crosses IPC as a fixed code, never the Host's text
@@ -185,7 +205,23 @@ failed receipt or a frame that was never sent, the composer says the machine
 couldn't start the lane; a `too-many-requests` refusal says it is at its lane limit
 or too busy. An unknown receipt, a dropped connection, or a request main refuses
 before or after sending (missing control capability, an invalid frame, a changed
-connection) says the Host could not confirm it. Every case keeps the draft.
+connection) cannot be known to have failed. A definite failure's placeholder
+says why, with **Edit and retry** (the text, attachments and Swarm choice back in
+the New lane composer) and **Dismiss**; one the user has left also raises a toast.
+An uncertain one never creates again while its outcome is unknown: its
+placeholder says “Checking with the Host…” and reads a fresh `hosts:snapshot`
+about every 10 seconds for three minutes, since a create can take two. A lane
+the Host lists for it is adopted in its place, with the text in its composer and a
+notice: “Lane created. Your first message wasn't sent; it's in the composer.” It
+matches a worktree lane by a branch the create asked for and the Host did not
+refuse as taken. A create that asked for no worktree matches only an in-place
+lane, only if that is the one new lane in its folder, and only while it is the one
+in-place create there still running or checking. A lane any create is known to
+have made is never matched again. After the window the placeholder offers Edit
+and retry, noting that if the lane shows up later, it was created; a branched
+create retried that way keeps only its matching metadata (branches, lanes seen)
+and still holds whatever lane turns up on its branch. In the browser, a
+placeholder's URL is replaced, not pushed over, when it becomes its lane.
 
 An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 
@@ -526,7 +562,7 @@ exists, so a new Host lane offers no Rules readout. The Swarm switch records its
 as on This Mac. After `hosts:createLane` the client turns Swarm on in the new
 lane (`get_commands`, then `/phosphor-swarm on`) before it sends the first
 prompt. If the Host's pi lacks pi-subagents or refuses, the lane exists but gets
-no first message, and the draft and its choice are kept with a warning.
+no first message, and its text waits in that lane's composer with a warning.
 
 One rule decides which Host models can be picked, for the new-lane picker and
 for a Host lane's model menu alike (`hostModelUnavailability`). Both list what

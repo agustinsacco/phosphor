@@ -39,7 +39,10 @@ export function BrowserNavigation({ machine }: { machine?: string }): React.JSX.
 /** The browser keeps the machine scope in the URL; a lane or dead link falls back to its list. */
 function scopedLocation(location: Location, scope: string): Location {
   const machine = scope === 'all' ? undefined : scope
+  // A placeholder belongs to its machine: another scope opens that machine's New.
   return location.to === 'lane' || location.to === 'unavailable'
     ? { to: 'lanes', machine }
-    : { ...location, machine }
+    : location.to === 'new'
+      ? { to: 'new', machine }
+      : { ...location, machine }
 }

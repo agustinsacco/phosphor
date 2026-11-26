@@ -134,7 +134,11 @@ function BrowserScreen({
       />
     )
   if (location.to === 'new')
-    return machine ? <CompactNew key={machine} hostId={machine} /> : <ChooseMachine />
+    return machine ? (
+      <CompactNew key={machine} hostId={machine} create={location.create} />
+    ) : (
+      <ChooseMachine />
+    )
   if (location.to === 'page') {
     if (location.page === 'settings') return <CompactSettings machine={machine} />
     if (!machine && ['skills', 'routines'].includes(location.page)) return <ChooseMachine />

@@ -16,7 +16,7 @@ import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/Extensio
 import { LaneMoveOverlay } from '@/features/sessions/SessionRecoveryModals'
 import { CompactSignIn } from './CompactSignIn'
 import { clearCompactUi, waitForCompactCleanup } from './compactLifecycle'
-import { useBrowserNavigation } from './useBrowserNavigation'
+import { useBrowserNavigation, useLaneCreateRoute } from './useBrowserNavigation'
 import { useCompactViewport } from './useCompactViewport'
 import { BrowserShell } from './BrowserShell'
 import { useInstallApp } from './useInstallApp'
@@ -76,6 +76,7 @@ function useClientAppearance(): 'loading' | 'ready' | 'error' {
 
 function AuthenticatedCompact(): React.JSX.Element {
   const navigation = useBrowserNavigation()
+  useLaneCreateRoute(navigation)
   const [ready, setReady] = useState(false)
   useEffect(() => {
     let active = true

@@ -8,6 +8,7 @@ import {
   hostReconnecting,
 } from '@/stores/remoteLanes'
 import { RemoteHostLanes } from '@/features/sessions/RemoteHostLanes'
+import { LaneCreateRows } from '@/features/sessions/LaneCreateRows'
 import { WorkspaceGroupSkeletons } from '@/features/sessions/SidebarPrimitives'
 import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
@@ -97,13 +98,17 @@ function MachineLaneList({
       {firstLoad ? (
         <WorkspaceGroupSkeletons />
       ) : !readable ? (
-        !hostReconnecting(host?.state) && (
-          <p role="status">
-            {host?.state === 'ready'
-              ? 'Lane reading is unavailable on this Host.'
-              : 'Machine not connected. Its lanes may need attention.'}
-          </p>
-        )
+        <>
+          {/* Placeholders left here stay reachable, as Desktop's This Mac fallback keeps them. */}
+          <LaneCreateRows hostId={machine.id} unlisted />
+          {!hostReconnecting(host?.state) && (
+            <p role="status">
+              {host?.state === 'ready'
+                ? 'Lane reading is unavailable on this Host.'
+                : 'Machine not connected. Its lanes may need attention.'}
+            </p>
+          )}
+        </>
       ) : lanes.length === 0 && host.repositories.length === 0 && host.state !== 'ready' ? (
         <p>No lanes yet.</p>
       ) : (
