@@ -20,6 +20,7 @@ import {
   failLaneCreate,
   pendingLaneCreates,
   reconcileLaneCreate,
+  showLaneCreate,
   useLaneCreatesStore,
 } from './laneCreates'
 
@@ -496,4 +497,17 @@ it('leaves the screen alone at adoption once the user has moved on', () => {
   created(runs[0]!, 'lane-away', 'session-away')
   runs[0]!.hooks.adopted?.()
   expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+})
+
+it('takes the screen before files upload when the user came back to the placeholder after adoption', () => {
+  submit('Back again')
+  const id = creates()[0]!.id
+  useLayoutStore.getState().setPage('skills')
+  useSessionsStore.getState().activate('mac')
+  created(runs[0]!, 'lane-back', 'session-back')
+  runs[0]!.hooks.adopted?.()
+  expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+  showLaneCreate(id)
+  runs[0]!.hooks.uploading?.()
+  expect(useSessionsStore.getState().activeSessionId).toBe('session-back')
 })

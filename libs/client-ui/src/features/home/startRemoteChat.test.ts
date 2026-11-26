@@ -243,3 +243,24 @@ it('reports the adopted lane before its files upload', async () => {
   )
   expect(order).toEqual(['adopted', 'upload'])
 })
+
+it('checks the screen again right before its files upload', async () => {
+  const order: string[] = []
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'hosts:uploadAttachments') {
+      order.push('upload')
+      return ['/attachments/1-notes.txt']
+    }
+    return mockRemoteInfo
+  })
+  await startRemoteChat(
+    MOCK_HOST_ID,
+    input,
+    'Files',
+    [{ kind: 'file', id: 'f', name: 'notes.txt', mime: 'text/plain', data: 'c3ludGg=' } as never],
+    accepted,
+    false,
+    { nav: -1, uploading: () => void order.push('uploading') },
+  )
+  expect(order).toEqual(['uploading', 'upload'])
+})
