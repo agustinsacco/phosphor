@@ -3,6 +3,7 @@ import { TAKE_CONTROL_FIRST } from '@/features/sessions/remoteLaneActions'
 import { TooltipButton } from '@/components/Tooltip'
 import { useChatStore } from '@/stores/chat'
 import { unqueueMessage } from './queueActions'
+import { usePendingQueue } from './pendingQueue'
 
 /**
  * Pending steering / follow-up messages (from queue_update).
@@ -16,18 +17,23 @@ import { unqueueMessage } from './queueActions'
  */
 export function QueueChips({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const queues = useChatStore((s) => s.sessions[sessionId]?.queues)
-  if (!queues || (queues.steering.length === 0 && queues.followUp.length === 0)) return null
+  const chips = usePendingQueue((s) => s.chips)
+  const optimistic = chips.filter((chip) => chip.sessionId === sessionId)
+  if (!optimistic.length && !queues?.steering.length && !queues?.followUp.length) return null
 
   return (
     <div
       className="mx-auto flex w-full max-w-3xl flex-wrap gap-1.5 px-1 pb-2"
       data-testid="queue-chips"
     >
-      {queues.steering.map((text, i) => (
+      {queues?.steering.map((text, i) => (
         <QueueChip key={`s-${i}`} kind="steer" text={text} sessionId={sessionId} index={i} />
       ))}
-      {queues.followUp.map((text, i) => (
+      {queues?.followUp.map((text, i) => (
         <QueueChip key={`f-${i}`} kind="follow-up" text={text} sessionId={sessionId} index={i} />
+      ))}
+      {optimistic.map(({ id, kind, text }) => (
+        <QueueChip key={id} kind={kind} text={text} sessionId={sessionId} />
       ))}
     </div>
   )
@@ -42,7 +48,7 @@ function QueueChip({
   kind: 'steer' | 'follow-up'
   text: string
   sessionId: string
-  index: number
+  index?: number
 }): React.JSX.Element {
   // A Host lane's queue belongs to its controller.
   const blocked = !useCanControlSession(sessionId)
@@ -60,15 +66,17 @@ function QueueChip({
         {steer ? 'Steer queued' : 'Follow-up queued'}
       </span>
       {text && <span className="truncate">{text}</span>}
-      <TooltipButton
-        disabled={blocked}
-        onClick={() => void unqueueMessage(sessionId, kind, index, text)}
-        aria-label={steer ? 'Remove queued steering message' : 'Remove queued follow-up message'}
-        title={blocked ? TAKE_CONTROL_FIRST : 'Remove — the agent has not read this yet'}
-        className="shrink-0 rounded-full px-1 text-xs opacity-60 transition-opacity hover:opacity-100"
-      >
-        ✕
-      </TooltipButton>
+      {index !== undefined && (
+        <TooltipButton
+          disabled={blocked}
+          onClick={() => void unqueueMessage(sessionId, kind, index, text)}
+          aria-label={steer ? 'Remove queued steering message' : 'Remove queued follow-up message'}
+          title={blocked ? TAKE_CONTROL_FIRST : 'Remove — the agent has not read this yet'}
+          className="shrink-0 rounded-full px-1 text-xs opacity-60 transition-opacity hover:opacity-100"
+        >
+          ✕
+        </TooltipButton>
+      )}
     </div>
   )
 }

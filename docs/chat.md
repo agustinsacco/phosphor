@@ -94,9 +94,16 @@ The composer is one small field with several ways in.
   if compaction starts before pi accepts the prompt, your draft is kept. Otherwise
   the composer sends one prompt with the selected queue behavior. When the lane
   looks idle, the prompt starts normally, or queues as a follow-up if pi started
-  work before it arrived. Submissions to the same queue go in order. If a Host
-  cannot confirm delivery, check the lane before retrying.
-  Escape and Stop abort a running turn and hand queued messages back to the composer. pi's abort
+  work before it arrived. A busy send clears the editor and shows a provisional chip
+  immediately. Like an idle send, it clears the saved draft and keeps the recovery
+  copy only in memory. A refusal restores it without discarding new edits; quitting
+  before the receipt loses that recovery copy. The Host acknowledges registration
+  before the normal session gate and preflight; registration is not delivery.
+  On a lane, each send waits for the previous receipt, including any automatic
+  resume and retry, without blocking the editor.
+  If a Host cannot confirm delivery, check the lane before retrying.
+  Escape and Stop cancel sends the composer has not dispatched, restoring their text
+  and attachments. They also abort the running turn and restore pi's queued text. pi's abort
   keeps its queues, so they first drain them with `clear_queue`; otherwise the
   messages would also go out with the next one. On a pi without `clear_queue`
   they come back from the chips and pi keeps its own. Once the draft

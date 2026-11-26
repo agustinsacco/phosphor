@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { hostResourceKey } from '@shared/remote-host'
-import type { RpcCommand } from '@shared/rpc'
+import type { RpcCommand, RpcResponse } from '@shared/rpc'
 import { hostLaneSession, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { installMockPhosphor } from '@/dev/mockPhosphor'
 import { useChatStore } from '@/stores/chat'
@@ -12,6 +12,12 @@ import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Composer } from './Composer'
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
 
 const id = mockRemoteInfo.sessionId
 const hostKey = hostResourceKey(
@@ -189,14 +195,52 @@ it('accepts a follow-up draft on a live Host before the first prompt is acknowle
   act(() => useDraftsStore.getState().setText(hostKey, 'PHX-second'))
   expect(button('Queue follow-up')?.matches(':disabled')).toBe(false)
   await act(async () => button('Queue follow-up')?.click())
-  expect(prompts(pi)).toEqual([
-    { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'followUp' },
-  ])
-  await act(async () => acceptFirst())
-  expect(prompts(pi)).toEqual([
+  // The chip appears immediately even though the prompt waits for the first receipt.
+  const sent = [
     { type: 'prompt', message: 'PHX-busy', streamingBehavior: 'followUp' },
     { type: 'prompt', message: 'PHX-second', streamingBehavior: 'followUp' },
-  ])
+  ]
+  expect(prompts(pi)).toEqual(sent.slice(0, 1))
+  expect(container.querySelector('[data-testid="queue-chips"]')?.textContent).toContain(
+    'PHX-second',
+  )
+  expect(container.querySelector('textarea')?.value).toBe('')
+  await act(async () => acceptFirst())
+  expect(prompts(pi)).toEqual(sent)
+})
+
+it('Stop immediately restores every undispatched send and none dispatches after the first receipt', async () => {
+  hostLane('working')
+  useChatStore.getState().applyEvent(id, { type: 'agent_start' })
+  const first = deferred<RpcResponse>()
+  const pi = vi
+    .spyOn(window.phosphor, 'piCommand')
+    .mockReturnValueOnce(first.promise as ReturnType<typeof window.phosphor.piCommand>)
+  const store = useDraftsStore.getState()
+  const image = { kind: 'image', name: 'held.png', data: 'AAAA', mimeType: 'image/png' } as const
+  const file = { kind: 'file', name: 'held.txt', size: 3, path: '/repo/held.txt' } as const
+  await draw()
+  try {
+    await enter()
+    act(() => store.patch(hostKey, { text: 'second', attachments: [image] }))
+    await enter({ altKey: true })
+    act(() => store.patch(hostKey, { text: 'third', attachments: [file] }))
+    await enter()
+    act(() => store.setText(hostKey, 'new edit'))
+    expect(prompts(pi)).toHaveLength(1)
+    expect(button('Stop')).toBeDefined()
+    await act(async () => button('Stop')?.click())
+    expect(pi).toHaveBeenCalledWith(id, { type: 'abort' })
+    expect(container.querySelector('textarea')?.value).toBe('second\nthird\nnew edit')
+    expect(store.get(hostKey).attachments).toMatchObject([image, file])
+    expect(container.querySelector('[data-testid="queue-chips"]')?.textContent).not.toContain(
+      'second',
+    )
+  } finally {
+    await act(async () => first.resolve({ type: 'response', command: 'prompt', success: true }))
+  }
+  expect(prompts(pi)).toHaveLength(1)
+  expect(container.querySelector('[data-testid="queue-chips"]')).toBeNull()
 })
 
 it('Queue follow-up treats a shell-looking draft as a message, not an immediate bash command', async () => {
@@ -209,4 +253,39 @@ it('Queue follow-up treats a shell-looking draft as a message, not an immediate 
     expect.objectContaining({ type: 'bash' }),
   )
   expect(prompts(pi)).toEqual([{ type: 'prompt', message: '!pwd', streamingBehavior: 'followUp' }])
+})
+
+it('replaces a provisional chip when an identical earlier send was refused', async () => {
+  hostLane('working')
+  const first = deferred<RpcResponse>()
+  const second = deferred<RpcResponse>()
+  const mockCommand = window.phosphor.piCommand
+  let sent = 0
+  const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (id, op) => {
+    if (op.type !== 'prompt') return mockCommand(id, op)
+    return (sent++ === 0 ? first.promise : second.promise) as ReturnType<typeof mockCommand>
+  })
+  const chips = () => container.querySelector('[data-testid="queue-chips"]')?.children
+  await draw()
+  try {
+    await enter()
+    act(() => useDraftsStore.getState().setText(hostKey, 'PHX-busy'))
+    await enter()
+    expect(chips()).toHaveLength(2)
+    await act(async () =>
+      first.resolve({ type: 'response', command: 'prompt', success: false, error: 'refused' }),
+    )
+    expect(prompts(pi)).toHaveLength(2)
+    act(() =>
+      useChatStore.getState().applyEvent(id, {
+        type: 'queue_update',
+        steering: ['PHX-busy'],
+        followUp: [],
+      }),
+    )
+    expect(chips()).toHaveLength(1)
+    expect(button('Remove queued steering message')).toBeDefined()
+  } finally {
+    await act(async () => second.resolve({ type: 'response', command: 'prompt', success: true }))
+  }
 })

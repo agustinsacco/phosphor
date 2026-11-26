@@ -434,3 +434,47 @@ describe('draft owner teardown', () => {
     expect(useDraftsStore.getState().hydrated).toBe(false)
   })
 })
+
+it.each([true, false])(
+  'clears the submitted draft immediately and restores a refusal to the current key (accepted=%s)',
+  async (accepted) => {
+    const { takeSubmittedDraft, useDraftsStore } = await import('./drafts')
+    const store = useDraftsStore.getState()
+    const from = 'session:live-id'
+    const to = 'session:/repo/lane.jsonl'
+    store.setText(from, 'pending')
+    await flush()
+    let key = from
+    const submission = takeSubmittedDraft(from, () => key)
+    expect(store.get(from).text).toBe('')
+    expect(invoke).toHaveBeenCalledWith('app:clearDraft', from)
+    store.rekey(from, to)
+    key = to
+    store.setText(to, 'new edit')
+    await flush()
+    expect(setCalls().at(-1)?.[1]).toMatchObject({ key: to, text: 'new edit' })
+    submission.finish(accepted)
+    await flush()
+    const text = accepted ? 'new edit' : 'pending\nnew edit'
+    expect(store.get(from).text).toBe('')
+    expect(store.get(to).text).toBe(text)
+    expect(setCalls().at(-1)?.[1]).toMatchObject({ key: to, text })
+  },
+)
+
+it('reports a rejected draft clear IPC visibly', async () => {
+  const { takeSubmittedDraft, useDraftsStore } = await import('./drafts')
+  const { useExtensionUiStore } = await import('./extensionUi')
+  const store = useDraftsStore.getState()
+  store.setText('session:x', 'sent')
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'app:clearDraft') throw new Error('Disk full')
+  })
+  const submission = takeSubmittedDraft('session:x')
+  await flush()
+  submission.finish(true)
+  expect(useExtensionUiStore.getState().toasts[0]).toMatchObject({
+    kind: 'error',
+    message: 'Could not clear draft: Disk full',
+  })
+})

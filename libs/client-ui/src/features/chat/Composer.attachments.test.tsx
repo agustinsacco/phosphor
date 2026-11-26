@@ -13,6 +13,12 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from './composer/contextBreakdown'
 import { Composer } from './Composer'
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => (resolve = r))
+  return { promise, resolve }
+}
+
 let root: Root
 let container: HTMLDivElement
 const key = hostResourceKey(
@@ -338,12 +344,16 @@ it('queues a remote follow-up typed while the steer before it awaits its receipt
   await click('Queue follow-up')
   // A second press of the same follow-up while it is in flight is not a resend.
   await click('Queue follow-up')
-  const prompts = pi.mock.calls.filter(([, op]) => op.type === 'prompt').map(([, op]) => op)
-  expect(prompts).toEqual([
+  const prompts = () => pi.mock.calls.filter(([, op]) => op.type === 'prompt').map(([, op]) => op)
+  const sent = [
     { type: 'prompt', message: 'PHX-steered', streamingBehavior: 'steer' },
     { type: 'prompt', message: 'PHX-followed', streamingBehavior: 'followUp' },
-  ])
-  await act(async () => receipts.forEach((done) => done()))
+  ]
+  expect(prompts()).toEqual(sent.slice(0, 1))
+  expect(container.querySelector('[data-testid="queue-chips"]')?.children).toHaveLength(2)
+  await act(async () => receipts[0]!())
+  expect(prompts()).toEqual(sent)
+  await act(async () => receipts[1]!())
   expect(useDraftsStore.getState().get(key).text).toBe('')
 })
 
@@ -374,4 +384,44 @@ it('unlocks after a legacy Host accepts an extension command without a dispositi
   await draw()
   await send()
   expect(useChatStore.getState().sessions[id]).toMatchObject({ promptSentAt: null, items: [] })
+})
+
+it('replaces the document preview with its only confirmed queue chip before the receipt', async () => {
+  const id = mockRemoteInfo.sessionId
+  const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+  const host = hosts[MOCK_HOST_ID]!
+  host.lanes = host.lanes.map((lane, i) => (i === 0 ? { ...lane, activity: 'working' } : lane))
+  useRemoteLanesStore.setState({ hosts })
+  const upload = deferred<string[]>()
+  const receipt = deferred<void>()
+  vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
+    if (args[0] === 'hosts:uploadAttachments') return upload.promise
+  })
+  const pi = vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (_id, op) => {
+    if (op.type === 'prompt') await receipt.promise
+    return { type: 'response', command: op.type, success: true }
+  })
+  const chips = () => container.querySelector('[data-testid="queue-chips"]')
+  await draw()
+  try {
+    await send()
+    expect(chips()?.children).toHaveLength(1)
+    expect(chips()?.textContent).toContain('a.pdf')
+    const path = '/host/uploaded/a.pdf'
+    await act(async () => upload.resolve([path]))
+    const message = `read this\n\n<attached-files>\n${path}\n</attached-files>`
+    expect(pi).toHaveBeenCalledWith(id, expect.objectContaining({ message }))
+    act(() =>
+      useChatStore.getState().applyEvent(id, {
+        type: 'queue_update',
+        steering: [message],
+        followUp: [],
+      }),
+    )
+    expect(chips()?.children).toHaveLength(1)
+    expect(chips()?.textContent).toContain(path)
+  } finally {
+    upload.resolve(['/host/uploaded/a.pdf'])
+    await act(async () => receipt.resolve())
+  }
 })
