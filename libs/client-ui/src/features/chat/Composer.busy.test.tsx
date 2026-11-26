@@ -213,7 +213,9 @@ it('Stop immediately restores every undispatched send and none dispatches after 
   hostLane('working')
   useChatStore.getState().applyEvent(id, { type: 'agent_start' })
   const first = deferred<RpcResponse>()
-  const pi = vi.spyOn(window.phosphor, 'piCommand').mockReturnValueOnce(first.promise)
+  const pi = vi
+    .spyOn(window.phosphor, 'piCommand')
+    .mockReturnValueOnce(first.promise as ReturnType<typeof window.phosphor.piCommand>)
   const store = useDraftsStore.getState()
   const image = { kind: 'image', name: 'held.png', data: 'AAAA', mimeType: 'image/png' } as const
   const file = { kind: 'file', name: 'held.txt', size: 3, path: '/repo/held.txt' } as const
