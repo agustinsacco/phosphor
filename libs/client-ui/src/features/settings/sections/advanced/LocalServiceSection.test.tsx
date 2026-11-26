@@ -98,15 +98,17 @@ it('reports the new version after a successful pause and update', async () => {
   expect(el.textContent).toContain('Version 2.0.0')
   expect(el.textContent).not.toContain('Started')
 })
-it('shows the outage mid-update, then recovers on the new version', async () => {
+it('keeps restart visible when the local slot clears its pause and flaps between down and ready', async () => {
   await start()
   push(pausing)
+  push({ ...ready, pause: { kind: 'paused', purpose: 'update', since: 'now' } })
   push({ mode: 'daemon', migration: 'committed', service: 'down' })
-  expect(el.textContent).toContain('Start service')
-  expect(el.textContent).not.toContain('Update again')
-  push({ ...ready, serviceVersion: '2.0.0' })
-  expect(el.textContent).toContain('Version 2.0.0')
-  expect(el.textContent).not.toContain('Started')
+  expect(el.textContent).not.toContain('Start service')
+  expect(el.textContent).not.toContain('service unavailable')
+  push(ready)
+  push({ mode: 'daemon', migration: 'committed', service: 'connecting' })
+  expect(el.textContent).toContain('Restart')
+  expect(el.textContent).not.toContain("didn't finish")
 })
 it('never reads or shows the local service card on the PWA', async () => {
   await show(true)
@@ -165,4 +167,13 @@ it('says in-app why the Phosphor service is not set up yet, and what happens nex
   expect(el.textContent).toContain(
     'Phosphor service 0.2.93 is installed. This Mac moves its lanes to it the next time Phosphor starts.',
   )
+})
+
+it('does not mistake an unchanged version after Cancel for a failed update', async () => {
+  await start()
+  push(pausing)
+  await click('Cancel')
+  push(ready)
+  expect(el.textContent).toContain('Update cancelled. Nothing changed.')
+  expect(el.textContent).not.toContain("didn't finish")
 })

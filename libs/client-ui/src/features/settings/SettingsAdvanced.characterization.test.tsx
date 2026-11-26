@@ -110,3 +110,49 @@ it('replaces the legacy terminal update only on the local service slot', async (
   expect(container.textContent).not.toContain('Pause and update')
   expect(container.textContent).toContain('Update Phosphor service')
 })
+
+it('keeps Advanced mounted without re-reading when an updating service loses its slot', async () => {
+  const hosts = mixedRemoteHosts()
+  const local = { ...hosts[machine.id]!, local: true, ops: true, hostVersion: '1.0.0' }
+  let changed: ((status: import('@shared/ipc').LocalMachineStatus) => void) | undefined
+  const ready = {
+    mode: 'daemon',
+    migration: 'committed',
+    service: 'ready',
+    serviceVersion: '1.0.0',
+    pause: { kind: 'paused', purpose: 'update', since: 'now' },
+  } as const
+  useRemoteLanesStore.setState({ hosts: { [machine.id]: local } })
+  Object.defineProperty(window, 'phosphor', {
+    configurable: true,
+    value: {
+      invoke,
+      onLocalMachineChanged: (cb: typeof changed) => {
+        changed = cb
+        return () => {}
+      },
+    },
+  })
+  invoke.mockImplementation(async (channel, id, section) =>
+    channel === 'app:localMachine'
+      ? ready
+      : channel === 'hosts:settingsRead'
+        ? mockSettingsRead(id, section)
+        : undefined,
+  )
+  await showHostSettings(root, machine.id, 'advanced')
+  expect(container.textContent).toContain('/usr/bin')
+  invoke.mockClear()
+  await act(async () => {
+    changed?.({ ...ready, service: 'down', pause: undefined })
+    useRemoteLanesStore.setState({ hosts: { [machine.id]: { ...local, state: 'reconnecting' } } })
+  })
+  expect(container.textContent).toContain('/usr/bin')
+  expect(container.textContent).not.toContain('Start service')
+  expect(invoke).not.toHaveBeenCalledWith(
+    'hosts:settingsRead',
+    machine.id,
+    expect.anything(),
+    undefined,
+  )
+})
