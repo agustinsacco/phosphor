@@ -74,6 +74,13 @@ export function refusal(
   return new OpRefusal(DENY[code] ?? 'unavailable', hint ?? message ?? `Refused: ${code}.`)
 }
 
+export function unservedCall(method: string): OpRefusal {
+  return refusal(
+    'unsupported',
+    `${method} is unavailable on this binding: no Host feature serves it.`,
+  )
+}
+
 /** A lane-service call (files, git, GitHub), its failure as an in-band refusal. */
 export async function laneCall(
   lanes: Pick<LaneService, 'calls'>,
@@ -87,6 +94,9 @@ export async function laneCall(
     : authorized
       ? lanes.calls.call(method, params, authorized)
       : lanes.calls.call(method, params))
-  if (!outcome.ok) throw refusal(outcome.error.code, outcome.error.message, method)
-  return outcome.data
+  if (outcome.ok) return outcome.data
+  const { code, message } = outcome.error
+  if (code === 'unsupported' && lanes.calls.capabilityFor(method) === null)
+    throw unservedCall(method)
+  throw refusal(code, message, method)
 }

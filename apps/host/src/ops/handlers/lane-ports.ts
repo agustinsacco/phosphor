@@ -4,7 +4,7 @@ import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpHandlerContext, OpPrincipal } from '@phosphor/session-runtime/ops/types'
 import type { LaneCommandClient, LaneCommandPorts } from '../../lanes/commands/state'
 import { hasCaps, type DaemonLanes } from '../binding'
-import { laneCall as featureCall, refusal } from './lane-target'
+import { laneCall as featureCall, refusal, unservedCall } from './lane-target'
 import { laneIdOf } from '../lane-ref'
 import type { DaemonHandlerDeps } from './index'
 
@@ -28,11 +28,7 @@ export function laneId(deps: LaneHandlerPorts, c: OpHandlerContext) {
 /** Refuses a call the principal could not make on its own connection. */
 export function requireCall(deps: DaemonHandlerDeps, method: string, c: OpHandlerContext) {
   const capability = deps.lanes.calls.capabilityFor(method)
-  if (!capability)
-    throw new OpRefusal(
-      'unsupported',
-      `${method} is unavailable on this binding: no Host feature serves it.`,
-    )
+  if (!capability) throw unservedCall(method)
   if (
     c.principal.kind === 'surface' &&
     (!hasCaps(c.principal) || !c.principal.caps.includes(capability))
