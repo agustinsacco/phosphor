@@ -32,7 +32,11 @@ beforeEach(() => {
     },
   })
   useSettingsUiStore.setState({ open: false })
-  useMachinesStore.setState({ statuses: { one: 'up', two: 'down' }, view: { kind: 'list' } })
+  useMachinesStore.setState({
+    statuses: { one: 'up', two: 'down' },
+    view: { kind: 'list' },
+    directoryLoaded: true,
+  })
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -95,6 +99,14 @@ it('shows the signed-in header, online count, machine navigation and sign-out', 
   await click('Sign out')
   expect(invoke).toHaveBeenCalledWith('account:signOut')
   expect(document.querySelector('[data-popup-menu]')).toBeNull()
+})
+it('does not report an online count before the signed-in directory is loaded', async () => {
+  account = { account: { status: 'signed-in', user, remembered: true } }
+  useMachinesStore.setState({ directoryLoaded: false })
+  await render()
+  await click('Your account')
+  expect(machinesRow()?.textContent?.trim()).toBe('Machines')
+  expect(invoke.mock.calls).toEqual([['account:get']])
 })
 it('lists Machines while signed out, counting This Mac where it runs lanes plus Hosts that are up', async () => {
   await render()

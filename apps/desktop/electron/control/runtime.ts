@@ -45,6 +45,7 @@ export function onRemoteAccountChange(listener: (view: AccountView) => void): ()
   }
 }
 
+export const remoteDiscoveryActive = () => remoteActive
 export const remoteAccountUserId = () => (remoteActive ? accountUserId() : null)
 
 function notifyRemote(view: AccountView) {

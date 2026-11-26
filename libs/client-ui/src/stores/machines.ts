@@ -15,6 +15,7 @@ interface MachinesState {
   loading: boolean
   error: DesktopControlErrorCode | null
   remoteEnabled: boolean
+  directoryLoaded: boolean
   enableRemote: (enabled: boolean) => void
   refresh: () => Promise<void>
   adding: boolean
@@ -36,6 +37,7 @@ const REMOTE_RESET = {
   statuses: {},
   nowMs: 0,
   clockOffsetMs: 0,
+  directoryLoaded: false,
   loading: false,
   error: null,
 }
@@ -84,7 +86,17 @@ export function attachMachinesListener(onDemand = false): () => void {
     void window.phosphor
       .invoke('account:get')
       .then((view) => {
-        if (active && !pushed) applyAccount(view)
+        if (!active) return
+        if (!pushed) {
+          requested ||= view.remoteDiscoveryActive === true
+          applyAccount(view)
+        } else if (
+          !requested &&
+          view.remoteDiscoveryActive &&
+          useMachinesStore.getState().remoteEnabled
+        ) {
+          void useMachinesStore.getState().refresh()
+        }
       })
       .catch(() => undefined)
     detach = () => {
@@ -135,6 +147,7 @@ export const useMachinesStore = create<MachinesState>((set, get) => ({
           result.ok
             ? {
                 machines: result.machines,
+                directoryLoaded: true,
                 clockOffsetMs: Date.parse(result.serverTime) - Date.now(),
                 loading: false,
               }

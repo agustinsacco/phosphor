@@ -36,4 +36,6 @@ export type AccountStatusView =
 
 export interface AccountView {
   readonly account: AccountStatusView
+  /** Desktop snapshot only: this process already started remote discovery. Reads no credentials. */
+  readonly remoteDiscoveryActive?: true
 }

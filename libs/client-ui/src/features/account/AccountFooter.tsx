@@ -71,6 +71,7 @@ export function AccountFooter(): React.JSX.Element {
   const hostsUp = useMachinesStore(
     (s) => Object.values(s.statuses).filter((status) => status === 'up').length,
   )
+  const directoryLoaded = useMachinesStore((s) => s.directoryLoaded)
   const online = (platform.localLanes ? 1 : 0) + hostsUp
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -145,7 +146,10 @@ export function AccountFooter(): React.JSX.Element {
                 useMachinesStore.getState().show({ kind: 'list' })
               }}
             >
-              Machines <span className="text-text-secondary text-base">{online} online</span>
+              Machines{' '}
+              {(!user || directoryLoaded) && (
+                <span className="text-text-secondary text-base">{online} online</span>
+              )}
             </TooltipButton>
             {!user && (
               <TooltipButton

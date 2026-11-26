@@ -19,9 +19,14 @@ test('a remembered Desktop account stays idle until Machines is opened', async (
     const footer = page.getByTestId('account-footer')
     await expect(footer.getByRole('button', { name: 'Your account' })).toBeVisible()
     expect(existsSync(profile)).toBe(true)
+    await footer.getByRole('button', { name: 'Your account' }).click()
+    const machines = page
+      .locator('[data-popup-menu]')
+      .getByRole('button', { name: 'Machines', exact: true })
+    await expect(machines).toBeVisible()
     expect(h.calls).toHaveLength(0)
 
-    await page.getByRole('button', { name: 'Machines', exact: true }).click()
+    await machines.click()
     await expect(page.getByTestId('machines-page')).toBeVisible()
     await expect(footer.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
     expect(existsSync(profile)).toBe(false)
