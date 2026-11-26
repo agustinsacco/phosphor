@@ -1006,7 +1006,12 @@ then by the lane's [Slack thread links](lanes.md#slack-thread-links).
   reads once more when its Host is ready again on a new connection; a lane whose
   reads landed is not read again. `bootstrapSession` runs one read per session
   at a time: adoption, a stream reset and the start join it, so a reconnect adds
-  no Host calls per lane. A fork or rewind, which needs the new session file,
+  no Host calls per lane. A Host runs at most three lanes' reads at once
+  (`stores/bootstrapFlights.ts`), so a reconnect that shows many lanes running
+  stays well under the Host's 32 pending calls; an adoption or fork goes to the
+  front of the line, and This Mac's in-app sessions never wait. A caller that
+  joined a Host lane's read that a refusal left without state or models reads
+  once more after it. A fork or rewind, which needs the new session file,
   reads afresh after it. A restart during the start's read reads once more after
   it. Desktop and the PWA share this path. A stopped snapshot keeps pi state null, but carries
   the saved branch’s model, thinking level and latest context usage when known.

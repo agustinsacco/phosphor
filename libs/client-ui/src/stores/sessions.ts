@@ -18,6 +18,8 @@ import type {
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
 import { loadSessionModels } from './sessionModels'
+import { sharedBootstrap, type BootstrapOptions } from './bootstrapFlights'
+import { hostLaneOf } from './hostLaneOf'
 import { useNamingStore } from './naming'
 import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
@@ -396,8 +398,6 @@ export function attachPiCommandsListener(): () => void {
   })
 }
 
-const bootstraps = new Map<string, Promise<boolean>>()
-
 /**
  * (Re)learn this session's live state from pi — `sessionFile`, model
  * catalogue, commands, stats, thinking levels.
@@ -421,26 +421,12 @@ const bootstraps = new Map<string, Promise<boolean>>()
  */
 export function bootstrapSession(
   phosphorId: string,
-  /** Read again after any read in flight, which may predate a new pi or session file. */
-  options: { fresh?: boolean } = {},
+  options: BootstrapOptions = {},
 ): Promise<boolean> {
-  // One read per session at a time: adoption, a stream reset and a lane's pi
-  // starting all ask at once, and each read costs the Host several calls.
-  const running = bootstraps.get(phosphorId)
-  if (running && !options.fresh) return running
-  const run = (
-    running
-      ? running.catch(() => false).then(() => readSession(phosphorId))
-      : readSession(phosphorId)
-  ).finally(() => {
-    if (bootstraps.get(phosphorId) === run) bootstraps.delete(phosphorId)
-  })
-  bootstraps.set(phosphorId, run)
-  return run
+  const hostId = hostLaneOf(useSessionsStore.getState().live[phosphorId], undefined)?.hostId
+  const isOpen = () => sessionIsOpen(phosphorId)
+  return sharedBootstrap(phosphorId, () => readSession(phosphorId), { hostId, isOpen }, options)
 }
-
-/** Whether a bootstrap read for this session is in flight. */
-export const bootstrapping = (phosphorId: string): boolean => bootstraps.has(phosphorId)
 
 async function readSession(phosphorId: string): Promise<boolean> {
   const chat = useChatStore.getState()

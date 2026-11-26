@@ -1,7 +1,7 @@
 import type { HostsSnapshot } from '@shared/ipc'
 import { useChatStore } from './chat'
 import { hostLaneOf, laneWithoutPi } from './hostLaneOf'
-import { bootstrapSession, bootstrapping, sessionIsOpen, useSessionsStore } from './sessions'
+import { bootstrapSession, sessionIsOpen, useSessionsStore } from './sessions'
 
 /** Re-reads in flight, by session; `again` asks for one more after it, never a second at once. */
 const rereading = new Map<string, { again: boolean }>()
@@ -43,16 +43,14 @@ function reread(sessionId: string): void {
     pending.again = true
     return
   }
-  // Join a read already in flight (adoption, a stream reset); it may predate this pi.
-  const joined = bootstrapping(sessionId)
   const run = { again: false }
   rereading.set(sessionId, run)
+  // Joining a read in flight (adoption, a stream reset) reads once more if it left the lane incomplete.
   void bootstrapSession(sessionId)
     // Bootstrap degrades per read; a failed one leaves the recorded chips as they were.
     .catch(() => false)
     .finally(() => {
       rereading.delete(sessionId)
-      if (!sessionIsOpen(sessionId)) return
-      if (run.again || (joined && incomplete(sessionId))) reread(sessionId)
+      if (run.again && sessionIsOpen(sessionId)) reread(sessionId)
     })
 }
