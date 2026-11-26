@@ -466,7 +466,9 @@ describe('createSkillsFeature', () => {
       Array.from({ length: 9 }, () => feature.call('machine.providers', {})),
     )
     expect(burst.filter((r) => r.ok)).toHaveLength(8)
-    expect(burst.filter((r) => !r.ok)).toEqual([error('internal')])
+    expect(burst.filter((r) => !r.ok)).toEqual([
+      error('internal', 'The feature probe queue is full; try again shortly.'),
+    ])
   })
 })
 
