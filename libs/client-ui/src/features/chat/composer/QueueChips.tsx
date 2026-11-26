@@ -18,14 +18,7 @@ import { usePendingQueue } from './pendingQueue'
 export function QueueChips({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const queues = useChatStore((s) => s.sessions[sessionId]?.queues)
   const chips = usePendingQueue((s) => s.chips)
-  const optimistic = chips.filter((chip) => {
-    if (chip.sessionId !== sessionId) return false
-    const { match } = chip
-    if (!match) return true
-    const confirmed = chip.kind === 'steer' ? queues?.steering : queues?.followUp
-    const matching = confirmed?.filter((text) => text === match.text).length ?? 0
-    return matching <= match.previousCount
-  })
+  const optimistic = chips.filter((chip) => chip.sessionId === sessionId)
   if (!optimistic.length && !queues?.steering.length && !queues?.followUp.length) return null
 
   return (

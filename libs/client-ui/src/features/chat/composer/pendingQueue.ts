@@ -6,8 +6,6 @@ interface PendingChip {
   sessionId: string
   kind: 'steer' | 'follow-up'
   text: string
-  /** Only a dispatched prompt can be matched, and only against its actual pi text. */
-  match?: { text: string; previousCount: number }
 }
 
 export const usePendingQueue = create<{ chips: PendingChip[] }>(() => ({ chips: [] }))
@@ -17,20 +15,30 @@ export function showPendingChip(sessionId: string, behavior: 'steer' | 'followUp
   const id = crypto.randomUUID()
   const kind = behavior === 'steer' ? 'steer' : 'follow-up'
   usePendingQueue.setState(({ chips }) => ({ chips: [...chips, { id, sessionId, kind, text }] }))
+  let unsubscribe: (() => void) | undefined
+  const remove = () => {
+    unsubscribe?.()
+    unsubscribe = undefined
+    usePendingQueue.setState(({ chips }) => ({ chips: chips.filter((chip) => chip.id !== id) }))
+  }
   return {
     dispatch(prompt: string) {
       const key = kind === 'steer' ? 'steering' : 'followUp'
-      const confirmed = useChatStore.getState().sessions[sessionId]?.queues[key] ?? []
-      const match = {
-        text: prompt,
-        previousCount: confirmed.filter((entry) => entry === prompt).length,
-      }
-      usePendingQueue.setState(({ chips }) => ({
-        chips: chips.map((chip) => (chip.id === id ? { ...chip, match } : chip)),
-      }))
+      const queue = (s: ReturnType<typeof useChatStore.getState>) =>
+        s.sessions[sessionId]?.queues[key]
+      const count = (entries: string[] | undefined) =>
+        entries?.filter((entry) => entry === prompt).length ?? 0
+      let previousCount = count(queue(useChatStore.getState()))
+      // Observe each queue change, even when React batches consumption and re-queueing.
+      unsubscribe = useChatStore.subscribe((state, prev) => {
+        const entries = queue(state)
+        if (entries === queue(prev)) return
+        const matching = count(entries)
+        if (matching > previousCount)
+          remove() // Confirmed chips must not return as provisional.
+        else previousCount = matching // Older identical entries may be delivered during preflight.
+      })
     },
-    remove() {
-      usePendingQueue.setState(({ chips }) => ({ chips: chips.filter((chip) => chip.id !== id) }))
-    },
+    remove,
   }
 }
