@@ -592,6 +592,10 @@
       "types": "./src/host-install/release-v2.ts",
       "default": "./src/host-install/release-v2.ts"
     },
+    "./host-install/signed-release": {
+      "types": "./src/host-install/signed-release.ts",
+      "default": "./src/host-install/signed-release.ts"
+    },
     "./ops/types": {
       "types": "./src/ops/types.ts",
       "default": "./src/ops/types.ts"

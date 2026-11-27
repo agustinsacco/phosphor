@@ -212,7 +212,8 @@ timer would otherwise start a second one on top of it.
      explanation above the offer.
 
   Availability comes from the Host's own report (`machine.status` `data.update`,
-  [host.md](host.md#updating)); a Host without one falls back to a newer version
+  [host.md](host.md#updating)), which offers exactly what that Host's updater
+  installs, Intel Mac Hosts included; a Host without one falls back to a newer version
   running on another of your machines. The rows never jump or flicker: nothing
   shows for the first 3 seconds after the app starts (a sidebar reopened later
   shows its rows at once); "Update available" appears only after a successful
