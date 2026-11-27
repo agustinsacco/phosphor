@@ -123,11 +123,6 @@ const setEntry = (id: string, entry: MachineUpdateEntry) =>
       return { byMachine: { ...s.byMachine, [id]: { readySince, downSince, ...entry } } }
     }),
   )
-function remount(platform: Platform) {
-  act(() => root.unmount())
-  root = createRoot(container)
-  mount(platform)
-}
 const button = (slot: string) =>
   container.querySelector<HTMLButtonElement>(`[data-update-row="${slot}"] button`)!
 
@@ -394,6 +389,7 @@ it('keeps a row’s dwell and collapse across a remount', () => {
   mount(COMPACT_PLATFORM)
   wait(3000)
   expect(rows()).toEqual(['machine: bee1 · Update available'])
+  wait(1000) // past its 600 ms dwell: only the 150 ms collapse delay is left
   act(() => root.unmount())
   act(() => useRemoteLanesStore.setState({ filter: 'local' }))
   root = createRoot(container)

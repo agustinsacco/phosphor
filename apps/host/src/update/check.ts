@@ -1,10 +1,12 @@
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import {
-  fetchLocalRelease,
-  type LocalReleaseSource,
-} from '@phosphor/session-runtime/host-install/release-v2'
+import { downloadRelease, releaseUrl } from '@phosphor/session-runtime/host-install/download'
+import { verifyReleaseManifest } from '@phosphor/session-runtime/host-install/verify'
 import { errorText } from '@phosphor/shared/errors'
-import { LEGACY_HOST_RELEASE_TARGETS } from '@phosphor/shared/host-release'
+import {
+  HOST_RELEASE_KEYS,
+  HOST_RELEASE_MANIFEST_MAX_BYTES,
+  type HostReleaseKey,
+} from '@phosphor/shared/host-release'
 import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
 import { compareVersions } from '@phosphor/shared/version'
 
@@ -33,23 +35,27 @@ export interface ReleaseCheck {
   stop(): void
 }
 
+const MANIFEST = 'phosphor-host.manifest.json'
+
 /**
- * The version `host-latest` offers `target`: the v2 manifest, or v1 where no v2
- * is published, as Desktop's release watch reads them. Undefined when the
- * release has no artifact or protocol for this Host, and for a target the Host
- * updater cannot install: it reads only the v1 manifest (`fetchSignedRelease`),
- * so an offer for a v2-only target such as `darwin-x64` would always fail.
- * No downgrade check: the caller compares, and the updater keeps its own guard.
+ * The version a plain update would install on `target`, read as the updater
+ * reads it (`fetchSignedRelease`): the signed v1 `host-latest` manifest, with
+ * an artifact for this target and a protocol at least ours. Undefined when the
+ * updater would refuse the release. A v2-only target such as `darwin-x64` is
+ * never offered (known issue HL5). No downgrade check: the caller compares,
+ * and the updater keeps its own guard.
  */
 export async function newestRelease(
-  source: LocalReleaseSource,
+  source: { env: NodeJS.ProcessEnv; keys?: readonly HostReleaseKey[] },
   target: string,
   signal: AbortSignal,
 ): Promise<string | undefined> {
-  if (!LEGACY_HOST_RELEASE_TARGETS.some((t) => t === target)) return undefined
-  const found = await fetchLocalRelease(source, signal)
-  if (found.manifest === 1) return found.version
-  const { release } = found
+  const keys = source.keys ?? HOST_RELEASE_KEYS
+  if (!keys.length) throw new Error('No Host release keys are pinned.')
+  const url = (file: string) => releaseUrl(source.env, 'host-latest', file)
+  const manifest = await downloadRelease(url(MANIFEST), HOST_RELEASE_MANIFEST_MAX_BYTES, signal)
+  const signature = await downloadRelease(url(`${MANIFEST}.sig`), 8192, signal)
+  const release = verifyReleaseManifest(manifest, signature.toString('utf8'), keys)
   return release.artifacts.some((a) => a.target === target) &&
     release.protocols.some((p) => p >= HOST_PROTOCOL_VERSION)
     ? release.version

@@ -34,6 +34,22 @@ export interface DaemonLanePortsInput {
   readonly log: RuntimeLog
 }
 
+/**
+ * The updater's environment: pi's, with the release source the self-check
+ * reads, the daemon's own `PHOSPHOR_HOST_RELEASE_URL`, so an offer and its
+ * install use one mirror.
+ */
+export function updaterEnvironment(
+  pi: Readonly<Record<string, string>>,
+  program: Readonly<Record<string, string>>,
+  daemon: NodeJS.ProcessEnv,
+): Record<string, string> {
+  const env: Record<string, string> = { ...pi, ...program }
+  delete env.PHOSPHOR_HOST_RELEASE_URL
+  const url = daemon.PHOSPHOR_HOST_RELEASE_URL
+  return url === undefined ? env : { ...env, PHOSPHOR_HOST_RELEASE_URL: url }
+}
+
 /** `machine.status`'s update report: a source install never checks, a release checks itself. */
 export function machineUpdate(
   input: DaemonLanePortsInput,
@@ -87,7 +103,10 @@ export function daemonLanePorts(input: DaemonLanePortsInput): Pick<
     ...(program
       ? {
           serviceUpdate: {
-            steps: updaterSteps({ ...program, env: { ...input.env, ...program.env } }),
+            steps: updaterSteps({
+              ...program,
+              env: updaterEnvironment(input.env, program.env, input.releaseEnv),
+            }),
             pauses: pausePorts,
           },
         }

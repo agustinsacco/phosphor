@@ -185,7 +185,7 @@ timer would otherwise start a second one on top of it.
 
 - `UpdatesFooter` (`features/updates/UpdatesFooter.tsx`, the sidebar footer on
   Desktop and the wide PWA; on a phone, the top of the Lanes page under the
-  machine scope) has at most two fixed rows above the account row, each
+  machine scope and of Home under All machines) has at most two fixed rows above the account row, each
   `name · text` with the full sentence in its tooltip. Desktop and each
   machine's service update separately, each with its own action; there is no
   combined action and no automatic update.
@@ -201,22 +201,27 @@ timer would otherwise start a second one on top of it.
      machine's Settings → Advanced, where the one confirm lives. While an update
      runs on any machine, that run holds the row until it ends, whatever the scope;
      a running update comes before another machine's held result. A rollback or
-     failed apply the Host reports with no update tracked here (a reload
-     mid-restart, or an update started elsewhere) shows once as **Update didn’t
-     finish**, in this row and the Software row, within the result's 24 hours. A
-     later, newer release is offered again once a finished update's result has
-     been shown.
+     failed apply the Host reports that no update tracked here accounts for (a
+     reload mid-restart, or an update started elsewhere) shows once as **Update
+     didn’t finish**, in this row and the Software row, within the result's 24
+     hours; each result counts once, by its version and finish time. A later,
+     newer release is offered again once a finished update's result has been
+     shown (**Updated to X** keeps its 8 seconds); Software keeps a failure's
+     explanation above the offer.
 
   Availability comes from the Host's own report (`machine.status` `data.update`,
   [host.md](host.md#updating)); a Host without one falls back to a newer version
   running on another of your machines. The rows never jump or flicker: nothing
   shows for the first 3 seconds after the app starts (a sidebar reopened later
   shows its rows at once); "Update available" appears only after a successful
-  read and 3 seconds of the machine being ready, survives a disconnection for up
-  to 10 minutes, stays through a reconnect until a status read on the new
-  connection answers, and leaves only when a read says current or the scope
-  changes; each phase shows at least 600 ms, collapsing included; a scope switch
-  replaces the text in place and waits 150 ms before collapsing. Each row is 28 px and its height
+  read and 3 seconds of the machine being ready (each machine's readiness and
+  the rows' timing live in `stores/machineUpdates.ts`, so a remount continues
+  them), survives a disconnection for up to 10 minutes, stays through a
+  reconnect until a status read on the new connection answers, and leaves only
+  when a status checked later than the offer (`checkedAt`) says current, or the
+  scope changes; each phase shows at least 600 ms, collapsing included; a scope
+  switch replaces the text in place and waits 150 ms before collapsing. A row
+  kept for its dwell shows its old text but runs the current action, or none. Each row is 28 px and its height
   animates in 200 ms (none under reduced motion), so the account row never moves.
 
 - Settings → About and This Mac's Settings → Advanced have **Check now** (one

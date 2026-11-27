@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { TooltipButton } from '@/components/Tooltip'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
@@ -10,23 +10,19 @@ import type { HostsSnapshot } from '@shared/ipc'
 import { deriveMachineUpdate, type MachineUpdateEntry } from './machineUpdateState'
 import { useUpdatesStore } from './updatesStore'
 import {
+  actionable,
   appUpdateRow,
   availableShows,
+  EMPTY_FOOTER,
   footerMachineId,
   machineUpdateRow,
   rowExpiresAt,
+  sameRow,
   settleSlot,
   START_DELAY_MS,
-  trackReadiness,
-  type Readiness,
-  type Slot,
+  type FooterState,
   type UpdateRowView,
 } from './updatesFooterRows'
-
-type Slots = Record<UpdateRowView['id'], Slot>
-type Shown = Record<UpdateRowView['id'], { row: UpdateRowView | null; last: UpdateRowView | null }>
-const EMPTY_SLOT: Slot = { row: null, since: 0 }
-const NOTHING: Shown = { app: { row: null, last: null }, machine: { row: null, last: null } }
 
 /**
  * The machine row's target before dwell and collapse: the run or the machine
@@ -39,7 +35,6 @@ function machineTarget(
     hosts: HostsSnapshot
     byMachine: Record<string, MachineUpdateEntry>
     terminal: boolean
-    readiness: Map<string, Readiness>
     previous: UpdateRowView | null
   },
   now: number,
@@ -59,62 +54,81 @@ function machineTarget(
     configure: false,
     terminal: input.terminal,
     owner: false,
+    now,
   })
   const row = machineUpdateRow(state, now)
   wake.push(rowExpiresAt(entry))
   const offered = previous?.machineId === id && previous.tone === 'action'
   if (!row && offered && host?.ops && entry.readToken !== host.connectionToken) return previous
   if (state.phase !== 'available') return row
-  const gate = availableShows(host, entry, input.readiness.get(id) ?? {}, offered, now)
+  const gate = availableShows(host, entry, offered, now)
   wake.push(gate.wakeAt)
   return gate.shows ? row : null
 }
 
-/** The rows to show now, by the show-delay, dwell and collapse rules, and when to look again. */
-function useUpdateRows(appInfo: boolean, terminal: boolean): Shown {
+/** The next footer state from the targets, or the same object when nothing changed. */
+function nextFooter(
+  before: FooterState,
+  targets: FooterState['targets'],
+  now: number,
+  wake: (number | undefined)[],
+): FooterState {
+  const app = settleSlot(before.slots.app, targets.app, now)
+  const machine = settleSlot(before.slots.machine, targets.machine, now)
+  wake.push(app.wakeAt, machine.wakeAt)
+  if (
+    app.slot === before.slots.app &&
+    machine.slot === before.slots.machine &&
+    sameRow(targets.app, before.targets.app) &&
+    sameRow(targets.machine, before.targets.machine)
+  )
+    return before
+  return {
+    slots: { app: app.slot, machine: machine.slot },
+    last: {
+      app: app.slot.row ?? before.last.app,
+      machine: machine.slot.row ?? before.last.machine,
+    },
+    targets,
+  }
+}
+
+/**
+ * The rows to show now, by the show-delay, dwell and collapse rules, and when
+ * to look again. The state lives in the store, so a remount continues it.
+ */
+function useUpdateRows(appInfo: boolean, terminal: boolean): FooterState {
   const update = useUpdatesStore((s) => s.update)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const scope = useRemoteLanesStore((s) => s.filter)
   const byMachine = useMachineUpdatesStore((s) => s.byMachine)
   const machines = useMachinesStore((s) => s.machines)
-  const [tick, setTick] = useState(0)
-  const [shown, setShown] = useState<Shown>(NOTHING)
   const startedAt = useMachineUpdatesStore((s) => s.startedAt)
-  const readiness = useRef(new Map<string, Readiness>())
-  const slots = useRef<Slots>({ app: EMPTY_SLOT, machine: EMPTY_SLOT })
+  const footer = useMachineUpdatesStore((s) => s.footer ?? EMPTY_FOOTER)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     const now = Date.now()
-    trackReadiness(readiness.current, hosts, now)
+    const before = useMachineUpdatesStore.getState().footer ?? EMPTY_FOOTER
     const wake: (number | undefined)[] = []
-    let app: UpdateRowView | null = null
-    let machine: UpdateRowView | null = null
+    const targets: FooterState['targets'] = { app: null, machine: null }
     // Nothing during the app's start; a sidebar mounted later shows its rows at once.
     if (startedAt !== undefined && now - startedAt < START_DELAY_MS)
       wake.push(startedAt + START_DELAY_MS)
     else {
-      app = appInfo ? appUpdateRow(update) : null
-      const previous = slots.current.machine.row
-      const input = { scope, hosts, byMachine, terminal, readiness: readiness.current, previous }
-      machine = machineTarget(input, now, wake)
+      targets.app = appInfo ? appUpdateRow(update) : null
+      const previous = before.slots.machine.row
+      targets.machine = machineTarget({ scope, hosts, byMachine, terminal, previous }, now, wake)
     }
-    const nextApp = settleSlot(slots.current.app, app, now)
-    const nextMachine = settleSlot(slots.current.machine, machine, now)
-    wake.push(nextApp.wakeAt, nextMachine.wakeAt)
-    if (nextApp.slot !== slots.current.app || nextMachine.slot !== slots.current.machine) {
-      slots.current = { app: nextApp.slot, machine: nextMachine.slot }
-      setShown((before) => ({
-        app: { row: nextApp.slot.row, last: nextApp.slot.row ?? before.app.last },
-        machine: { row: nextMachine.slot.row, last: nextMachine.slot.row ?? before.machine.last },
-      }))
-    }
+    const next = nextFooter(before, targets, now, wake)
+    if (next !== before) useMachineUpdatesStore.setState({ footer: next })
     const at = Math.min(...wake.filter((t): t is number => t !== undefined && t > now))
     if (!Number.isFinite(at)) return
     const timer = setTimeout(() => setTick((n) => n + 1), at - now)
     return () => clearTimeout(timer)
   }, [appInfo, terminal, update, hosts, scope, byMachine, machines, startedAt, tick])
 
-  return shown
+  return footer
 }
 
 const TONE: Record<UpdateRowView['tone'], string> = {
@@ -135,22 +149,25 @@ function UpdateSlot({
   slot,
   row,
   last,
+  target,
   onClick,
 }: {
   slot: UpdateRowView['id']
   row: UpdateRowView | null
   last: UpdateRowView | null
+  /** What the slot would show now: a click runs its action, never a dwelling row's. */
+  target: UpdateRowView | null
   onClick: (row: UpdateRowView) => void
 }) {
   const acting = useUpdatesStore((s) => s.acting)
   const view = row ?? last
-  const clickable = !!row && (slot === 'machine' || row.tone === 'action') && !acting
+  const clickable = !!row && actionable(target) && !acting
   return (
     <div
       data-update-row={slot}
       className={clsx('px-update-slot', row && 'px-update-slot-open')}
+      // Collapsed, its button is disabled and so unfocusable; nothing in the shell is made inert.
       aria-hidden={row ? undefined : true}
-      inert={!row}
     >
       <div className="min-h-0 overflow-hidden">
         {view && (
@@ -158,7 +175,7 @@ function UpdateSlot({
             type="button"
             title={view.title}
             disabled={!clickable}
-            onClick={() => row && onClick(row)}
+            onClick={() => clickable && target && onClick(target)}
             className={clsx(
               '-mx-1 mb-1 flex h-7 w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 text-left text-base transition-colors',
               TONE[view.tone],
@@ -197,7 +214,7 @@ function UpdateSlot({
 export function UpdatesFooter(): React.JSX.Element {
   const { appInfo, terminal } = usePlatform()
   const openSettings = useOpenSettings()
-  const shown = useUpdateRows(appInfo, terminal)
+  const footer = useUpdateRows(appInfo, terminal)
   useEffect(() => (appInfo ? useUpdatesStore.getState().subscribe() : undefined), [appInfo])
   const open = (row: UpdateRowView) => {
     if (row.machineId) openSettings(row.machineId, 'advanced')
@@ -205,8 +222,16 @@ export function UpdatesFooter(): React.JSX.Element {
   }
   return (
     <div data-testid="updates-footer">
-      <UpdateSlot slot="app" {...shown.app} onClick={open} />
-      <UpdateSlot slot="machine" {...shown.machine} onClick={open} />
+      {(['app', 'machine'] as const).map((slot) => (
+        <UpdateSlot
+          key={slot}
+          slot={slot}
+          row={footer.slots[slot].row}
+          last={footer.last[slot]}
+          target={footer.targets[slot]}
+          onClick={open}
+        />
+      ))}
     </div>
   )
 }

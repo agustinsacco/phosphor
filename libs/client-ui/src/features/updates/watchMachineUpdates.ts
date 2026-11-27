@@ -9,13 +9,20 @@ import {
 } from '@/stores/machineUpdates'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { localServiceId } from '@/stores/localServiceScope'
-import { lastUpdateOf, readUpdateJob, readUpdateStatus, reportedRun } from './machineUpdateFacts'
+import {
+  lastUpdateOf,
+  nextOffer,
+  observeResult,
+  readUpdateJob,
+  readUpdateStatus,
+} from './machineUpdateFacts'
 import { changeUpdateRun, reconnectForUpdate, updateOp } from './machineUpdateRun'
 import {
   observeConnection,
   observePause,
   startRun,
   tickRun,
+  trackReady,
   type UpdateStatus,
 } from './machineUpdateState'
 
@@ -33,19 +40,18 @@ function applyStatus(
       last: lastUpdateOf(entry, status, local),
       // The owner socket's push is not a read of this connection's Host.
       readToken: local ? entry.readToken : host.connectionToken,
+      offer: status ? nextOffer(entry.offer, status.update) : entry.offer,
     }
+    const now = Date.now()
     const pause = status?.pause
     const active = pause && pause.kind !== 'none'
     let run = entry.run
     if (active && (!run || (run.settled && entry.status?.pause.kind === 'none')))
-      run = startRun('op', entry, host, Date.now())
-    if (!run) {
-      const reported = active ? undefined : reportedRun(entry, next.last, Date.now())
-      return reported ? { ...next, run: reported } : next
-    }
-    const now = Date.now()
+      run = startRun('op', entry, host, now)
+    if (!run) return observeResult(next, now)
     run = observePause(run, pause, now)
-    return { ...next, run: tickRun(observeConnection(run, next, host, now), now) }
+    run = tickRun(observeConnection(run, next, host, now), now)
+    return observeResult({ ...next, run }, now)
   })
 }
 
@@ -53,7 +59,10 @@ function applyConnection(id: string, host: HostConnectionView | undefined, now: 
   updateMachineEntry(id, (entry) => {
     const version = host?.state === 'ready' ? (host.hostVersion ?? entry.version) : entry.version
     const run = entry.run && tickRun(observeConnection(entry.run, entry, host, now), now)
-    return run === entry.run && version === entry.version ? entry : { ...entry, run, version }
+    const ready = trackReady(entry, host, now)
+    return run === entry.run && version === entry.version && ready === entry
+      ? entry
+      : { ...ready, run, version }
   })
 }
 
@@ -210,7 +219,7 @@ export function watchMachineUpdates(owner: boolean): () => void {
     offLocal?.()
     window.clearInterval(timer)
     window.removeEventListener('focus', focus)
-    useMachineUpdatesStore.setState({ byMachine: {}, startedAt: undefined })
+    useMachineUpdatesStore.setState({ byMachine: {}, startedAt: undefined, footer: undefined })
   }
 }
 

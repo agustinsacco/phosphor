@@ -1,7 +1,12 @@
 import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import type { UpdateState } from '@shared/models'
 import { serviceScope } from '@/stores/localServiceScope'
-import type { MachineUpdateEntry, MachineUpdateState, UpdateRun } from './machineUpdateState'
+import {
+  UPDATED_RESULT_MS,
+  type MachineUpdateEntry,
+  type MachineUpdateState,
+  type UpdateRun,
+} from './machineUpdateState'
 
 /** One bottom-left row: `name · text`, the tooltip carrying the full sentence. */
 export interface UpdateRowView {
@@ -22,7 +27,7 @@ export const READY_DELAY_MS = 3000
 /** A stale "Update available" survives this much disconnection. */
 export const STALE_MS = 10 * 60_000
 /** "Updated to X" stays this long. */
-export const DONE_MS = 8000
+export const DONE_MS = UPDATED_RESULT_MS
 /** A phase shows at least this long. */
 export const DWELL_MS = 600
 /** A row with nothing to replace it waits this long before collapsing. */
@@ -143,26 +148,6 @@ export function footerMachineId(
   return hosts[id] ? id : undefined
 }
 
-/** When each machine last became ready, or left ready. */
-export interface Readiness {
-  readySince?: number
-  downSince?: number
-}
-
-export function trackReadiness(
-  seen: Map<string, Readiness>,
-  hosts: HostsSnapshot,
-  now: number,
-): void {
-  for (const id of new Set([...seen.keys(), ...Object.keys(hosts)])) {
-    const ready = hosts[id]?.state === 'ready'
-    const known = seen.get(id) ?? {}
-    if (ready && known.readySince === undefined) seen.set(id, { readySince: now })
-    else if (!ready && known.readySince !== undefined) seen.set(id, { downSince: now })
-    else if (!seen.has(id)) seen.set(id, known)
-  }
-}
-
 /**
  * "Update available" appears only after a read and 3 seconds of ready, and,
  * once showing, survives a reconnect for up to 10 minutes. Returns whether it
@@ -171,11 +156,10 @@ export function trackReadiness(
 export function availableShows(
   host: HostConnectionView | undefined,
   entry: MachineUpdateEntry,
-  readiness: Readiness,
   showing: boolean,
   now: number,
 ): { shows: boolean; wakeAt?: number } {
-  const { readySince, downSince } = readiness
+  const { readySince, downSince } = entry
   if (host?.state === 'ready' && readySince !== undefined) {
     if (showing || (entry.status && now - readySince >= READY_DELAY_MS)) return { shows: true }
     return { shows: false, wakeAt: entry.status ? readySince + READY_DELAY_MS : undefined }
@@ -192,7 +176,7 @@ export interface Slot {
   want?: { row: UpdateRowView | null; since: number }
 }
 
-const sameRow = (a: UpdateRowView | null, b: UpdateRowView | null) =>
+export const sameRow = (a: UpdateRowView | null, b: UpdateRowView | null) =>
   a === b ||
   (!!a &&
     !!b &&
@@ -200,6 +184,30 @@ const sameRow = (a: UpdateRowView | null, b: UpdateRowView | null) =>
     a.name === b.name &&
     a.text === b.text &&
     a.tone === b.tone)
+
+export type UpdateRowId = UpdateRowView['id']
+
+/**
+ * The footer's shared state, in the store so a remount continues it: each
+ * slot's dwell, the row it last showed (for the collapse), and what each slot
+ * would show now, whose action a click runs.
+ */
+export interface FooterState {
+  slots: Record<UpdateRowId, Slot>
+  last: Record<UpdateRowId, UpdateRowView | null>
+  targets: Record<UpdateRowId, UpdateRowView | null>
+}
+
+const NO_SLOT: Slot = { row: null, since: 0 }
+export const EMPTY_FOOTER: FooterState = Object.freeze({
+  slots: { app: NO_SLOT, machine: NO_SLOT },
+  last: { app: null, machine: null },
+  targets: { app: null, machine: null },
+})
+
+/** A click runs the current target's action: the app's only when it is one to act on. */
+export const actionable = (target: UpdateRowView | null): boolean =>
+  !!target && (target.machineId !== undefined || target.tone === 'action')
 
 /**
  * The no-flicker rules for one slot: a phase stays 600 ms, another machine
