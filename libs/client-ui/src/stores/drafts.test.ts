@@ -478,3 +478,47 @@ it('reports a rejected draft clear IPC visibly', async () => {
     message: 'Could not clear draft: Disk full',
   })
 })
+
+describe('overlapping saves of one draft', () => {
+  /** The first image write hangs until released; every later call answers at once. */
+  function slowFirstBlob(): () => void {
+    let release!: () => void
+    const first = new Promise<boolean>((resolve) => (release = () => resolve(true)))
+    let blobs = 0
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'app:writeDraftBlob') return ++blobs === 1 ? first : true
+      return undefined
+    })
+    return release
+  }
+
+  it('lands the newest text last, writing the image once', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'old')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().setText('home:/a', 'new')
+    await flush()
+    release()
+    await flush()
+    const texts = setCalls().map((c) => (c[1] as { text: string }).text)
+    expect(texts.at(-1)).toBe('new')
+    expect(invoke.mock.calls.filter((c) => c[0] === 'app:writeDraftBlob')).toHaveLength(1)
+  })
+
+  it('never brings a sent draft back from a save still in flight', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'sent')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().clear('home:/a')
+    release()
+    await flush()
+    const writes = invoke.mock.calls
+      .map((c) => c[0] as string)
+      .filter((channel) => channel === 'app:setDraft' || channel === 'app:clearDraft')
+    expect(writes.at(-1)).toBe('app:clearDraft')
+  })
+})
