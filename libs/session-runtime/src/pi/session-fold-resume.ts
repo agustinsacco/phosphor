@@ -35,11 +35,7 @@ export interface ResumableFolds {
    * Anything that throws while resuming falls back to a fold from the start;
    * a throw from that fold is the caller's.
    */
-  fold<T>(
-    path: string,
-    size: number,
-    finish: (state: FoldState) => Promise<T>,
-  ): Promise<T>
+  fold<T>(path: string, size: number, finish: (state: FoldState) => Promise<T>): Promise<T>
   /** Drop the file's resume, as when it is deleted. */
   forget(path: string): void
   clear(): void
