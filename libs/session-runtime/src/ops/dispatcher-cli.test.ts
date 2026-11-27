@@ -1,7 +1,15 @@
 import { expect, it, vi } from 'vitest'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import { parseOpArgv } from '@phosphor/shared/ops-cli'
-import { agent, createHarness, OWN } from './__fixtures__/dispatcher-harness'
+import { LANE_WAIT_DEADLINE_MS } from '@phosphor/shared/ops'
+import {
+  agent,
+  createHarness,
+  local,
+  machine,
+  OWN,
+  surface,
+} from './__fixtures__/dispatcher-harness'
 import { createConfirmStore } from './confirm'
 import { createOpsDispatcher } from './dispatcher'
 import { metaHandlers } from './meta-handlers'
@@ -131,6 +139,95 @@ it('uses the read deadline when the catalog selects a read tier from the argumen
       code: 'timeout',
       text: expect.stringContaining('execution after 30 seconds'),
     })
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it.each([
+  ['machine', machine],
+  ['surface', surface],
+  ['local CLI', local],
+] as const)(
+  'applies the catalog deadline, not a fixed 30 s, to %s callers',
+  async (_kind, principal) => {
+    vi.useFakeTimers()
+    try {
+      let aborted = false
+      const h = createHarness({
+        handlers: {
+          'lane.list': async (_args, ctx) => {
+            ctx.signal.addEventListener('abort', () => (aborted = true), { once: true })
+            await new Promise<void>((resolve) => setTimeout(resolve, 45_000))
+            return { text: 'finished' }
+          },
+        },
+      })
+      const catalog = OP_CATALOG.map((s) =>
+        s.name === 'lane.list' ? { ...s, deadlineMs: 100_000 } : s,
+      )
+      const dispatcher = createOpsDispatcher(h.binding, {
+        ...h.deps,
+        catalog,
+        parseArgv: (argv) => parseOpArgv(argv),
+      })
+      const request =
+        principal === local
+          ? dispatcher.runFromCli(principal(), {
+              v: 1,
+              id: 'cli-slow',
+              argv: ['lane', 'list'],
+              deadlineMs: LANE_WAIT_DEADLINE_MS,
+            })
+          : dispatcher.run(principal(), { op: 'lane.list', args: {} })
+      await vi.advanceTimersByTimeAsync(45_000)
+      expect(await request).toMatchObject({ status: 'ok', text: 'finished' })
+      expect(aborted).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  },
+)
+
+it.each(['routed', 'cli'] as const)('still stops a %s op at its catalog deadline', async (kind) => {
+  vi.useFakeTimers()
+  try {
+    let aborted = false
+    const h = createHarness({
+      handlers: {
+        'lane.list': async (_args, ctx) => {
+          await new Promise<void>((resolve) =>
+            ctx.signal.addEventListener(
+              'abort',
+              () => {
+                aborted = true
+                resolve()
+              },
+              { once: true },
+            ),
+          )
+          return { text: 'finished' }
+        },
+      },
+    })
+    const catalog = OP_CATALOG.map((s) => (s.name === 'lane.list' ? { ...s, deadlineMs: 250 } : s))
+    const dispatcher = createOpsDispatcher(h.binding, {
+      ...h.deps,
+      catalog,
+      parseArgv: (argv) => parseOpArgv(argv),
+    })
+    const request =
+      kind === 'cli'
+        ? dispatcher.runFromCli(local(), {
+            v: 1,
+            id: 'cli-fast',
+            argv: ['lane', 'list'],
+            deadlineMs: LANE_WAIT_DEADLINE_MS,
+          })
+        : dispatcher.run(machine(), { op: 'lane.list', args: {} })
+    await vi.advanceTimersByTimeAsync(250)
+    await request
+    expect(aborted).toBe(true)
   } finally {
     vi.useRealTimers()
   }
