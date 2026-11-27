@@ -1894,9 +1894,15 @@ or environment, and the walk is the Host's subtree, never the machine's whole
 process table. Nothing here runs on a timer: each call takes one `ps` pass and one
 volume stat (cached for a minute, and abandoned after 1.5 s rather than holding
 the reply), so the client's poll interval is the only cost. The read needs no pi,
-no repository and no inspection, and it runs outside the resource-probe queue so a
-doctor inspection cannot delay it (`src/machine/telemetry.ts`). A Host older than
-the call refuses it, and clients then show no numbers rather than invented ones.
+no repository and no inspection, and it is a feature of its own
+(`src/features/telemetry.ts`) dispatched ahead of the catalogue reads, so a doctor
+inspection cannot delay a poll. It answers under `skills.read`: the v1 capability
+vocabulary is frozen, so a name older clients have not heard cannot be announced.
+A Host older than the call refuses it, and clients then show no numbers rather
+than invented ones.
+The `machine.telemetry` op answers the same sample for an agent on this machine.
+It reads twice 250 ms apart, because an agent wants a percentage rather than two
+monotonic counters, and prints what it could not read as unavailable.
 
 The Host caches successful model, repository command and lane-scoped skill lists by
 launch identity/version and agent config/auth file metadata. It forgets them after

@@ -26,6 +26,7 @@ import { formatShortcut } from '@/lib/shortcuts'
 import { useCurrentWork } from '@/features/chat/currentWork'
 import { LaneLinks } from '@/features/sessions/LaneLinks'
 import { NotificationsButton } from '@/features/notifications/NotificationsButton'
+import { HostTelemetryButton } from '@/features/telemetry/HostTelemetryButton'
 
 /**
  * The window's one and only title bar.
@@ -89,6 +90,8 @@ export function TopBar({
           )}
         </>
       )}
+      {/* The machine, not the lane: this slot is here on the home screen too. */}
+      <HostTelemetryButton />
       <NotificationsButton />
     </header>
   )
@@ -172,8 +175,19 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
           {title ?? 'New session'}
         </span>
         <LaneLinks sessionId={sessionId} />
+        {/* The lane's options ride with the lane they describe. The far right of
+            the bar is the machine's, which is there on the home screen as well. */}
+        <SessionMenu
+          sessionId={sessionId}
+          onFind={() => {
+            const layout = useLayoutStore.getState()
+            if (rightPane && sessionPanes(layout, sessionId).expanded)
+              layout.toggleRightExpanded(sessionId)
+            requestChatFind(sessionId)
+          }}
+        />
       </div>
-      {/* Reference order: terminal, files, changes, artifacts, subagents, kebab. */}
+      {/* Reference order: terminal, files, changes, artifacts, subagents. */}
       <TerminalButton sessionId={sessionId} active={rightPane === 'terminal'} />
       <IconButton
         title={`Files pane (${formatShortcut('mod', 'shift', 'E')})`}
@@ -191,15 +205,6 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
       </IconButton>
       <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
       <SubagentsButton sessionId={sessionId} active={rightPane === 'subagents'} />
-      <SessionMenu
-        sessionId={sessionId}
-        onFind={() => {
-          const layout = useLayoutStore.getState()
-          if (rightPane && sessionPanes(layout, sessionId).expanded)
-            layout.toggleRightExpanded(sessionId)
-          requestChatFind(sessionId)
-        }}
-      />
     </>
   )
 }

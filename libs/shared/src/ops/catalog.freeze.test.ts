@@ -161,6 +161,7 @@ machine.models read machine now - - - - paged 1f53a76be30b0eae49b13e4768c1a87783
 machine.providers read machine now - - - - paged 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 machine.commands read machine now - - - - paged c57e5987bdbbc8d6bf059cc32f8702b76da3f75ff2e38e6a4d7e9bfebb8d2f48
 machine.usage read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+machine.telemetry read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 service.update destructive machine now - - - job - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 service.pause never machine now - surface local - - 58b0ac567e7d7cddafe40ed512d78d6d4c95ac9b95f76170f97764185435a4b7
 maintenance.scan read machine now - - - - paged 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e

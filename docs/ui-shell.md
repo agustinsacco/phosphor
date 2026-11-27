@@ -56,9 +56,12 @@ One **full-width bar** (`libs/client-ui/src/app/TopBar.tsx`) above the sidebar, 
 pane columns. Every lane, in-app or Host, reads left to right: sidebar toggle,
 the machine chip ("This Mac", or "Studio · Connected" for a Host lane), the
 branch slot ([worktrees.md](worktrees.md)), session title, the compact
-[PR status button and Slack thread links](lanes.md#active-lane-header), then
-the pane switches (terminal, files, changes, artifacts, subagents) and the
-Session options button. The title truncates first; the branch name truncates
+[PR status button and Slack thread links](lanes.md#active-lane-header), the
+lane's Session options (⋮), then the pane switches (terminal, files, changes,
+artifacts, subagents) and, at the right end, the machine button and the
+notification bell. The ⋮ rides with the title because every item it holds
+describes that lane; the right end of the bar is the machine's, and is there on
+the home screen as well. The title truncates first; the branch name truncates
 at its own cap; the machine chip never wraps. The terminal switch carries a
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
@@ -77,11 +80,33 @@ which follows the lane folder after every run. The wide browser's lane header
 reads the same way after its Back button: machine chip, branch, title, PR
 links.
 
-Everything right of the sidebar toggle is **session-only**, except the Files
-button on Host home. On This Mac's home screen the bar keeps its height and
-renders nothing else, because that screen puts the same folder and branch
-controls above its composer, where choosing them is the
+Everything between the toggle and the **right end** is **session-only**, the
+Files button on Host home excepted. The right end — the machine button and the
+bell — belongs to the window, so it is there on the home screen too, where the
+bar otherwise keeps its height and renders nothing else: that screen puts the
+same folder and branch controls above its composer, where choosing them is the
 point. Two folder chips on one screen is two answers to one question.
+
+### Machine telemetry
+
+The bell's neighbour (`features/telemetry/HostTelemetryButton.tsx`) is the bar's
+one global button: the machine, not the lane, so it stays put on the home screen.
+It carries this Host's CPU while the sample behind it is fresh, and opens the
+machine popover — one scroll, no tabs: the machine switcher, CPU / memory /
+Phosphor / lane counts, a braille CPU-and-memory graph over `1m`, `5m` or `1h`,
+one bar per core, memory with cache, swap and the volume, then Phosphor's own
+processes by kind (`4 pi · 2 mcp · 1 host`) each with its resident set and its
+share of CPU. Lane counts lead with what a person can act on, so `needs input`
+and `failed` are the amber ones.
+
+It draws the polled store (`stores/telemetry`), which asks `hosts:telemetry`
+every two seconds only while the popover is open and the tab is visible; a button
+sitting in the bar costs no reads, and the range control never re-reads. A stat
+the machine would not give shows as `—` with its reason — the volume that timed
+out, the census `ps` would not answer — rather than a zero, and a connection that
+cannot make the read at all says so instead of drawing an empty panel. There is
+no button where there is no Host to ask: while Desktop runs This Mac's lanes
+in-app it has no Host connection to sample, so the slot is empty.
 
 It is the **only** element allowed in the strip the OS draws window controls
 in, and so the only call site of `.titlebar-inset-end` / `.titlebar-inset-start`.

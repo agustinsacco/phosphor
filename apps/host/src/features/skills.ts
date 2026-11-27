@@ -155,17 +155,17 @@ const METHODS = [
   'machine.providers',
   'machine.claude',
   'machine.claudeUsage',
-  'machine.telemetry',
   'skills.list',
   'skills.read',
   'skills.export',
 ]
 
 /**
- * Reads that skip the probe queue. Telemetry is polled every couple of seconds
- * and must not wait behind a doctor inspection holding the probe slot for 20 s.
+ * Reads that skip the probe queue: usage is polled while a doctor inspection can
+ * hold the probe slot for 20 s. (`machine.telemetry` is not here — it answers
+ * from its own feature for the same reason.)
  */
-const UNQUEUED = new Set(['machine.claudeUsage', 'machine.telemetry'])
+const UNQUEUED = new Set(['machine.claudeUsage'])
 
 export function createSkillsFeature(
   context: FeatureContext,
