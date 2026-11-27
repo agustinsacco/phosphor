@@ -42,8 +42,6 @@ export function remoteLanePresentation(lane: HostLaneView, ready: boolean) {
       // gives back the date and clock time it was compressed out of.
       tooltip: Number.isFinite(updatedAt) ? absoluteTime(updatedAt) : undefined,
     },
-    ...(lane.worktree ? [{ key: 'worktree' as const, text: 'wt' }] : []),
-    ...(lane.branch ? [{ key: 'branch' as const, text: lane.branch, truncate: true }] : []),
   ]
   return {
     indicator,

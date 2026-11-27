@@ -13,7 +13,8 @@ const ACTIVITY_LABEL: Record<LaneActivity, string> = {
 }
 
 /**
- * The `2m · wt · ⎇ branch · ±3 · $1.24` run under a session's title.
+ * The `2m · ±3` run under a session's title. While the lane works, the age
+ * gives way to what it is doing (`Running npm test`), else `Working`.
  *
  * Shared by `SessionRow` and `PendingSessionRow` rather than duplicated,
  * because a live session swaps from the second to the first mid-turn and the
@@ -22,57 +23,35 @@ const ACTIVITY_LABEL: Record<LaneActivity, string> = {
 export function SubtitleSegments({
   segments,
   activity,
+  doing,
 }: {
   segments: SubtitleSegment[]
   activity?: LaneActivity
+  /** The running tool, e.g. `Reading registry.ts`. Only shown while working. */
+  doing?: string
 }): React.JSX.Element {
-  const leadingActivity = activity && !segments.some((segment) => segment.key === 'time')
+  const label = activity && (activity === 'working' && doing ? doing : ACTIVITY_LABEL[activity])
+  const time = segments.find((segment) => segment.key === 'time')
+  const rest = activity ? segments.filter((segment) => segment.key !== 'time') : segments
   return (
     <>
-      {leadingActivity && (
-        <span className="lane-activity-label shrink-0">{ACTIVITY_LABEL[activity]}</span>
-      )}
-      {segments.map((segment, i) => (
+      {label && (
         <span
-          key={segment.key}
-          data-segment={segment.key}
-          className={clsx(
-            'flex items-center',
-            // The branch is the only segment allowed to give up space.
-            // Both classes set flex-shrink, so they must be exclusive:
-            // emitting `shrink-0 shrink` let source order decide and
-            // `shrink-0` won, which is what pushed long branch names past
-            // the sidebar edge and produced a horizontal scrollbar.
-            segment.truncate ? 'min-w-0 shrink' : 'shrink-0',
-            // In a lane row's narrowest width `wt` gives way to the PR beads
-            // (`PrBadge`); rows without the `lane-line` container never match.
-            segment.key === 'worktree' && '@max-[10.5rem]/lane-line:hidden',
-          )}
+          className="lane-activity-label tool-running-label min-w-0 shrink"
+          data-tooltip={time ? `Last activity: ${time.text}` : undefined}
         >
-          {(i > 0 || leadingActivity) && <span className="pr-1">·</span>}
-          {segment.key === 'time' && activity ? (
-            <span className="lane-activity-label" data-tooltip={`Last activity: ${segment.text}`}>
-              {ACTIVITY_LABEL[activity]}
-            </span>
-          ) : segment.key === 'worktree' ? (
-            <span
-              className="bg-chip text-text-secondary rounded px-1 font-medium"
-              data-tooltip="Runs in a git worktree"
-            >
-              wt
-            </span>
-          ) : segment.key === 'branch' ? (
-            <span className="truncate" data-tooltip={segment.text}>
-              ⎇ {segment.text}
-            </span>
-          ) : (
-            <span
-              className={clsx(segment.key === 'dirty' && 'text-warning')}
-              data-tooltip={segment.tooltip}
-            >
-              {segment.text}
-            </span>
-          )}
+          {label}
+        </span>
+      )}
+      {rest.map((segment, i) => (
+        <span key={segment.key} data-segment={segment.key} className="flex shrink-0 items-center">
+          {(i > 0 || label) && <span className="pr-1">·</span>}
+          <span
+            className={clsx(segment.key === 'dirty' && 'text-warning')}
+            data-tooltip={segment.tooltip}
+          >
+            {segment.text}
+          </span>
         </span>
       ))}
     </>

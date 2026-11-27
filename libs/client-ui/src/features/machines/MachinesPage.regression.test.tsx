@@ -359,7 +359,7 @@ it("C2: This Mac's detail lists On this machine: its lanes, skills, routines and
       'Lane 3',
       'Lane 1',
     ])
-    expect(rows[0]?.textContent).toContain('feature/login')
+    expect(rows[0]?.textContent).not.toContain('feature/login')
     expect(button('View all 4 lanes →')).toBeDefined()
     const tile = (label: string) =>
       [...(card?.querySelectorAll('button') ?? [])].find((b) => b.textContent?.startsWith(label))

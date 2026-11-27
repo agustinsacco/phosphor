@@ -13,6 +13,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { openSidebarConversation } from './completionActions'
+import { AgentDots, AgentStack, useLaneWork } from './LaneAgents'
 import { laneRowBody, localLaneTitle, useInlineRename } from './laneRowBody'
 import { LaneMarker } from './LaneMarker'
 import { SelectableIndicator } from './LaneSelect'
@@ -95,6 +96,7 @@ export function SessionRow({
   // Derived here rather than threaded through `rowProps` so a Pinned row — which
   // may belong to a different project than the one on screen — resolves its own.
   const prs = useLocalLanePrs(meta, git)
+  const work = useLaneWork(livePhosphorId)
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
@@ -121,8 +123,7 @@ export function SessionRow({
   })
   const renaming = rename.editing
   // Badge reads the session's own cwd, so a Pinned row shows the project it
-  // actually belongs to rather than whatever is on screen. Project only — the
-  // subtitle beneath it already carries `wt` and the branch.
+  // actually belongs to rather than whatever is on screen.
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => openSidebarConversation(workspacePath, meta)
@@ -185,8 +186,11 @@ export function SessionRow({
             suspended
           </span>
         )}
-        <SubtitleSegments segments={subtitle} activity={activity} />
-        {showPrStatus && <PrBadge prs={prs.owned} />}
+        <SubtitleSegments segments={subtitle} activity={activity} doing={work.doing} />
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {work.agents && <AgentDots agents={work.agents} />}
+          {showPrStatus && <PrBadge prs={prs.owned} />}
+        </span>
       </>
     ),
     trailing: (
@@ -251,6 +255,7 @@ export function SessionRow({
           </LaneRow>
         )}
       </div>
+      {active && work.agents && <AgentStack agents={work.agents} />}
       {actions.dialogs}
     </>
   )

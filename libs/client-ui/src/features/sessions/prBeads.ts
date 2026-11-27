@@ -3,7 +3,7 @@ import type { LanePr } from './lanePrs'
 import type { PrTone } from './prVerdict'
 
 /** Beads a row shows before the rest collapse into `+N`. */
-export const PR_BEAD_LIMIT = 3
+export const PR_BEAD_LIMIT = 2
 
 /** `Failing`, or what we can say when the status was never read. */
 function prWord(lane: LanePr): string {

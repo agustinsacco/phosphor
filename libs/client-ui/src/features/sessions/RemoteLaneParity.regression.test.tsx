@@ -393,7 +393,7 @@ it.each(['desktop', 'browser'] as const)(
     })
     expect(navigate).toHaveBeenCalledTimes(1)
     expect(row().querySelector('[data-testid=session-indicator]')).not.toBeNull()
-    expect(row().textContent).toContain('saved-branch')
+    expect(row().querySelector('[data-segment=time]')).not.toBeNull()
     expect(row().querySelector('[data-testid=lane-pin]')).not.toBeNull()
     const input = row().querySelector('input')!
     expect(document.activeElement).toBe(input)

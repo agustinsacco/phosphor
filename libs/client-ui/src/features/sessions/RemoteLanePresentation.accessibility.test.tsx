@@ -15,6 +15,7 @@ it('keeps exact title navigation names while exposing row state and subtitles as
       activity: 'stopped' as const,
       branch: 'feature/accessible',
       worktree: true,
+      updatedAt: new Date(Date.now() - 3_600_000).toISOString(),
       attention: 2,
       read: 1,
     }
@@ -26,8 +27,8 @@ it('keeps exact title navigation names while exposing row state and subtitles as
     const id = row.getAttribute('aria-describedby')
     expect(id).toBeTruthy()
     const description = document.getElementById(id!)
-    expect(description?.textContent).toContain('feature/accessible')
-    expect(description?.textContent).toContain('wt')
+    expect(description?.textContent).toContain('1h ago')
+    expect(description?.textContent).not.toContain('feature/accessible')
     expect(description?.textContent).toContain('Unread activity')
   } finally {
     await act(async () => root.unmount())

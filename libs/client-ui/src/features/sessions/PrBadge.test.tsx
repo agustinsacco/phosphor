@@ -67,18 +67,18 @@ describe('PrBadge', () => {
     expect(badge()?.textContent).toBe('+1')
   })
 
-  it('caps the beads at three and counts the rest as +N', () => {
+  it('caps the beads at two and counts the rest as +N', () => {
     render(<PrBadge prs={[1, 2, 3, 4, 5].map((n) => of(n))} />)
-    expect(beads()).toHaveLength(3)
+    expect(beads()).toHaveLength(2)
     const counts = [...badge()!.querySelectorAll('span:not([data-testid])')]
     const wide = counts.filter((count) => !count.className.includes('hidden '))
-    expect(wide.map((count) => count.textContent)).toEqual(['+2'])
+    expect(wide.map((count) => count.textContent)).toEqual(['+3'])
   })
 
   it('keeps only the lead bead and counts the rest on a narrow row', () => {
     render(<PrBadge prs={[1, 2, 3, 4, 5].map((n) => of(n))} />)
     const narrowOnly = /@max-\[10\.5rem\]\/lane-line:hidden/
-    expect(beads().map((bead) => narrowOnly.test(bead.className))).toEqual([false, true, true])
+    expect(beads().map((bead) => narrowOnly.test(bead.className))).toEqual([false, true])
     const narrowCount = [...badge()!.querySelectorAll('span')].find((span) =>
       span.className.includes('@max-[10.5rem]/lane-line:inline'),
     )

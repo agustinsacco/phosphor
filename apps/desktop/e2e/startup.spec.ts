@@ -365,7 +365,8 @@ for (const theme of ['light', 'dark'] as const) {
         })
       }, h.workspace)
       await expect(row).not.toHaveAttribute('data-pending')
-      await expect(row.locator('[data-segment="branch"]')).toBeVisible()
+      await expect(row.locator('[data-segment="dirty"]')).toHaveCount(1)
+      await expect(row).not.toContainText('feature/appearance-aware-long-branch')
       await expect(row).toHaveAttribute('data-activity', 'working')
       await h.page.getByRole('button', { name: /^New$/ }).click()
       await expect(row).toHaveAttribute('data-activity', 'working')
@@ -397,7 +398,6 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(h.page.locator('aside')).toHaveCSS('width', '208px')
       expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
       await expect(row.locator('.lane-activity-label')).toBeVisible()
-      await expect(row.locator('[data-segment="branch"]')).toBeVisible()
 
       await h.app.evaluate(({ BrowserWindow }) => {
         BrowserWindow.getAllWindows()[0]!.webContents.send('pi:event:beacon-test', {

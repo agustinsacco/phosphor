@@ -2,10 +2,8 @@ import type { GitInfo } from '@shared/models'
 import { relativeTimeShort, absoluteTime } from '@/lib/time'
 
 export interface SubtitleSegment {
-  key: 'time' | 'worktree' | 'branch' | 'dirty' | 'state'
+  key: 'time' | 'dirty' | 'state'
   text: string
-  /** The branch segment is the only one allowed to truncate. */
-  truncate?: boolean
   /** Hover detail for a segment whose text is deliberately abbreviated. */
   tooltip?: string
 }
@@ -24,10 +22,11 @@ export interface SubtitleSource {
 }
 
 /**
- * Sidebar row subtitle: `2m · ⌥wt · ⎇ branch · ±3`.
+ * Sidebar row subtitle: `2m · ±3`.
  *
- * Everything after the timestamp is optional and data-driven; git segments
- * come from the batched per-cwd summary and may lag a refresh behind.
+ * No worktree or branch: every lane is a worktree on its own branch, and the
+ * lane header already shows the branch. The dirty count comes from the
+ * batched per-cwd git summary and may lag a refresh behind.
  *
  * **No spend here.** A per-lane dollar figure is a detail, not a way to pick a
  * lane, and it competed with the branch for the row's one truncating slot. It
@@ -49,10 +48,7 @@ export function sessionSubtitle(meta: SubtitleSource, git: GitInfo | undefined):
         ]
   if (meta.worktreeRemoved) segments.push({ key: 'state', text: 'worktree removed' })
   else if (meta.completedAt) segments.push({ key: 'state', text: 'finished' })
-  if (!meta.worktreeRemoved && git?.isRepo) {
-    if (git.isWorktree) segments.push({ key: 'worktree', text: 'wt' })
-    if (git.branch) segments.push({ key: 'branch', text: git.branch, truncate: true })
-    if (git.dirtyCount) segments.push({ key: 'dirty', text: `±${git.dirtyCount}` })
-  }
+  if (!meta.worktreeRemoved && git?.isRepo && git.dirtyCount)
+    segments.push({ key: 'dirty', text: `±${git.dirtyCount}` })
   return segments
 }
