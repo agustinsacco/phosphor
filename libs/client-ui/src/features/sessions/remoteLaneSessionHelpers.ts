@@ -29,6 +29,8 @@ export async function renameSavedHostLane(
   hostId: string,
   laneId: string,
   name: string,
+  /** The lane's open chat, if any: its cached name is what the row and top bar show. */
+  sessionId?: string,
 ): Promise<void> {
   const currentHost = () => useRemoteLanesStore.getState().hosts[hostId]
   if (currentHost()?.local) await ensureServiceLaneControl(hostId, laneId)
@@ -40,6 +42,7 @@ export async function renameSavedHostLane(
     if (error instanceof OpDenied) throw new ServiceLaneControlRefused(error.message)
     throw error
   }
+  if (sessionId) useChatStore.getState().patchMeta(sessionId, { sessionName: name })
   await refreshHostsSnapshot()
 }
 

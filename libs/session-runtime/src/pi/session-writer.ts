@@ -1,4 +1,4 @@
-import { appendFile, open, readFile, writeFile, type FileHandle } from 'node:fs/promises'
+import { appendFile, open, readFile, stat, writeFile, type FileHandle } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 
@@ -85,7 +85,28 @@ export async function appendSessionName(
     name,
   }
   allowed()
-  await appendFile(path, JSON.stringify(entry) + '\n', 'utf8')
+  await appendEntry(path, entry)
+}
+
+/**
+ * Append one record. A crash can leave the last line unterminated; appending onto it
+ * would merge the two records into one unreadable line, so a leading LF keeps each its own.
+ */
+async function appendEntry(path: string, entry: object): Promise<void> {
+  const boundary = (await endsMidLine(path)) ? '\n' : ''
+  await appendFile(path, boundary + JSON.stringify(entry) + '\n', 'utf8')
+}
+
+async function endsMidLine(path: string): Promise<boolean> {
+  const { size } = await stat(path)
+  if (size === 0) return false
+  const handle = await open(path, 'r')
+  try {
+    const { buffer } = await handle.read(Buffer.alloc(1), 0, 1, size - 1)
+    return buffer[0] !== 0x0a
+  } finally {
+    await handle.close()
+  }
 }
 
 /** Append a label entry (bookmark) targeting `targetId`. */
@@ -103,7 +124,7 @@ export async function appendLabel(
     targetId,
     label,
   }
-  await appendFile(path, JSON.stringify(entry) + '\n', 'utf8')
+  await appendEntry(path, entry)
 }
 
 /**
@@ -122,7 +143,7 @@ export async function appendBranchJump(path: string, targetId: string): Promise<
     fromId: leafId,
     summary: 'Jumped here from another branch in Phosphor (tree view).',
   }
-  await appendFile(path, JSON.stringify(entry) + '\n', 'utf8')
+  await appendEntry(path, entry)
 }
 
 /**

@@ -113,7 +113,7 @@ export function useRemoteLaneActions({
   })
 
   const saveName = laneNameSaver(canRename, state.caps.laneRename, runner.act, {
-    saved: (name) => renameSavedHostLane(hostId, lane.laneId, name),
+    saved: (name) => renameSavedHostLane(hostId, lane.laneId, name, entry?.phosphorId),
     running: async (name) => renameLane(await session(), name),
   })
   const dialogs = (
