@@ -140,8 +140,9 @@ a local branch if it exists, or starts one from the default branch.
   `--force on`; `--delete-branch on` still needs an unreferenced, landed branch.
 - `worktree prune <path>` asks for the exact stale registration. It runs only
   when Git can prove that registration is the sole prune target. If other
-  registrations are prunable it refuses and lists them, rather than pruning them
-  too.
+  registrations are prunable it refuses and lists them. After the dry run, the
+  Host verifies the registration still points to the missing checkout and is
+  unlocked, then removes only that registration.
 
 These are Host catalog operations, not new controls on the Worktrees tab. Clients
 that opt in to Git invalidations reread affected checkout data after Host changes;

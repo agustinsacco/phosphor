@@ -1,5 +1,6 @@
-import { lstat, realpath } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { constants } from 'node:fs'
+import { lstat, open, realpath, rm } from 'node:fs/promises'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { dataResult, op } from '@phosphor/session-runtime/ops/results'
 import { refExists, startPoint } from '@phosphor/session-runtime/git/branches'
@@ -12,6 +13,7 @@ import {
 } from '@phosphor/session-runtime/git/managed-worktree'
 import { listWorktreeMetadata } from '@phosphor/session-runtime/git/worktree-metadata'
 import { dirtyCount, type GitRunner } from '@phosphor/session-runtime/git/git-exec'
+import { gitInfoCache } from '@phosphor/session-runtime/git/git-info-cache'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import type { RepositorySummary } from '@phosphor/shared/host-protocol'
@@ -92,7 +94,23 @@ async function reserved<T>(
   })
 }
 
-async function prune(t: Target) {
+async function pointsToCheckout(admin: string, path: string) {
+  const file = await open(
+    join(admin, 'gitdir'),
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  )
+  try {
+    const info = await file.stat()
+    if (!info.isFile() || info.size > 64 * 1024) return false
+    const pointer = (await file.readFile('utf8')).replace(/\r?\n$/, '')
+    const gitdir = join(path, '.git')
+    return pointer === gitdir || pointer === relative(admin, gitdir)
+  } finally {
+    await file.close()
+  }
+}
+
+async function prune(t: Target, allowed: () => boolean) {
   const { root, path, run } = t
   const stale = (await listWorktreeMetadata(root, run)).filter((w) => w.prunable && !w.locked)
   if (!stale.some((w) => w.path === path))
@@ -115,9 +133,26 @@ async function prune(t: Target) {
     },
   })
   // Git can also prune broken metadata not appearing in `worktree list`.
-  if (diagnostics.trim().split('\n').length !== 1 || !diagnostics.startsWith('Removing worktrees/'))
+  const name = /^Removing worktrees\/([^/\\:\r\n\0]+): [^\r\n]+$/.exec(diagnostics.trimEnd())?.[1]
+  if (!name || name === '.' || name === '..')
     throw bad('Git cannot prove the named registration is the only prune target.')
-  await run(root, ['worktree', 'prune', '--expire=now'])
+  const worktrees = join(await commonGitDir(root, run), 'worktrees')
+  const admin = join(worktrees, name)
+  if (
+    (await realpath(dirname(admin))) !== worktrees ||
+    !(await stat(admin))?.isDirectory() ||
+    !(await pointsToCheckout(admin, path)) ||
+    (await stat(path)) ||
+    (await stat(join(admin, 'locked')))
+  )
+    throw bad('The worktree registration changed or is protected; nothing was pruned.')
+  if (!allowed()) throw bad('The request was cancelled.')
+  // Do not ask Git to prune again: another checkout could now be stale.
+  try {
+    await rm(admin, { recursive: true })
+  } finally {
+    gitInfoCache.invalidate()
+  }
   return { pruned: [path] }
 }
 
@@ -127,6 +162,7 @@ async function create(
   t: Target,
   mode: 'add' | 'restore' | 'recreate',
   name: string,
+  allowed: () => boolean,
 ) {
   const { root, path, run } = t
   const branch = branchName(name)
@@ -150,7 +186,7 @@ async function create(
     )
   const trunk = await startPoint(root, run)
   if (trunk.defaultBranch === branch) throw bad('The default branch belongs in the main checkout.')
-  if (registered) await prune(t)
+  if (registered) await prune(t, allowed)
   directory(dirname(dirname(path)))
   directory(dirname(path))
   const common = await run(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
@@ -179,7 +215,9 @@ export function worktreeHandlers(deps: DaemonHandlerDeps) {
     op<Create>(async (args, ctx) => {
       const t = await target(deps, ctx, args.repo, args.name).catch(gitRefusal)
       return dataResult(
-        await reserved(deps, ctx, t, () => create(deps, t, mode, args.branch)).catch(gitRefusal),
+        await reserved(deps, ctx, t, (allowed) =>
+          create(deps, t, mode, args.branch, allowed),
+        ).catch(gitRefusal),
       )
     })
   return {
@@ -188,7 +226,9 @@ export function worktreeHandlers(deps: DaemonHandlerDeps) {
     'worktree.recreate': createHandler('recreate'),
     'worktree.prune': op<{ path: string }>(async ({ path }, ctx) => {
       const t = await pathTarget(deps, ctx, path).catch(gitRefusal)
-      return dataResult(await reserved(deps, ctx, t, () => prune(t)).catch(gitRefusal))
+      return dataResult(
+        await reserved(deps, ctx, t, (allowed) => prune(t, allowed)).catch(gitRefusal),
+      )
     }),
     'worktree.remove': op<{ path: string; force?: boolean; deleteBranch?: boolean }>(
       async ({ path, force, deleteBranch }, ctx) => {
