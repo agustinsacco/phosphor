@@ -395,8 +395,10 @@ replacement itself, with renames and deletions that fail.
 
 A running release install also checks for itself (`update/check.ts`): it
 fetches and verifies the signed `host-latest` manifests as Desktop's release
-watch does (v2 for this machine's target, such as `darwin-x64`; v1 where no v2
-is published), downloading nothing else. A release older than the running one,
+watch does (v2 for this machine's target; v1 where no v2 is published),
+downloading nothing else. It offers nothing for a v2-only target such as
+`darwin-x64`, because the updater reads only v1 and could not install it
+([known-issues.md](known-issues.md) HL5). A release older than the running one,
 or with no artifact for this machine, counts as a successful check with nothing
 available; the updater's downgrade guard is unchanged. It checks first 2 to 5
 minutes after start, then every 6 hours give or take 30

@@ -34,9 +34,11 @@ export interface ReleaseCheck {
 }
 
 /**
- * The version `host-latest` offers `target` (`darwin-x64`, ...): the v2
- * manifest, or v1 where no v2 is published, as Desktop's release watch reads
- * them. Undefined when the release has no artifact or protocol for this Host.
+ * The version `host-latest` offers `target`: the v2 manifest, or v1 where no v2
+ * is published, as Desktop's release watch reads them. Undefined when the
+ * release has no artifact or protocol for this Host, and for a target the Host
+ * updater cannot install: it reads only the v1 manifest (`fetchSignedRelease`),
+ * so an offer for a v2-only target such as `darwin-x64` would always fail.
  * No downgrade check: the caller compares, and the updater keeps its own guard.
  */
 export async function newestRelease(
@@ -44,9 +46,9 @@ export async function newestRelease(
   target: string,
   signal: AbortSignal,
 ): Promise<string | undefined> {
+  if (!LEGACY_HOST_RELEASE_TARGETS.some((t) => t === target)) return undefined
   const found = await fetchLocalRelease(source, signal)
-  if (found.manifest === 1)
-    return LEGACY_HOST_RELEASE_TARGETS.some((t) => t === target) ? found.version : undefined
+  if (found.manifest === 1) return found.version
   const { release } = found
   return release.artifacts.some((a) => a.target === target) &&
     release.protocols.some((p) => p >= HOST_PROTOCOL_VERSION)

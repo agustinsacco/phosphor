@@ -131,11 +131,11 @@ it('reads the v2 manifest for this machine’s target and falls back to v1', asy
     const source = { env: mirror.env, keys: mirror.keys }
     const signal = new AbortController().signal
     mirror.publish({ version: '1.3.0', targets: ['darwin-arm64', 'darwin-x64', 'linux-x64'] })
-    expect(await newestRelease(source, 'darwin-x64', signal)).toBe('1.3.0')
+    expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.3.0')
     expect(await newestRelease(source, 'linux-arm64', signal)).toBeUndefined()
     // An older release is an answer, not a failure: the updater's downgrade guard stays its own.
     mirror.publish({ version: '1.0.0', targets: ['darwin-x64', 'linux-x64'] })
-    expect(await newestRelease(source, 'darwin-x64', signal)).toBe('1.0.0')
+    expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.0.0')
     mirror.publish({ version: '1.4.0', v2: 'absent' })
     expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.4.0')
     expect(await newestRelease(source, 'darwin-x64', signal)).toBeUndefined()
