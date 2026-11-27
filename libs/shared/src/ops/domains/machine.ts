@@ -53,6 +53,11 @@ export const machineOps = [
     paged,
   ),
   inventory('machine.usage', 'Read provider usage.', 'read'),
+  inventory(
+    'machine.telemetry',
+    'Sample the machine: CPU, memory, disk and the processes Phosphor owns.',
+    'read',
+  ),
   machine(
     'service.update',
     'Pause lanes and update the Phosphor service.',

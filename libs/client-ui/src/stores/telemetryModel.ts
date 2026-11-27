@@ -11,12 +11,14 @@
  * control asks it for a slice; it never re-reads the Host.
  */
 import {
+  censusCpuSec,
+  censusProcs,
+  censusRss,
   counterDeltaPct,
   procDeltaPct,
   sumCounters,
   type MachineTelemetry,
   type TelemetryCensus,
-  type TelemetryKind,
   type TelemetryProcKind,
 } from '@phosphor/shared/host-protocol-telemetry'
 
@@ -122,8 +124,8 @@ export function withSample(
     corePct: usable && prior ? corePcts(prior, telemetry) : null,
     memPct,
     phosphorPct,
-    phosphorRss: telemetry.census ? sumBy(telemetry.census.kinds, 'rss') : 0,
-    phosphorProcs: telemetry.census ? sumBy(telemetry.census.kinds, 'procs') : 0,
+    phosphorRss: censusRss(telemetry.census),
+    phosphorProcs: censusProcs(telemetry.census),
     swapPct: pct(telemetry.mem.swapUsed, telemetry.mem.swapTotal),
     load1Pct: telemetry.load[1] / cores,
     load15Pct: telemetry.load[2] / cores,
@@ -192,10 +194,7 @@ function procPcts(
 const kindSec = (census: TelemetryCensus, kind: TelemetryProcKind): number =>
   census.kinds.find((entry) => entry.kind === kind)?.cpuSec ?? 0
 
-const totalSec = (census: TelemetryCensus): number => sumBy(census.kinds, 'cpuSec')
-
-const sumBy = (kinds: readonly TelemetryKind[], field: 'rss' | 'procs' | 'cpuSec'): number =>
-  kinds.reduce((sum, kind) => sum + kind[field], 0)
+const totalSec = (census: TelemetryCensus): number => censusCpuSec(census)
 
 function lastPhosphorPct(points: readonly TelemetryPoint[]): number {
   return points.at(-1)?.phosphorPct ?? 0

@@ -507,7 +507,9 @@ bridge maps it without a lane. The client's telemetry store reads it every two
 seconds and only while a panel is watching that Host and the tab is visible — one
 request at a time per Host, shared by every viewer — and a new connection starts a
 new series rather than a rate across it
-(`libs/client-ui/src/stores/telemetry.ts`).
+(`libs/client-ui/src/stores/telemetry.ts`). A connection that cannot make the
+read — not ready, or no `skills.read` — says the machine cannot be read rather
+than showing zeros.
 
 Terminal capability, controller input, reconnects and privacy are owned by
 [terminal.md](terminal.md#host-terminals). Native release resources and wire bounds

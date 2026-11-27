@@ -13,6 +13,7 @@ import type { DaemonHandlerDeps } from './index'
 import { projectId, settingsOps } from './settings-access'
 import { resourceCall } from './resources-call'
 import { laneCall } from './lane-target'
+import { machineTelemetryOp } from './machine-telemetry'
 import { laneIdOfRef } from '../lane-ref'
 import { CLAUDE_CLI_PROVIDER } from '../../machine/providers'
 
@@ -55,6 +56,7 @@ function machineInventory(deps: DaemonHandlerDeps) {
 export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   return {
     ...machineInventory(deps),
+    'machine.telemetry': machineTelemetryOp(deps),
     'machine.status': op(() => {
       const lanes = deps.store.listLanes()
       const summaries = lanes.flatMap((l) => deps.laneRuntime?.summaryFor(l.laneId) ?? [])

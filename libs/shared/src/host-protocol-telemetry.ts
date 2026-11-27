@@ -238,3 +238,19 @@ export function procDeltaPct(
 }
 
 const KINDS: readonly TelemetryProcKind[] = ['host', 'pi', 'shell', 'mcp', 'other']
+
+/**
+ * A census added up. All three read a null census as 0, which is right for a
+ * total and wrong as a claim: check `census` for null before saying "nothing is
+ * running", because a census the Host could not take also sums to nothing.
+ */
+export const censusRss = (census: TelemetryCensus | null): number =>
+  census ? census.kinds.reduce((sum, kind) => sum + kind.rss, 0) : 0
+
+/** Processes the census counted, across every kind it saw. */
+export const censusProcs = (census: TelemetryCensus | null): number =>
+  census ? census.kinds.reduce((sum, kind) => sum + kind.procs, 0) : 0
+
+/** Cumulative CPU-seconds of everything in the census. */
+export const censusCpuSec = (census: TelemetryCensus | null): number =>
+  census ? census.kinds.reduce((sum, kind) => sum + kind.cpuSec, 0) : 0

@@ -28,6 +28,7 @@ import { githubRunner } from '../features/git/github'
 import { createLaneDeletion } from '../lanes/delete'
 import { createArtifactsFeature } from '../features/artifacts'
 import { createSkillsFeature } from '../features/skills'
+import { createTelemetryFeature } from '../features/telemetry'
 import { createSkillInstallFeature } from '../features/skill-install'
 import { createLaneTransferFeatures } from '../features/lane-transfer'
 import { hostTransferRuntime } from '../features/lane-transfer/runtime'
@@ -87,6 +88,8 @@ function features(
     createFilesFeature(context),
     createGitFeature(context),
     skills,
+    // The machine's own resource sample: its own feature, not another skills method.
+    createTelemetryFeature(context),
     createArtifactsFeature({ ...context, store: options.store }),
     // Shared skills land where this Host's pi reads global skills.
     createSkillInstallFeature(context, {
