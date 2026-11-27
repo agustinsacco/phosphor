@@ -13,7 +13,7 @@ export function routeStepWords(step: BrainRouteStep, entities: BrainEntity[]): s
     : `${label(step.fromId)} and ${label(step.toId)} appear together in ${step.shared === 1 ? 'a memory' : `${step.shared} memories`}`
 }
 
-function routeOverlay(data: BrainRoutes, route: BrainRouteStep[]): MapOverlay {
+function routeOverlay(data: Pick<BrainRoutes, 'entities'>, route: BrainRouteStep[]): MapOverlay {
   const ids = new Set(
     route.flatMap((step) =>
       step.kind === 'relation'
@@ -39,7 +39,6 @@ export function CardRoutes({
 }): React.JSX.Element {
   const load = useCallback(() => window.phosphor.invoke('brain:path', from, to), [from, to])
   const { data, error, retry } = useBrainResource(load)
-  const [selected, setSelected] = useState<number | null>(null)
   if (!data)
     return (
       <p role="status" className="text-sm">
@@ -51,6 +50,17 @@ export function CardRoutes({
         )}
       </p>
     )
+  return <RouteChoices data={data} onLight={onLight} />
+}
+
+export function RouteChoices({
+  data,
+  onLight,
+}: {
+  data: Pick<BrainRoutes, 'status' | 'routes' | 'entities'>
+  onLight: (overlay: MapOverlay) => void
+}): React.JSX.Element {
+  const [selected, setSelected] = useState<number | null>(null)
   if (data.status !== 'ok' || !data.routes.length)
     return <p className="text-text-secondary text-sm">No connection within four steps.</p>
   return (

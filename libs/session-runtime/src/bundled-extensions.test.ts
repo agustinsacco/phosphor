@@ -30,6 +30,7 @@ describe('bundledExtensions', () => {
     // Opt-in Brain resources are bundled separately, never added to every session.
     const optional = new Set([
       'brain.ts',
+      'brain-agent-guard.ts',
       'brain-fork-guard.ts',
       'brain-curator.ts',
       'brain-curator-writes.ts',

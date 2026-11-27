@@ -1,4 +1,5 @@
 /** parseHostFrame: one Host frame, accepted as a projection or refused as host-frame. */
+import { parseBrainAccess } from '../brain-access'
 import { isIsoTime, type Parsed } from '../control-api'
 import { parseTerminalFrame } from '../host-protocol-terminals'
 import { parseResourceChangedFrame } from './resource-change'
@@ -33,15 +34,19 @@ function hostFrame(v: Record<string, unknown>): HostFrame | null {
   switch (v.type) {
     case 'ready':
       return parseReadyFrame(v)
-    case 'auth-renewed':
-      return isIsoTime(v.grantExpiresAt) &&
+    case 'auth-renewed': {
+      const brainAccess = parseBrainAccess(v.brainAccess)
+      return (v.brainAccess === undefined || brainAccess) &&
+        isIsoTime(v.grantExpiresAt) &&
         (v.capabilities === undefined || capabilities(v.capabilities))
         ? {
             type: v.type,
             grantExpiresAt: v.grantExpiresAt,
+            ...(brainAccess ? { brainAccess } : {}),
             ...(v.capabilities ? { capabilities: v.capabilities } : {}),
           }
         : null
+    }
     case 'lanes':
       return parseLanesFrame(v)
     case 'resource-changed':

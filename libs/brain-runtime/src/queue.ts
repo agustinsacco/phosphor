@@ -42,6 +42,10 @@ export class ExtractionQueue {
   private checkedRules: string
   private disposed = false
   private paused = false
+  get hasWork(): boolean {
+    return !this.accepting || !!this.active || !!this.checking || this.tasks.length > 0
+  }
+
   get accepting(): boolean {
     return !this.disposed && !this.paused
   }

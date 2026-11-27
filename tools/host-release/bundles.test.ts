@@ -38,6 +38,14 @@ const withoutKnownPublicUrls = (text: string) =>
   text
     .replaceAll(HOST_RELEASE_BASE_URL, '')
     .replaceAll('https://github.com/agustinsacco/pi-claude-cli', '')
+    .replaceAll(
+      'https://github.com/agustinsacco/Phosphor/blob/main/docs/local-service.md#installation-and-launch',
+      '',
+    )
+    .replaceAll(
+      'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md#running-as-a-service',
+      '',
+    )
 
 describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('keeps release bundles independent of TMPDIR and untracked machine files', () => {
@@ -121,6 +129,16 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       expect(scanned).toContain(path)
       expect(scanned).toMatch(segment)
     }
+  })
+  it('allows the two public service help links without ignoring a colocated private path', () => {
+    const service =
+      'https://github.com/agustinsacco/Phosphor/blob/main/docs/local-service.md#installation-and-launch'
+    const headless =
+      'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md#running-as-a-service'
+    const privatePath = `/Users/${userInfo().username}/synthetic/brain.sqlite`
+    expect(withoutKnownPublicUrls(`${service}\n${headless}\n${privatePath}`)).toBe(
+      `\n\n${privatePath}`,
+    )
   })
   it('allows the public provider docs without hiding private paths or other URLs', () => {
     const docs = 'https://github.com/agustinsacco/pi-claude-cli'

@@ -211,6 +211,11 @@ export interface BrainAgentMap {
 export type BrainAgentMethod = keyof BrainAgentMap
 /** Recall and flags for any lane. Queueing and changes stay with the Brain lane. */
 export const BRAIN_LANE_METHODS = ['search', 'flag'] as const satisfies readonly BrainAgentMethod[]
+/**
+ * The command the Host's Brain Agent tool guard registers. The Host reads it from pi's own command
+ * list to prove the guard loaded in a process before any person's message reaches it.
+ */
+export const BRAIN_AGENT_GUARD_COMMAND = 'phosphor-brain-agent-guard'
 export const BRAIN_CURATOR_METHODS = [
   'search',
   'waiting',

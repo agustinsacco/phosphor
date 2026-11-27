@@ -1,4 +1,5 @@
 /** Every frame on the stream socket, the socket itself, and the client frame parse result. */
+import type { BrainAccess } from '../brain-access'
 import type { TerminalFrame, TerminalInput, TerminalSubscribe } from '../host-protocol-terminals'
 import type { HOST_PROTOCOL_VERSION, HostCapability, HostHello } from '../remote-host'
 import type { HostCloseCode } from './constants'
@@ -104,6 +105,8 @@ export type HostFrame =
        * the lane's file again, so its summary's `pullRequests` carry the write.
        */
       readonly prTracking?: boolean
+      readonly brain?: boolean
+      readonly brainAccess?: readonly BrainAccess[]
       /** `ops.run` (call and command) is served. `READY_OP_FLAGS` lists these booleans. */
       readonly ops?: boolean
       /** This connection is the attested owner on the machine's Unix socket. */
@@ -130,6 +133,7 @@ export type HostFrame =
     }
   | {
       readonly type: 'auth-renewed'
+      readonly brainAccess?: readonly BrainAccess[]
       readonly grantExpiresAt: string
       readonly capabilities?: readonly HostCapability[]
     }

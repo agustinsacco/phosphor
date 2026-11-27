@@ -1,12 +1,18 @@
 import { expect, it, vi } from 'vitest'
-import { HOST_LIMITS, type FrameSocket } from '@phosphor/shared/host-protocol'
+import { BRAIN_SURFACE } from '@phosphor/shared/host-brain'
+import { HOST_LIMITS, type FrameSocket, type HostFrame } from '@phosphor/shared/host-protocol'
 import { createHostConnection } from './connection'
 import { browserCrypto } from './crypto'
 
 const hostId = '11111111-1111-4111-8111-111111111111'
 const endpoint = 'https://fixture.tail.ts.net:47615'
 type Ports = Parameters<typeof createHostConnection>[0]
-type SetupOptions = { ports?: Pick<Ports, 'lanes' | 'local'>; frame?: Record<string, unknown> }
+type SetupOptions = {
+  ports?: Partial<
+    Pick<Ports, 'lanes' | 'local' | 'changed' | 'onRoutinesChanged' | 'onAttention' | 'traffic'>
+  >
+  frame?: Record<string, unknown>
+}
 async function setup(sendReady = true, options: SetupOptions = {}) {
   let resolve!: (valid: boolean) => void
   let message!: (text: string) => void
@@ -242,5 +248,99 @@ it('keeps the connection open when renewal fails before grant expiry', async () 
   } finally {
     t.connection.close()
     vi.useRealTimers()
+  }
+})
+
+it('accepts only the directory subscription and keeps its cursor across refreshes', async () => {
+  const changed = vi.fn()
+  const onRoutinesChanged = vi.fn()
+  const onAttention = vi.fn()
+  const t = await setup(true, { ports: { changed, onRoutinesChanged, onAttention } })
+  const epoch = 'a'.repeat(16)
+  const cursor = (seq: number) => ({ epoch, seq })
+  const receive = (frame: HostFrame) => t.message(JSON.stringify(frame))
+  const directory = (seq: number, id = 'lanes', e = epoch) =>
+    receive({ type: 'lanes', id, cursor: { epoch: e, seq }, lanes: [], repositories: [] })
+  try {
+    t.resolve(true)
+    await Promise.resolve()
+    directory(99, 'unrelated')
+    expect(t.connection.snapshot().cursor).toBeUndefined()
+    directory(1)
+    const gap = {
+      type: 'lanes-delta',
+      id: 'lanes',
+      cursor: cursor(3),
+      upsert: [],
+      remove: [],
+    } as const
+    receive(gap)
+    expect(t.sent.at(-1)).toMatchObject({ type: 'subscribe', topic: 'lanes', id: 'lanes' })
+    expect(t.connection.snapshot().cursor).toEqual(cursor(1))
+
+    changed.mockClear()
+    receive({ type: 'routines-changed', id: 'lanes', cursor: cursor(2) })
+    expect(onRoutinesChanged).toHaveBeenCalledTimes(1)
+    expect(changed).not.toHaveBeenCalled()
+    expect(t.connection.snapshot().cursor).toEqual(cursor(2))
+    receive(gap)
+    const event = {
+      id: `${hostId}:1`,
+      laneId: hostId,
+      kind: 'finished',
+      title: 'Fixture',
+      at: new Date().toISOString(),
+      attention: 1,
+    } as const
+    receive({ type: 'attention', id: 'lanes', cursor: cursor(4), event })
+    receive({ type: 'attention', id: 'lanes', cursor: cursor(5), event })
+    expect(onAttention).toHaveBeenCalledExactlyOnceWith(event)
+    directory(3)
+    expect(t.connection.snapshot().cursor).toEqual(cursor(5))
+    expect(t.connection.attention().map((f) => f.event)).toEqual([event])
+    directory(0, 'lanes', 'c'.repeat(16))
+    expect(t.connection.attention()).toEqual([])
+  } finally {
+    t.connection.close()
+  }
+})
+
+it('settles private Brain receipts and results without reporting their frames as traffic', async () => {
+  const traffic = vi.fn<NonNullable<Ports['traffic']>>()
+  const t = await setup(true, { ports: { traffic } })
+  const receive = (frame: HostFrame) => t.message(JSON.stringify(frame))
+  try {
+    t.resolve(true)
+    await Promise.resolve()
+    traffic.mockClear()
+    const take = t.connection.send({ type: 'control.take' }, hostId)
+    const publicCommand = expect.objectContaining({ type: 'command', op: { type: 'control.take' } })
+    expect(t.sent.at(-1)).toEqual(publicCommand)
+    const args = { method: 'brain:status', args: [] }
+    const write = t.connection.send({ type: 'ops.run', op: BRAIN_SURFACE, args })
+    const read = t.connection.call('ops.run', { op: BRAIN_SURFACE, args })
+    const command = (index: number) => (t.sent.at(index) as { requestId?: string }).requestId!
+    const done = (requestId: string, data: string) => ({ requestId, status: 'done', data }) as const
+    const receipt = done(command(-2), 'synthetic private receipt')
+    const publicReceipt = done(command(-3), 'synthetic public receipt')
+    const result = {
+      type: 'result',
+      id: (t.sent.at(-1) as { id?: string }).id!,
+      ok: true,
+      data: 'synthetic private result',
+    } as const
+    receive({ type: 'receipt', receipt })
+    receive(result)
+    receive({ type: 'receipt', receipt: publicReceipt })
+    receive({ type: 'receipt', receipt: done(hostId, 'synthetic untracked receipt') })
+    await expect(write).resolves.toEqual(receipt)
+    await expect(read).resolves.toEqual(result)
+    await expect(take).resolves.toEqual(publicReceipt)
+    expect(traffic.mock.calls.map(([direction, frame]) => [direction, frame])).toEqual([
+      ['out', publicCommand],
+      ['in', { type: 'receipt', receipt: publicReceipt }],
+    ])
+  } finally {
+    t.connection.close()
   }
 })

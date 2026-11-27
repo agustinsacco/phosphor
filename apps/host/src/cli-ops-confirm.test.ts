@@ -15,7 +15,8 @@ function ask() {
   const run = vi.fn<ReturnType<typeof openLocalClient>['run']>()
   const close = vi.fn()
   const io = { stdout: vi.fn(), stderr: vi.fn() }
-  vi.mocked(openLocalClient).mockReturnValue({ run, close })
+  const runBrain = vi.fn<ReturnType<typeof openLocalClient>['runBrain']>()
+  vi.mocked(openLocalClient).mockReturnValue({ run, runBrain, close })
   run.mockResolvedValueOnce({
     status: 'confirm',
     title: 'Delete lane?',

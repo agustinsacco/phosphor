@@ -81,6 +81,53 @@ it('library loads local rows even when the remote listing rejects', async () => 
   expect(mocks.localList).toHaveBeenCalledWith(['/local'])
 })
 
+it('routes Brain only to the Host and connection that supplied the view', async () => {
+  mocks.handle.mockClear()
+  registerHostsHandlers()
+  const handler: unknown = mocks.handle.mock.calls.find(
+    ([channel]) => channel === 'hosts:brain',
+  )?.[1]
+  expect(typeof handler).toBe('function')
+  if (typeof handler !== 'function') return
+  const send = vi.fn()
+  mocks.connection.mockReturnValue({
+    snapshot: () => ({
+      state: 'ready',
+      brain: true,
+      connectionToken: 'replacement',
+      brainAccess: ['read'],
+    }),
+    incarnation: () => ({ generation: 1 }),
+    brainAuthorityEpoch: () => 0,
+    send,
+  })
+  await expect(
+    handler(
+      { sender: { id: 7 } },
+      { hostId: 'harbor', connectionToken: 'earlier' },
+      { method: 'brain:status', args: [] },
+    ),
+  ).rejects.toThrow()
+  expect(send).not.toHaveBeenCalled()
+})
+
+it('rejects approval and access calls from a disconnected Brain view without a grant request', async () => {
+  mocks.handle.mockClear()
+  registerHostsHandlers()
+  mocks.connection.mockReturnValue(undefined)
+  const scope = { hostId: 'harbor', connectionToken: 'gone' }
+  for (const [channel, args] of [
+    ['hosts:brainAccess', [['read']]],
+    ['hosts:brainApprovals', []],
+    ['hosts:brainAnswer', ['request', true]],
+  ] as const) {
+    const handler: unknown = mocks.handle.mock.calls.find(([name]) => name === channel)?.[1]
+    expect(typeof handler, channel).toBe('function')
+    if (typeof handler !== 'function') return
+    await expect(handler({}, scope, ...args)).rejects.toThrow('Brain connection changed')
+  }
+})
+
 it('attachment IPC resolves only the owning opaque lane and fails closed without one', async () => {
   mocks.handle.mockClear()
   registerHostsHandlers()

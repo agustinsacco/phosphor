@@ -39,6 +39,7 @@ it('exposes only the reviewed phosphor API keys through the original preload', (
   expect(electron.contextBridge.exposeInMainWorld).toHaveBeenCalledExactlyOnceWith('phosphor', api)
   expect(appearance.applyStartupAppearance).toHaveBeenCalledExactlyOnceWith(process.argv)
   expect(Object.keys(api).sort()).toEqual([
+    'hostBrain',
     'invoke',
     'onAccountChanged',
     'onClaudeLoginState',
@@ -82,6 +83,29 @@ it('forwards invoke channels, positional arguments and the original response pro
   electron.ipcRenderer.invoke.mockClear()
   api.invoke('app:getPrefs')
   expect(electron.ipcRenderer.invoke).toHaveBeenCalledExactlyOnceWith('app:getPrefs')
+})
+
+it('sends Brain requests with their originating Host and connection on a fixed channel', async () => {
+  const scope = { hostId: 'harbor', connectionToken: 'first-connection' }
+  const request = { method: 'brain:overview', args: [] } as const
+  expect(api.hostBrain).toBeDefined()
+  electron.ipcRenderer.invoke.mockResolvedValue({ nodes: [], links: [] })
+  await api.hostBrain?.invoke(scope, { method: request.method, args: [] })
+  expect(electron.ipcRenderer.invoke).toHaveBeenCalledExactlyOnceWith('hosts:brain', scope, request)
+})
+
+it('keeps Brain access requests and approval decisions bound to the originating Host view', async () => {
+  const scope = { hostId: 'harbor', connectionToken: 'first-connection' }
+  const brain = api.hostBrain
+  expect(brain?.access).toBeTypeOf('function')
+  await brain?.access(scope, ['read'])
+  await brain?.approvals(scope)
+  await brain?.answer(scope, 'approval-1', false)
+  expect(electron.ipcRenderer.invoke.mock.calls).toEqual([
+    ['hosts:brainAccess', scope, ['read']],
+    ['hosts:brainApprovals', scope],
+    ['hosts:brainAnswer', scope, 'approval-1', false],
+  ])
 })
 
 it('forwards piCommand session and command without changing the RPC envelope', async () => {

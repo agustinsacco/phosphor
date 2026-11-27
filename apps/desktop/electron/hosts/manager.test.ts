@@ -434,6 +434,22 @@ it('changes the snapshot token when replacing a connection and preserves it on d
   t.manager.stop()
 })
 
+it('does not route an action from an old Brain view to the replacement connection', async () => {
+  const t = setup()
+  await drain()
+  try {
+    const machine = t.list()[0]!
+    const token = t.manager.snapshot()[machine.id]!.connectionToken
+    expect(t.manager.connection(machine.id, token)).toBe(t.manager.connection(machine.id))
+    t.setList([{ ...machine, endpoint: 'https://replacement.ts.net' }])
+    await drain()
+    expect(t.manager.connection(machine.id)).toBeDefined()
+    expect(t.manager.connection(machine.id, token)).toBeUndefined()
+  } finally {
+    t.manager.stop()
+  }
+})
+
 it('keeps an in-progress connection through heartbeat-only directory updates', async () => {
   const t = setup(1, { state: 'connecting' })
   await drain()

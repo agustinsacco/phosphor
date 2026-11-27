@@ -160,8 +160,10 @@ and `hostTrafficLog` remain false in the browser at every width. Modal/menu plac
 enabling pane controls. A Host lane's Files edits at both widths, in Monaco when wide and in a
 plain text field on a phone, which Monaco does not support
 ([files](files.md#remote-lanes)); `formFactor` picks the editor in a primitive
-(`FileTextEditing`), not the feature. Brain has no nav entry there; its deep link's
-unavailable page and the fixed `brain:*` IPC refusal apply at both widths; no local memory service is invoked. Desktop retains
+(`FileTextEditing`), not the feature. Brain shows a Host picker when its deep link opens without a selected Host.
+The compact shell offers a Brain tab when a Host advertises Brain. At both widths,
+the browser uses the selected Host and refuses direct Desktop `brain:*` IPC; it
+never invokes a local memory service. Desktop retains
 its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
 title with "Host · Controlled by you" under it while this browser holds the lane,

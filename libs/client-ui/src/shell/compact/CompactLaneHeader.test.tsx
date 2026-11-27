@@ -230,3 +230,45 @@ it("sends the controller's Compact now from the lane sheet through pi (regressio
     customInstructions: 'keep it short',
   })
 })
+
+it('reads Brain only once the lane menu opens, then queues this lane once from the sheet', async () => {
+  const generation = '7d1f6a52-4a2e-4a7c-9a51-0c1f2b3d4e5f'
+  const status = {
+    supported: true,
+    generation,
+    revision: 3,
+    prefs: { enabled: true, neverRead: { titles: [], sessionIds: [] } },
+  }
+  const hostInvoke = vi.fn(async (_target: unknown, request: { method: string }) =>
+    request.method === 'brain:laneState'
+      ? { excluded: false, activeJob: null, lastRead: null }
+      : status,
+  )
+  Object.defineProperty(window, 'phosphor', {
+    configurable: true,
+    value: { invoke, hostBrain: { invoke: hostInvoke } },
+  })
+  const hosts = structuredClone(mockRemoteHosts)
+  hosts[MOCK_HOST_ID] = { ...hosts[MOCK_HOST_ID]!, brain: true, brainAccess: ['read', 'configure'] }
+  useRemoteLanesStore.setState({ hosts })
+  render()
+  expect(hostInvoke).not.toHaveBeenCalled()
+  await act(async () => button(/^Lane menu/)!.click())
+  await act(async () => {})
+  act(() => button('Queue for knowledge extraction')!.click())
+  await act(async () => {})
+  expect(hostInvoke.mock.calls.map(([target, request]) => [target, request])).toEqual([
+    [
+      { hostId: MOCK_HOST_ID, connectionToken: 'mock-connection-1' },
+      { method: 'brain:status', args: [] },
+    ],
+    [
+      { hostId: MOCK_HOST_ID, connectionToken: 'mock-connection-1' },
+      { method: 'brain:laneState', args: [LANE] },
+    ],
+    [
+      { hostId: MOCK_HOST_ID, connectionToken: 'mock-connection-1' },
+      { method: 'brain:queue', args: [LANE], expected: { generation, revision: 3 } },
+    ],
+  ])
+})

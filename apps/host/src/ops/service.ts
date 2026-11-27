@@ -296,6 +296,7 @@ export interface RunOpsPorts extends Pick<
   | 'routines'
   | 'repositories'
   | 'appServices'
+  | 'brainRecall'
   | 'skills'
   | 'ownerFolders'
   | 'workspaceLeases'

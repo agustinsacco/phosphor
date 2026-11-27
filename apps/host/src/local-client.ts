@@ -1,3 +1,5 @@
+import { opsRun } from '@phosphor/host-client/ops'
+import type { OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { createHostConnection } from '@phosphor/host-client/connection'
 import { OPS_UNCONFIRMED, OPS_UNREADABLE } from '@phosphor/host-client/ops'
@@ -24,6 +26,12 @@ import { OPS_CLI } from './ops/cli-method'
 const NO_SOCKET =
   'No local Phosphor service socket. On a headless Host, use the phosphor tool in a lane on that Host, or use --host from a machine running the local Phosphor service.'
 
+export class LocalBrainUnsupported extends Error {
+  constructor() {
+    super('The local Host is not serving Brain. No other Host was contacted.')
+  }
+}
+
 type Context = Pick<CliContext, 'env' | 'home' | 'uid' | 'platform'>
 function location(ctx: Context) {
   const run = readSidecar(
@@ -44,6 +52,43 @@ function location(ctx: Context) {
   if (id.state !== 'ok' || id.value.machineId !== run.value.machineId)
     throw new Error('Invalid Phosphor service identity.')
   return { path: run.value.socket, ...id.value }
+}
+
+// Between polls a 1001 reconnects; never resend a call that may have acted.
+async function awaitLocalReady(
+  conn: ReturnType<typeof createHostConnection>,
+  listen: (f: () => void) => void,
+  feature: 'brain' | 'ops' = 'ops',
+) {
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(NO_SOCKET)), 12_000)
+    const changed = () => {
+      const view = conn.snapshot()
+      if (view.state === 'ready') {
+        clearTimeout(timer)
+        if (view[feature]) resolve()
+        else
+          reject(
+            feature === 'ops'
+              ? new Error('The local Phosphor service is not serving operations.')
+              : new LocalBrainUnsupported(),
+          )
+      } else if (
+        view.lastError === 'offline' ||
+        view.state === 'wrong-machine' ||
+        view.lastError === 'forbidden'
+      ) {
+        clearTimeout(timer)
+        reject(
+          new Error(
+            view.lastError === 'offline' ? NO_SOCKET : 'Phosphor service authentication failed.',
+          ),
+        )
+      }
+    }
+    listen(changed)
+    changed()
+  }).finally(() => listen(() => {}))
 }
 
 /** Fresh nonce even on renewal; no control grant, private key, TCP or lane subscription. */
@@ -84,36 +129,20 @@ export function openLocalClient(context: Context) {
       })
     },
   })
-  // Between polls a 1001 reconnects; never resend a call that may have acted.
-  async function ready() {
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(NO_SOCKET)), 12_000)
-      changed = () => {
-        const view = conn.snapshot()
-        if (view.state === 'ready') {
-          clearTimeout(timer)
-          if (view.ops) resolve()
-          else reject(new Error('The local Phosphor service is not serving operations.'))
-        } else if (
-          view.lastError === 'offline' ||
-          view.state === 'wrong-machine' ||
-          view.lastError === 'forbidden'
-        ) {
-          clearTimeout(timer)
-          reject(
-            new Error(
-              view.lastError === 'offline' ? NO_SOCKET : 'Phosphor service authentication failed.',
-            ),
-          )
-        }
-      }
-      changed()
-    }).finally(() => {
-      changed = () => {}
-    })
-  }
+  const ready = (feature?: 'brain' | 'ops') =>
+    awaitLocalReady(
+      conn,
+      (next) => {
+        changed = next
+      },
+      feature,
+    )
   return {
     close: conn.close,
+    async runBrain(request: OpsRunRequest, write: boolean) {
+      await ready('brain')
+      return opsRun(conn, request, { write })
+    },
     async run(envelope: OpRequestEnvelope) {
       await ready()
       const frame = await conn.call(OPS_CLI, envelope, envelope.deadlineMs + 2000)

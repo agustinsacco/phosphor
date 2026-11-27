@@ -20,7 +20,7 @@ import {
 } from 'node:fs'
 import { isBuiltin } from 'node:module'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { BUNDLED_EXTENSION_FILES } from '@phosphor/session-runtime/bundled-extensions'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -30,7 +30,7 @@ const SHA = 'b'.repeat(40)
 const BANNER =
   "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);"
 const NODE_PIN: string = JSON.parse(
-  readFileSync(join(REPO, 'tools/host-release/node.json'), 'utf8'),
+  readFileSync(join(REPO, 'apps/host/src/brain/node.json'), 'utf8'),
 ).version
 const HOST_TARGET = `${process.platform}-${process.arch}`
 const MANIFEST_KEYS = [
@@ -61,6 +61,7 @@ console.log(
 `
 /** Every file a fixture root's build writes, in BUILD-INFO.json's order. */
 const FIXTURE_FILES = [
+  'brain-ext/brain-agent-guard.mjs',
   'brain-ext/brain-curator.mjs',
   'brain-ext/brain-fork-guard.mjs',
   'brain-ext/brain.mjs',
@@ -147,7 +148,12 @@ function fixtureRoot(main = STAMPS_MAIN): string {
   const ext = 'libs/pi-extensions/pi-ext'
   for (const file of BUNDLED_EXTENSION_FILES)
     write(root, `${ext}/${file}`, `export default '${file}'\n`)
-  for (const file of ['brain.ts', 'brain-fork-guard.ts', 'brain-curator.ts'])
+  for (const file of [
+    'brain.ts',
+    'brain-fork-guard.ts',
+    'brain-curator.ts',
+    'brain-agent-guard.ts',
+  ])
     write(root, `${ext}/${file}`, `export default '${file}'\n`)
   write(root, `${ext}/helper-store.ts`, 'export const store = 1\n')
   write(root, `${ext}/Upper.ts`, 'export const upper = 1\n')
@@ -306,6 +312,18 @@ describe('build.mjs from the repository', { timeout: 120_000 }, () => {
     expect(source).not.toMatch(/electron|apps\/desktop/)
   })
 
+  it('reads every workspace library from this checkout, never through a linked one', () => {
+    const map = JSON.parse(readFileSync(join(out, 'phosphor.mjs.map'), 'utf8')) as {
+      sources: string[]
+    }
+    const libs = map.sources
+      .map((source) => resolve(out, source))
+      .filter((path) => /\/libs\/[^/]+\//.test(path) && !path.includes('/node_modules/'))
+    expect(libs.length).toBeGreaterThan(0)
+    const foreign = libs.filter((path) => !path.startsWith(`${realpathSync(REPO)}/libs/`))
+    expect(foreign).toEqual([])
+  })
+
   it("copies the library's pi-ext with Desktop's filter and its skills whole", () => {
     const pi = join(REPO, 'libs/pi-extensions/pi-ext')
     const kept = tree(pi).filter(
@@ -315,6 +333,7 @@ describe('build.mjs from the repository', { timeout: 120_000 }, () => {
     )
     expect(tree(join(out, 'pi-ext'))).toEqual(kept)
     expect(tree(join(out, 'brain-ext'))).toEqual([
+      'brain-agent-guard.mjs',
       'brain-curator.mjs',
       'brain-fork-guard.mjs',
       'brain.mjs',
@@ -335,6 +354,33 @@ describe('build.mjs from the repository', { timeout: 120_000 }, () => {
       }
     }
   })
+})
+
+describe('build.mjs release text', () => {
+  it.each(['phosphor.mjs', 'brain-ext/brain.mjs'])(
+    'retains legal notices but not linked dependency paths in %s',
+    (file) => {
+      const root = fixtureRoot("import { ledger } from 'harbor'\nconsole.log(ledger)\n")
+      const dependencies = mkdtempSync(join(scratch, 'Ledger-'))
+      const pkg = join(dependencies, 'node_modules/harbor')
+      const notice = '@license Harbor synthetic notice'
+      write(pkg, 'package.json', '{"type":"module","main":"index.js"}\n')
+      write(
+        pkg,
+        'index.js',
+        `/*! ${notice} */\nimport harbor from './ledger.cjs'\nexport const ledger = harbor.ledger\n`,
+      )
+      write(pkg, 'ledger.cjs', "module.exports = { ledger: 'Kestrel' }\n")
+      symlinkSync(pkg, join(root, 'node_modules/harbor'))
+      write(root, 'libs/pi-extensions/pi-ext/brain.ts', "export { ledger } from 'harbor'\n")
+      const out = freshOut()
+      const result = build(root, ['--out', out, '--sha', SHA], { HOST_RELEASE_VERSION: '1.2.3' })
+      expect(result.status, result.stderr).toBe(0)
+      const text = readFileSync(join(out, file), 'utf8')
+      expect(text).toContain(notice)
+      expect(text).not.toContain(`${basename(dependencies)}/node_modules/harbor/`)
+    },
+  )
 })
 
 describe('build.mjs stamps', { timeout: 120_000 }, () => {

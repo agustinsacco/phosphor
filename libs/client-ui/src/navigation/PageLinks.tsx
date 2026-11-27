@@ -1,8 +1,10 @@
 import { ArchiveNotices } from '@/features/archive/ArchiveNotices'
+import { brainMachine } from '@/features/brain/brainMachine'
 import { useBrain } from '@/features/brain/useBrain'
 import { useBrainSync } from '@/features/brain/useBrainSync'
 import { waitingCount } from '@/features/brain/agentStatus'
 import { usePlatform } from '@/platform/Platform'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import type { GlobalPage } from '@/stores/layout'
 import { NavigationItem } from './NavigationItem'
 import { SCREENS } from './screens'
@@ -20,37 +22,47 @@ export function PageLinks({
   trailing?: Partial<Record<GlobalPage, React.ReactNode>>
   onPage: (page: GlobalPage) => void
 }): React.JSX.Element {
-  useBrainSync()
+  const { localBrain, desktopBrainOwner } = usePlatform()
+  const hostLink = useRemoteLanesStore((s) =>
+    Object.values(s.hosts).some(
+      (host) => host.brain === true && (!host.local || !desktopBrainOwner),
+    ),
+  )
+  const legacySelected = useRemoteLanesStore(
+    (s) => brainMachine(s.filter, s.hosts, desktopBrainOwner) === 'local',
+  )
+  useBrainSync(legacySelected)
   const enabled = useBrain((s) => s.status?.prefs.enabled)
   const decisions = useBrain((s) => waitingCount(s.status))
-  const localBrain = usePlatform().localBrain
   return (
     <>
       <ArchiveNotices />
-      {GLOBAL_PAGES.filter((page) => page !== 'brain' || (localBrain && enabled)).map((page) => {
-        const { title, icon: Icon } = SCREENS[page]
-        return (
-          <NavigationItem
-            key={page}
-            label={title}
-            icon={<Icon />}
-            active={activePage === page}
-            trailing={
-              page === 'brain' && decisions > 0 ? (
-                <span
-                  className="text-accent ml-auto text-xs tabular-nums"
-                  aria-label={`${decisions} waiting`}
-                >
-                  {decisions}
-                </span>
-              ) : (
-                trailing?.[page]
-              )
-            }
-            onClick={() => onPage(page)}
-          />
-        )
-      })}
+      {GLOBAL_PAGES.filter((page) => page !== 'brain' || hostLink || (localBrain && enabled)).map(
+        (page) => {
+          const { title, icon: Icon } = SCREENS[page]
+          return (
+            <NavigationItem
+              key={page}
+              label={title}
+              icon={<Icon />}
+              active={activePage === page}
+              trailing={
+                page === 'brain' && localBrain && legacySelected && decisions > 0 ? (
+                  <span
+                    className="text-accent ml-auto text-xs tabular-nums"
+                    aria-label={`${decisions} waiting`}
+                  >
+                    {decisions}
+                  </span>
+                ) : (
+                  trailing?.[page]
+                )
+              }
+              onClick={() => onPage(page)}
+            />
+          )
+        },
+      )}
     </>
   )
 }

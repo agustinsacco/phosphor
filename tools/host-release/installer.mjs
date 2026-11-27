@@ -1,8 +1,24 @@
+import { build } from 'esbuild'
 import { URL } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { contract, isEntryPoint } from './common.mjs'
+import { contract, isEntryPoint, root } from './common.mjs'
+
+const {
+  outputFiles: [verifier],
+} = await build({
+  stdin: {
+    contents: `import {verifyBrainInstall} from './tools/host-release/verify-brain-install';
+      if (!verifyBrainInstall(...process.argv.slice(2))) process.exitCode = 1;`,
+    resolveDir: root,
+  },
+  bundle: true,
+  write: false,
+  format: 'esm',
+  platform: 'node',
+  minify: true,
+})
 
 /** ssh-keygen allowed_signers lines for the pinned release keys. */
 export function allowedSigners(keys = contract.HOST_RELEASE_KEYS) {
@@ -25,7 +41,8 @@ export function generateInstaller(path, keys = contract.HOST_RELEASE_KEYS) {
     path,
     template
       .replace('@ALLOWED_SIGNERS@', allowedSigners(keys))
-      .replace('@MANIFEST_AWK@', () => parser),
+      .replace('@MANIFEST_AWK@', () => parser)
+      .replace('@BRAIN_VERIFIER@', () => verifier.text.trimEnd()),
     {
       mode: 0o755,
     },

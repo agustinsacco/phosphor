@@ -3,14 +3,14 @@ import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
-import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
+import type { PiEvent, RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
 import {
   BRAIN_LANE_CLOSED,
   createBrainAgentLane,
   newestTranscript,
   type BrainLaneClient,
 } from './agent-lane'
-import { BRAIN_AGENT_RULES } from './lane-folder'
+import { BRAIN_AGENT_RULES } from './rules'
 
 const MESSAGE = 'Defrag. 2 waiting: 1 group, 1 flag. Start with brain_waiting.'
 
@@ -60,7 +60,7 @@ let promptResponse: RpcResponse
 function host() {
   const deps = {
     folder,
-    transcripts: vi.fn(() => transcripts),
+    resume: vi.fn(() => newestTranscript(transcripts)),
     create: vi.fn(async () => ({ sessionId: 'brain-1', workspacePath: folder })),
     client: vi.fn(() => lane as unknown as BrainLaneClient),
     command: vi.fn(async (_id: string, command: RpcCommand): Promise<RpcResponse> => {
@@ -150,6 +150,24 @@ describe('a Defrag turn in the Brain lane', () => {
     )
     expect(turn).toMatchObject({ outcome: 'finished', rulesChanged: true })
     expect(await newestTranscript(join(root, 'missing'))).toBeNull()
+  })
+
+  it('resumes the transcript its owner names and binds the one pi reports before sending', async () => {
+    lane.file = '/sessions/brain/bound.jsonl'
+    const { deps } = host()
+    const bind = vi.fn(async () => {})
+    const agent = createBrainAgentLane({
+      ...deps,
+      resume: async () => '/sessions/brain/bound.jsonl',
+      bind,
+    })
+    await agent.turn(MESSAGE, new AbortController().signal, turnHooks())
+    expect(deps.create).toHaveBeenCalledWith(
+      { workspacePath: folder, sessionPath: '/sessions/brain/bound.jsonl' },
+      { keepLastWorkspace: true },
+    )
+    expect(bind).toHaveBeenCalledWith('/sessions/brain/bound.jsonl')
+    expect(bind.mock.invocationCallOrder[0]).toBeLessThan(deps.command.mock.invocationCallOrder[0]!)
   })
 
   it('waits for the owner’s turn to settle, and finishes on the end that will not retry', async () => {

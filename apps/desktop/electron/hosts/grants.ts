@@ -1,3 +1,4 @@
+import { parseBrainAccess, type BrainAccess } from '@phosphor/shared/brain-access'
 import type { GrantIssueResponse } from '@shared/control-api'
 import type { DesktopControlErrorCode } from '@shared/ipc'
 import { createGrantCache } from '@phosphor/host-client/grant-cache'
@@ -20,14 +21,21 @@ function grantFailure(code: DesktopControlErrorCode): Error {
 }
 
 export function createGrants(ports: GrantPorts) {
+  const brainRights = new Map<string, readonly BrainAccess[]>()
   const cache = createGrantCache({
     now: ports.now,
     present: ports.present,
     async issue(hostId, current) {
-      const request = async () =>
-        ports.configured.has(hostId)
-          ? ports.control.grant(hostId, await ports.clients.get(), true)
-          : ports.control.grant(hostId, await ports.clients.get())
+      const request = async () => {
+        const client = await ports.clients.get()
+        if (!current()) throw new Error('signed-out')
+        const configure = ports.configured.has(hostId) ? true : undefined
+        const rights = brainRights.get(hostId)
+        if (rights) return ports.control.grant(hostId, client, configure, rights)
+        return configure
+          ? ports.control.grant(hostId, client, true)
+          : ports.control.grant(hostId, client)
+      }
       const result = await request()
       return !result.ok &&
         result.error.code === 'not-found' &&
@@ -49,9 +57,21 @@ export function createGrants(ports: GrantPorts) {
       ports.configured.set(hostId, enabled)
       this.clear(hostId)
     },
+    setBrainAccess(hostId: string, value: readonly BrainAccess[]) {
+      const rights = parseBrainAccess(value)
+      if (!rights || (rights.length && !ports.present(hostId))) throw new Error('grant-refused')
+      if (rights.length) brainRights.set(hostId, rights)
+      else brainRights.delete(hostId)
+      cache.clear(hostId)
+    },
     clear(hostId?: string) {
       cache.clear(hostId)
-      if (!hostId) ports.clients.clear()
+      if (hostId) {
+        if (!ports.present(hostId)) brainRights.delete(hostId)
+      } else {
+        brainRights.clear()
+        ports.clients.clear()
+      }
     },
     grantFor: cache.grantFor,
   }

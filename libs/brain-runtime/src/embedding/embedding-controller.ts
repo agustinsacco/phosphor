@@ -138,10 +138,13 @@ class EmbeddingController implements BrainEmbeddings {
     return this.start('download', (signal) => this.install(signal))
   }
 
-  async remove(): Promise<void> {
+  async remove(beforeDelete?: () => void): Promise<void> {
     this.cancelWork()
     this.unload()
-    const removing = this.settled.then(() => removeEmbeddingModel(this.paths))
+    const removing = this.settled.then(() => {
+      beforeDelete?.()
+      return removeEmbeddingModel(this.paths)
+    })
     this.settled = removing.catch(() => undefined)
     await removing
     if (!this.work) this.set({ phase: this.restingPhase(), receivedBytes: 0, totalBytes: 0 })

@@ -1,6 +1,7 @@
 import {
   chmodSync,
   existsSync,
+  linkSync,
   mkdirSync,
   readFileSync,
   readlinkSync,
@@ -11,7 +12,9 @@ import {
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fixture } from '../update/__fixtures__/release'
+import { selectLocalBrainOwner } from '@phosphor/session-runtime/brain/local-owner'
 import { acquireInstallLock } from '@phosphor/session-runtime/host-install/lock'
+import { ownerLockPorts } from '@phosphor/session-runtime/owner-lock/owner-lock'
 import { HOST_PATH_BLOCK } from '../machine/shell-path'
 import { runUninstall } from './uninstall'
 const logout = vi.hoisted(() => ({ run: vi.fn(async () => ({ exitCode: 0, message: 'ok' })) }))
@@ -253,3 +256,176 @@ it.each(['public state', 'shared log folder'])('refuses purge of a %s', async (k
   if (kind === 'shared log folder')
     expect(readFileSync(join(state, 'logs/runner.log'), 'utf8')).toBe('foreign')
 })
+
+const moveId = '6f09da93-f1bd-4df4-a3c0-1a1ca828eda2'
+function movedBrain() {
+  const f = setup()
+  const state = join(f.home, '.local/state/phosphor-host')
+  const brain = join(state, 'brain')
+  const handover = join(state, 'brain-handover')
+  const move = join(handover, moveId)
+  const original = join(f.home, 'desktop-userData/brain-handover', moveId, 'original')
+  rmSync(join(state, 'marker'))
+  for (const dir of [brain, handover, move, original])
+    mkdirSync(dir, { recursive: true, mode: 0o700 })
+  const marker = { version: 1, migrationId: moveId, sourceGeneration: 'Harbor' }
+  const record = { ...marker, sourceSchema: 8, desktopVersion: '1.0.0', state: 'committed' }
+  function file(path: string, bytes: string) {
+    writeFileSync(path, bytes, { mode: 0o600 })
+  }
+  file(join(brain, 'brain.sqlite'), 'synthetic store')
+  file(join(brain, 'handover.json'), JSON.stringify(marker))
+  file(join(move, 'state.json'), JSON.stringify(record))
+  file(join(original, 'brain.sqlite'), 'Desktop original')
+  file(join(f.lib, '.brain-required'), '1\n')
+  return { f, state, brain, handover, move, original, record, file }
+}
+
+it('purges known committed source Host move and Brain state, not the Desktop original', async () => {
+  const { f, state, original } = movedBrain()
+  rmSync(f.lib, { recursive: true })
+  expect(selectLocalBrainOwner(state, 'host')).toBe(true)
+  expect(await runUninstall(f.context, true, true)).toBe(0)
+  expect(existsSync(state)).toBe(false)
+  expect(readFileSync(join(original, 'brain.sqlite'), 'utf8')).toBe('Desktop original')
+})
+
+it('refuses to purge a different root on a pinned install', async () => {
+  const { f, brain } = movedBrain()
+  f.context.env.XDG_STATE_HOME = join(f.home, 'some-other-state')
+  expect(await runUninstall(f.context, true, true)).toBe(75)
+  expect(logout.run).not.toHaveBeenCalled()
+  expect(existsSync(join(brain, 'brain.sqlite'))).toBe(true)
+  expect(readFileSync(join(f.lib, '.brain-required'), 'utf8')).toBe('1\n')
+})
+
+it.each([
+  'live claim',
+  'unfinished move',
+  'unknown state',
+  'nested link',
+  'hard link',
+  'Desktop original inside move',
+])('refuses purge before logout for %s', async (reason) => {
+  const { f, brain, handover, move, original, record, file } = movedBrain()
+  rmSync(f.lib, { recursive: true })
+  if (reason === 'live claim')
+    file(join(handover, 'active.json'), JSON.stringify({ migrationId: moveId }))
+  if (reason === 'unfinished move')
+    file(join(move, 'state.json'), JSON.stringify({ ...record, state: 'published' }))
+  if (reason === 'unknown state') file(join(brain, 'Ledger'), 'foreign')
+  if (reason === 'nested link') {
+    mkdirSync(join(brain, 'Brain'), { mode: 0o700 })
+    symlinkSync(join(original, 'brain.sqlite'), join(brain, 'Brain/AGENTS.md'))
+  }
+  if (reason === 'hard link') {
+    rmSync(join(brain, 'brain.sqlite'))
+    linkSync(join(original, 'brain.sqlite'), join(brain, 'brain.sqlite'))
+  }
+  if (reason === 'Desktop original inside move') mkdirSync(join(move, 'original'), { mode: 0o700 })
+  expect(await runUninstall(f.context, true, true)).toBe(75)
+  expect(logout.run).not.toHaveBeenCalled()
+  expect(existsSync(brain)).toBe(true)
+  expect(readFileSync(join(original, 'brain.sqlite'), 'utf8')).toBe('Desktop original')
+})
+
+it('purges privately named native Brain resources, a killed writer lock and an aborted move', async () => {
+  const { f, state, brain, move, record, file } = movedBrain()
+  rmSync(f.lib, { recursive: true })
+  rmSync(join(brain, 'handover.json'))
+  file(join(move, 'state.json'), JSON.stringify({ ...record, state: 'aborted' }))
+  mkdirSync(join(brain, 'Brain'), { mode: 0o700 })
+  file(join(brain, 'Brain/AGENTS.md'), 'Fixture rules')
+  file(join(state, 'brain-writer.lock'), await writerRecord(2147483647))
+  expect(await runUninstall(f.context, true, true)).toBe(0)
+  expect(existsSync(state)).toBe(false)
+})
+
+/** A valid Brain writer record; 2^31-1 is a killed holder, this test process a live one. */
+async function writerRecord(pid: number, token = 'b'.repeat(64)): Promise<string> {
+  const processStart = await ownerLockPorts.processStart(pid)
+  const record = { version: 1, pid, processStart, token, startedAt: '2026-11-01T00:00:00.000Z' }
+  return JSON.stringify(record) + '\n'
+}
+
+it.each(['invalid record', 'live holder', 'foreign directory', 'interrupted reclamation'])(
+  'refuses purge before logout and keeps the Brain writer lock for a %s',
+  async (reason) => {
+    const { f, state, brain, file } = movedBrain()
+    rmSync(f.lib, { recursive: true })
+    const lock = join(state, 'brain-writer.lock')
+    const gate = `${lock}-recovery`
+    if (reason === 'invalid record') file(lock, '{"version":1,"pid":2147483647}\n')
+    if (reason === 'live holder') file(lock, await writerRecord(process.pid))
+    if (reason === 'foreign directory') {
+      mkdirSync(lock, { mode: 0o700 })
+      file(join(lock, 'Ledger'), 'keep')
+    }
+    if (reason === 'interrupted reclamation') {
+      file(lock, await writerRecord(2147483647))
+      mkdirSync(gate, { mode: 0o700 })
+    }
+    expect(await runUninstall(f.context, true, true)).toBe(75)
+    expect(logout.run).not.toHaveBeenCalled()
+    expect(existsSync(join(brain, 'brain.sqlite'))).toBe(true)
+    expect(existsSync(lock)).toBe(true)
+    if (reason === 'foreign directory')
+      expect(readFileSync(join(lock, 'Ledger'), 'utf8')).toBe('keep')
+    if (reason === 'interrupted reclamation') {
+      expect(existsSync(gate)).toBe(true)
+      const message = f.messages.join('\n')
+      expect(message).toContain('brain-writer.lock-recovery')
+      expect(message).not.toContain(state)
+    }
+  },
+)
+
+it('keeps a writer lock replaced by a live holder after the purge check, and its Brain', async () => {
+  const { f, state, brain } = movedBrain()
+  rmSync(f.lib, { recursive: true })
+  const lock = join(state, 'brain-writer.lock')
+  writeFileSync(lock, await writerRecord(2147483647), { mode: 0o600 })
+  const live = await writerRecord(process.pid, 'c'.repeat(64))
+  logout.run.mockImplementationOnce(async () => {
+    rmSync(lock)
+    writeFileSync(lock, live, { mode: 0o600 })
+    return { exitCode: 0, message: 'ok' }
+  })
+  expect(await runUninstall(f.context, true, true)).toBe(75)
+  expect(readFileSync(lock, 'utf8')).toBe(live)
+  expect(existsSync(join(brain, 'brain.sqlite'))).toBe(true)
+})
+
+it.each([false, true])(
+  'refuses protected uninstall before taking any destructive action (purge=%s)',
+  async (purge) => {
+    const { f, brain } = movedBrain()
+    const runner = vi.fn(f.context.service!.runner)
+    f.context.service = { runner }
+    expect(await runUninstall(f.context, purge, purge)).toBe(75)
+    expect(logout.run).not.toHaveBeenCalled()
+    expect(runner).not.toHaveBeenCalled()
+    expect(existsSync(join(brain, 'brain.sqlite'))).toBe(true)
+    expect(readFileSync(join(f.lib, '.brain-required'), 'utf8')).toBe('1\n')
+    expect(existsSync(join(f.lib, 'current'))).toBe(true)
+    expect(existsSync(join(f.home, '.local/bin/phosphor'))).toBe(true)
+  },
+)
+
+it.each(['noncanonical', 'hard link', 'foreign sibling'])(
+  'refuses purge of an unsafe owner selection: %s',
+  async (reason) => {
+    const { f, state, file } = movedBrain()
+    rmSync(f.lib, { recursive: true })
+    const owner = join(state, 'brain-owner.json')
+    expect(selectLocalBrainOwner(state, 'host')).toBe(true)
+    if (reason === 'noncanonical') file(owner, '{ "version": 1, "owner": "host" }\n')
+    if (reason === 'hard link') linkSync(owner, join(f.home, 'Ledger'))
+    if (reason === 'foreign sibling') file(join(state, 'brain-owner.json.Ledger'), 'keep')
+    expect(await runUninstall(f.context, true, true)).toBe(75)
+    expect(logout.run).not.toHaveBeenCalled()
+    expect(existsSync(owner)).toBe(true)
+    if (reason === 'foreign sibling')
+      expect(readFileSync(join(state, 'brain-owner.json.Ledger'), 'utf8')).toBe('keep')
+  },
+)

@@ -208,3 +208,26 @@ it('a lane flag reaches the engine through the agent entry', async () => {
   ).toMatchObject({ status: 'filed' })
   expect(flagged).toHaveBeenCalledOnce()
 })
+
+it('preserves exact exclusions on scoped settings saves and checks queue authorization after reading', async () => {
+  const s = await setup()
+  const prefs = (await s.service.api.status()).prefs
+  await s.service.api.setPrefs({ ...prefs, neverRead: { titles: [], sessionIds: ['ledger-pi'] } })
+  let permitted = true
+  const api = s.service.guarded(() => {
+    if (!permitted) throw new Error('withdrawn')
+  })
+  await api.setPrefs({
+    ...prefs,
+    recall: false,
+    neverRead: { titles: ['Kestrel'], sessionIds: [] },
+  })
+  expect((await s.service.api.status()).prefs.neverRead).toEqual({
+    titles: ['Kestrel'],
+    sessionIds: ['ledger-pi'],
+  })
+  const queue = api.queue({ sessionPath: s.file, title: 'Harbor' })
+  permitted = false
+  await expect(queue).rejects.toThrow('withdrawn')
+  expect(s.store.jobs).toHaveLength(0)
+})

@@ -90,6 +90,8 @@ function prompt(ctx, cmd) {
   const name = space === -1 ? cmd.message : cmd.message.slice(0, space)
   if (Object.hasOwn(extensionPrompts, name))
     return extensionPrompts[name](ctx, cmd, cmd.message.slice(space + 1))
+  // Brain Agent's tools ask in plain text: no command-form message reaches its guarded lane.
+  if (cmd.message.includes('FAKE_ASK')) return ask(ctx, cmd)
   ctx.respond(cmd)
   if (cmd.message === '/host-only') {
     ctx.out({
@@ -127,6 +129,22 @@ function getCommands(ctx, cmd) {
               sourceInfo: {
                 path: join(ctx.agentDir, 'skills', 'host-only', 'SKILL.md'),
                 scope: 'user',
+              },
+            },
+          ]
+        : []),
+      // What pi lists for the Host's Brain Agent tool guard once it loaded it with -e.
+      ...(ctx.brainAgentGuard
+        ? [
+            {
+              name: 'phosphor-brain-agent-guard',
+              description: 'Host proof that Brain Agent’s tool guard is loaded; does nothing',
+              source: 'extension',
+              sourceInfo: {
+                path: ctx.brainAgentGuard,
+                source: 'cli',
+                scope: 'temporary',
+                origin: 'top-level',
               },
             },
           ]

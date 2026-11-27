@@ -2,6 +2,7 @@ import { registerHostArchiveHandlers } from './host-archive-handlers'
 import { laneMarks } from '@phosphor/host-client/lane-marks'
 import { repositoryManagement } from '@phosphor/host-client/repository-management'
 import { registerHostReadHandlers } from './hosts-read-handlers'
+import { registerHostBrainHandlers } from './host-brain-handlers'
 import { registerHostSettingsHandlers } from './host-settings-handlers'
 import { uploadAttachments } from '@phosphor/host-client/attachments'
 import { routeRemoteWrite } from '@phosphor/host-client/write-features'
@@ -361,6 +362,7 @@ export function registerHostsHandlers(): void {
     remoteLanes().setFocused(event.sender.id, target)
   })
   registerHostSettingsHandlers(manager, grants, terminals)
+  registerHostBrainHandlers(manager, grants)
   handle('hosts:uploadAttachments', (event, sessionId, files) => {
     const lane = remoteLanes().readLane(event.sender.id, sessionId)
     if (!lane) throw new Error(REMOTE_UNAVAILABLE)

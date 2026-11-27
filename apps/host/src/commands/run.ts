@@ -1,3 +1,4 @@
+import type { BrainHandoverNativePorts } from '../brain-handover/owner-seam'
 import { reconcileRunFolders } from '../lanes/reconcile/run'
 import type { TrashRunner } from '../lanes/delete-target'
 import { randomBytes } from 'node:crypto'
@@ -42,6 +43,7 @@ import {
 } from './run-local'
 import { createLaneAdapter, type LaneAdapter } from '../api/lanes'
 import type { OpsAdapterPorts } from '../ops/adapter'
+import type { BrainSurfaceBinding } from '../api/brain-adapter'
 import { createMachineReach, reachRemote } from '../reach'
 import type { LaneService } from '../lanes/service'
 import { startRunMachine } from './run-machine'
@@ -69,6 +71,7 @@ export interface RunContext extends ControlContext {
   startLocalSocket?: StartLocalSocket
   /** Run's ops slot, shared with the owner socket; run fills it once the dispatcher is bound. */
   ops?: OpsAdapterPorts
+  handover?: { current?: BrainHandoverNativePorts }
 }
 
 /** What run starts with: the identity it found and, in local mode, the marker. */
@@ -88,6 +91,7 @@ function shareLanes(
   sink: ReceiptSink,
   lanes: LaneService | undefined,
   socket: LocalSocket | undefined,
+  brain: BrainSurfaceBinding | undefined,
 ): LaneAdapter | undefined {
   if (!lanes) return undefined
   const adapter = createLaneAdapter(lanes, {
@@ -100,6 +104,7 @@ function shareLanes(
     adapter,
     peers: () => parts.api?.connections() ?? [],
     pauses: parts.services?.pauses ?? undefined,
+    brain,
   })
   return adapter
 }
@@ -173,7 +178,8 @@ async function startRun(
   }
   const machine = await startRunMachine(context, parts, ports, signal)
   signal.throwIfAborted()
-  const laneAdapter = shareLanes(context, parts, sink, machine.lanes, socket)
+  // One Brain binding for both listeners: they share its approvals and limits.
+  const laneAdapter = shareLanes(context, parts, sink, machine.lanes, socket, machine.brain)
   const link = createRunLink(context, parts, sink, {
     ...machine,
     laneAdapter,

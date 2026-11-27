@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import {
   existsSync,
   mkdirSync,
@@ -6,6 +7,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -282,6 +284,102 @@ describe('bundleHost', () => {
     const stage = join(root, 'stage')
     await bundleHost(stage, { root, stamped: SHA, releaseVersion: '1.2.3' })
     expect(readdirSync(stage)).toEqual([OUTFILE])
-    expect(readFileSync(join(stage, OUTFILE), 'utf8')).toContain(`console.log("${SHA}", "1.2.3")`)
+    expect(execFileSync(process.execPath, [join(stage, OUTFILE)], { encoding: 'utf8' })).toBe(
+      `${SHA} 1.2.3\n`,
+    )
+  })
+})
+
+describe('bundleHost workspace provenance', () => {
+  /** `libs/harbor` in `base`: a package exporting `./ledger` from `pi-ext/` and saying `text`. */
+  function harbor(base: string, text: string) {
+    const lib = join(base, 'libs/harbor')
+    mkdirSync(join(lib, 'pi-ext'), { recursive: true })
+    writeFileSync(
+      join(lib, 'package.json'),
+      JSON.stringify({
+        name: '@phosphor/harbor',
+        exports: { './ledger': { types: './pi-ext/ledger.ts', default: './pi-ext/ledger.ts' } },
+      }),
+    )
+    writeFileSync(join(lib, 'pi-ext/ledger.ts'), `export const ledger = '${text}'\n`)
+    writeFileSync(join(lib, 'pi-ext/private.ts'), "export const hidden = 'Mara Voss'\n")
+    return lib
+  }
+  /** A sibling checkout whose libs/harbor is linked as root's node_modules/@phosphor/harbor. */
+  function linkSibling(name: string) {
+    const sibling = join(root, '..', `${root.split('/').at(-1)}-sibling`)
+    const lib = harbor(sibling, 'sibling checkout')
+    mkdirSync(join(root, 'node_modules/@phosphor'), { recursive: true })
+    symlinkSync(lib, join(root, 'node_modules/@phosphor', name))
+    return sibling
+  }
+
+  it('resolves @phosphor packages through the exports of its own root, not a linked sibling checkout', async () => {
+    harbor(root, 'this checkout')
+    const sibling = linkSibling('harbor')
+    try {
+      write(
+        'apps/host/src/main.ts',
+        "import { ledger } from '@phosphor/harbor/ledger'\nconsole.log(ledger)\n",
+      )
+      const stage = join(root, 'stage')
+      const inputs = await bundleHost(stage, { root, stamped: null, releaseVersion: '1.0.0' })
+      expect(inputs.sort()).toEqual(['apps/host/src/main.ts', 'libs/harbor/pi-ext/ledger.ts'])
+      const text = readFileSync(join(stage, OUTFILE), 'utf8')
+      expect(text).toContain('this checkout')
+      expect(text).not.toContain('sibling checkout')
+    } finally {
+      rmSync(sibling, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses a subpath its package does not export', async () => {
+    harbor(root, 'this checkout')
+    write('apps/host/src/main.ts', "import '@phosphor/harbor/pi-ext/private'\n")
+    const failing = bundleHost(join(root, 'stage'), {
+      root,
+      stamped: null,
+      releaseVersion: undefined,
+    })
+    await expect(failing).rejects.toThrow(
+      '@phosphor/harbor/pi-ext/private is not exported by libs/harbor/package.json',
+    )
+  })
+
+  it('refuses a @phosphor package that only a linked sibling checkout has', async () => {
+    const sibling = linkSibling('harbor')
+    try {
+      write('apps/host/src/main.ts', "import '@phosphor/harbor/ledger'\n")
+      const failing = bundleHost(join(root, 'stage'), {
+        root,
+        stamped: null,
+        releaseVersion: undefined,
+      })
+      await expect(failing).rejects.toThrow('@phosphor/harbor is not a package under libs/')
+    } finally {
+      rmSync(sibling, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('auditMetafile provenance', () => {
+  it('refuses an input from outside the checkout that no node_modules folder holds', () => {
+    const inputs = [
+      'apps/host/src/main.ts',
+      '../../ledger/node_modules/ws/index.js',
+      '../../ledger/libs/pi-extensions/pi-ext/status-keys.ts',
+      '/kestrel/libs/shared/src/a.ts',
+    ]
+    expect(() => auditMetafile(metafile(inputs, []))).toThrow(
+      new Error(
+        'the Host bundled ../../ledger/libs/pi-extensions/pi-ext/status-keys.ts, /kestrel/libs/shared/src/a.ts from outside its checkout',
+      ),
+    )
+  })
+
+  it('passes a linked dependency from outside the checkout', () => {
+    const inputs = ['apps/host/src/main.ts', '../../ledger/node_modules/ws/index.js']
+    expect(() => auditMetafile(metafile(inputs, ['node:fs']))).not.toThrow()
   })
 })

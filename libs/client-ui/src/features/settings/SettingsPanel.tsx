@@ -1,3 +1,4 @@
+import { HostBrainSettings } from '@/features/brain/HostBrainSettings'
 import { HostSoftware } from './sections/advanced/HostSoftware'
 import { LocalServiceSection } from './sections/advanced/LocalServiceSection'
 import { AgentControl } from '@/features/agent-control/AgentControl'
@@ -58,6 +59,7 @@ function SectionViews({
         {tab === 'agent' && <AgentControl machine={machine.id} />}
       </>
     ) : null
+  if (tab === 'brain') return <HostBrainSettings hostId={machine.id} label={machine.label} />
   if (!views.Host || !section.host) return null
   return (
     <HostSectionProvider

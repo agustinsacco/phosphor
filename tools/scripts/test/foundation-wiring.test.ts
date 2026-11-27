@@ -239,6 +239,7 @@ describe('foundation CI wiring', () => {
     expect(runsOn.filter((value) => value === linux)).toHaveLength(7)
     expect(runsOn.filter((value) => value !== linux)).toEqual([
       `\${{ matrix.os == 'macos' && 'macos-15' || fromJSON('["self-hosted","Linux","X64"]') }}`,
+      'macos-15',
     ])
     expect(job('changes')).not.toMatch(/RUNNER_STATUS_TOKEN|mac-runner|steps\.mac/)
     expect(workflow).not.toMatch(/runs-on: self-hosted$|ubuntu-/m)
@@ -273,12 +274,15 @@ describe('foundation CI wiring', () => {
       'web-e2e',
       'control-schema',
       'site',
+      'host-brain-package',
       'result',
     ])
     const result = job('result')
     expect(result).toContain('name: CI result')
     expect(result).toContain('if: always()')
-    expect(result).toContain('needs: [changes, e2e, checks, unit, web-e2e, control-schema, site]')
+    expect(result).toContain(
+      'needs: [changes, e2e, checks, unit, web-e2e, control-schema, site, host-brain-package]',
+    )
     expect(result).toContain("RESULTS: ${{ join(needs.*.result, ' ') }}")
     expect(result).toContain('[ "$SCOPE" = success ] ||')
     expect(result).toContain('case "$r" in success|skipped) ;; *)')

@@ -25,6 +25,7 @@ import {
   type HealthBaseline,
   type UpdateResult,
 } from '../update/health'
+import { requireCompatibleBrainBundle } from '../update/brain-compatibility'
 import { installLifetime, signalTurn } from '../update/lifetime'
 import { stagedLine, UP_TO_DATE } from '../update/staged'
 import { HOST_AGENT, HOST_UNIT, hostStateDirectory } from '@phosphor/shared/host-local'
@@ -238,9 +239,11 @@ async function fetchRelease(
   work.stage = mkdtempSync(join(layout.lib, '.staging-'))
   await stageRelease(source, work.stage, found.version, found.artifact, signal)
   if (!options.stage) return { version: found.version, notice: found.notice }
+  requireCompatibleBrainBundle(context, layout, work.stage)
   const probed = await (context.update?.probe ?? probeStagedBundle)(work.stage, signal)
   if (probed.hostVersion !== found.version)
     throw new UpdateFailure('The staged release reports another version.')
+  requireCompatibleBrainBundle(context, layout, work.stage)
   publish(layout, found.version, work)
   work.published = undefined
   await unlock(work, signal)
@@ -259,12 +262,15 @@ async function selectAndRestart(
   signal: AbortSignal,
 ): Promise<number> {
   const { version, notice } = target
+  const candidate = work.stage ?? join(layout.lib, 'versions', version)
+  requireCompatibleBrainBundle(context, layout, candidate)
   const service = await serviceState(context)
   signal.throwIfAborted()
   const state = hostStateDirectory(context.env, context.home)
   const config = dirname(resolve(context.configPath))
   const baseline = healthBaseline(state, config, context.uid, (context.now ?? Date.now)())
   // All publication calls are synchronous. Signals abort only at the next boundary.
+  requireCompatibleBrainBundle(context, layout, candidate)
   publish(layout, version, work)
   selectVersion(layout, version, layout.version)
   work.selected = true
@@ -279,6 +285,13 @@ async function selectAndRestart(
       context.print(LANES_STOP_NOTICE)
     if (!(await restartHealthy(context, version, baseline, signal))) {
       context.progress?.({ step: 'rollback', version: layout.version })
+      try {
+        requireCompatibleBrainBundle(context, layout, join(layout.lib, 'versions', layout.version))
+      } catch {
+        throw new UpdateFailure(
+          `Host ${version} failed its health check; kept it selected because ${layout.version} cannot be safely restored with Brain state.`,
+        )
+      }
       selectVersion(layout, layout.version, version)
       await runService({ ...context, signal }, 'restart')
       record('rolled-back')

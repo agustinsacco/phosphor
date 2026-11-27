@@ -44,6 +44,19 @@ export const BRAIN_WEB = {
   'brain:setOwner': localBrain,
 }
 
+const hostBrainPort = {
+  kind: 'unsupported',
+  reason: 'This native or mutating Host feature is unavailable in the browser.',
+} as const
+
+/** The browser binds the typed hostBrain port directly, not the Desktop IPC transport. */
+export const HOST_BRAIN_WEB = {
+  'hosts:brain': hostBrainPort,
+  'hosts:brainAccess': hostBrainPort,
+  'hosts:brainApprovals': hostBrainPort,
+  'hosts:brainAnswer': hostBrainPort,
+}
+
 const localRuntime = {
   kind: 'unsupported',
   reason: "This Mac's runtime and its move to the Phosphor service belong to Desktop.",

@@ -142,6 +142,19 @@ export async function releaseLinkLock<T extends LinkLockHolder>(lock: LinkLock<T
   }
 }
 
+/** Publish one prepared lock under the recovery gate, without reclaiming any holder. */
+export async function linkUnderRecoveryGate<T extends LinkLockHolder>(
+  lock: LinkLock<T>,
+  temp: string,
+): Promise<void> {
+  await acquireRecoveryGate(lock)
+  try {
+    await (lock.ports.link ?? link)(temp, lock.path)
+  } finally {
+    await rmdir(lock.gatePath)
+  }
+}
+
 /**
  * Publish `body` at the lock path through the private file `temp`. A live
  * holder refuses; a stale or invalid lock is reclaimed once, then a second
@@ -151,6 +164,7 @@ export async function publishLinkLock<T extends LinkLockHolder>(
   lock: LinkLock<T>,
   temp: string,
   body: string,
+  guardPublication = false,
 ): Promise<void> {
   const existing = await snapshotLinkLock(lock)
   if (existing?.lock && (await lock.isLive(existing.lock)))
@@ -165,7 +179,8 @@ export async function publishLinkLock<T extends LinkLockHolder>(
     }
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await (lock.ports.link ?? link)(temp, lock.path)
+        if (guardPublication) await linkUnderRecoveryGate(lock, temp)
+        else await (lock.ports.link ?? link)(temp, lock.path)
         return
       } catch (error) {
         if (!(error instanceof Error && errnoIs(error, 'EEXIST'))) throw error

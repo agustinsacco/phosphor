@@ -5,7 +5,7 @@ export interface BrainEmbeddings {
   setEnabled(enabled: boolean): Promise<void>
   /** Downloads the pinned model; embed() never downloads. */
   download(): Promise<void>
-  remove(): Promise<void>
+  remove(beforeDelete?: () => void): Promise<void>
   embed(texts: string[], kind: 'query' | 'document', signal?: AbortSignal): Promise<number[][]>
   dispose(): void
 }

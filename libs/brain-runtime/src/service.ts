@@ -9,6 +9,7 @@ import type { ReadOptions } from './extraction-save'
 import { extractJob } from './extract'
 import { createRecall } from './recall'
 import { createApi } from './api'
+import { extractionView } from './extraction-view'
 import { createTidyMaintenance } from './tidy/maintenance'
 import { currentReadCheck } from './lane-read-rules'
 import { LaneFiles } from './lane-files'
@@ -57,6 +58,14 @@ async function removePrototypeFiles(directory: string): Promise<void> {
   )
 }
 
+/** The store and its search index share one database file in the Brain directory. */
+async function openBrainFiles(options: BrainServiceOptions) {
+  await mkdir(options.directory, { recursive: true })
+  await removePrototypeFiles(options.directory)
+  const database = join(options.directory, 'brain.sqlite')
+  return { store: options.openStore(database), search: options.openSearch(database) }
+}
+
 function recoverInterrupted(store: BrainStore): void {
   store.requeueInterrupted()
   store.interruptRuns(DEFRAG_INTERRUPTED)
@@ -88,10 +97,7 @@ function createQueue(
 }
 
 export async function createBrainService(options: BrainServiceOptions): Promise<BrainService> {
-  await mkdir(options.directory, { recursive: true })
-  await removePrototypeFiles(options.directory)
-  const store = options.openStore(join(options.directory, 'brain.sqlite'))
-  const search = options.openSearch(join(options.directory, 'brain.sqlite'))
+  const { store, search } = await openBrainFiles(options)
   let disposed = false
   const notify = (): void => {
     if (!disposed) options.onChange?.()
@@ -135,18 +141,22 @@ export async function createBrainService(options: BrainServiceOptions): Promise<
   else await options.embeddings.setEnabled(false)
   changed()
   queue.kick()
+  const apiContext = {
+    store,
+    options,
+    search,
+    queue,
+    files,
+    changed,
+    startModel: setup.start,
+    maintenance,
+    defrag,
+  }
   return {
-    api: createApi({
-      store,
-      options,
-      search,
-      queue,
-      files,
-      changed,
-      startModel: setup.start,
-      maintenance,
-      defrag,
-    }),
+    api: createApi(apiContext),
+    guarded: (beforeMutation) => createApi({ ...apiContext, beforeMutation }),
+    job: (id) => store.job(id),
+    evidence: (id, canReadSource) => extractionView(store, id, canReadSource),
     agent: (method, request, signal) => recall.agent(method, request, signal),
     forLane: recall.forLane,
     recallLaunch: recall.recallLaunch,

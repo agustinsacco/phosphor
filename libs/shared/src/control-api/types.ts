@@ -4,6 +4,7 @@
  * that produce these shapes live in the domain modules beside this one.
  */
 
+import type { BrainAccess } from '../brain-access'
 import type { GrantClient } from '../host-grant'
 
 export const PLATFORMS = ['linux', 'darwin', 'win32'] as const
@@ -153,6 +154,7 @@ export interface GrantIssueRequest {
   readonly clientId: string
   /** Owner-authorized machine administration, independent of lane control. */
   readonly configure?: true
+  readonly brainAccess?: readonly BrainAccess[]
 }
 export interface GrantIssueResponse {
   readonly grant: string

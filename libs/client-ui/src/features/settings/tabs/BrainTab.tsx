@@ -35,7 +35,7 @@ export function BrainTab(): React.JSX.Element {
   }
   const open = (): void => {
     useSettingsUiStore.getState().setOpen(false)
-    navigate({ to: 'page', page: 'brain' })
+    navigate({ to: 'page', page: 'brain', machine: 'local' })
   }
   return (
     <div>

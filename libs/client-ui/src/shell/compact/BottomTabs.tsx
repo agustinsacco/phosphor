@@ -6,6 +6,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { locationMachine, type Location } from '@/navigation/location'
 import { SCREENS } from '@/navigation/screens'
 import { isLibraryPage, useBrowserMemory } from './browserMemory'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useScopedMachine } from './useBrowserScope'
 
 interface Tab {
@@ -29,6 +30,7 @@ const TABS = {
     icon: LibraryIcon,
     active: (l) => l.to === 'page' && isLibraryPage(l.page),
   },
+  brain: { ...SCREENS.brain, label: SCREENS.brain.title, active: (l) => onPage(l, 'brain') },
   settings: {
     ...SCREENS.settings,
     label: SCREENS.settings.title,
@@ -51,6 +53,9 @@ export function BottomTabs(): React.JSX.Element {
   const memory = useBrowserMemory()
   const scoped = useScopedMachine()
   const needsYou = useNeedsYouCount()
+  const hostBrain = useRemoteLanesStore((s) =>
+    Object.values(s.hosts).some((host) => host.brain === true),
+  )
   const targets: Record<keyof typeof TABS, Location> = {
     home: TABS.home.active(location) ? { to: 'lanes' } : (memory.lanes ?? { to: 'lanes' }),
     machines: { to: 'page', page: 'machines' },
@@ -59,6 +64,7 @@ export function BottomTabs(): React.JSX.Element {
       page: memory.library,
       ...(scoped && memory.library !== 'artifacts' ? { machine: scoped } : {}),
     },
+    brain: { to: 'page', page: 'brain', ...(scoped ? { machine: scoped } : {}) },
     settings: {
       to: 'page',
       page: 'settings',
@@ -67,29 +73,31 @@ export function BottomTabs(): React.JSX.Element {
   }
   return (
     <nav aria-label="Tabs" className="browser-tabs">
-      {(Object.keys(TABS) as (keyof typeof TABS)[]).map((key) => {
-        const { label, icon: Icon, active } = TABS[key]
-        const current = active(location)
-        return (
-          <TooltipButton
-            key={key}
-            tooltip={false}
-            className="browser-tab"
-            aria-current={current ? 'page' : undefined}
-            onClick={() => navigate(targets[key])}
-          >
-            <span className="browser-tab-icon">
-              <Icon size={20} />
-              {key === 'home' && needsYou > 0 && (
-                <span className="browser-tab-badge" aria-label={`${needsYou} need you`}>
-                  {needsYou}
-                </span>
-              )}
-            </span>
-            {label}
-          </TooltipButton>
-        )
-      })}
+      {(Object.keys(TABS) as (keyof typeof TABS)[])
+        .filter((key) => key !== 'brain' || hostBrain || TABS.brain.active(location))
+        .map((key) => {
+          const { label, icon: Icon, active } = TABS[key]
+          const current = active(location)
+          return (
+            <TooltipButton
+              key={key}
+              tooltip={false}
+              className="browser-tab"
+              aria-current={current ? 'page' : undefined}
+              onClick={() => navigate(targets[key])}
+            >
+              <span className="browser-tab-icon">
+                <Icon size={20} />
+                {key === 'home' && needsYou > 0 && (
+                  <span className="browser-tab-badge" aria-label={`${needsYou} need you`}>
+                    {needsYou}
+                  </span>
+                )}
+              </span>
+              {label}
+            </TooltipButton>
+          )
+        })}
     </nav>
   )
 }

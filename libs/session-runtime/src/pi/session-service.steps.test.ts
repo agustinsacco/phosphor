@@ -103,6 +103,18 @@ describe('session service steps', () => {
     ])
   })
 
+  it('rechecks admission at the actual abort dispatch, not just on service entry', async () => {
+    const h = fixture()
+    const live = await h.service.create({ workspacePath: '/repo' })
+    const client = h.clients[0]!
+    client.request.mockClear()
+    let current = true
+    const abort = h.service.command(live.sessionId, { type: 'abort' }, () => current)
+    current = false
+    await expect(abort).rejects.toThrow('The turn changed before dispatch.')
+    expect(client.request).not.toHaveBeenCalled()
+  })
+
   it('refuses unverifiable models before reload or dispatch', async () => {
     const h = fixture()
     const live = await h.service.create({ workspacePath: '/repo' })

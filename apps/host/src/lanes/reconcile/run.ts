@@ -11,6 +11,7 @@ import type { HostStore } from '../store'
 import { reconcile } from '../reconcile'
 import { readModelScans, writeModelScans } from './model-scans'
 import { repairLaneModels } from './models'
+import { hostBrainLaneFolder } from '../../brain/runtime'
 
 function routinePaths(directory: string, uid: number | undefined) {
   const dir = join(directory, 'routines')
@@ -51,6 +52,7 @@ export async function reconcileRunFolders(
     (skipped) => context.log?.('host', 'lanes.skipped', { skipped }),
     signal,
     owner,
+    [hostBrainLaneFolder(hostStateDirectory(context.env, context.home))],
   )
   signal.throwIfAborted()
   context.log?.('host', 'lanes.reconciled', counts)

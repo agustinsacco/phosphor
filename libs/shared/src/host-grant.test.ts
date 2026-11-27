@@ -265,3 +265,25 @@ describe('machine-origin grants', () => {
     ).toBe(true)
   })
 })
+
+it('preserves explicit Brain rights and rejects malformed or machine-origin Brain claims', () => {
+  const brainAccess = ['read', 'evidence']
+  expect(parseGrantPayload({ ...payload, brainAccess })).toEqual({
+    ok: true,
+    value: { ...payload, brainAccess },
+  })
+  for (const invalid of [true, [], ['read', 'read'], ['admin'], ['configure', null]])
+    expect(parseGrantPayload({ ...payload, brainAccess: invalid })).toEqual({
+      ok: false,
+      reason: 'brain-access',
+    })
+  expect(
+    parseGrantPayload({
+      ...payload,
+      origin: 'machine',
+      machine: randomUUID(),
+      caps: [],
+      brainAccess,
+    }),
+  ).toEqual({ ok: false, reason: 'machine' })
+})

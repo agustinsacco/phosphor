@@ -61,6 +61,7 @@ const shippedFiles = [
 // their standalone bundles (brain-ext/), never these TypeScript sources.
 const bundleOnlySources = [
   'brain.ts',
+  'brain-agent-guard.ts',
   'brain-fork-guard.ts',
   'brain-curator.ts',
   'brain-curator-writes.ts',

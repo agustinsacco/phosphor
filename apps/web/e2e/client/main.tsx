@@ -8,9 +8,12 @@ import '@phosphor/client-ui/styles/index.css'
 const bridge = createBrowserApi({
   socket: (url) => {
     const target = new URL(url)
-    if (target.origin !== 'wss://fixture.ts.net' || target.pathname !== '/v1/stream')
+    const path = { 'fixture.ts.net': 'fixture-host', 'ledger.fixture.ts.net': 'fixture-ledger' }[
+      target.host
+    ]
+    if (!path || target.protocol !== 'wss:' || target.pathname !== '/v1/stream')
       return Promise.reject(new Error('Unexpected fixture endpoint'))
-    return openHostSocket(`ws://${location.host}/fixture-host`)
+    return openHostSocket(`ws://${location.host}/${path}`)
   },
 })
 window.phosphor = bridge.api

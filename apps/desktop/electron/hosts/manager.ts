@@ -45,8 +45,12 @@ export function createHostManager(ports: HostManagerPorts) {
   return {
     changed: notify,
     clientId: (hostId: string) => managerClientId(state, hostId, ports.clientId()),
-    connection: (hostId: string) =>
-      local(hostId)?.connection ?? state.connections.get(hostId)?.connection,
+    connection: (hostId: string, expectedToken?: string) => {
+      const connection = local(hostId)?.connection ?? state.connections.get(hostId)?.connection
+      if (expectedToken !== undefined && connection?.snapshot().connectionToken !== expectedToken)
+        return undefined
+      return connection
+    },
     label: (hostId: string) =>
       local(hostId)?.label ?? state.list?.machines.find((m) => m.id === hostId)?.label ?? hostId,
     present: (hostId: string) =>

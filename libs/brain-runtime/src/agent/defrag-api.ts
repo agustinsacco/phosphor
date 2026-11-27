@@ -9,12 +9,15 @@ export function defragApi(
   defrag: Defrag,
   status: () => BrainStatus,
   mutate: (run: () => void) => Promise<BrainStatus>,
+  check: () => void,
 ): Pick<BrainApi, 'defrag' | 'defragStop' | 'undoRun'> {
   const start = async (): Promise<BrainStatus> => {
+    check()
     defrag.start()
     return status()
   }
   const stop = async (): Promise<BrainStatus> => {
+    check()
     defrag.stop()
     return status()
   }

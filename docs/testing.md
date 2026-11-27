@@ -118,8 +118,9 @@ calls `relate` over the protocol 7 bridge. It cites the two memories for
 `PHOSPHOR_BRAIN_TEST_EMBEDDINGS` uses word-hash
 vectors and enables the stub's bridge traffic only in unpackaged Desktop builds.
 The Desktop case also sends a Tell and checks its message in the Brain lane.
-The browser case checks the Brain deep link is unavailable and every `brain:*`
-call fails.
+The browser case opens the Brain deep link without selecting a Host. It checks
+that the page offers a Host picker and that direct Desktop `brain:*` IPC calls
+still fail.
 
 ## Layout and helpers
 

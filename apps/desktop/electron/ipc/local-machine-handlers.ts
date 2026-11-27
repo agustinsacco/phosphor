@@ -103,6 +103,12 @@ function status(): LocalMachineStatus | Promise<LocalMachineStatus> {
       }
       return snapshot()
     })
+    .catch((error: unknown) => {
+      // The independent launch choice remains provable even if machine.local stops answering.
+      const current = snapshot()
+      if (current.brainOwner === 'desktop') return current
+      throw error
+    })
     .finally(() => {
       if (read?.done === done) read = undefined
     })

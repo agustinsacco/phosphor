@@ -25,7 +25,7 @@ const run = (script: string) =>
     encoding: 'utf8',
     env: { ...process.env, HOST_RELEASE_VERSION: '1.2.3' },
   })
-const pin = JSON.parse(readFileSync(join(root, 'tools/host-release/node.json'), 'utf8')) as {
+const pin = JSON.parse(readFileSync(join(root, 'apps/host/src/brain/node.json'), 'utf8')) as {
   version: string
   archives: Record<string, string>
 }

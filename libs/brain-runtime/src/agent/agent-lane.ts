@@ -1,32 +1,33 @@
 /**
- * Brain Agent's turns in the Brain lane, an ordinary lane in `<userData>/brain/Brain`. Each
- * Defrag turn resumes the folder's newest transcript (or starts the lane) the way the owner
- * opens a lane: no window target, not unattended, so its events reach every window and its
- * dialogs reach the owner. The message goes through the session service's `command`, so the
+ * Brain Agent's turns in the Brain lane: an ordinary lane in Desktop's `<userData>/brain/Brain`,
+ * the Host's reserved lane on a Host. Each Defrag turn resumes the lane's transcript (or starts
+ * the lane) the way the owner opens a lane: no window target, not unattended, so its events reach
+ * every client and its dialogs reach the owner. The message goes through the session service's `command`, so the
  * usual prompt preflight runs.
  */
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { BRAIN_AGENT_NAME } from '@phosphor/shared/brain-agent'
-import type {
-  BrainAgentHost,
-  BrainAgentTurn,
-  BrainAgentTurnHooks,
-} from '@phosphor/brain-runtime/types'
 import type { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { lastAssistantEnd } from '@phosphor/session-runtime/routines/outcome'
-import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
-import type { AgentMessage, PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
-import { ensureBrainLane, readBrainRules } from './lane-folder'
+import type { CreateSessionOptions, LiveSessionInfo } from '@phosphor/shared/models'
+import type { AgentMessage, PiEvent, RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
+import type { BrainAgentHost, BrainAgentTurn, BrainAgentTurnHooks } from '../types'
+import { ensureBrainLane, readBrainRules } from './rules'
 
 export type BrainLaneClient = Pick<PiRpcClient, 'alive' | 'sessionFile' | 'request' | 'on' | 'off'>
 
 export interface BrainLaneDeps {
   /** Real path of the Brain lane's folder. */
   folder: string
-  /** pi's transcript folder for `folder` (`sessionDirForCwd`). */
-  transcripts(folder: string): string
+  /**
+   * The transcript the next turn resumes, or null to start the lane: Desktop's newest in the
+   * folder (`newestTranscript`), the Host's stable binding.
+   */
+  resume(): Promise<string | null>
+  /** Records the transcript pi reports once the lane is open, before any message is sent. */
+  bind?(sessionFile: string | null): Promise<void>
   /** `spawnSession` with no target, not unattended: the live lane when it is already open. */
   create(options: CreateSessionOptions, execution: SessionExecution): Promise<LiveSessionInfo>
   client(sessionId: string): BrainLaneClient | undefined
@@ -223,7 +224,7 @@ function send(
 
 /** Resumes the newest transcript or starts the lane, and learns its transcript at once. */
 async function open(deps: BrainLaneDeps, opened: BrainAgentTurnHooks['opened']): Promise<OpenLane> {
-  const sessionPath = await newestTranscript(deps.transcripts(deps.folder))
+  const sessionPath = await deps.resume()
   // Defrag never moves the folder Phosphor reopens at launch; the owner opening the lane does.
   const live = await deps.create(
     { workspacePath: deps.folder, ...(sessionPath ? { sessionPath } : { name: BRAIN_AGENT_NAME }) },
@@ -234,6 +235,7 @@ async function open(deps: BrainLaneDeps, opened: BrainAgentTurnHooks['opened']):
   // The registry matches an opened path on the transcript pi reports. Asking now means the owner
   // opening the Brain lane finds this process rather than starting a second one on the file.
   await client.request({ type: 'get_state' })
+  await deps.bind?.(client.sessionFile ?? sessionPath)
   opened(client.sessionFile ?? sessionPath)
   deps.changed(deps.folder)
   return { sessionId: live.sessionId, client }

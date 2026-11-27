@@ -1,3 +1,5 @@
+import { readLocalBrainSelection } from '@phosphor/session-runtime/brain/local-owner'
+import { hostBrainAdmission } from '../brain-handover/gate'
 import { createHash, createPrivateKey, type KeyObject } from 'node:crypto'
 import { unlinkSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -16,6 +18,7 @@ import { readOwnerLock } from '@phosphor/session-runtime/owner-lock/owner-lock'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { LocalSocketRefused, startLocalServer } from '../api/local-server'
 import { hostLinks } from '../api/server'
+import type { BrainSurfaceBinding } from '../api/brain-adapter'
 import { readSidecar, writeSidecar } from '../config/sidecar'
 import { readIdentityFile } from '../control/identity-files'
 import { IdentityFailure } from '../control/identity-records'
@@ -193,6 +196,7 @@ export interface LocalSocketOptions {
   owner?: (seam: OwnerSeam) => Promise<OwnerHandlers>
   /** `ops.run` on the socket, once the lanes start (B1 binds the dispatcher). */
   ops?: OpsAdapterPorts
+  brain?: BrainSurfaceBinding
 }
 
 /** What an owner method factory gets once the daemon's store is open. */
@@ -211,7 +215,14 @@ export function createLocalSocketStarter(
   context: RunContext,
   options: LocalSocketOptions = {},
 ): StartLocalSocket {
-  const appServices = createAppServices(hostStateDirectory(context.env, context.home), context.uid)
+  const directory = hostStateDirectory(context.env, context.home)
+  const appServices = createAppServices(directory, context.uid, () => {
+    const selection = readLocalBrainSelection(directory)
+    return (
+      (selection === 'unset' || selection === 'desktop') &&
+      hostBrainAdmission(directory).state === 'open'
+    )
+  })
   return ownerSocket(
     context,
     { ...options, handlers: { ...appServices.handlers, ...options.handlers } },
@@ -277,7 +288,8 @@ function ownerSocket(
         const serving = server.serveLanes({
           epoch: lanes.service.epoch,
           capabilities: lanes.service.capabilities,
-          links: hostLinks(options.ops, handlers),
+          brain: Boolean(lanes.brain ?? options.brain),
+          links: hostLinks(options.ops, handlers, lanes.brain ?? options.brain),
           handler: lanes.adapter.handler,
           peers: lanes.peers,
         })

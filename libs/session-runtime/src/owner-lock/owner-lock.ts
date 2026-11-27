@@ -77,7 +77,7 @@ export const ownerLockPorts: OwnerLockPorts = {
  * An unknown start time cannot prove reuse, so liveness alone decides.
  */
 export async function isOwnerLockHolderLive(
-  holder: OwnerLockRecord,
+  holder: Pick<OwnerLockRecord, 'pid' | 'processStart'>,
   ports: OwnerLockPorts = ownerLockPorts,
 ): Promise<boolean> {
   if (!ports.isAlive(holder.pid)) return false
@@ -124,7 +124,7 @@ export function parseOwnerLockRecord(text: string): OwnerLockRecord | null {
 }
 
 /** Read through a descriptor that refuses symlinks; only a private file of `uid` counts. */
-async function readLockFile(
+export async function readPrivateLockFile(
   path: string,
   uid: number | undefined,
 ): Promise<{ text: string; info: Stats }> {
@@ -191,7 +191,9 @@ export async function readOwnerLock(
   uid: number | undefined = process.getuid?.(),
 ): Promise<OwnerLockRecord | null> {
   try {
-    return parseOwnerLockRecord((await readLockFile(join(agentDir, OWNER_LOCK_FILE), uid)).text)
+    return parseOwnerLockRecord(
+      (await readPrivateLockFile(join(agentDir, OWNER_LOCK_FILE), uid)).text,
+    )
   } catch {
     return null
   }
@@ -218,7 +220,7 @@ export async function acquireOwnerLock(
     gatePath,
     token,
     ports: linkPorts,
-    read: () => readLockFile(path, uid),
+    read: () => readPrivateLockFile(path, uid),
     parse: parseOwnerLockRecord,
     isLive: (holder) => isOwnerLockHolderLive(holder, ports),
     refuse: (refusal) => refuseOwnerLock(path, gatePath, refusal),

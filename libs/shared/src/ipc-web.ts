@@ -1,6 +1,6 @@
 import { ARCHIVE_WEB } from './ipc-web-archive'
 import type { IpcInvokeChannel } from './ipc'
-import { BRAIN_WEB, LOCAL_MACHINE_WEB, connectorConfig } from './ipc-web-exclusions'
+import { BRAIN_WEB, HOST_BRAIN_WEB, LOCAL_MACHINE_WEB, connectorConfig } from './ipc-web-exclusions'
 
 export type WebIpcClassification =
   { kind: 'remote-supported' } | { kind: 'browser-local' } | { kind: 'unsupported'; reason: string }
@@ -39,6 +39,7 @@ export const IPC_WEB = {
   'hosts:laneMovePlan': remote,
   'hosts:laneMove': remote,
   'hosts:providerLogin': remote,
+  ...HOST_BRAIN_WEB,
   'hosts:settingsAccess': remote,
   'hosts:settingsRead': remote,
   'hosts:settingsPatch': remote,

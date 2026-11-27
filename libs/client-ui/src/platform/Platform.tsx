@@ -39,6 +39,8 @@ export interface Platform {
   notificationPermission: boolean
   /** Local Brain UI is available for this launch. */
   localBrain: boolean
+  /** This Mac’s Brain remains in Desktop even if the service owns its lanes. */
+  desktopBrainOwner: boolean
   /** Machines → Debug log: main keeps this client's control and Host traffic (`hosts:traffic`). */
   hostTrafficLog: boolean
 }
@@ -62,12 +64,21 @@ export const DESKTOP_PLATFORM: Platform = Object.freeze({
   cancelSignIn: true,
   localVoice: true,
   localBrain: false,
+  desktopBrainOwner: false,
   hostTrafficLog: true,
   notificationPermission: false,
 })
 /** Keep the UI available for this launch so turning Brain off doesn't remove its controls. */
-export function desktopPlatform(brainEnabledAtLaunch: boolean, brainPreview: boolean): Platform {
-  return { ...DESKTOP_PLATFORM, localBrain: brainEnabledAtLaunch || brainPreview }
+export function desktopPlatform(
+  brainEnabledAtLaunch: boolean,
+  brainPreview: boolean,
+  desktopBrainOwner = brainEnabledAtLaunch || brainPreview,
+): Platform {
+  return {
+    ...DESKTOP_PLATFORM,
+    localBrain: brainEnabledAtLaunch || brainPreview,
+    desktopBrainOwner,
+  }
 }
 
 export const COMPACT_PLATFORM: Platform = Object.freeze({
@@ -92,6 +103,7 @@ export const COMPACT_PLATFORM: Platform = Object.freeze({
   cancelSignIn: false,
   localVoice: false,
   localBrain: false,
+  desktopBrainOwner: false,
   hostTrafficLog: false,
   notificationPermission: true,
 })

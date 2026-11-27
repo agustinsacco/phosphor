@@ -14,14 +14,18 @@ import { prepareDesktopSessionLaunch } from '../pi/session-launch'
 import { desktopSessionPolicy } from '../pi/session-policy'
 import { setSessionRecall } from '../pi/contributions/brain'
 import { desktopSessions, spawnSession } from '../pi/session-runtime'
-import { createBrainAgentLane } from './agent-lane'
+import { createBrainAgentLane, newestTranscript } from '@phosphor/brain-runtime/agent/agent-lane'
+import { requireLaunchedDesktopBrain } from './owner-gate'
 import { brainLaneFolder, laneBrainLaunch } from './lane-folder'
 import { createBrainEmbeddings } from './embedding-service'
 import { createDesktopSearch } from './search-service'
 import { testEmbeddings } from './test-embeddings'
+import { createDesktopBrainOpener } from './service-opener'
 
-let pending: Promise<BrainService> | undefined
-let closing = false
+const opener = createDesktopBrainOpener(
+  () => requireLaunchedDesktopBrain(app.getPath('userData')),
+  construct,
+)
 
 const resources = (): string =>
   app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '../../libs/pi-extensions')
@@ -47,21 +51,17 @@ const lanes: BrainLanes = {
   },
 }
 
-/** Lazy, after userData redirection. A failed construction can be retried, not cached forever. */
-export function brainService(): Promise<BrainService> {
-  if (closing) return Promise.reject(new Error('Brain is shutting down'))
-  pending ??= construct().catch((error: unknown) => {
-    pending = undefined
-    throw error
-  })
-  return pending
-}
+/**
+ * Lazy, after userData redirection. A failed construction can be retried, not cached forever.
+ * Once a move to the service starts, Desktop's Brain never opens again (owner-gate.ts).
+ */
+export const brainService = opener.get
 
 /** Brain Agent's turns run in the Brain lane like any lane the owner opens. */
 const agentLane = (folder: string) =>
   createBrainAgentLane({
     folder,
-    transcripts: (cwd) => sessionDirForCwd(cwd),
+    resume: () => newestTranscript(sessionDirForCwd(folder)),
     create: (options, execution) => spawnSession(options, undefined, execution),
     client: (sessionId) => registry.get(sessionId)?.client,
     command: (sessionId, command) => desktopSessions.command(sessionId, command),
@@ -122,7 +122,7 @@ export function installBrainRecall(): void {
 }
 
 export async function disposeBrain(): Promise<void> {
-  closing = true
+  const pending = opener.close()
   await desktopBrainApp.dispose()
-  if (pending) await (await pending.catch(() => undefined))?.dispose()
+  await (await pending?.catch(() => undefined))?.dispose()
 }

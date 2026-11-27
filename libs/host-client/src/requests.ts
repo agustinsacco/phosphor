@@ -1,3 +1,4 @@
+import { isBrainSurfaceOp } from '@phosphor/shared/host-brain'
 import {
   HOST_CALL_TIMEOUT_MS,
   HOST_LIMITS,
@@ -14,10 +15,18 @@ export type NotSent = {
 export type CommandResult = Receipt | NotSent
 type Command = Extract<ClientFrame, { type: 'command' }>
 type Result = Extract<HostFrame, { type: 'result' }>
+type Pending = {
+  frame: Command
+  at: number
+  statusOnly: boolean
+  resolve: (result: CommandResult) => void
+}
 
 const COMMAND_WAIT_MS = 60_000
 // Leave time for admission and receipt delivery beyond the Host's 120 s window.
 const PI_START_WAIT_MS = 180_000
+const privateCommand = (frame: Command) =>
+  frame.op.type === 'ops.run' && isBrainSurfaceOp(frame.op.op)
 
 function commandWait(frame: Command): number {
   return frame.op.type === 'lane.create' ||
@@ -31,8 +40,12 @@ function queryFailure(id: string, message: string): Result {
   return { type: 'result', id, ok: false, error: { code: 'internal', message } }
 }
 
+function isPublicReceipt(item?: Pending) {
+  return item !== undefined && !privateCommand(item.frame)
+}
+
 /** Receipts outlive a transport; read calls do not. Only replay-safe commands retry. */
-export function createRequests(ports: {
+interface RequestPorts {
   now: () => number
   write: (frame: ClientFrame) => boolean
   later: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>
@@ -40,17 +53,9 @@ export function createRequests(ports: {
   unrefTimer?: (timer: ReturnType<typeof setTimeout>) => void
   changed: () => void
   transportFailed: () => void
-}) {
-  const pending = new Map<
-    string,
-    { frame: Command; at: number; statusOnly: boolean; resolve: (result: CommandResult) => void }
-  >()
-  const expiries = new Map<string, ReturnType<typeof setTimeout>>()
-  const calls = new Map<
-    string,
-    { resolve: (result: Result) => void; timer: ReturnType<typeof setTimeout> }
-  >()
-  const replay: string[] = []
+}
+
+function replayFlusher(ports: RequestPorts, pending: Map<string, Pending>, replay: string[]) {
   function flushReplay() {
     while (replay.length) {
       const requestId = replay[0]
@@ -73,6 +78,21 @@ export function createRequests(ports: {
     }
     ports.changed()
   }
+  return flushReplay
+}
+
+export function createRequests(ports: RequestPorts) {
+  const pending = new Map<string, Pending>()
+  const expiries = new Map<string, ReturnType<typeof setTimeout>>()
+  const calls = new Map<
+    string,
+    {
+      resolve: (result: Result) => void
+      timer: ReturnType<typeof setTimeout>
+      privateData: boolean
+    }
+  >()
+  const replay: string[] = []
   function disconnect(code: number) {
     replay.length = 0
     for (const [id, call] of calls) {
@@ -80,6 +100,14 @@ export function createRequests(ports: {
       call.resolve(queryFailure(id, 'Connection closed.'))
     }
     calls.clear()
+    // Brain commands deliberately have no replay or persisted private receipt.
+    for (const [requestId, item] of pending) {
+      if (!privateCommand(item.frame)) continue
+      clearTimeout(expiries.get(requestId))
+      expiries.delete(requestId)
+      pending.delete(requestId)
+      item.resolve({ requestId, status: 'unknown' })
+    }
     if (code === 4400 || code === 1009) for (const p of pending.values()) p.statusOnly = true
   }
   return {
@@ -94,7 +122,7 @@ export function createRequests(ports: {
     prepareReplay() {
       replay.push(...pending.keys())
     },
-    flushReplay,
+    flushReplay: replayFlusher(ports, pending, replay),
     replaying: () => replay.length > 0,
     full: () => pending.size >= HOST_LIMITS.pendingCommandsPerConnection,
     track(frame: Command, resolve: (result: CommandResult) => void) {
@@ -120,6 +148,8 @@ export function createRequests(ports: {
       expiries.delete(receipt.requestId)
       return op
     },
+    publicResult: (id: string) => calls.get(id)?.privateData === false,
+    publicReceipt: (id: string) => isPublicReceipt(pending.get(id)),
     result(result: Result) {
       const call = calls.get(result.id)
       if (!call) return
@@ -142,7 +172,16 @@ export function createRequests(ports: {
           calls.delete(id)
           resolve(queryFailure(id, 'Query timed out.'))
         }, timeoutMs)
-        calls.set(id, { resolve, timer })
+        calls.set(id, {
+          resolve,
+          timer,
+          privateData:
+            method === 'ops.run' &&
+            !!params &&
+            typeof params === 'object' &&
+            'op' in params &&
+            isBrainSurfaceOp(params.op),
+        })
         if (!ports.write({ type: 'call', id, method, params, trace })) ports.transportFailed()
       })
     },

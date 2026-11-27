@@ -16,6 +16,7 @@ export function grantClaims(options: {
   epoch: number
   client: GrantClient
   configure?: true
+  brainAccess?: GrantPayload['brainAccess']
   iat: number
   jti: string
 }): GrantPayload {
@@ -29,6 +30,7 @@ export function grantClaims(options: {
     epoch: options.epoch,
     client: options.client,
     caps: LEGACY_HOST_CAPABILITIES,
+    ...(options.brainAccess ? { brainAccess: options.brainAccess } : {}),
     ...(options.configure === true ? { configure: true as const } : {}),
     iat: options.iat,
     exp: options.iat + GRANT_LIMITS.ttlSec,

@@ -112,6 +112,10 @@ describe("Desktop's Brain lane in daemon mode", () => {
     try {
       const { InAppRuntimeRefused } = await daemonMode()
       const { registry } = await import('../registry')
+      // The launch fence starts closed: no Brain lane until this launch decides Desktop owns it.
+      expect(() => registry.create(brain, {})).toThrow(InAppRuntimeRefused)
+      const { finishBrainOwnerLaunch } = await import('../brain/owner-gate')
+      finishBrainOwnerLaunch(root, 'desktop')
       for (const cwd of [
         '/tmp/m2a/workspace',
         join(root, 'brain'),

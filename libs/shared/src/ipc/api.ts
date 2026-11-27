@@ -1,4 +1,5 @@
 import type { HostResourceChangedEvent } from './hosts'
+import type { BrainSurfacePort } from './host-brain'
 import type { RpcCommand, RpcResponse, RpcResponseDataMap } from '../rpc'
 import type { AccountView } from '../account'
 import type { VoiceStatus } from '../voice'
@@ -28,6 +29,9 @@ export interface PhosphorApi {
    * flashing the wrong modifier first.
    */
   platform: PhosphorPlatform
+
+  /** Optional on clients that cannot reach a Host Brain. No local fallback. */
+  hostBrain?: BrainSurfacePort
 
   invoke<C extends IpcInvokeChannel>(
     channel: C,

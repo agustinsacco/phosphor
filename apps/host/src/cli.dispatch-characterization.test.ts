@@ -504,6 +504,8 @@ describe('runCli control commands', () => {
         startLocalSocket: expect.any(Function),
         // Run's ops slot, shared with the socket; empty until run binds the dispatcher.
         ops: {},
+        // Run's Brain handover slot, shared with the owner socket; empty until run binds it.
+        handover: {},
       },
     ])
     expect(targets).toEqual([])

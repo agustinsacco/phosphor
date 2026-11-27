@@ -3,6 +3,10 @@ import { configPathOf, type CliContext, type CliIo, type CommandOf } from './cli
 import { runHost } from './commands/run'
 import { headroomSocketStarter } from './session/headroom-run'
 import { migrationOwnerHandlers } from './owner/migrate'
+import {
+  brainHandoverOwnerHandlers,
+  type BrainHandoverNativePorts,
+} from './brain-handover/owner-seam'
 import { migrationImporters } from './owner/import'
 import type { OpsAdapterPorts } from './ops/adapter'
 import { runService } from './commands/service'
@@ -100,15 +104,29 @@ export async function handleRun(
     const context = { ...run, supervisor: command.supervisor }
     // One ops slot for both listeners; run binds the dispatcher into it once the lanes start.
     const ops: OpsAdapterPorts = {}
+    const handover: { current?: BrainHandoverNativePorts } = {}
     // Only a Host with the local-mode marker starts the socket; a headless Host never calls it.
     const startLocalSocket = headroomSocketStarter(context, {
       ops,
-      owner: migrationOwnerHandlers(context, migrationImporters(context)),
+      owner: ownerHandlers(context, () => handover.current),
     })
-    return await runHost({ ...context, ops, startLocalSocket })
+    return await runHost({ ...context, ops, startLocalSocket, handover })
   } finally {
     lifetime.end()
   }
+}
+
+/** Lane migration and the Brain handover share the owner seam; their methods do not overlap. */
+function ownerHandlers(
+  context: Parameters<typeof migrationOwnerHandlers>[0],
+  native: () => BrainHandoverNativePorts | undefined,
+) {
+  const migration = migrationOwnerHandlers(context, migrationImporters(context))
+  const brain = brainHandoverOwnerHandlers(context, native)
+  return async (seam: Parameters<typeof migration>[0]) => ({
+    ...(await migration(seam)),
+    ...brain(seam),
+  })
 }
 
 export async function handleService(

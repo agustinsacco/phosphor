@@ -1,3 +1,4 @@
+import type { BrainAccess } from '@phosphor/shared/brain-access'
 import type { FrameSocket, HostFrame } from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { AuthenticatedFrame, AuthenticatedHandler, ReadyConnection } from './connection'
@@ -5,7 +6,7 @@ import type { AuthenticatedFrame, AuthenticatedHandler, ReadyConnection } from '
 /** One link ahead of the lane adapter. `handle` returns true when it answered the frame. */
 export interface FrameLink {
   handle(frame: AuthenticatedFrame, caps: readonly HostCapability[]): boolean
-  renew?(caps: readonly HostCapability[]): void
+  renew?(caps: readonly HostCapability[], brainAccess?: readonly BrainAccess[]): void
   close?(): void
 }
 /** Null: the link never answers anything on this connection. */
@@ -58,9 +59,9 @@ export function createAdapterChain(
         if (inner) inner.handle(frame, caps)
         else refuseFrame(connection.socket, frame)
       },
-      renew(caps) {
-        for (const link of active) link.renew?.(caps)
-        inner?.renew(caps)
+      renew(caps, brainAccess) {
+        for (const link of active) link.renew?.(caps, brainAccess)
+        inner?.renew(caps, brainAccess)
       },
       close() {
         for (const link of active) link.close?.()

@@ -29,6 +29,7 @@ esac
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/phosphor-install.XXXXXXXX")
 stage=
 new_version=
+selection_started=0
 committed=0
 command_published=0
 lock=
@@ -55,7 +56,7 @@ cleanup() {
   trap - 0
   if [ "$committed" = 0 ]; then
     restore_failed=0
-    if [ -n "$new_version" ] && selects_new; then
+    if [ "$selection_started" = 1 ] && selects_new; then
       if [ -n "$old_current" ]; then
         ln -s "$old_current" "$stage/restore-current" && rename_safe "$stage/restore-current" "$root/current"
       else rm -f "$root/current"; fi
@@ -72,7 +73,7 @@ cleanup() {
     fi
     if [ "$restore_failed" = 1 ]; then
       # Keep the complete new bundle. Roll forward only through entries we own.
-      if [ -n "$new_version" ] && [ -d "$new_version" ]; then
+      if { [ -n "$new_version" ] || [ "$selection_started" = 1 ]; } && [ -d "$root/versions/$version" ]; then
         if ! selects_new; then
           ln -s "versions/$version" "$stage/forward-current" && rename_safe "$stage/forward-current" "$root/current"
         fi
@@ -297,10 +298,53 @@ fi
 lock=$lock_path
 printf '%s\n' "$$" > "$lock/pid" || fail
 end_critical
+# A stateful install is protected even after uninstall or with a different XDG root.
+# Inspect parents first so a dangling link cannot look like absent state.
+state_has_brain() {
+  for name in brain brain-handover; do
+    if [ -L "$1/$name" ] || [ -e "$1/$name" ]; then return 0; fi
+  done
+  return 1
+}
+safe_state_path() (
+  [ "$1" != / ] || return 0
+  safe_state_path "$(dirname "$1")" || return 1
+  [ ! -L "$1" ] && { [ ! -e "$1" ] || { [ -d "$1" ] && [ -x "$1" ]; }; }
+)
+command=$home/.local/bin/phosphor
+brain_required=0
+if [ -L "$root/.brain-required" ] || [ -e "$root/.brain-required" ]; then
+  brain_required=1
+else
+  case ${XDG_STATE_HOME:-} in
+    /*) state=$XDG_STATE_HOME/phosphor-host ;;
+    *) state=$home/.local/state/phosphor-host ;;
+  esac
+  for state_path in "$state" "$home/.local/state/phosphor-host"; do
+    safe_state_path "$state_path" || fail
+    if state_has_brain "$state_path"; then brain_required=1; fi
+  done
+fi
+if [ "$brain_required" = 1 ]; then
+  # Run only with the signature/hash-verified candidate's Node. No installed code proves repair.
+  cat > "$tmp/verify-brain.mjs" <<'PHOSPHOR_BRAIN_VERIFIER'
+import{closeSync as L,constants as b,fstatSync as Z,lstatSync as l,openSync as M,readdirSync as v,readlinkSync as k,readSync as O}from"node:fs";import{join as d}from"node:path";var C=new Set(["bin/phosphor","node/bin/node","lib/native/node-pty/build/Release/spawn-helper"]);function A(e){return C.has(e)?493:420}var H=["linux-x64","linux-arm64","darwin-arm64"];var re=16*1024,oe=256*1024*1024,S=/^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$/;var ie=[...H,"darwin-x64"];import{lstatSync as G,realpathSync as I}from"node:fs";import{join as u,relative as V,resolve as Y}from"node:path";import{constants as g,closeSync as F,fstatSync as $,lstatSync as le,openSync as z,readSync as K,renameSync as fe,rmSync as ue,chmodSync as me,fsyncSync as pe,writeFileSync as be}from"node:fs";function h(e,n){let r=z(e,g.O_RDONLY|g.O_NOFOLLOW|g.O_NONBLOCK);try{let s=$(r);if(!s.isFile()||s.size>n)throw new Error("Invalid update record");let t=Buffer.alloc(n+1),i=K(r,t,0,t.length,0);if(i>n)throw new Error("Invalid update record");return t.subarray(0,i).toString("utf8")}finally{F(r)}}var p={id:"embeddinggemma-300m-q4@5090578d9565bb06545b4552f76e6bc2c93e4a66",label:"EmbeddingGemma 300M \xB7 Q4",dimensions:768,downloadBytes:218726989,modelUrl:"https://huggingface.co/onnx-community/embeddinggemma-300m-ONNX",termsUrl:"https://ai.google.dev/gemma/terms",usePolicyUrl:"https://ai.google.dev/gemma/prohibited_use_policy"};var y="5090578d9565bb06545b4552f76e6bc2c93e4a66";function f(e,n,r){return{path:e,url:`${p.modelUrl}/resolve/${y}/${e}`,sha256:r,bytes:n}}var E={id:p.id,revision:y,dimensions:p.dimensions,directoryName:`embeddinggemma-300m-q4-${y.slice(0,12)}`,dtype:"q4",maxTokens:512,prefixes:{query:"task: search result | query: ",document:"title: none | text: "},files:[f("config.json",1765,"6e1f06404b7163e0325ed2ea3e6781cde50f4a50b31780a95ad0d30e8404d77b"),f("tokenizer.json",20323312,"4dda02faaf32bc91031dc8c88457ac272b00c1016cc679757d1c441b248b9c47"),f("tokenizer_config.json",1156830,"3ca953eea6c3c9fcda9cf3df22949ff18b216f7c74bd6459230f3f1013953f3a"),f("onnx/model_q4.onnx",519322,"ad1dfee81a70f7944b9b9d1cc6e48075b832881cf33fab2f2b248be78f3f0043"),f("onnx/model_q4.onnx_data",196725760,"599962c3143b040de2dd05e5975be3e9091dd067cacc6a8f7186e3203bab9e02")]},He=E.files.reduce((e,n)=>e+n.bytes,0);var U=["darwin-arm64"];function x(e,n){return U.includes(`${e}-${n}`)}var _={version:"24.14.1",archives:{"linux-x64":"ace9fa104992ed0829642629c46ca7bd7fd6e76278cb96c958c4b387d29658ea","linux-arm64":"734ff04fa7f8ed2e8a78d40cacf5ac3fc4515dac2858757cbab313eb483ba8a2","darwin-x64":"2526230ad7d922be82d4fdb1e7ee1e84303e133e3b4b0ec4c2897ab31de0253d","darwin-arm64":"25495ff85bd89e2d8a24d88566d7e2f827c6b0d3d872b2cebf75371f93fcb1fe"}};var q="brain-workers",N="brain-search-worker.js",T="brain-embedding-worker.js",Ve=`v${_.version}`,X="QUALIFIED.json",J=[N,T,"package.json","../brain-ext/brain.mjs","../brain-ext/brain-curator.mjs","../brain-ext/brain-fork-guard.mjs","../brain-ext/brain-agent-guard.mjs","../skills/brain/SKILL.md","../node_modules/brain-transformers/dist/transformers.node.mjs","../node_modules/onnxruntime-node/bin/napi-v6/darwin/arm64/onnxruntime_binding.node","../node_modules/onnxruntime-node/bin/napi-v6/darwin/arm64/libonnxruntime.1.dylib","../node_modules/sharp-darwin-arm64/lib/sharp-darwin-arm64-0.35.5.node","../node_modules/sharp-libvips-darwin-arm64/lib/libvips-cpp.8.18.7.dylib"];function Q(e){return{target:e,node:_.version,modelRevision:E.revision}}function w(e,n=process){if(!x(n.platform,n.arch))return null;let r=Q(`${n.platform}-${n.arch}`);if(n.version!==`v${r.node}`)return null;let s=u(e,q);try{let t=u(s,X),i=I(e),o=a=>I(a)===Y(i,V(e,a))&&G(a).isFile();return!o(t)||h(t,512)!==`${JSON.stringify(r)}
+`||!J.every(a=>o(u(s,a)))?null:{searchWorker:u(s,N),embeddingWorker:u(s,T)}}catch{return null}}var j=b.O_RDONLY|b.O_NOFOLLOW|b.O_NONBLOCK,m=Buffer.alloc(64*1024),D=Buffer.alloc(m.length);function ee(e,n,r){let s=M(e,j);try{let t=M(n,j);try{let i=Z(t);if(!i.isFile()||i.nlink!==1||i.size!==r)return!1;for(let o=0;o<r;o+=m.length){let c=Math.min(m.length,r-o);if(O(s,m,0,c,o)!==c||O(t,D,0,c,o)!==c||!m.subarray(0,c).equals(D.subarray(0,c)))return!1}return!0}finally{L(t)}}finally{L(s)}}var ne=(e,n)=>n.mode,te=(e,n)=>n.mode&b.S_IFMT|(e===""?448:n.isDirectory()?493:A(e));function B(e,n,r,s=""){let t=l(e),i=l(n);if(r(s,t)!==i.mode||i.uid!==process.getuid?.())return!1;if(t.isDirectory()&&i.isDirectory()){let o=v(e),c=new Set(v(n));return o.length===c.size&&o.every(a=>c.has(a)&&B(d(e,a),d(n,a),r,s?`${s}/${a}`:a))}return t.isFile()&&i.isFile()&&i.nlink===1&&t.size===i.size&&ee(e,n,t.size)}function P(e,n,r,s){try{if(!w(d(e,"lib")))return!1;let t=d(n,"current"),i=l(s,{throwIfNoEntry:!1});if(i&&(!i.isSymbolicLink()||k(s)!==d(t,"bin/phosphor")))return!1;let o,c=l(t,{throwIfNoEntry:!1});if(c){if(!c.isSymbolicLink()||(o=k(t),!o.startsWith("versions/")||!S.test(o.slice(9))))return!1;let R=l(d(n,o),{throwIfNoEntry:!1});if(R?!R.isDirectory():o!==`versions/${r}`)return!1}let a=d(n,"versions",r);return l(a,{throwIfNoEntry:!1})?(!o||o===`versions/${r}`)&&(B(e,a,ne)||B(e,a,te)):!0}catch{return!1}}P(...process.argv.slice(2))||(process.exitCode=1);
+PHOSPHOR_BRAIN_VERIFIER
+  if ! env -i PATH=/usr/bin:/bin "$tmp/unpacked/node/bin/node" "$tmp/verify-brain.mjs" "$tmp/unpacked" "$root" "$version" "$command"; then
+    printf '%s\n' 'This install requires a qualified Host Brain bundle and safe repair paths.' >&2
+    fail
+  fi
+fi
 [ ! -e "$root/current" ] || [ -L "$root/current" ] || fail
 already=0
+reuse=0
 if [ -e "$root/versions/$version" ] || [ -L "$root/versions/$version" ]; then
-  if [ ! -L "$root/versions/$version" ] && [ -d "$root/versions/$version" ] &&
+  if [ "$brain_required" = 1 ]; then
+    # The protected verifier checked the entire installed tree against the signed unpacked tree.
+    reuse=1
+    if selects_new; then already=1; fi
+  elif [ ! -L "$root/versions/$version" ] && [ -d "$root/versions/$version" ] &&
     [ -L "$root/current" ] && [ "$(CDPATH= cd -P "$root/current" && pwd)" = "$root/versions/$version" ] &&
     [ ! -L "$root/current/VERSION" ] && [ -f "$root/current/VERSION" ] &&
     [ "$(wc -c < "$root/current/VERSION" | tr -d ' ')" -le 32 ] &&
@@ -310,7 +354,6 @@ if [ -e "$root/versions/$version" ] || [ -L "$root/versions/$version" ]; then
     exit 1
   fi
 fi
-command=$home/.local/bin/phosphor
 backup=$command.before-release
 ours=0
 if [ -L "$command" ] && [ "$(readlink "$command")" = "$root/current/bin/phosphor" ]; then ours=1; fi
@@ -332,7 +375,7 @@ if [ -L "$root/current" ]; then old_current=$(readlink "$root/current"); fi
 stage=$(mktemp -d "$root/.install.XXXXXXXX")
 # Cross-filesystem staging can be interrupted safely before publication.
 if [ "$already" = 0 ]; then
-  mv "$tmp/unpacked" "$stage/version" || fail
+  if [ "$reuse" = 0 ]; then mv "$tmp/unpacked" "$stage/version" || fail; fi
   ln -s "versions/$version" "$stage/current"
 fi
 ln -s "$root/current/bin/phosphor" "$stage/phosphor"
@@ -340,7 +383,7 @@ if [ "$ours" = 1 ]; then cp -P "$command" "$stage/old-command"; fi
 # Only same-filesystem renames occur while signals are deferred. Finish a
 # consistent publication, or roll it back, before honoring the signal.
 critical=1
-if [ "$already" = 0 ]; then
+if [ "$already" = 0 ] && [ "$reuse" = 0 ]; then
   new_version=$root/versions/$version
   rename_safe "$stage/version" "$new_version" || fail
 fi
@@ -352,11 +395,17 @@ if [ "$ours" = 0 ]; then
   command_published=1
   rename_safe "$stage/phosphor" "$command" || fail
 fi
-if [ "$already" = 0 ]; then rename_safe "$stage/current" "$root/current" || fail; fi
+if [ "$already" = 0 ]; then
+  selection_started=1
+  rename_safe "$stage/current" "$root/current" || fail
+fi
 committed=1
 end_critical
-# Use the installed runtime while the install lock still serializes rc updates.
-path_message=$("$command" internal-install-path) || path_message='Could not update shell startup file; use the PATH export below.'
+# Ordinary installs add PATH under the lock. Protected repair changes only install pointers.
+path_message=
+if [ "$brain_required" = 0 ]; then
+  path_message=$("$command" internal-install-path) || path_message='Could not update shell startup file; use the PATH export below.'
+fi
 # Finish cleanup before claiming success; it can record a deferred signal too.
 cleanup
 if [ "$foreign" = 1 ]; then

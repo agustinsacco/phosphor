@@ -57,6 +57,6 @@ export const SETTINGS_SECTIONS: Record<SettingsTab, SettingsSectionViews> = {
   folders: { Local: LocalFolders, Host: HostFolders },
   optimization: { Local: OptimizationTab },
   voice: { Device: VoiceTab },
-  brain: { Device: BrainTab },
+  brain: { Local: BrainTab },
   advanced: { Local: LocalAdvanced, Host: HostAdvanced },
 }

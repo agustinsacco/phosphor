@@ -7,6 +7,10 @@ import { HOST_CONFIG_FILE } from '@phosphor/shared/host-local'
 import { isNewerVersion } from '@phosphor/shared/version'
 import { errorText } from '@phosphor/shared/errors'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
+import {
+  BRAIN_COMPATIBILITY_MESSAGE,
+  requiresBrainCompatibility,
+} from '@phosphor/session-runtime/host-install/brain-compatibility'
 import { stageRelease } from '@phosphor/session-runtime/host-install/fetch'
 import { ensureLauncher } from '@phosphor/session-runtime/host-install/launcher'
 import { INSTALL_COMMAND } from '@phosphor/session-runtime/host-install/layout'
@@ -150,6 +154,13 @@ async function installRelease(
   const unlock = acquireInstallLock(roots.lib)
   let stage: string | undefined
   try {
+    const compatible = () => {
+      if (requiresBrainCompatibility(roots.lib, roots.home, roots.stateDir))
+        throw new Error(
+          `${BRAIN_COMPATIBILITY_MESSAGE} Use phosphor update or the current Host installer.`,
+        )
+    }
+    compatible()
     const destination = join(roots.lib, 'versions', release.version)
     const replacing = exists(join(roots.lib, 'current'))
     // Checked again under the lock: a setup may have finished since the inspection.
@@ -163,10 +174,12 @@ async function installRelease(
       await stageRelease(source, stage, release.version, artifact, signal)
       requireLocalRelease(release, await probeStagedBundle(stage, signal), roots.target)
       signal.throwIfAborted()
+      compatible()
       renameSync(stage, destination)
       stage = undefined
     }
     signal.throwIfAborted()
+    compatible()
     const link = join(roots.lib, `.current-${process.pid}`)
     rmSync(link, { force: true })
     symlinkSync(`versions/${release.version}`, link)

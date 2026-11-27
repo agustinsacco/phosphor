@@ -14,6 +14,7 @@ import type { HostRuntime } from '../session/runtime'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import type { HostTerminals } from '../terminals/service'
 import type { RunServices } from './run-services'
+import type { RunBrain } from '../brain/run'
 import type { OpsService } from '../ops/service'
 import type { Reach } from '@phosphor/session-runtime/ops/reach'
 
@@ -59,6 +60,8 @@ export interface RunParts {
   ops?: OpsService
   /** Machine reach: its sibling connections close with the lanes. */
   reach?: Pick<Reach, 'close'>
+  /** The Host's Brain: it stops admitting writes with the lanes and releases before the store. */
+  brain?: RunBrain
 }
 
 /** The parts of run a signal's drain waits on besides the started ones. */
@@ -87,6 +90,7 @@ async function closeAndRelease(parts: RunParts, state: TeardownState) {
       attempt(() => parts.socketLanes?.stop()),
       attempt(() => (parts.routinesStop ??= parts.routines?.stop())),
       attempt(() => (parts.runtimeDrain ??= parts.runtime?.drain('run finished'))),
+      attempt(() => parts.brain?.brain.dispose()),
     ]),
   ]
   // Then one at a time, whatever failed: the store closes only after its last user.
@@ -133,6 +137,7 @@ async function drain(
       else void parts.runtime.drain(reason)
       return parts.runtimeDrain
     }),
+    attempt(() => parts.brain?.brain.dispose()),
   ])
   let result: { state: 'stopped' | 'failed' }
   const loop = progress.loop()

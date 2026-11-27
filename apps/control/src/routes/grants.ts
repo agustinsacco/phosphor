@@ -96,6 +96,7 @@ export function grants(
       epoch: value.epoch,
       client,
       configure: input.configure,
+      brainAccess: input.brainAccess,
       iat: Math.floor(deps.clock() / 1000),
       jti: Buffer.from(deps.random(8)).toString('hex'),
     })

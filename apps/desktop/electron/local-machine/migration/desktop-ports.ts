@@ -55,7 +55,7 @@ const realpath = (path: string): string | null => {
 }
 
 /** Desktop's own access to its installed service: M1's roots and its sealed owner key. */
-function serviceAccess(): LocalDaemonAccess | null {
+function serviceLocation() {
   if (!app.isPackaged) return null
   const roots = daemonRoots({
     isPackaged: true,
@@ -64,15 +64,26 @@ function serviceAccess(): LocalDaemonAccess | null {
     platform: process.platform,
     arch: process.arch,
   })
-  const location = localDaemonLocation({
+  const local = localDaemonLocation({
     isPackaged: true,
     env: process.env,
     home: homedir(),
     roots,
   })
-  if (!location.on) return null
+  return local.on ? local.location : null
+}
+
+/** Canonical installed location, also available when the service is not running. */
+export function installedBrainStateDirectory(): string | undefined {
+  const location = serviceLocation()
+  return location?.kind === 'service' ? location.stateDir : undefined
+}
+
+function serviceAccess(): LocalDaemonAccess | null {
+  const location = serviceLocation()
+  if (!location) return null
   return {
-    location: location.location,
+    location,
     ownerKey: async () => {
       const result = await ownerKeyAccess.get()
       if (!result.ok) throw new Error(result.reason)

@@ -1,6 +1,7 @@
 import type { MachineUpdateReport } from '@phosphor/shared/machine-update'
 import type { WorkspaceLeases } from '../../owner/lease'
 import type { AppServices } from '../../session/app-services'
+import type { HostLaneRecall } from '../../brain/lane-recall'
 import { createBrainHandlers } from './brain'
 import type { SettingsOps } from './settings-access'
 import type { RepositorySummary } from '@phosphor/shared/host-protocol'
@@ -45,6 +46,8 @@ import { skillHandlers } from './skills'
 /** What the daemon's domain handlers wrap: its existing services, never copies of them. */
 export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly appServices?: AppServices | null
+  /** The Host's own Brain for the asking lane; answers instead of `appServices` while active. */
+  readonly brainRecall?: HostLaneRecall | null
   readonly settingsOps?: SettingsOps
   readonly workspaceLeases?: WorkspaceLeases
   readonly ownerFolders?: () => readonly RepositorySummary[]
@@ -88,7 +91,7 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
 /** Every domain file's handlers. Meta ops come from `meta.ts`, bound over the dispatcher's stores. */
 export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   return {
-    ...createBrainHandlers(deps.appServices),
+    ...createBrainHandlers(deps.appServices, deps.brainRecall),
     ...laneHandlers(deps),
     ...laneCoordinationHandlers(deps),
     ...archiveHandlers(deps),

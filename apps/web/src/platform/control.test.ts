@@ -390,6 +390,25 @@ describe('browser configuration grant opt-in', () => {
       { hostId: host, clientId },
     ])
   })
+  it('sends only the Brain rights explicitly supplied for this grant request', async () => {
+    let status = 200
+    const fetch = grantFetch(() => status)
+    const { control } = setup(fetch)
+    await control.refresh()
+    await control.grant(host, ['read', 'evidence']).catch(() => {})
+    await control.grant(other).catch(() => {})
+    status = 401
+    await control.refresh()
+    status = 200
+    control.signIn()
+    await control.refresh()
+    await control.grant(host).catch(() => {})
+    expect(grants(fetch)).toEqual([
+      { hostId: host, clientId, brainAccess: ['read', 'evidence'] },
+      { hostId: other, clientId },
+      { hostId: host, clientId },
+    ])
+  })
   it('refuses to opt in while signed out or disposed', async () => {
     const { control } = setup(grantFetch())
     expect(() => control.configure(host)).toThrow('signed-out')

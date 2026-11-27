@@ -20,6 +20,7 @@ export interface Authentication {
   client: GrantClient
   principal: ConnectionPrincipal
   caps: readonly HostCapability[]
+  brainAccess?: GrantPayload['brainAccess']
   /** Epoch milliseconds at which the credential lapses, clock skew included. */
   closeAt: number
   grantExpiresAt: string
@@ -55,6 +56,7 @@ export interface GrantAuthPorts {
   /** Announced in ready when the Host sends Web Push. */
   webPushKey?: string
   /** Announced in ready; none until the Host serves agent control. */
+  brain?: boolean
   readyFlags?: ReadonlySet<ReadyOpFlag>
   now?: () => number
 }
@@ -134,10 +136,12 @@ export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator 
       grant = payload
       const caps = grantedCapabilities(ports.hello, payload)
       const grantExpiresAt = new Date(payload.exp * 1000).toISOString()
+      const brainAccess = ports.brain ? (payload.brainAccess ?? []) : undefined
       outcome.accept({
         client: payload.client,
         principal: grantConnectionPrincipal(grantPrincipal(payload)),
         caps,
+        brainAccess,
         closeAt: (payload.exp + CONTROL_LIMITS.signatureSkewSec) * 1000,
         grantExpiresAt,
         ready: (answered, connectionId) =>
@@ -152,6 +156,7 @@ export function createGrantAuth(ports: GrantAuthPorts): ConnectionAuthenticator 
             webPushKey: ports.webPushKey,
             warmOnOpen: ports.warmOnOpen,
             flags: ports.readyFlags,
+            ...(ports.brain ? { brain: true, brainAccess } : {}),
           }),
       })
     },

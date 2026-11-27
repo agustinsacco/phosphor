@@ -1,3 +1,5 @@
+import { hostBrain } from '@phosphor/host-client/brain'
+import { createBrowserBrain } from './brain'
 import { createBrowserAttention } from './attention'
 import { attachNotificationClicks, navigateNotification } from './notifications'
 import type { PhosphorApi, IpcInvokeChannel, IpcInvokeMap } from '@phosphor/shared/ipc'
@@ -134,6 +136,7 @@ function browserSurface(
   invoke: PhosphorApi['invoke'],
   events: ReturnType<typeof createBrowserEvents>,
   platform: PhosphorApi['platform'] | undefined,
+  brain: NonNullable<PhosphorApi['hostBrain']>,
 ): PhosphorApi {
   return {
     platform:
@@ -144,6 +147,7 @@ function browserSurface(
           ? 'win32'
           : 'linux'),
     invoke,
+    hostBrain: brain,
     piCommand: ((id, command) => invoke('pi:command', id, command)) as PhosphorApi['piCommand'],
     onSessionPush: (id, listener) => events.on(`pi:event:${id}`, listener),
     onAccountChanged: (listener) => events.on('account', listener),
@@ -326,7 +330,14 @@ export function createBrowserApi(options: BrowserApiOptions = {}): {
     }
     return result
   }
-  const api = browserSurface(invoke, events, options.platform)
+  const brain = createBrowserBrain({
+    connection: hosts.connection,
+    owner: () => (!stopped && control.session() ? control.generation() : undefined),
+    client: hostBrain(hosts.connection),
+    grants: hosts,
+    reconnect: hosts.reconnect,
+  })
+  const api = browserSurface(invoke, events, options.platform, brain)
   const refreshQuietly = () => void refresh().catch(() => {})
   function refresh() {
     if (stopped) return Promise.resolve()

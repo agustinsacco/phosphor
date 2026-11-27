@@ -1,3 +1,4 @@
+import { useHostLaneBrainMenu } from './useHostLaneBrainMenu'
 import { runLaneAction, laneActionErrorText } from '@/platform/serviceLaneControl'
 import { HostTreeDialog, useEditingMenu } from '@/features/chat/HostTreeDialog'
 import { useHostTraits } from '@/platform/machineTraits'
@@ -20,7 +21,7 @@ import { lanePrMenuEntries, openLanePr, useRemoteLanePrs } from './lanePrMenu'
 import type { LanePr } from './lanePrs'
 import { usePrInspectorStore } from '@/stores/prInspector'
 import { useRemoteLaneTitle } from './RemoteLanePresentation'
-import { laneActions, type LaneActionHandlers, type LaneActions } from './laneActions'
+import type { LaneActionHandlers, LaneActions } from './laneActions'
 import { hostLaneContext, remoteLaneAccess, type RemoteLaneActionState } from './remoteLaneActions'
 import { RemoteLaneDeleteDialog } from './RemoteLaneDeleteDialog'
 import { copyDebugInfo, copySpend, exportRemoteLaneHtml } from './sessionActions'
@@ -55,6 +56,18 @@ export interface RemoteLaneActions extends LaneActions, ReturnType<typeof remote
   /** Resolves false when the Host refused. */
   saveName: (name: string) => Promise<boolean>
   marker: string | null
+  /** For the menu's trigger: `onOpen` reads what only an open menu shows; `revision` rebuilds it. */
+  menuTrigger: { onOpen: () => void; revision: string }
+}
+
+interface RemoteLaneActionProps {
+  hostId: string
+  lane: HostLaneView
+  ready: boolean
+  /** Offer Open; off where the surface already is the lane. */
+  withOpen?: boolean
+  onRename: () => void
+  onDone?: () => void
 }
 
 /**
@@ -71,15 +84,7 @@ export function useRemoteLaneActions({
   withOpen = true,
   onRename,
   onDone,
-}: {
-  hostId: string
-  lane: HostLaneView
-  ready: boolean
-  /** Offer Open; off where the surface already is the lane. */
-  withOpen?: boolean
-  onRename: () => void
-  onDone?: () => void
-}): RemoteLaneActions {
+}: RemoteLaneActionProps): RemoteLaneActions {
   const { navigate } = useNavigation()
   const { nativeFiles } = usePlatform()
   const orderActions = useSessionOrderActions()
@@ -87,6 +92,7 @@ export function useRemoteLaneActions({
   const runner = useLaneActionRunner(onDone)
   const { dialog, setDialog, openDialog } = useLaneDialog(onDone)
   const title = useRemoteLaneTitle(lane, hostId)
+  const brain = useHostLaneBrainMenu(hostId, lane.laneId, title)
   const { state, prs, deletingInBulk, marker } = useLaneActionState(
     hostId,
     lane,
@@ -131,8 +137,8 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] => laneActions(context, { ...handlers, ...editing }, orderActions),
-    dialogs,
+    items: (): ContextMenuItem[] => brain.items(context, { ...handlers, ...editing }, orderActions),
+    dialogs: combinedLaneDialogs(brain.dialog, dialogs),
     title,
     busy: state.busy,
     error: runner.error,
@@ -141,8 +147,18 @@ export function useRemoteLaneActions({
     saveName,
     pickMarker: access.canMark && state.markers !== 'off' ? handlers.marker : undefined,
     marker,
+    menuTrigger: { onOpen: brain.onMenuOpen, revision: `${lane.activity}|${brain.revision}` },
     ...access,
   }
+}
+
+function combinedLaneDialogs(brain: React.ReactNode, dialogs: React.ReactNode) {
+  return (
+    <>
+      {brain}
+      {dialogs}
+    </>
+  )
 }
 
 /** The lane's open dialog; opening one also closes whatever surface asked for it. */

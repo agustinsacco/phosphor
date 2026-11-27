@@ -1,5 +1,7 @@
+import type { SpawnContribution } from '@phosphor/session-runtime/pi/spawn-contributions'
 import type { ContextFilePrefs } from '@phosphor/shared/context-files'
 import type { AppServices } from './app-services'
+import type { HostLaneRecall } from '../brain/lane-recall'
 import type { WorkspaceLeases } from '../owner/lease'
 import type { DaemonHeadroom } from './headroom'
 import type { HostShellEnvironment } from '../machine/shell-environment'
@@ -16,6 +18,7 @@ import { PiRpcClient } from '@phosphor/session-runtime/pi/rpc-client'
 import { createSessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
 import { SessionRegistry } from '@phosphor/session-runtime/pi/session-registry'
 import type { SessionServiceRuntime } from '@phosphor/session-runtime/pi/session-service'
+import type { ReservedLane } from '@phosphor/session-runtime/pi/reserved-lane'
 import type { ConfigError } from '../config/schema'
 import type { HostLog } from '../machine/log'
 import {
@@ -30,6 +33,9 @@ import {
 /** What a validated Host knows about its machine. 05-D assembles it from doctor's checks. */
 export interface HostMachine {
   appServices?: AppServices
+  /** The Host's own Brain for ordinary lanes; answers instead of `appServices` while active. */
+  brainRecall?: HostLaneRecall
+  brainCurator?: SpawnContribution
   /** pi as doctor resolved it: node and pi's cli, or pi alone. Never a stub. */
   pi: { binaryPath: string; prefixArgs: string[] }
   /** All of pi's environment, PATH included: what buildPiEnvironment built. */
@@ -98,6 +104,8 @@ export interface RuntimeState {
   moving: number
   /** Live sessions whose last file-identity read failed. Disposal clears their risk. */
   lost: Set<string>
+  /** Lanes this runtime keeps off every ordinary route (`reserved-lanes.ts`). */
+  reserved: ReservedLane[]
 }
 
 export function createRuntimeState(machine: HostMachine, options: RuntimeOptions): RuntimeState {
@@ -144,5 +152,6 @@ export function createRuntimeState(machine: HostMachine, options: RuntimeOptions
     started: new WeakSet<Delivery>(),
     moving: 0,
     lost: new Set<string>(),
+    reserved: [],
   }
 }

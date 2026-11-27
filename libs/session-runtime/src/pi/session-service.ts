@@ -164,16 +164,23 @@ const RESTAGES_BUDGET = new Set<RpcCommand['type']>([
   'clone',
 ])
 
+function assertDispatchAllowed(beforeDispatch?: () => boolean): void {
+  if (beforeDispatch?.() === false) throw new Error('The turn changed before dispatch.')
+}
+
 async function dispatchCommand<Delivery>(
   runtime: SessionServiceRuntime<Delivery>,
   admission: SessionAdmission,
   live: LiveSession,
   id: string,
   command: RpcCommand,
+  beforeDispatch?: () => boolean,
 ) {
   // Ownership may change while a command waits behind compaction.
   assertManualCommand(admission, id, command)
   await preflightCommand(runtime, live, id, command)
+  // Check an owner's exact-turn admission after all waits, before the synchronous stdin write.
+  assertDispatchAllowed(beforeDispatch)
   // A slash command can reload extensions or change their staged settings directly.
   if (
     RESTAGES_BUDGET.has(command.type) ||
@@ -192,15 +199,18 @@ async function command<Delivery>(
   admission: SessionAdmission,
   id: string,
   command: RpcCommand,
+  beforeDispatch?: () => boolean,
 ) {
   const live = session(admission, id)
+  // A stale owner interrupt must not invalidate the budget queue either.
+  assertDispatchAllowed(beforeDispatch)
   if (command.type === 'get_messages') admission.routines.observe(id)
   assertManualCommand(admission, id, command)
   const mutating = !observes(command)
   if (mutating) admission.mutating.set(id, (admission.mutating.get(id) ?? 0) + 1)
   try {
     return await runtime.withBudgetCompaction(id, command.type, () =>
-      dispatchCommand(runtime, admission, live, id, command),
+      dispatchCommand(runtime, admission, live, id, command, beforeDispatch),
     )
   } finally {
     if (mutating) {
@@ -269,7 +279,8 @@ export function createSessionService<Delivery>(runtime: SessionServiceRuntime<De
   return {
     create: (options: CreateSessionOptions, delivery?: Delivery, execution?: SessionExecution) =>
       create(runtime, admission, options, delivery, execution),
-    command: (id: string, rpcCommand: RpcCommand) => command(runtime, admission, id, rpcCommand),
+    command: (id: string, rpcCommand: RpcCommand, beforeDispatch?: () => boolean) =>
+      command(runtime, admission, id, rpcCommand, beforeDispatch),
     respond: (id: string, response: ExtensionUIResponse) => respond(admission, id, response),
     mcpControl: (id: string, name: string, operation: 'inspect' | 'reconnect') =>
       mcpControl(runtime, admission, id, name, operation),

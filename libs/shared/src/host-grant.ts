@@ -12,6 +12,7 @@
  * Living contract: docs/remote-access.md ("Host grants").
  */
 import { isEndpoint, isUuid, normalizeLabel, type Parsed } from './control-api'
+import { parseBrainAccess, type BrainAccess } from './brain-access'
 import { HOST_CAPABILITIES, type HostCapability } from './remote-host'
 
 export const GRANT_PREFIX = 'phosphor-grant.v1.'
@@ -51,6 +52,7 @@ export interface GrantPayload {
   readonly caps: readonly HostCapability[]
   /** Signed opt-in for machine configuration. Old Hosts ignore it and retain legacy caps. */
   readonly configure?: true
+  readonly brainAccess?: readonly BrainAccess[]
   /** Unix seconds. */
   readonly iat: number
   readonly exp: number
@@ -200,6 +202,8 @@ export function parseGrantPayload(v: unknown): Parsed<GrantPayload> {
     caps.push(capability)
   }
   if (v.configure !== undefined && v.configure !== true) return fail('configure')
+  const brainAccess = parseBrainAccess(v.brainAccess)
+  if (v.brainAccess !== undefined && !brainAccess?.length) return fail('brain-access')
   if (!count(v.iat) || !count(v.exp)) return fail('time')
   // toISOString is used by the wire adapter, so keep seconds in its representable range.
   if (v.iat > 253402300799 || v.exp > 253402300799) return fail('time')
@@ -207,7 +211,7 @@ export function parseGrantPayload(v: unknown): Parsed<GrantPayload> {
   const machine = v.origin === 'machine' && isUuid(v.machine) ? v.machine : null
   if (
     (v.origin !== undefined || v.machine !== undefined) &&
-    (machine === null || caps.length > 0 || v.configure !== undefined)
+    (machine === null || caps.length > 0 || v.configure !== undefined || brainAccess !== null)
   )
     return fail('machine')
   return {
@@ -223,6 +227,7 @@ export function parseGrantPayload(v: unknown): Parsed<GrantPayload> {
       client: { id: v.client.id, label: v.client.label },
       caps,
       ...(v.configure === true ? { configure: true as const } : {}),
+      ...(brainAccess ? { brainAccess } : {}),
       iat: v.iat,
       exp: v.exp,
       jti: v.jti,

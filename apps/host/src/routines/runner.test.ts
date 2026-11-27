@@ -137,10 +137,12 @@ async function start() {
       expect(isRoutineSession(sessionId)).toBe(true)
     }),
     liveLanes: () => 0,
+    sessionFileBusy: () => false,
     refreshDirectives: vi.fn(async () => 0),
     abortTurns: vi.fn<HostRuntime['abortTurns']>(async () => []),
     mcpControl: vi.fn<HostRuntime['mcpControl']>(),
     reloadNow: vi.fn<HostRuntime['reloadNow']>(),
+    reserve: vi.fn<HostRuntime['reserve']>(),
   } satisfies HostRuntime
   const admittedRoot = vi.fn((path: string) => path)
   const progress = vi.fn()

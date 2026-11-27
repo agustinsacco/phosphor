@@ -12,6 +12,7 @@
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { prepareBrain, stageBrain } from './build-brain.mjs'
 import { bundleHost } from './build-bundle.mjs'
 import { gitIn, writeBuildInfo } from './build-info.mjs'
 import { stageResources } from './build-resources.mjs'
@@ -26,6 +27,9 @@ const { values } = parseArgs({
     sha: { type: 'string' },
     native: { type: 'string' },
     target: { type: 'string' },
+    'brain-model': { type: 'string' },
+    'brain-node': { type: 'string' },
+    'brain-smoke': { type: 'boolean' },
   },
 })
 const out = resolve(values.out ?? join(ROOT, 'apps/host/dist'))
@@ -55,8 +59,16 @@ console.log(
 
 /** Build into `stage`, which holds nothing yet. Any failure throws. */
 async function stageBuild(stage) {
+  const brain = await prepareBrain(
+    ROOT,
+    values.target,
+    values['brain-model'],
+    values['brain-smoke'],
+    values['brain-node'],
+  )
   const inputs = await bundleHost(stage, { root: ROOT, stamped, releaseVersion })
   await stageResources(stage, { root: ROOT, native: values.native, target: values.target })
+  if (brain) await stageBrain(stage, ROOT, brain)
   const info = writeBuildInfo(stage, { stamped, releaseVersion, git })
   return { info, inputs: inputs.length }
 }

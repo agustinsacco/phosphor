@@ -1,4 +1,10 @@
-import type { BrainAgentMap, BrainAgentMethod, BrainInvokeMap } from '@phosphor/shared/brain'
+import type {
+  BrainAgentMap,
+  BrainAgentMethod,
+  BrainInvokeMap,
+  BrainJob,
+  BrainSnapshot,
+} from '@phosphor/shared/brain'
 import type { BrainOpsPort, LaneFacts } from '@phosphor/session-runtime/ops/types'
 import type { BrainSearch, BrainStore } from '@phosphor/memory-engine/types'
 import type { runModelCall } from './model-call'
@@ -15,6 +21,21 @@ export type BrainApi = {
   [K in keyof BrainInvokeMap as K extends `brain:${infer M}` ? M : never]: (
     ...args: BrainInvokeMap[K]['args']
   ) => Promise<BrainInvokeMap[K]['result']>
+}
+
+export type BrainSavedSource = Pick<BrainJob, 'sessionId' | 'sessionPath'>
+export type BrainMutationCheck = (state: BrainSnapshot, source?: BrainSavedSource) => void
+
+export interface BrainSurfaceRuntime {
+  readonly api: BrainApi
+  /** Creates an owner-local API with checks at each actual write, not a status preflight. */
+  guarded(check: BrainMutationCheck): Omit<BrainApi, 'tell'>
+  job(id: string): BrainJob | undefined
+  /** Authorizes exact stored provenance before loading any transcript. */
+  evidence(
+    id: string,
+    canReadSource: (source: BrainSavedSource) => boolean,
+  ): ReturnType<BrainApi['extraction']>
 }
 
 /** How to start pi for a private model call: the lane's own binary, env and account. */
@@ -75,6 +96,15 @@ export interface BrainAgentTurnHooks {
    */
   sending(): void
 }
+/**
+ * Who the Brain lane's running turn acts for, on a Host: a Defrag run, or the person (controller)
+ * whose message started it. Bound to that one turn: it never carries into a later one.
+ */
+export interface BrainAgentTurnGate {
+  readonly kind: 'defrag' | 'controller'
+  /** Still that same turn, and a controller still holds the authority they started it with. */
+  admit(): boolean
+}
 /** Desktop owns the Brain lane; the runtime only asks it for one turn at a time. */
 export interface BrainAgentHost {
   /** Real path of the Brain lane's folder. Brain never reads lanes there. */
@@ -90,6 +120,12 @@ export interface BrainAgentHost {
    * waits for a turn already running there to settle, and resolves once pi accepts the prompt.
    */
   tell(message: string): Promise<{ sessionPath: string | null }>
+  /**
+   * The Host's reserved lane only: the gate of the turn running now, or null when no turn of
+   * known identity runs. When present, Brain Agent's tools answer only under it. Desktop's lane
+   * has none and keeps its owner-only behaviour.
+   */
+  turnGate?(): BrainAgentTurnGate | null
 }
 
 /** What session startup adds to a lane when Brain and recall are on. */
@@ -103,8 +139,7 @@ export interface BrainCuratorLaunch extends BrainRecallLaunch {
   connection: { endpoint: string; token: string }
 }
 
-export interface BrainService {
-  api: BrainApi
+export interface BrainService extends BrainSurfaceRuntime {
   /** Allocate once per live lane; discard the port (and its briefing refs) when that lane ends. */
   forLane(lane: Pick<LaneFacts, 'cwd' | 'title'> & { readonly sessionId: string }): BrainOpsPort
   /**

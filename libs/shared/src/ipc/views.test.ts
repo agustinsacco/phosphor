@@ -113,7 +113,15 @@ export interface BaselineHostConnectionView {
   lastError?: string
 }
 
-export type BaselineHostsSnapshot = Record<string, BaselineHostConnectionView>
+type AdditiveBrainView = {
+  brain?: boolean
+  brainAccess?: readonly ('read' | 'control' | 'evidence' | 'configure')[]
+}
+export type BaselineHostsSnapshot = Record<string, ExpectedHostConnectionView>
+type ExpectedHostConnectionView = {
+  [K in keyof (BaselineHostConnectionView & AdditiveBrainView)]: (BaselineHostConnectionView &
+    AdditiveBrainView)[K]
+}
 
 /**
  * One line of Desktop's remote traffic log (`hosts:traffic`): what crossed the
@@ -167,6 +175,7 @@ export interface BaselineHostAttention {
 export type BaselineLocalRuntimeMode = 'in-app' | 'daemon'
 
 export interface BaselineLocalMachineStatus {
+  brainOwner?: 'desktop' | 'host' | 'moving'
   mode: BaselineLocalRuntimeMode
   migration:
     | 'not-needed'
@@ -217,7 +226,7 @@ it('freezes public view fields, redaction and optionality', () => {
   expectTypeOf<SessionTreeEntry>().toEqualTypeOf<BaselineSessionTreeEntry>()
   expectTypeOf<SessionTree>().toEqualTypeOf<BaselineSessionTree>()
   expectTypeOf<HostLaneView>().toEqualTypeOf<BaselineHostLaneView>()
-  expectTypeOf<HostConnectionView>().toEqualTypeOf<BaselineHostConnectionView>()
+  expectTypeOf<HostConnectionView>().toEqualTypeOf<ExpectedHostConnectionView>()
   expectTypeOf<HostsSnapshot>().toEqualTypeOf<BaselineHostsSnapshot>()
   expectTypeOf<TrafficEntry>().toEqualTypeOf<BaselineTrafficEntry>()
   expectTypeOf<TrafficPage>().toEqualTypeOf<BaselineTrafficPage>()
@@ -230,7 +239,7 @@ it('freezes public view fields, redaction and optionality', () => {
 
 import type * as Views from './views'
 it('exposes the same bounded views from the leaf', () => {
-  expectTypeOf<Views.HostConnectionView>().toEqualTypeOf<BaselineHostConnectionView>()
+  expectTypeOf<Views.HostConnectionView>().toEqualTypeOf<ExpectedHostConnectionView>()
   expectTypeOf<Views.HostLaneView>().toEqualTypeOf<BaselineHostLaneView>()
   expectTypeOf<Views.TrafficPage>().toEqualTypeOf<BaselineTrafficPage>()
   expectTypeOf<Views.SessionTree>().toEqualTypeOf<BaselineSessionTree>()

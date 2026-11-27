@@ -11,6 +11,16 @@
 import { record } from './host-protocol/primitives'
 import { parseMigrationImport, type MigrationImport } from './host-protocol-owner/migration'
 import {
+  brainHandoverBeginParams,
+  brainHandoverStatusParams,
+  brainHandoverVerifyParams,
+  type BrainHandoverBegin,
+  type BrainHandoverReport,
+  type BrainHandoverState,
+  type BrainHandoverSupport,
+  type BrainHandoverVerify,
+} from './host-protocol-owner/brain-handover'
+import {
   accountRef,
   accountRegistration,
   action,
@@ -63,6 +73,16 @@ export type {
   MigrationSection,
 } from './host-protocol-owner/migration'
 export { OWNER_LIMITS } from './host-protocol-owner/params'
+export { BRAIN_HANDOVER_LIMITS, isBrainHandoverName } from './host-protocol-owner/brain-handover'
+export type {
+  BrainHandoverBegin,
+  BrainHandoverFile,
+  BrainHandoverReport,
+  BrainHandoverState,
+  BrainHandoverSupport,
+  BrainHandoverVerify,
+  BrainReaderReadiness,
+} from './host-protocol-owner/brain-handover'
 export type { AccountRegistration } from './host-protocol-owner/params'
 
 export const OWNER_METHODS = [
@@ -87,6 +107,12 @@ export const OWNER_METHODS = [
   'owner.account.prepare',
   'owner.account.register',
   'owner.account.discard',
+  'owner.brainHandover.pin',
+  'owner.brainHandover.status',
+  'owner.brainHandover.begin',
+  'owner.brainHandover.verify',
+  'owner.brainHandover.commit',
+  'owner.brainHandover.abort',
 ] as const
 export type OwnerMethod = (typeof OWNER_METHODS)[number]
 
@@ -146,6 +172,24 @@ export interface OwnerCalls {
   'owner.account.register': Call<AccountRegistration, { registered: true }>
   /** A login the user cancelled: removes the prepared folder if it holds no account. */
   'owner.account.discard': Call<{ accountId: string }, { discarded: boolean }>
+  /** Pin this installed Host to compatible updates before releasing the previous writer. */
+  'owner.brainHandover.pin': Call<undefined, { pinned: true }>
+  /** Without an id: whether a move can start. With one: that move's state. */
+  'owner.brainHandover.status': Call<
+    { migrationId?: string },
+    { support: BrainHandoverSupport; state: BrainHandoverState }
+  >
+  /** Claims the empty Brain target and creates the private staging folder it returns. */
+  'owner.brainHandover.begin': Call<BrainHandoverBegin, { state: 'staged'; staging: string }>
+  /** Seals the staged files named here, upgrades and checks the sealed copy. */
+  'owner.brainHandover.verify': Call<
+    BrainHandoverVerify,
+    { state: 'verified'; report: BrainHandoverReport }
+  >
+  /** Publishes the verified copy as the service's Brain; idempotent by id. */
+  'owner.brainHandover.commit': Call<{ migrationId: string }, { state: 'committed' }>
+  /** Refused once published: the service owns the Brain from then on. */
+  'owner.brainHandover.abort': Call<{ migrationId: string }, { state: 'aborted' | 'none' }>
 }
 
 export function isOwnerMethod(m: string): m is OwnerMethod {
@@ -181,6 +225,12 @@ const PARAMS: ParamParsers = {
   'owner.account.prepare': noParams,
   'owner.account.register': accountRegistration,
   'owner.account.discard': accountRef,
+  'owner.brainHandover.pin': noParams,
+  'owner.brainHandover.status': brainHandoverStatusParams,
+  'owner.brainHandover.begin': brainHandoverBeginParams,
+  'owner.brainHandover.verify': brainHandoverVerifyParams,
+  'owner.brainHandover.commit': migrationRef,
+  'owner.brainHandover.abort': migrationRef,
 }
 
 /** The method's params, or null when invalid. `undefined` is a valid result for paramless methods. */

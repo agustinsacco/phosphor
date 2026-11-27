@@ -48,6 +48,13 @@ const api: PhosphorApi = {
     return ipcRenderer.invoke(channel, ...args) as Promise<IpcInvokeMap[C]['result']>
   },
 
+  hostBrain: {
+    access: (scope, rights) => ipcRenderer.invoke('hosts:brainAccess', scope, rights),
+    approvals: (scope) => ipcRenderer.invoke('hosts:brainApprovals', scope),
+    answer: (scope, id, approved) => ipcRenderer.invoke('hosts:brainAnswer', scope, id, approved),
+    invoke: (scope, request) => ipcRenderer.invoke('hosts:brain', scope, request),
+  },
+
   onSessionPush: (sessionId, listener) =>
     subscribe<[SessionPush]>(sessionEventChannel(sessionId), listener),
 

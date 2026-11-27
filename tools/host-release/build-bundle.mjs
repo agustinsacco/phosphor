@@ -16,6 +16,8 @@ import { parseArgs } from 'node:util'
 import process from 'node:process'
 import { root, pin, sha256, contract, isEntryPoint } from './common.mjs'
 import { validateNative } from './build-native.mjs'
+import { brainContract, runBrainSmoke } from '../../apps/host/scripts/build-brain.mjs'
+import { verifyArchive } from './verify-archive.mjs'
 import { archive } from './archive.mjs'
 import { generateInstaller } from './installer.mjs'
 
@@ -57,12 +59,22 @@ export async function buildBundle(
   cache = join(out, '.node-cache'),
   nodePin = pin,
   native,
+  { model, smoke, verify } = {},
 ) {
   const version = process.env.HOST_RELEASE_VERSION
   if (!version || !contract.HOST_RELEASE_VERSION_PATTERN.test(version))
     throw new Error('Invalid HOST_RELEASE_VERSION')
   if (!contract.HOST_RELEASE_TARGETS_V2.includes(target))
     throw new Error('Unsupported bundle target')
+  const brain = model !== undefined || smoke === true
+  if (brain) {
+    const [platform, arch] = target.split('-')
+    if (!(await brainContract(root)).embeddingPlatformSupported(platform, arch))
+      throw new Error(`Host Brain is not supported on ${target}`)
+    if (target !== `${process.platform}-${process.arch}` || nodePin !== pin)
+      throw new Error('Host Brain requires the matching runner and pinned Node archive')
+    if (model === '') throw new Error('Host Brain requires an offline model directory')
+  }
   if (native) validateNative(native, target)
   const node = await nodeArchive(target, cache, nodePin)
   const temp = mkdtempSync(join(tmpdir(), 'phosphor-bundle-'))
@@ -70,19 +82,6 @@ export async function buildBundle(
     const stage = join(temp, 'stage')
     mkdirSync(join(stage, 'bin'), { recursive: true })
     mkdirSync(join(stage, 'node/bin'), { recursive: true })
-    execFileSync(
-      process.execPath,
-      [
-        'apps/host/scripts/build.mjs',
-        '--out',
-        join(stage, 'lib'),
-        ...(native ? ['--native', native, '--target', target] : []),
-      ],
-      {
-        cwd: root,
-        stdio: 'pipe',
-      },
-    )
     const checkedArchive = join(temp, 'node.tar.gz')
     writeFileSync(checkedArchive, node)
     const prefix = `node-v${nodePin.version}-${target}`
@@ -95,20 +94,68 @@ export async function buildBundle(
     )
     cpSync(join(temp, prefix, 'bin/node'), join(stage, 'node/bin/node'))
     cpSync(join(temp, prefix, 'LICENSE'), join(stage, 'node/LICENSE'))
-    writeFileSync(join(stage, 'VERSION'), `${version}\n`)
-    writeFileSync(
-      join(stage, 'bin/phosphor'),
-      `#!/bin/sh\nset -eu\n# Follow relative or absolute symlinks without GNU readlink -f.\nself=$0\ni=0\nwhile [ -L "$self" ]; do\n  i=$((i + 1))\n  [ "$i" -le 40 ] || exit 1\n  dir=$(CDPATH= cd -P "$(dirname "$self")" && pwd)\n  link=$(readlink "$self")\n  case $link in /*) self=$link ;; *) self=$dir/$link ;; esac\ndone\nbase=$(CDPATH= cd -P "$(dirname "$self")/.." && pwd)\nexec "$base/node/bin/node" "$base/lib/phosphor.mjs" "$@"\n`,
-    )
+    buildHost(stage, target, native, brain, model, smoke)
+    writeLaunchScript(stage, version)
+    const bytes = archive(stage)
+    if (bytes.length > contract.HOST_RELEASE_ARTIFACT_MAX_BYTES)
+      throw new Error('Host bundle exceeds the release size limit')
+    if (verify || brain) {
+      const runtime = await brainContract(root)
+      await verifyArchive(bytes, { target, version, node: nodePin.version }, async (extracted) => {
+        const lib = join(extracted, 'lib')
+        if (existsSync(join(lib, runtime.BRAIN_WORKER_DIR)) !== brain)
+          throw new Error('Unexpected Host Brain worker staging')
+        if (
+          Boolean(
+            runtime.resolvePackagedBrainRuntime(lib, {
+              platform: process.platform,
+              arch: process.arch,
+              version: `v${nodePin.version}`,
+            }),
+          ) !== Boolean(model)
+        )
+          throw new Error('Host Brain package readiness mismatch')
+        if (brain)
+          await runBrainSmoke(root, lib, join(extracted, 'node/bin/node'), model && resolve(model))
+      })
+      process.stdout.write(`Host ${target} release archive: ${bytes.length} compressed bytes\n`)
+    }
     mkdirSync(out, { recursive: true })
     const file = join(out, `phosphor-host-${version}-${target}.tar.gz`)
-    writeFileSync(file, archive(stage))
+    writeFileSync(file, bytes)
     generateInstaller(join(out, 'install.sh'))
     return file
   } finally {
     rmSync(temp, { recursive: true, force: true })
   }
 }
+
+function buildHost(stage, target, native, brain, model, smoke) {
+  execFileSync(
+    process.execPath,
+    [
+      'apps/host/scripts/build.mjs',
+      '--out',
+      join(stage, 'lib'),
+      '--target',
+      target,
+      ...(native ? ['--native', native] : []),
+      ...(brain ? ['--brain-node', join(stage, 'node/bin/node')] : []),
+      ...(model ? ['--brain-model', model] : []),
+      ...(smoke ? ['--brain-smoke'] : []),
+    ],
+    { cwd: root, stdio: 'inherit' },
+  )
+}
+
+function writeLaunchScript(stage, version) {
+  writeFileSync(join(stage, 'VERSION'), `${version}\n`)
+  writeFileSync(
+    join(stage, 'bin/phosphor'),
+    `#!/bin/sh\nset -eu\n# Follow relative or absolute symlinks without GNU readlink -f.\nself=$0\ni=0\nwhile [ -L "$self" ]; do\n  i=$((i + 1))\n  [ "$i" -le 40 ] || exit 1\n  dir=$(CDPATH= cd -P "$(dirname "$self")" && pwd)\n  link=$(readlink "$self")\n  case $link in /*) self=$link ;; *) self=$dir/$link ;; esac\ndone\nbase=$(CDPATH= cd -P "$(dirname "$self")/.." && pwd)\nexec "$base/node/bin/node" "$base/lib/phosphor.mjs" "$@"\n`,
+  )
+}
+
 if (isEntryPoint(import.meta.url)) {
   const { values } = parseArgs({
     options: {
@@ -116,6 +163,9 @@ if (isEntryPoint(import.meta.url)) {
       out: { type: 'string' },
       cache: { type: 'string' },
       native: { type: 'string' },
+      'brain-model': { type: 'string' },
+      'brain-smoke': { type: 'boolean' },
+      verify: { type: 'boolean' },
     },
   })
   await buildBundle(
@@ -124,5 +174,6 @@ if (isEntryPoint(import.meta.url)) {
     values.cache && resolve(values.cache),
     pin,
     values.native && resolve(values.native),
+    { model: values['brain-model'], smoke: values['brain-smoke'], verify: values.verify },
   )
 }

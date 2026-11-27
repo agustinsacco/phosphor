@@ -99,6 +99,8 @@ export interface MenuTriggerOptions extends ContextMenuOptions {
   disabled?: boolean
   /** Rebuild this trigger’s open menu when the underlying action state changes. */
   revision?: string
+  /** Runs when a gesture opens the menu, before its items are built; not on a revision rebuild. */
+  onOpen?: () => void
 }
 
 export interface MenuTriggerProps {
@@ -143,6 +145,7 @@ export function useMenuTriggers(
       new MenuGesture(
         () => latest.current.options.disabled === true,
         (x, y, trigger) => {
+          latest.current.options.onOpen?.()
           const { items, options } = latest.current
           opened.current = options.revision === undefined ? undefined : () => latest.current.items()
           openMenu(x, y, items(), options, trigger, opened.current)

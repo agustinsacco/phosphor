@@ -3,6 +3,9 @@ import { createDrain, endTurn, within } from './lifecycle'
 import { createRuntimeOperations } from './runtime-operations'
 import { createRuntimeState, type HostMachine, type RuntimeOptions } from './runtime-state'
 import { wireRuntimeDeletion, wireRuntimeService, wireRuntimeStartup } from './runtime-wiring'
+import { isReservedPath } from './reserved-lanes'
+
+const NOT_A_LANE_FILE = 'That file is not a lane file on this Host.'
 
 export { commandRefusal } from './command-policy'
 export { unlinkTranscript } from './transcript-removal'
@@ -43,8 +46,10 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     ...(options.leases ? { leases: options.leases } : {}),
     life: state.life,
-    /** Lanes with a live pi process. */
+    /** Lanes with a live pi process, reserved lanes included. */
     liveLanes: () => state.registry.list().length,
+    /** Whether a live lane on this transcript is working: Brain waits before reading it. */
+    sessionFileBusy: (path: string) => sessionFileBusy(state, path),
     async refreshDirectives(project?: string) {
       const updates = state.registry.list().flatMap(({ sessionId }) => {
         const s = state.registry.get(sessionId)
@@ -72,6 +77,7 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
       return sessions.flatMap((session, i) => (ends[i] === 'idle' ? [] : [session.sessionId]))
     },
     async mutateStoppedSession<T>(path: string, change: () => Promise<T>): Promise<T> {
+      if (isReservedPath(state, path)) throw new Error(NOT_A_LANE_FILE)
       state.paths.cancelSessionOpens(path)
       return state.paths.withSessionPath(path, async () => {
         if (sessionOwner(path)) throw new Error('Stop the lane before changing its saved files.')
@@ -79,13 +85,21 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
       })
     },
     /** Inside the path lock, a fork may read live; a rename checks who owns the file. */
-    withSessionFile<T>(
+    async withSessionFile<T>(
       path: string,
       use: (owner: () => SessionOwner | undefined) => Promise<T>,
     ): Promise<T> {
+      if (isReservedPath(state, path)) throw new Error(NOT_A_LANE_FILE)
       return state.paths.withSessionPath(path, () => use(() => sessionOwner(path)))
     },
   }
+}
+
+function sessionFileBusy(state: ReturnType<typeof createRuntimeState>, path: string) {
+  return state.registry.list().some(({ sessionId }) => {
+    const client = state.registry.get(sessionId)?.client
+    return client?.sessionFile === path && client.activity.busy
+  })
 }
 
 export type HostRuntime = ReturnType<typeof createHostRuntime>

@@ -10,6 +10,7 @@ import {
   TABS,
   installedExtensionTabs,
   platformIndex,
+  resolveTab,
   rowOnMachine,
   visibleSections,
 } from './settingsIndex'
@@ -277,16 +278,14 @@ it('lands service actions on one persistent This Mac section, never a transient 
   }
 })
 
-it('omits the Brain section and search rows only when the capability is off', () => {
-  expect(desktopPlatform).toBeTypeOf('function')
+it('offers the Host Brain section independently of the legacy Desktop preview', () => {
   for (const platform of [desktopPlatform(false, false), WIDE_BROWSER_PLATFORM]) {
-    expect(visibleSections(platform, 'host').map((section) => section.id)).not.toContain('brain')
-    expect(platformIndex(platform, 'host').some((row) => row.tab === 'brain')).toBe(false)
+    expect(visibleSections(platform, 'local').map((section) => section.id)).not.toContain('brain')
   }
   for (const platform of [
-    desktopPlatform(true, false),
+    desktopPlatform(false, false),
     desktopPlatform(false, true),
-    { ...WIDE_BROWSER_PLATFORM, localBrain: true },
+    WIDE_BROWSER_PLATFORM,
   ]) {
     const sections = new Set(visibleSections(platform, 'host').map((section) => section.id))
     const groups = searchSettings(
@@ -295,5 +294,13 @@ it('omits the Brain section and search rows only when the capability is off', ()
       platformIndex(platform, 'host'),
     )
     expect(groups.map((group) => group.tab)).toEqual(['brain'])
+  }
+})
+
+it('opens Agent for a section a Host lacks, and Brain when Brain is asked for', () => {
+  for (const platform of [DESKTOP_PLATFORM, WIDE_BROWSER_PLATFORM]) {
+    const host = visibleSections(platform, 'host')
+    expect(resolveTab('optimization', host)).toBe('agent')
+    expect(resolveTab('brain', host)).toBe('brain')
   }
 })

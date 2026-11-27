@@ -4,11 +4,28 @@ Brain remembers what it learns from the local lanes you choose. **A read saves w
 Other lanes can recall the memories, see who said what and follow the relationships between them.
 Brain Agent checks guesses and disagreements after the save. You can inspect a read and undo it.
 
-Brain is off by default. It runs on Desktop, on one machine. The graph, index and journal stay
-on disk. This does not mean the work is offline: the reader sends scrubbed conversation text to
+Brain is off by default. In ordinary releases, Desktop owns the graph, index and journal on disk. This does not mean the work is offline: the reader sends scrubbed conversation text to
 its provider. Brain Agent can receive memories and excerpts and check sources through its lane's
 connectors. Recalled memories can enter the asking lane's provider context. Nothing syncs to a
 Host or another Desktop. The PWA has no local Brain.
+
+**Does my Host support Brain?** Ordinary Host bundles do not include the native runtime
+needed to take over a Desktop Brain. An update alone does not move your data. Only a
+macOS Apple silicon bundle can be qualified, and the build must pass a read with the
+verified embedding model after extraction. A synthetic smoke test is not qualification.
+See [Host Brain packaging](host-brain-packaging.md) for the support requirements.
+
+**On a selected Host**, **Conversation** is the one place to read or continue Brain Agent’s
+private transcript. It opens first if this client has all four Brain permissions and can control
+lanes on that Host; otherwise **Knowledge** opens first. **Older messages** loads earlier history.
+When sending is available, use **Send** or Enter; Shift+Enter adds a line. Production launches
+are not yet qualified to send: the saved transcript is read-only, and Defrag still runs.
+
+**Knowledge** searches the selected Host’s saved memories without sending a message to Brain
+Agent. Press `/` to open Knowledge and focus its search. If the Host disconnects or access is
+removed, the private transcript disappears from the client, not from the Host. On reconnect, Conversation
+loads the selected Host’s saved history again if permitted. Nothing switches to another Host
+or provider.
 
 ## Turn it on
 
@@ -53,6 +70,17 @@ Use a local lane's menu:
 
 Cancel a queued or running read from the menu. Interrupted reads return to the queue at startup.
 Retry resumes the same job from saved steps unless another read of the lane comes after it.
+
+**A Host lane's menu** (right-click on Desktop, or the long-press or lane-header sheet on a
+phone) has the same direct **Queue for knowledge extraction**, or **Read new messages for Brain**
+after a finished read. You need Brain read and configure access on that Host. Nothing is read for
+the list: when the menu opens, it asks the Host once for Brain's status and that lane's state,
+and shows **Checking Brain…** until the answer arrives. The item appears only if Brain is on and
+the lane is not excluded or already being read. A title rule shows as a disabled row. The queue
+goes to that Host over the same connection, once per open. If the Host reconnects, your Brain
+access changes or Brain knowledge is reset in the meantime, nothing is queued; open the menu
+again. **Cancel knowledge extraction**, **Never let Brain read this lane**
+and **Read again for Brain…** stay in **Brain read…**.
 
 ### What the reader saves
 
@@ -142,7 +170,7 @@ knowledge. A clean Undo restores the changed rows and their evidence, not just t
 
 ## The Brain page
 
-The map, the selected card and **What changed** share one screen. On a narrow page the card
+In Desktop-owned Brain, the map, the selected card and **What changed** share one screen. On a narrow page the card
 stacks below the map. The header counts memories, people and things, and items waiting for
 Brain Agent. **Search** (`/`) finds a name or memory.
 ⌘K stays the app's command palette. The status bar shows the current read and queue. A failed

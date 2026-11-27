@@ -42,6 +42,8 @@ export function readyFrame(options: {
   grantExpiresAt: string
   caps: readonly HostCapability[]
   webPushKey?: string
+  brain?: boolean
+  brainAccess?: GrantPayload['brainAccess']
   /** The agent-control features this Host serves; none announces nothing new. */
   flags?: ReadonlySet<ReadyOpFlag>
   /** The machine runs the local service, regardless of the connection transport. */
@@ -60,6 +62,7 @@ export function readyFrame(options: {
           cap !== 'machine.configure' || grant.configure === true || grant.caps.includes(cap),
       ),
     },
+    ...(options.brain ? { brain: true, brainAccess: options.brainAccess ?? [] } : {}),
     settings: hello.capabilities.includes('machine.configure'),
     machineShell: hello.capabilities.includes('terminal'),
     laneMarks: true,

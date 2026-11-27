@@ -1,5 +1,6 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { SWARM_COMMAND, SWARM_STATUS_KEY } from './swarm'
 import { LANE_RELOAD_COMMAND, LANE_RELOAD_STATUS_KEY } from './lane-reload'
@@ -99,34 +100,46 @@ describe('status-keys existing wire inventory', () => {
 })
 
 describe('status-keys published vocabulary', () => {
-  it('exports exactly the frozen inventory through the package subpath', async () => {
-    const vocabulary = await import('@phosphor/pi-extensions/status-keys')
-    expect({ ...vocabulary }).toEqual(goldenInventory)
-    expect(
-      source('libs/pi-extensions/pi-ext/status-keys.ts').trim().split('\n').length,
-    ).toBeLessThanOrEqual(100)
-  })
-
-  it('bundles the package subpath for browsers without dependencies or external imports', async () => {
+  it('bundles exactly the frozen inventory for browsers through this checkout’s package export', async () => {
     const { build } = await import('esbuild')
-    const result = await build({
-      stdin: {
-        contents: 'export * from "@phosphor/pi-extensions/status-keys"',
-        resolveDir: root,
-        sourcefile: 'status-keys-browser-entry.ts',
-      },
-      bundle: true,
-      platform: 'browser',
-      format: 'esm',
-      write: false,
-      metafile: true,
-    })
-    const inputs = Object.entries(result.metafile.inputs).filter(
-      ([path]) => path !== 'status-keys-browser-entry.ts',
-    )
-    expect(inputs.map(([path]) => path)).toEqual(['libs/pi-extensions/pi-ext/status-keys.ts'])
-    expect(inputs[0]?.[1].imports).toEqual([])
-    expect(Object.values(result.metafile.outputs).flatMap((output) => output.imports)).toEqual([])
-    expect(result.outputFiles).toHaveLength(1)
+    const fixture = mkdtempSync(join(realpathSync(tmpdir()), 'phosphor-status-keys-'))
+    try {
+      // Emulate a workspace link without borrowing the checkout that owns node_modules.
+      const scope = join(fixture, 'node_modules/@phosphor')
+      mkdirSync(scope, { recursive: true })
+      const library = join(root, 'libs/pi-extensions')
+      symlinkSync(library, join(scope, 'pi-extensions'), 'dir')
+      const result = await build({
+        absWorkingDir: fixture,
+        stdin: {
+          contents: 'export * from "@phosphor/pi-extensions/status-keys"',
+          resolveDir: fixture,
+          sourcefile: 'status-keys-browser-entry.ts',
+        },
+        bundle: true,
+        platform: 'browser',
+        format: 'esm',
+        write: false,
+        metafile: true,
+      })
+      const inputs = Object.entries(result.metafile.inputs).filter(
+        ([path]) => path !== 'status-keys-browser-entry.ts',
+      )
+      expect(inputs.map(([path]) => realpathSync(resolve(fixture, path)))).toEqual([
+        realpathSync(join(library, 'pi-ext/status-keys.ts')),
+      ])
+      expect(inputs[0]?.[1].imports).toEqual([])
+      expect(Object.values(result.metafile.outputs).flatMap((output) => output.imports)).toEqual([])
+      expect(result.outputFiles).toHaveLength(1)
+      const vocabulary = await import(
+        `data:text/javascript,${encodeURIComponent(result.outputFiles[0]!.text)}`
+      )
+      expect({ ...vocabulary }).toEqual(goldenInventory)
+      expect(
+        source('libs/pi-extensions/pi-ext/status-keys.ts').trim().split('\n').length,
+      ).toBeLessThanOrEqual(100)
+    } finally {
+      rmSync(fixture, { recursive: true, force: true })
+    }
   })
 })

@@ -11,7 +11,8 @@ import { daemonLanePorts } from '../ops/lane-ports'
 import { startRunOps } from '../ops/service'
 import type { RunContext } from './run'
 import type { createRunAdministration } from './run-administration'
-import type { createMachineCommands, HostLog, RunMachinePorts, StartedRuntime } from './run-machine'
+import type { createMachineCommands, HostLog, RunMachinePorts } from './run-machine'
+import type { StartedRuntime } from './run-machine-runtime'
 import type { RunParts } from './run-teardown'
 
 /** Owner-authorized lane maintenance uses the same archive, stop, resume and delete services. */
@@ -86,6 +87,7 @@ export async function bindRunOps(
     ...started.resources,
     workspaceLeases: started.leases,
     appServices: parts.services?.appServices,
+    brainRecall: parts.brain?.recall ?? null,
     sandboxes: runSandboxes(context, ports, started),
     ...daemonLanePorts({
       runtime,

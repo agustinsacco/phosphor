@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import type { BrainService } from '@phosphor/brain-runtime/types'
 import { BrainAppService } from './app-service'
+import { BrainOwnerMoved } from './owner-gate'
 
 const registration = (recall: boolean) => ({
   service: 'brain' as const,
@@ -117,4 +118,47 @@ it('ignores cached idle rows until the new connection receives its initial lanes
   service.lanesSnapshot()
   service.ownerChanged(connection)
   expect(service.busy('/lane')).toBe(false)
+})
+
+it('stops registering, without a report or a retry, once Brain moved to the service', async () => {
+  vi.useFakeTimers()
+  try {
+    const service = app()
+    apps.push(service)
+    const report = vi.fn()
+    const source = vi.fn(() => Promise.reject(new BrainOwnerMoved('host')))
+    service.install(source, report)
+    const call = vi.fn()
+    const view = { state: 'ready', connectionToken: 't', ownerLocal: true, lanes: [] }
+    service.ownerChanged({ snapshot: () => view, call } as never)
+    await vi.waitFor(() => expect(source).toHaveBeenCalledTimes(1))
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(source).toHaveBeenCalledTimes(1)
+    expect(report).not.toHaveBeenCalled()
+    expect(call).not.toHaveBeenCalled()
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('does not call the creating accessor on an early attested connection before ownership settles', async () => {
+  let legacy = false
+  const service = new BrainAppService(
+    async () => bridge,
+    () => legacy,
+  )
+  apps.push(service)
+  const source = vi.fn(async () => ({ recallLaunch: async () => undefined }) as BrainService)
+  const call = vi.fn(async () => ({ ok: true }))
+  service.install(source, vi.fn())
+  service.ownerChanged({
+    snapshot: () => ({ state: 'ready', ownerLocal: true, connectionToken: 'early', lanes: [] }),
+    call,
+  })
+  expect(source).not.toHaveBeenCalled()
+  expect(call).not.toHaveBeenCalled()
+  legacy = true
+  service.brainChanged()
+  await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(1))
+  expect(source).toHaveBeenCalledTimes(1)
 })

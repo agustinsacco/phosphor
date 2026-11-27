@@ -6,6 +6,7 @@ import { composeDirectives } from '@phosphor/shared/agent-directives'
 import { prepareProviderAccount } from './session-provider'
 import type { PiSpawnOptions } from './rpc-client'
 import type { prepareSessionLaunch } from './session-launch'
+import type { ReservedLane } from './reserved-lane'
 
 export interface SessionExecution {
   unattended?: boolean
@@ -16,6 +17,8 @@ export interface SessionExecution {
   keepLastWorkspace?: boolean
   intent?: 'report' | 'code'
   signal?: AbortSignal
+  /** Set only by the owner holding this reserved lane; never from a request. */
+  reserved?: ReservedLane
 }
 
 /** Machine-local inputs. These are trusted dependencies, never remote spawn options. */
@@ -34,7 +37,10 @@ export interface SessionPolicyRuntime {
   strictAccountSelection?: boolean
   compressionEnvironment: () => Record<string, string>
   resetCompaction: () => Promise<void>
-  /** Whether `cwd` is the Brain lane's folder (Desktop only): it gets the Brain lane's fixed block. */
+  /**
+   * Whether `cwd` is the Brain lane's folder (Desktop): it gets the Brain lane's fixed block. A
+   * Host's reserved Brain Agent lane gets it from its execution instead.
+   */
   brainLane?: (cwd: string) => boolean
   /** The owner's "lower lane priority" setting, read at each lane start (`lane-priority.ts`). */
   lowPriority?: () => boolean
@@ -58,7 +64,9 @@ export async function prepareSessionPolicy(
   const projectKey = git.mainRepoPath ?? options.workspacePath
   const prefs = runtime.preferences()
   const machine = await runtime.machineContext()
-  const brainLane = runtime.brainLane?.(options.workspacePath) ?? false
+  const brainLane =
+    execution.reserved?.kind === 'brain-agent' ||
+    (runtime.brainLane?.(options.workspacePath) ?? false)
   const compose = (prefs: ReturnType<SessionPolicyRuntime['preferences']>) =>
     composeDirectives({
       cwd: options.workspacePath,

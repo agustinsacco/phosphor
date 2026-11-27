@@ -8,6 +8,13 @@ which holds directions that are not built.
 A row leaves this file when the code changes, in the same diff. If you fix
 something here, delete its row — the code becomes the record.
 
+## Host Brain Agent
+
+The Host can show its reserved conversation, but cannot accept interactive messages.
+The Host refuses Send and Tell before starting pi because no production launch has
+proved that all tools obey the turn's permissions. See the launch profile in
+`apps/host/src/brain/agent/profile.ts` and the [Host Brain API](host-brain-api.md).
+
 ## Streaming and memory
 
 The hot path is pi → main → renderer. These were measured with benchmarks

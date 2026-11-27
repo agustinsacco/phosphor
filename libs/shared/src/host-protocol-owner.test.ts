@@ -5,6 +5,7 @@ import {
   OWNER_METHODS,
   OWNER_METHODS_ANY_LOCAL,
   isAnyLocalOwnerMethod,
+  isBrainHandoverName,
   isOwnerMethod,
   parseOwnerParams,
   type OwnerMethod,
@@ -49,6 +50,24 @@ const VALID: { readonly [M in OwnerMethod]: unknown } = {
   'owner.account.prepare': undefined,
   'owner.account.register': { accountId: ID(4), label: 'me@example.com', plan: 'max' },
   'owner.account.discard': { accountId: ID(4) },
+  'owner.brainHandover.pin': undefined,
+  'owner.brainHandover.status': { migrationId: ID(5) },
+  'owner.brainHandover.begin': {
+    migrationId: ID(5),
+    sourceSchema: 7,
+    sourceGeneration: 'harbor-generation',
+    desktopVersion: '1.2.3',
+  },
+  'owner.brainHandover.verify': {
+    migrationId: ID(5),
+    files: [
+      { name: 'brain.sqlite', bytes: 4096, sha256: 'ab'.repeat(32) },
+      { name: 'transcripts/ledger.jsonl', bytes: 10, sha256: 'cd'.repeat(32) },
+    ],
+    activeTranscript: 'transcripts/ledger.jsonl',
+  },
+  'owner.brainHandover.commit': { migrationId: ID(5) },
+  'owner.brainHandover.abort': { migrationId: ID(5) },
 }
 const INVALID: { readonly [M in OwnerMethod]: unknown } = {
   'machine.local': { any: 1 },
@@ -85,6 +104,21 @@ const INVALID: { readonly [M in OwnerMethod]: unknown } = {
   'owner.account.prepare': { accountId: ID(4) },
   'owner.account.register': { accountId: ID(4), label: 'x', credentialDir: undefined, email: '' },
   'owner.account.discard': { accountId: 'default' },
+  'owner.brainHandover.pin': { path: '/Harbor' },
+  'owner.brainHandover.status': { migrationId: 'harbor' },
+  'owner.brainHandover.begin': {
+    migrationId: ID(5),
+    sourceSchema: 3,
+    sourceGeneration: 'g',
+    desktopVersion: '1.2.3',
+  },
+  'owner.brainHandover.verify': {
+    migrationId: ID(5),
+    files: [{ name: '/Users/me/brain.sqlite', bytes: 1, sha256: 'ab'.repeat(32) }],
+    activeTranscript: null,
+  },
+  'owner.brainHandover.commit': { migrationId: 'x' },
+  'owner.brainHandover.abort': {},
 }
 
 describe('owner methods', () => {
@@ -103,6 +137,11 @@ describe('owner methods', () => {
 
   it('admits any local principal to three methods only', () => {
     expect(OWNER_METHODS.filter(isAnyLocalOwnerMethod)).toStrictEqual([...OWNER_METHODS_ANY_LOCAL])
+  })
+
+  it('admits the pathless Brain installation pin only on the attested owner route', () => {
+    expect(isOwnerMethod('owner.brainHandover.pin')).toBe(true)
+    expect(OWNER_METHODS_ANY_LOCAL).not.toContain('owner.brainHandover.pin')
   })
 
   it('keeps owner limits apart from HOST_LIMITS', () => {
@@ -150,6 +189,60 @@ describe('parseOwnerParams', () => {
         credentialDir: '/tmp/x',
       }),
     ).toStrictEqual({ accountId: ID(4), label: 'A' })
+  })
+})
+
+describe('owner.brainHandover', () => {
+  it('names only allowlisted relative files, never a path', () => {
+    for (const good of [
+      'brain.sqlite',
+      'AGENTS.md',
+      'transcripts/a-1.jsonl',
+      'embeddings/m/onnx/x',
+    ])
+      expect(isBrainHandoverName(good), good).toBe(true)
+    for (const bad of [
+      '/brain.sqlite',
+      '../brain.sqlite',
+      'transcripts/../brain.sqlite',
+      'transcripts/.hidden.jsonl',
+      'transcripts/a/b.jsonl',
+      'transcripts/a.txt',
+      'notes.md',
+      'embeddings//x',
+      'brain.sqlite-wal',
+    ])
+      expect(isBrainHandoverName(bad), bad).toBe(false)
+  })
+
+  it('takes a status call without an id and refuses a verify without the database', () => {
+    expect(parseOwnerParams('owner.brainHandover.status', undefined)).toStrictEqual({})
+    expect(
+      parseOwnerParams('owner.brainHandover.verify', {
+        migrationId: ID(5),
+        files: [{ name: 'AGENTS.md', bytes: 1, sha256: 'ab'.repeat(32) }],
+        activeTranscript: null,
+      }),
+    ).toBeNull()
+    const db = { name: 'brain.sqlite', bytes: 1, sha256: 'ab'.repeat(32) }
+    // The resumed conversation is named explicitly: never guessed, never a file not staged.
+    for (const activeTranscript of [undefined, 'transcripts/other.jsonl', 'brain.sqlite'])
+      expect(
+        parseOwnerParams('owner.brainHandover.verify', {
+          migrationId: ID(5),
+          files: [db],
+          activeTranscript,
+        }),
+        String(activeTranscript),
+      ).toBeNull()
+    const twice = db
+    expect(
+      parseOwnerParams('owner.brainHandover.verify', {
+        migrationId: ID(5),
+        files: [twice, twice],
+        activeTranscript: null,
+      }),
+    ).toBeNull()
   })
 })
 

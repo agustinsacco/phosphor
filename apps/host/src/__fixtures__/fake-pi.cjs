@@ -9,9 +9,11 @@
  * status at startup and lists phosphor-context-budget among its commands.
  * A prompt holding "stream" or "count" streams until aborted; one holding
  * "recall" answers with the last PHX-... token of the session; any other
- * answers with the first PHX-... token it holds, or "ok". "/fake-ask" asks
- * a confirm dialog and answers once the dialog is answered, printing the
- * answer on stderr as FAKE_PI_DIALOG <json>. "/fake-clone" is an extension
+ * answers with the first PHX-... token it holds, or "ok". "/fake-ask", or
+ * any prompt holding FAKE_ASK, asks a confirm dialog and answers once the
+ * dialog is answered, printing the answer on stderr as FAKE_PI_DIALOG <json>.
+ * Loaded with brain-agent-guard.mjs (`-e`), it lists that guard's command
+ * with the path it was loaded from, as pi does. "/fake-clone" is an extension
  * command that does what pi's clone does: copy the session to a new file and
  * move onto it, before it answers. "/fake-clone-fails" does the same, then
  * fails. "/fake-clone-hold-reply <file>" moves and holds its answer, and
@@ -155,6 +157,7 @@ const session = persistence.createSession({
 const { messages } = session
 const extensions = args.flatMap((arg, at) => (arg === '-e' ? [args[at + 1]] : []))
 const breakdown = extensions.some((path) => path.endsWith('/context-breakdown.ts'))
+const brainAgentGuard = extensions.find((path) => path.endsWith('/brain-agent-guard.mjs'))
 
 console.error(`FAKE_PI_ENV ${Object.keys(process.env).sort().join(',')}`)
 console.error(`FAKE_PI_PATH ${process.env.PATH ?? ''}`)
@@ -252,6 +255,7 @@ const handle = createDispatcher({
   initialState,
   agentDir,
   breakdown,
+  brainAgentGuard,
 })
 
 let buffer = ''
