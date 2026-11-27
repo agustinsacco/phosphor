@@ -24,10 +24,15 @@ afterEach(() => {
   cleanup = undefined
 })
 
-async function render(page: HostBrainLanePage) {
-  const invoke = vi.fn(async (request: HostBrainRequest) =>
-    request.method === 'brain:laneShow' ? page : null,
-  )
+async function render(
+  page: HostBrainLanePage | (() => HostBrainLanePage),
+  watch: (cursor: string) => HostBrainLanePage = () => base,
+) {
+  const invoke = vi.fn(async (request: HostBrainRequest) => {
+    if (request.method === 'brain:laneShow') return typeof page === 'function' ? page() : page
+    if (request.method === 'brain:laneWatch') return watch(request.args[0]!)
+    return null
+  })
   const brain = { invoke, status: { generation: 'g', revision: 1 } } as unknown as ReadyBrainSurface
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const node = document.createElement('div')
@@ -57,7 +62,68 @@ it('offers no Stop for a turn that is not the caller’s to stop', async () => {
 
 it('says why a message cannot go when the Host runs no qualified launch', async () => {
   const { node, button } = await render({ ...base, running: false, turn: null, messaging: false })
-  expect(node.textContent).toContain('This Host can’t run messages to Brain Agent yet.')
-  expect(node.querySelector('textarea')?.disabled).toBe(true)
-  expect(button('Send')?.disabled).toBe(true)
+  expect(node.querySelector('[aria-label="Transcript"]')?.textContent).toContain('owns Harbor')
+  expect(node.textContent).toContain('Read-only. This Host can’t send messages yet.')
+  expect(node.querySelector('textarea')).toBeNull()
+  expect(button('Send')).toBeUndefined()
+})
+
+it('does not discard loaded older messages as more pages are opened', async () => {
+  const { node, button } = await render({ ...base, next: '5' }, (cursor) => ({
+    ...base,
+    entries: [{ id: cursor, role: 'user', text: `History ${cursor}` }],
+    next: Number(cursor) > 1 ? String(Number(cursor) - 1) : null,
+  }))
+  for (let i = 0; i < 5; i++) await act(async () => button('Older messages')!.click())
+  expect(
+    [...node.querySelectorAll('[aria-label="Transcript"] li')].map((li) => li.textContent),
+  ).toEqual([
+    'YouHistory 1',
+    'YouHistory 2',
+    'YouHistory 3',
+    'YouHistory 4',
+    'YouHistory 5',
+    'Brain AgentRina Okafor owns Harbor.',
+  ])
+})
+
+it('sends unmodified Enter once, not Shift+Enter or an IME commit', async () => {
+  const { node, invoke } = await render({ ...base, running: false, turn: null })
+  const input = node.querySelector('textarea')!
+  await act(async () => {
+    const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+    set.call(input, 'Synthetic draft')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    for (const init of [{ shiftKey: true }, { isComposing: true }]) {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, ...init }))
+    }
+  })
+  expect(invoke.mock.calls.filter(([request]) => request.method === 'brain:laneSend')).toHaveLength(
+    0,
+  )
+  await act(async () => {
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    )
+  })
+  expect(invoke.mock.calls.filter(([request]) => request.method === 'brain:laneSend')).toEqual([
+    [{ method: 'brain:laneSend', args: ['Synthetic draft', 4] }],
+  ])
+})
+
+it('recovers from a failed first transcript load without showing a composer before admission', async () => {
+  let failed = false
+  const { node, button } = await render(() => {
+    if (!failed) {
+      failed = true
+      throw new Error('Synthetic read failure')
+    }
+    return { ...base, running: false, turn: null }
+  })
+  expect(node.textContent).toContain('The Host did not provide the conversation.')
+  expect(node.querySelector('[aria-label="Transcript"]')).toBeNull()
+  expect(node.querySelector('textarea')).toBeNull()
+  await act(async () => button('Retry')!.click())
+  expect(node.querySelector('[aria-label="Transcript"]')?.textContent).toContain('owns Harbor')
+  expect(node.querySelectorAll('textarea')).toHaveLength(1)
 })

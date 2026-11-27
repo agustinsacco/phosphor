@@ -74,6 +74,7 @@ test('compact Brain isolates colliding Host data, permissions, evidence and one-
     await expect(page.getByText('You do not have access to this Host’s Brain.')).toBeVisible()
     // Brain Agent's conversation and its approvals take every Brain right.
     await grant(page, READ, CONTROL, EVIDENCE, CONFIGURE)
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click()
     await memory(page, 'Ledger').click()
     await expect(page.getByText('Ledger evidence', { exact: true })).toBeVisible()
     oldEvidence()
@@ -84,6 +85,7 @@ test('compact Brain isolates colliding Host data, permissions, evidence and one-
     await expect(page.getByText('Ledger source transcript', { exact: true })).toBeVisible()
     await expect(page.getByText('Harbor source transcript', { exact: true })).toHaveCount(0)
     await page.goBack()
+    await page.getByRole('button', { name: 'Knowledge', exact: true }).click()
     await expect(memory(page, 'Ledger')).toBeVisible()
   } finally {
     oldEvidence()
@@ -106,7 +108,7 @@ test('compact Brain isolates colliding Host data, permissions, evidence and one-
   expect(await ledgerAsk.redeem()).toMatchObject({ status: 'denied' })
   expect(ledger.commands).toEqual(['Ledger approval'])
   expect(harbor.commands).toEqual([])
-  await page.getByRole('button', { name: 'Brain Agent', exact: true }).click()
+  await page.getByRole('button', { name: 'Conversation', exact: true }).click()
   await expect(page.getByText('Ledger transcript', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: ACCESS, exact: true }).click()
@@ -216,3 +218,56 @@ test('a compact Host lane menu queues that lane once on its own Host, and not af
   expect(harbor.queued).toHaveLength(1)
   expect(ledger.queued).toEqual([])
 })
+
+for (const width of [400, 1280]) {
+  test(`selected Host's saved conversation and knowledge search are separate at ${width}px`, async ({
+    page,
+    brainWorld,
+  }) => {
+    const [harbor, ledger] = brainHosts(brainWorld)
+    await page.setViewportSize({ width, height: 850 })
+    await page.goto(brainWorld.origin)
+    await page.getByRole('button', { name: 'Sign in with GitHub' }).click()
+    await page.goto(`${brainWorld.origin}/pages/brain/${harbor.id}`)
+    const pick = page.getByRole('combobox', { name: 'Brain Host' })
+    await grant(page, READ, CONTROL, EVIDENCE, CONFIGURE)
+    const transcript = page.getByRole('list', { name: 'Transcript' })
+    await expect(transcript).toContainText('Harbor transcript')
+    await expect(page.getByText('Read-only. This Host can’t send messages yet.')).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Message for Brain Agent' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Conversation', exact: true }).focus()
+    await page.keyboard.press('/')
+    const search = page.getByRole('searchbox', { name: 'Find in Brain' })
+    await expect(search).toBeFocused()
+    await expect(transcript).toBeHidden()
+    await search.fill('Mara')
+    await search.press('Enter')
+    await expect(page.getByRole('region', { name: 'Search Brain', exact: true })).toContainText(
+      'Mara Voss',
+    )
+    await expect(page.getByRole('button', { name: 'Tell Brain Agent' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Conversation', exact: true }).click()
+    await expect(transcript).toContainText('Harbor transcript')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    )
+
+    const restore = brainWorld.holdHost()
+    try {
+      await expect(transcript).toHaveCount(0)
+      await expect(page.getByText('Connecting to this Host…')).toBeVisible()
+      await expect(pick).toHaveValue(harbor.id)
+    } finally {
+      restore()
+    }
+    await expect(transcript).toContainText('Harbor transcript')
+    await pick.selectOption(ledger.id)
+    await expect(transcript).toHaveCount(0)
+    await expect(page.getByText('You do not have access to this Host’s Brain.')).toBeVisible()
+    await grant(page, READ, CONTROL, EVIDENCE, CONFIGURE)
+    await expect(transcript).toContainText('Ledger transcript')
+    await expect(transcript).not.toContainText('Harbor transcript')
+  })
+}

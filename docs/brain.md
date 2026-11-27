@@ -15,10 +15,17 @@ macOS Apple silicon bundle can be qualified, and the build must pass a read with
 verified embedding model after extraction. A synthetic smoke test is not qualification.
 See [Host Brain packaging](host-brain-packaging.md) for the support requirements.
 
-**Can I message Brain Agent on a Host?** Not yet. Authorized clients can read its saved
-conversation, but Send and Tell are disabled. No production launch is verified to route
-every tool call through the Host's permission checks. Ask still searches the selected
-Host's memories. This restriction does not change Desktop-owned Brain Agent or Defrag.
+**On a selected Host**, **Conversation** is the one place to read or continue Brain Agent’s
+private transcript. It opens first if this client has all four Brain permissions and can control
+lanes on that Host; otherwise **Knowledge** opens first. **Older messages** loads earlier history.
+When sending is available, use **Send** or Enter; Shift+Enter adds a line. Production launches
+are not yet qualified to send: the saved transcript is read-only, and Defrag still runs.
+
+**Knowledge** searches the selected Host’s saved memories without sending a message to Brain
+Agent. Press `/` to open Knowledge and focus its search. If the Host disconnects or access is
+removed, the private transcript disappears from the client, not from the Host. On reconnect, Conversation
+loads the selected Host’s saved history again if permitted. Nothing switches to another Host
+or provider.
 
 ## Turn it on
 
@@ -163,7 +170,7 @@ knowledge. A clean Undo restores the changed rows and their evidence, not just t
 
 ## The Brain page
 
-The map, the selected card and **What changed** share one screen. On a narrow page the card
+In Desktop-owned Brain, the map, the selected card and **What changed** share one screen. On a narrow page the card
 stacks below the map. The header counts memories, people and things, and items waiting for
 Brain Agent. **Search** (`/`) finds a name or memory.
 ⌘K stays the app's command palette. The status bar shows the current read and queue. A failed
