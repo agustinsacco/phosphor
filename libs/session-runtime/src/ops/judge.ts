@@ -13,12 +13,20 @@ import type {
   AuditDecision,
   OpArgs,
   OpFacts,
+  OpContext,
   OpScope,
   OpTier,
 } from '@phosphor/shared/ops'
 import { effectiveLimits, type OpLimits } from './limits'
 import { gateVerdict, type PolicyCheck, type PolicyVerdict } from './policy'
-import { askingLane, governedAs, principalKey, type GovernedAs } from './principals'
+import {
+  askingLane,
+  authenticatedLane,
+  governedAs,
+  MESSAGE_SENDER_REQUIRED,
+  principalKey,
+  type GovernedAs,
+} from './principals'
 import type { OpsDispatcherDeps } from './ports'
 import type { LaneFacts, OpPrincipal, OpsBinding } from './types'
 
@@ -85,11 +93,11 @@ const CONTEXT_FILE_NAMES: Readonly<Record<string, string>> = {
 }
 
 function resolveSpecValue<T extends string>(
-  value: T | ((a: OpArgs, c: { self: boolean }) => T),
+  value: T | ((a: OpArgs, c: OpContext) => T),
   args: OpArgs,
-  self: boolean,
+  context: OpContext,
 ): T {
-  return typeof value === 'function' ? value(args, { self }) : value
+  return typeof value === 'function' ? value(args, context) : value
 }
 
 /** The declared selector wins even when omitted; a revision is never a lane. */
@@ -116,9 +124,10 @@ export function resolveTarget(
   const lane = binding.lanes.resolve(ref) ?? discovered
   if (!lane) return { code: 'bad-request', text: `No lane ${ref} on this machine.` }
   const self =
-    principal.kind === 'agent' &&
-    (lane.ref === principal.laneRef ||
-      (lane.sessionId !== null && lane.sessionId === principal.sessionId))
+    lane.ref === authenticatedLane(principal) ||
+    (principal.kind === 'agent' &&
+      lane.sessionId !== null &&
+      lane.sessionId === principal.sessionId)
   return self ? { self, lane: withFacts(lane) } : { self, lane }
 }
 
@@ -135,14 +144,22 @@ export function judgeOp(
 ): Judged {
   const { principal, request, spec, target, policy } = input
   const asking = askingLane(principal, request)
+  const sender = spec.name === 'lane.message' ? authenticatedLane(principal) : undefined
+  const context = {
+    self: target.self,
+    createdByAsking:
+      sender !== undefined &&
+      target.lane !== undefined &&
+      binding.lanes.createdBy(target.lane.ref)?.creator === sender,
+  }
   const own = principal.kind === 'agent' ? binding.lanes.resolve(principal.laneRef) : null
   return {
     principal,
     request,
     spec,
     args: request.args,
-    tier: resolveSpecValue(spec.tier, request.args, target.self),
-    scope: input.routed ? 'machine' : resolveSpecValue(spec.scope, request.args, target.self),
+    tier: resolveSpecValue(spec.tier, request.args, context),
+    scope: input.routed ? 'machine' : resolveSpecValue(spec.scope, request.args, context),
     governed: governedAs(principal, request),
     key: principalKey(principal),
     self: target.self,
@@ -236,7 +253,25 @@ export function userOffRefusal(j: Judged): Refusal | null {
     : null
 }
 
+export function messageSenderRefusal(j: Judged): Refusal | null {
+  return j.spec.name === 'lane.message' && !authenticatedLane(j.principal)
+    ? { code: 'forbidden', text: MESSAGE_SENDER_REQUIRED }
+    : null
+}
+
+export function laneMessageBusy(lane: Pick<LaneFacts, 'activity' | 'controller'>): Refusal | null {
+  if (lane.activity === 'needs-input')
+    return { code: 'busy', text: 'The lane needs user input. Wait for the user to answer.' }
+  if (lane.controller)
+    return {
+      code: 'busy',
+      text: 'The lane is controlled by another client. Phosphor will not take it over.',
+    }
+  return null
+}
+
 function busyRefusal(j: Judged): Refusal | null {
+  if (j.spec.name === 'lane.message' && j.lane) return laneMessageBusy(j.lane)
   if (j.governed === 'surface' || j.scope !== 'other-lane' || j.tier === 'read') return null
   if (!j.lane?.busy || BUSY_EXEMPT.has(j.spec.name)) return null
   return {
@@ -270,13 +305,21 @@ export function refuseOp(
     const lane = j.principal.lane
     const own =
       laneRefArg(j.spec, j.args) === undefined || j.lane?.sessionId === lane || j.lane?.ref === lane
-    if (resolveSpecValue(j.spec.scope, j.args, own) === 'self')
+    if (resolveSpecValue(j.spec.scope, j.args, { self: own }) === 'self')
       return { code: 'forbidden', text: 'Use the phosphor tool for this lane.' }
   }
   const gate = gateVerdict(policyCheck(j))
   if (gate?.kind === 'deny') return fromVerdict(gate)
   const unavailable = availability(binding, j.spec) ?? surfaceRefusal(j, deps)
   if (unavailable) return unavailable
+  const name = j.spec.name
+  const sender = messageSenderRefusal(j)
+  if (sender) return sender
+  if (j.self && (name === 'lane.message' || name === 'lane.wait'))
+    return {
+      code: 'bad-request',
+      text: 'Choose another lane; this operation cannot target your own lane.',
+    }
   const needsReason = j.governed === 'agent' || j.governed === 'machine'
   if (needsReason && j.tier !== 'read' && !j.request.reason?.trim())
     return { code: 'bad-request', text: 'Add a short reason.' }

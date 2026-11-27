@@ -31,6 +31,8 @@ export type OpClass = (typeof OP_CLASSES)[number]
 export interface OpContext {
   /** The op targets the asking lane itself. */
   readonly self: boolean
+  /** The owner recorded the asking lane as this target’s creator. */
+  readonly createdByAsking?: boolean
 }
 
 export type OpArgs = Readonly<Record<string, unknown>>

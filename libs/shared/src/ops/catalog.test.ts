@@ -68,8 +68,6 @@ it('prevents trust, agent policy, credentials or client preferences riding on wr
     'lane.steer',
     'lane.followUp',
     'lane.abort',
-    'lane.wait',
-    'lane.message',
     'lane.bash',
     'lane.liveness',
   ])

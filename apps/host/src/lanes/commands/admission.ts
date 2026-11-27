@@ -19,7 +19,10 @@ export interface LaneAdmission {
   fence: number | undefined
 }
 export type AdmissionPorts = ReceiptPorts &
-  Pick<LaneCommandPorts, 'publish' | 'sessionFor' | 'openDialogs' | 'refusal' | 'pauses'> & {
+  Pick<
+    LaneCommandPorts,
+    'publish' | 'sessionFor' | 'summaryFor' | 'openDialogs' | 'refusal' | 'pauses'
+  > & {
     store: Pick<HostStore, 'getLane' | 'admit'>
     attachments?: Pick<HostAttachments, 'abort'>
   }
@@ -102,6 +105,22 @@ export function admitFence(
   if (frame.fence === undefined) {
     rejected(state, ports, job, 'bad-request', true)
     return { admitted: false }
+  }
+  if (client.agentMessage) {
+    const activity = ports.summaryFor(laneId)?.activity
+    if (op.type !== 'prompt' || !op.streamingBehavior) {
+      rejected(state, ports, job, 'forbidden', true)
+      return { admitted: false }
+    }
+    if (
+      activity === 'needs-input' ||
+      lane.control.controller ||
+      frame.fence !== lane.control.fence
+    ) {
+      rejected(state, ports, job, 'busy', true)
+      return { admitted: false }
+    }
+    return { admitted: true, fence: frame.fence }
   }
   const admission = ports.store.admit(
     laneId,

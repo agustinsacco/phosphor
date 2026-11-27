@@ -17,7 +17,8 @@ const CONTENT_BYTES = 256 * 1024
 const PREFILL_BYTES = 2 * ARGS_BYTES
 /** The mirrored limits; a test keeps them equal to OPS_LIMITS and OP_CHANNEL_LIMITS. */
 export const LANE_OP_LIMITS = { ARGS_BYTES, CONTENT_BYTES, PREFILL_BYTES } as const
-export const MAX_DEADLINE = 600_000
+const MAX_CONFIRM_TIMEOUT = 600_000
+export const MAX_DEADLINE = 1_860_000
 const error = (
   id: string,
   code: Extract<OpReplyEnvelope, { status: 'denied' | 'error' }>['code'],
@@ -70,7 +71,7 @@ function decode(raw: string | undefined, id: string): OpReplyEnvelope {
         typeof r.message === 'string' &&
         Number.isSafeInteger(r.timeoutMs) &&
         r.timeoutMs > 0 &&
-        r.timeoutMs <= MAX_DEADLINE
+        r.timeoutMs <= MAX_CONFIRM_TIMEOUT
         ? r
         : invalid
     case 'ok':

@@ -24,7 +24,7 @@ it('declares every owner-goal operation without a service gap', () => {
  mcp.list mcp.check mcp.add mcp.update mcp.enable mcp.disable mcp.remove mcp.lane package.list package.checkUpdates package.install package.update package.remove
  skill.list skill.read skill.create skill.edit skill.delete skill.install routine.list routine.history routine.activity routine.create routine.edit routine.enable routine.disable routine.run routine.cancel routine.skipNext routine.pauseAll routine.archive routine.delete
  swarm.on swarm.off model.set thinking.set pr.track pr.hide pr.clear contextFiles.set lane.compact lane.autoCompaction lane.autoRetry lane.queueMode lane.reload
- lane.create lane.list lane.search lane.read lane.stop lane.archive lane.resume lane.delete lane.tree lane.fork lane.clone lane.label lane.jump lane.rewind
+ lane.create lane.list lane.search lane.read lane.message lane.wait lane.stop lane.archive lane.resume lane.delete lane.tree lane.fork lane.clone lane.label lane.jump lane.rewind
  archive.list archive.restore archive.purge artifact.list artifact.read artifact.remove hosts.list folder.list sandbox.create sandbox.list sandbox.rename sandbox.delete machine.status machine.doctor`
       .trim()
       .split(/\s+/)
@@ -45,7 +45,10 @@ it('offers only the pre-migration subset and explains every other op', () => {
   expect(
     new Set(
       Object.entries(OP_GAPS.desktop)
-        .filter(([op]) => !['folder.browse', 'job.list', 'job.status'].includes(op))
+        .filter(
+          ([op]) =>
+            !['folder.browse', 'job.list', 'job.status', 'lane.message', 'lane.wait'].includes(op),
+        )
         .map(([, reason]) => reason),
     ),
   ).toEqual(
@@ -59,4 +62,9 @@ it('explains Desktop folder browsing and background-job gaps at the point of use
   expect(OP_GAPS.desktop['folder.browse']).toMatch(/folder picker/i)
   for (const op of ['job.list', 'job.status'])
     expect(OP_GAPS.desktop[op]).toMatch(/background operations run on the Phosphor service/i)
+})
+
+it('explains why the in-app runtime cannot coordinate lanes', () => {
+  expect(OP_GAPS.desktop['lane.message']).toMatch(/lane command queue/i)
+  expect(OP_GAPS.desktop['lane.wait']).toMatch(/activity stream/i)
 })

@@ -3,6 +3,7 @@ import type { LaneSummary, ReadyOpFlag } from '@phosphor/shared/host-protocol'
 import { OP_CATALOG, OP_GAPS } from '@phosphor/shared/ops-catalog'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { RpcCommand } from '@phosphor/shared/rpc'
+import { authenticatedLane } from '@phosphor/session-runtime/ops/principals'
 import { deferredRpcCommand } from '@phosphor/session-runtime/ops/deferred-rpc'
 import type { SurfacePrincipal } from '@phosphor/session-runtime/ops/ports'
 import type {
@@ -173,6 +174,7 @@ export function laneFacts(
     sessionId: ports.lanes.sessionFor(lane.laneId),
     title: lane.title ?? '',
     cwd: lane.cwd,
+    activity: lane.activity,
     busy: lane.activity === 'working' || lane.activity === 'needs-input',
     controlFence: lane.control.fence,
     controller: controller ? { clientId: controller.clientId, label: controller.label } : null,
@@ -194,11 +196,16 @@ export function daemonLaneBinding(
       createdBy(laneRef) {
         const laneId = laneIdOf(laneRef, ports.selfIds())
         if (!laneId) return null
-        const row = ports.db
-          .prepare(`SELECT value FROM lane_prefs WHERE lane_id=? AND key='lineage'`)
-          .get(laneId)
-        const lineage = Number(row?.value)
-        return Number.isSafeInteger(lineage) && lineage >= 0 ? { lineage } : null
+        const rows = ports.db
+          .prepare(
+            "SELECT key, value FROM lane_prefs WHERE lane_id=? AND key IN ('lineage', 'created_by')",
+          )
+          .all(laneId)
+        const lineage = Number(rows.find((row) => row.key === 'lineage')?.value)
+        const creator = rows.find((row) => row.key === 'created_by')?.value
+        return Number.isSafeInteger(lineage) && lineage >= 0
+          ? { lineage, ...(typeof creator === 'string' ? { creator } : {}) }
+          : null
       },
     },
     deferred: { apply: (sessionId, items) => applyDeferred(ports, sessionId, items) },
@@ -240,7 +247,7 @@ export function recordCreator(db: DatabaseSync, ports: Pick<DaemonBindingPorts, 
             ?.value ?? 0,
         )
       : 0
-    const creator = p.kind === 'machine' ? p.machineId : (lane ?? p.kind)
+    const creator = authenticatedLane(p) ?? (p.kind === 'machine' ? p.machineId : p.kind)
     db.prepare(
       "INSERT OR REPLACE INTO lane_prefs(lane_id,key,value) VALUES (?,'created_by',?),(?,'lineage',?)",
     ).run(id, creator, id, String(1 + Math.max(depth, p.kind === 'agent' ? p.lineage : 0)))

@@ -20,12 +20,11 @@ export const on = Type.Boolean()
 export const choice = (...values: string[]) => Type.String({ enum: values })
 export const count = (maximum: number, minimum = 1) => Type.Integer({ minimum, maximum })
 export const ids = Type.Array(id, { minItems: 1, maxItems: OPS_LIMITS.idsPerOp, uniqueItems: true })
-export const content = optional(
-  Type.Refine(
-    Type.String({ maxLength: OPS_LIMITS.contentBytes }),
-    (body) => utf8Length(body) <= OPS_LIMITS.contentBytes,
-  ),
+export const requiredContent = Type.Refine(
+  Type.String({ maxLength: OPS_LIMITS.contentBytes }),
+  (body) => utf8Length(body) <= OPS_LIMITS.contentBytes,
 )
+export const content = optional(requiredContent)
 export const laneScope = (_args: OpArgs, ctx: OpContext) => (ctx.self ? 'self' : 'other-lane')
 export const laneOrAsk = (_args: OpArgs, ctx: OpContext) => (ctx.self ? 'lane' : 'destructive')
 export const caps = (...caps: LegacyHostCapability[]) => ({ caps })
@@ -71,6 +70,7 @@ export function domain(
 
 /** Semantic CLI labels; deliberately separate from the wire validation schema. */
 export function argumentLabel(spec: CatalogSpec, key: string): string {
+  if (spec.name === 'lane.message' && key === 'content') return 'text'
   if (key === 'target' || key === 'lane' || (key === 'ref' && spec.name.startsWith('lane.')))
     return 'lane-ref'
   if (key === 'revision' || key === 'expected' || (key === 'ref' && spec.name.startsWith('git.')))

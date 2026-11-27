@@ -1,4 +1,6 @@
 import { Type } from 'typebox'
+import { LANE_WAIT_DEADLINE_MS, LANE_WAIT_TIMEOUT } from '../channel'
+import type { OpContext } from '../types'
 import { PAGED_LANE_OPS } from '../../host-protocol-paged-lanes'
 import { LANE_STATES } from '../../host-protocol/lanes'
 import { ALL_THINKING_LEVELS } from '../../thinking'
@@ -6,6 +8,7 @@ import {
   caps,
   choice,
   control,
+  requiredContent,
   count,
   domain,
   id,
@@ -147,6 +150,24 @@ export const lanes = [
     ...byRef,
     scope: 'other-lane',
   }),
+  lane(
+    'lane.message',
+    'Send attributed agent text to another lane; defaults to follow-up.',
+    (_, ctx: OpContext) => (ctx.createdByAsking ? 'lane' : 'destructive'),
+    object({ ref, content: requiredContent, mode: optional(choice('follow-up', 'steer')) }),
+    { laneArg: 'ref', positional: ['ref', 'content'], sensitive: ['content'] },
+  ),
+  read(
+    'lane.wait',
+    'Wait for another lane to settle (default), become idle, or need input; timeout in seconds (default 300).',
+    'read',
+    object({
+      ref,
+      until: optional(choice('idle', 'settled')),
+      timeout: optional(count(LANE_WAIT_TIMEOUT.max)),
+    }),
+    { ...byRef, laneArg: 'ref', scope: 'other-lane', deadlineMs: LANE_WAIT_DEADLINE_MS },
+  ),
   lane('lane.markRead', 'Mark a lane as read.', 'lane', target, byRef),
   read(
     'archive.list',

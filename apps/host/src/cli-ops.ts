@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { errorText } from '@phosphor/shared/errors'
 import { OPS_LIMITS, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
-import type { OpRequestEnvelope } from '@phosphor/shared/ops'
+import { LANE_WAIT_DEADLINE_MS, type OpRequestEnvelope } from '@phosphor/shared/ops'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import {
   helpArgv,
@@ -55,7 +55,7 @@ const envelope = (argv: readonly string[]): OpRequestEnvelope => ({
   v: 1,
   id: randomUUID(),
   argv,
-  deadlineMs: 30_000,
+  deadlineMs: catalogOp(argv) === 'lane.wait' ? LANE_WAIT_DEADLINE_MS : 30_000,
 })
 
 async function afterApproval(

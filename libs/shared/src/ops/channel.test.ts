@@ -75,7 +75,7 @@ describe('parseOpChannelRequest', () => {
       { id: 'a b' },
       { v: 2 },
       { deadlineMs: 0 },
-      { deadlineMs: 600_001 },
+      { deadlineMs: 1_860_001 },
       { confirm: { confirmId: 'x', digest: DIGEST } },
       { facts: { swarm: { available: true } } },
       { facts: { subagentsLive: 'yes' } },

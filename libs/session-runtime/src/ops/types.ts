@@ -6,7 +6,7 @@
  * docs/agent-control.md.
  */
 import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
-import type { ReadyOpFlag } from '@phosphor/shared/host-protocol'
+import type { LaneActivity, ReadyOpFlag } from '@phosphor/shared/host-protocol'
 import type {
   AgentOpRow,
   AgentPolicy,
@@ -67,6 +67,8 @@ export interface LaneFacts {
   readonly title: string
   /** The lane's working folder; Brain and directives resolve against it. */
   readonly cwd: string
+  /** Host activity, when the owner supplies its lane projection. */
+  readonly activity?: LaneActivity
   /** A turn is running. */
   readonly busy: boolean
   readonly controlFence?: number
@@ -105,6 +107,8 @@ export interface OpHandlerContext {
 
 export interface OpHandlerResult {
   readonly text: string
+  /** Status without transcript text, when the result displays untrusted content. */
+  readonly auditText?: string
   readonly data?: unknown
   /** The state an inverse must still match for Undo. */
   readonly undo?: false
@@ -165,7 +169,7 @@ export interface OpsBinding {
   readonly lanes: {
     resolve(ref: string): LaneFacts | null
     lookup?(ref: string): Promise<LaneFacts | null>
-    createdBy(laneRef: string): { readonly lineage: number } | null
+    createdBy(laneRef: string): { readonly lineage: number; readonly creator?: string } | null
   }
   readonly deferred: {
     apply(sessionOrLaneId: string, items: readonly LaneDeferred[]): Promise<DeferredOutcome>

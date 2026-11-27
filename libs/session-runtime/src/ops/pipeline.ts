@@ -166,7 +166,9 @@ async function finish(
   const plan = reloadPlan(env, j, out)
   const text = clipBytes(plan.note ? `${out.text}\n${plan.note}` : out.text, OPS_LIMITS.resultBytes)
   const record = j.governed === 'surface' ? null : inverse(env, j, out)
-  const auditId = started ? started.auditId : await audit(env, j, decision, text, record)
+  const auditId = started
+    ? started.auditId
+    : await audit(env, j, decision, out.auditText ?? text, record)
   const undo =
     auditId !== undefined && record !== null && env.binding.audit.get(auditId)?.undo === true
   const items = afterAudit(env, j, auditId, plan.items)
@@ -291,7 +293,9 @@ async function executeRouted(
   )
   if ('code' in routed) return refuse(env, j, routed)
   const { result } = routed
-  await audit(env, j, routed.decision, result.status === 'ok' ? result.text : result.status)
+  const auditText =
+    result.status === 'ok' && j.spec.name !== 'lane.wait' ? result.text : result.status
+  await audit(env, j, routed.decision, auditText)
   return {
     result: result.status === 'ok' && j.tier === 'read' ? { ...result, read: true } : result,
     ...(j.spec.untrustedResult ? { untrusted: true as const } : {}),

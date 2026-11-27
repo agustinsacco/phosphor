@@ -134,6 +134,7 @@ export function createRequests(ports: {
       method: string,
       params: unknown,
       trace: string,
+      timeoutMs = HOST_CALL_TIMEOUT_MS,
     ): Promise<Result> {
       if (calls.size >= HOST_LIMITS.pendingCommandsPerConnection || !ready)
         return Promise.resolve({
@@ -151,7 +152,7 @@ export function createRequests(ports: {
             ok: false,
             error: { code: 'internal', message: 'Query timed out.' },
           })
-        }, HOST_CALL_TIMEOUT_MS)
+        }, timeoutMs)
         calls.set(id, { resolve, timer })
         if (!ports.write({ type: 'call', id, method, params, trace })) ports.transportFailed()
       })

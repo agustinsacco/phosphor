@@ -309,7 +309,14 @@ export function createOpsDispatcher(binding: OpsBinding, deps: OpsDispatcherDeps
     deferred,
     inflight: new Map(),
   }
-  const run = (principal: OpPrincipal, request: OpsRunRequest) => runOp(core, principal, request)
+  const run = (principal: OpPrincipal, request: OpsRunRequest) =>
+    runOp(
+      core,
+      principal,
+      request,
+      undefined,
+      request.op === 'lane.wait' ? core.pipeline.spec(request.op)?.deadlineMs : undefined,
+    )
   return {
     run,
     async runFromCli(principal, envelope) {

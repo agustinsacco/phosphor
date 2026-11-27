@@ -68,6 +68,9 @@ const jobNotice =
   "Background operations run on the Phosphor service; this Mac hasn't moved its lanes there yet."
 const desktopGap: Readonly<Record<string, string>> = {
   'folder.browse': 'Use the app’s folder picker until this Mac moves to the Phosphor service.',
+  'lane.message': 'Agent messages need the Phosphor service’s lane command queue. ' + moveNotice,
+  'lane.wait':
+    'Waiting on another lane needs the Phosphor service’s activity stream. ' + moveNotice,
   'job.list': jobNotice,
   'job.status': jobNotice,
 }

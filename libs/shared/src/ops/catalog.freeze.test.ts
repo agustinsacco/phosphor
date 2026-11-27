@@ -56,6 +56,8 @@ lane.jump lane/destructive self/other-lane now laneEditing - - - - 6fc13dca07073
 lane.rewind lane/destructive self/other-lane now laneEditing - - - - 6fc13dca070738ce0e588e1d3eda406bf4eac25ea668f5f1d68923118f854acd
 lane.move create other-lane now - - - - - fafc1100ab27e88129d8abe18f18f906ea24199fef914f8471d25a40f74523de
 lane.export read other-lane now - - - - paged 2aa141ab0bf0157a77c20c3c3f09b705ce803466c70bb95fda0dd9f892e8f782
+lane.message destructive/lane other-lane now - - - - - 605258e121f7f918e6149c029ca16e3aa9f828ffe4a7b0d571e76dad676743b7
+lane.wait read other-lane now - - - - - 50a6a255ba4ce8d703e99957029e89272a5044dbcffb1f0c07939ee854ce3fdc
 lane.markRead lane other-lane now - - - - - 2aa141ab0bf0157a77c20c3c3f09b705ce803466c70bb95fda0dd9f892e8f782
 archive.list read machine now - - - - paged 744f747dc65e83bd8d93a8ff0feebf8eb4a50198c8ae70c20e626dfc7ce3f671
 archive.restore create machine now - - - - - 0a84dfa50cf2c48d9ce01fd3f2f7748a5eb0105a528af804826b3c62d5048050
@@ -209,6 +211,7 @@ function variants<T extends string>(field: T | ((a: OpArgs, c: OpContext) => T))
       field({ file: 'settings' }, { self: true }),
       field({ file: 'settings', lane: 'other', ref: 'other' }, { self: false }),
       field({ file: 'models' }, { self: false }),
+      field({ file: 'settings', ref: 'other' }, { self: false, createdByAsking: true }),
       field({ action: 'inspect', config: { command: 'fixture' } }, { self: true }),
     ]),
   ].join('/')
@@ -255,6 +258,7 @@ it('freezes lane tool deadline overrides', () => {
       OP_CATALOG.filter((op) => op.deadlineMs !== undefined).map((op) => [op.name, op.deadlineMs]),
     ),
   ).toEqual({
+    'lane.wait': 1_860_000,
     'git.checkout': 45_000,
     'git.commitAll': 45_000,
     'git.fetch': 45_000,

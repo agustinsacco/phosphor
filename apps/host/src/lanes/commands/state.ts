@@ -37,6 +37,8 @@ export interface LaneCommandClient {
   caps: readonly HostCapability[]
   /** Who sent it; absent means a surface over a user grant. */
   origin?: LaneCommandOrigin
+  /** Internal to the owner: a governed prompt on an unheld lane, without acquiring control. */
+  agentMessage?: true
   /** Only on the attested owner's socket connection: the parity exemptions apply. */
   ownerExemption?: OwnerExemption
   /** Only the server-side attested connection supplies this; never a command field. */

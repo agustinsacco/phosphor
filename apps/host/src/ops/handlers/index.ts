@@ -32,6 +32,7 @@ import { hostsHandlers } from './hosts'
 import { laneEditingHandlers, laneEditingUndoChecks } from './lane-editing'
 import { laneSelfHandlers } from './lane-self'
 import type { DaemonLaneRuntime } from './lane-target'
+import { laneCoordinationHandlers } from './lane-coordination'
 import { laneHandlers } from './lanes'
 import { machineHandlers } from './machine'
 import { mcpHandlers } from './mcp'
@@ -88,6 +89,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
   return {
     ...createBrainHandlers(deps.appServices),
     ...laneHandlers(deps),
+    ...laneCoordinationHandlers(deps),
     ...archiveHandlers(deps),
     ...artifactHandlers(deps),
     ...artifactRemoveHandlers(deps),

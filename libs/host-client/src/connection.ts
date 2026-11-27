@@ -539,13 +539,14 @@ export function createHostConnection(ports: {
         requests.track(frame, resolve)
       })
     },
-    call(method: string, params?: unknown): Promise<Extract<HostFrame, { type: 'result' }>> {
+    call(method: string, params?: unknown, timeoutMs?: number) {
       return requests.call(
         identity.randomUUID(),
         view.state === 'ready',
         method,
         params,
         identity.randomHex(8),
+        timeoutMs,
       )
     },
     watchLane(laneId: string, listener: (frame: LaneFrame) => void) {

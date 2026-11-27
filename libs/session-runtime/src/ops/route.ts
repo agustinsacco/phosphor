@@ -22,7 +22,7 @@ import { mapLimit } from '../map-limit'
 import { effectiveLimits, type OpLimits } from './limits'
 import type { CatalogSpec } from '@phosphor/shared/ops-catalog'
 import { gateVerdict, policyVerdict } from './policy'
-import { laneRefArg, policyCheck, type Judged, type Refusal } from './judge'
+import { laneRefArg, messageSenderRefusal, policyCheck, type Judged, type Refusal } from './judge'
 import type { OpsDispatcherDeps, RoutedHost } from './ports'
 import {
   askBatch,
@@ -48,6 +48,8 @@ export function routeRefusal(
     return { code: 'unsupported', text: 'This machine cannot reach other machines.' }
   const gate = gateVerdict(policyCheck(j))
   if (gate?.kind === 'deny') return { code: gate.code, text: gate.text, decision: gate.decision }
+  const sender = messageSenderRefusal(j)
+  if (sender) return sender
   const reach = j.policy.machineOps
   if (reach === 'off' || (reach === 'read' && j.tier !== 'read'))
     return {

@@ -119,6 +119,8 @@ export function redactArgs(spec: Spec, args: Readonly<Record<string, unknown>>):
   for (const [key, value] of Object.entries(args)) {
     if (value === undefined) continue
     if (isMcpConfig(spec, key)) out[key] = mcpConfigSummary(value)
+    // Another lane's incoming prompt belongs in its transcript, not the audit log.
+    else if (spec.name === 'lane.message' && key === 'content') out[key] = REDACTED
     else if (FREE_TEXT_KEYS.has(key) && typeof value === 'string') out[key] = freeText(value)
     else if (sensitive.has(key) || CREDENTIAL_KEY.test(key)) out[key] = REDACTED
     else out[key] = redactNested(value)
