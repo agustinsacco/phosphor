@@ -576,5 +576,11 @@ describe('overlapping saves of one draft', () => {
     await flush()
     // No partial save drops what was on disk: prefs keep the last good draft.
     expect(setCalls()).toHaveLength(before)
+    // The next save tries the image again rather than reusing the failure.
+    invoke.mockImplementation(async () => true)
+    useDraftsStore.getState().setText('home:/a', 'kept again')
+    await flush()
+    expect(setCalls()).toHaveLength(before + 1)
+    expect(invoke.mock.calls.filter((c) => c[0] === 'app:writeDraftBlob')).toHaveLength(2)
   })
 })

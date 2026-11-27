@@ -46,7 +46,14 @@ export function writeDraftBlobOnce(
   blobWrites.set(key, writes)
   let entry = writes.get(attachment)
   if (!entry) {
-    entry = { run: write().catch(() => null), users: 0 }
+    // A failed write rejects every save sharing it, so none commits a partial draft
+    // over the last good one; a refused write (null) still saves without the image.
+    const created: BlobWrite = { run: write(), users: 0 }
+    // Forget a failed write, so the next save of this image tries again.
+    created.run.catch(() => {
+      if (writes.get(attachment) === created) writes.delete(attachment)
+    })
+    entry = created
     writes.set(attachment, entry)
   }
   const held = entry
@@ -121,7 +128,12 @@ export async function saveDraftAttachment(
       const id = crypto.randomUUID()
       return (await window.phosphor.invoke('app:writeDraftBlob', id, data)) ? id : null
     })
-    upload = { blobId: await write.blobId, release: write.release }
+    try {
+      upload = { blobId: await write.blobId, release: write.release }
+    } catch (error) {
+      write.release()
+      throw error
+    }
     blobId = upload.blobId ?? undefined
     if (!current() || !blobId) return { record: null, attachment: null, upload }
     updated = { ...attachment, blobId }
