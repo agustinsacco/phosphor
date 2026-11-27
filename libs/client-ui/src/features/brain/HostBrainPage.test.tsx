@@ -20,7 +20,7 @@ function createHostInvoke() {
     prefs: { ...status.prefs, enabled: true },
     ownerId: null,
   }
-  let finishTell: (result: null) => void = () => {}
+  let finishSend: (result: null) => void = () => {}
   const hostInvoke = vi.fn(async ({ hostId }: { hostId: string }, request: HostBrainRequest) => {
     switch (request.method) {
       case 'brain:status':
@@ -29,9 +29,9 @@ function createHostInvoke() {
         return { nodes: [], links: [], ended: [], truncated: false, centerId: null }
       case 'brain:tidyChanges':
         return { items: [], revision: status.revision }
-      case 'brain:tell':
+      case 'brain:laneSend':
         return new Promise<null>((resolve) => {
-          finishTell = resolve
+          finishSend = resolve
         })
       case 'brain:laneShow':
         return {
@@ -46,7 +46,7 @@ function createHostInvoke() {
           controller: null,
           running: false,
           turn: null,
-          messaging: false,
+          messaging: true,
           next: null,
           fence: 1,
         }
@@ -54,7 +54,7 @@ function createHostInvoke() {
         throw new Error('Unexpected Brain method')
     }
   })
-  return { hostInvoke, finishTell: () => finishTell(null) }
+  return { hostInvoke, finishSend: () => finishSend(null) }
 }
 
 function createFixture() {
@@ -68,7 +68,7 @@ function createFixture() {
     repositories: [],
     lanes: [],
   }
-  const { hostInvoke, finishTell } = createHostInvoke()
+  const { hostInvoke, finishSend } = createHostInvoke()
   const approvals = vi.fn(async ({ hostId }: { hostId: string }) => [
     {
       confirmId: 'same-approval',
@@ -122,35 +122,35 @@ function createFixture() {
     answer,
     hostInvoke,
     legacy,
-    finishTell,
+    finishSend,
     restore,
   }
 }
 
-it('drops a late Tell when the compact surface switches between Hosts with colliding IDs', async () => {
-  const { render, click, node, hostInvoke, legacy, finishTell, restore } = createFixture()
+it('drops a late Send when the compact surface switches between Hosts with colliding IDs', async () => {
+  const { render, click, node, hostInvoke, legacy, finishSend, restore } = createFixture()
   try {
     await render('harbor')
+    expect(node.querySelector('[aria-label="Transcript"]')?.textContent).toContain('Harbor')
+    expect(node.querySelectorAll('textarea')).toHaveLength(1)
     const draft = node.querySelector<HTMLTextAreaElement>('textarea')!
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
       set.call(draft, 'Harbor')
       draft.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    await click('Tell Brain Agent')
+    await click('Send')
     expect(hostInvoke).toHaveBeenCalledWith(
       { hostId: 'harbor', connectionToken: 'same-epoch' },
-      { method: 'brain:tell', args: ['Harbor'] },
+      { method: 'brain:laneSend', args: ['Harbor', 1] },
     )
     await render('ledger')
-    await act(async () => finishTell())
+    await act(async () => finishSend())
     expect(node.querySelector('textarea')?.value).toBe('')
-    expect(node.querySelector('[aria-label="Transcript"]')).toBeNull()
-    await click('Brain Agent')
     expect(node.querySelector('[aria-label="Transcript"]')?.textContent).toContain('Ledger')
     expect(node.querySelector('[aria-label="Transcript"]')?.textContent).not.toContain('Harbor')
     expect(
-      hostInvoke.mock.calls.filter(([, request]) => request.method === 'brain:tell'),
+      hostInvoke.mock.calls.filter(([, request]) => request.method === 'brain:laneSend'),
     ).toHaveLength(1)
     expect(legacy.mock.calls.filter(([method]) => String(method).startsWith('brain:'))).toEqual([])
   } finally {
@@ -172,7 +172,6 @@ it('answers only the selected Host’s approval and clears the Agent on grant lo
       'same-approval',
       true,
     )
-    await click('Brain Agent')
     expect(node.querySelector('[aria-label="Transcript"]')?.textContent).toContain('Ledger')
     await act(async () =>
       useRemoteLanesStore.setState({
@@ -182,6 +181,25 @@ it('answers only the selected Host’s approval and clears the Agent on grant lo
     expect(node.querySelector('[aria-label="Transcript"]')).toBeNull()
     expect(node.textContent).not.toContain('Ledger approval')
     expect(node.textContent).toContain('You do not have access')
+  } finally {
+    restore()
+  }
+})
+
+it('keeps Knowledge search separate and does not fetch a private conversation on a read grant', async () => {
+  const { render, click, node, ready, hostInvoke, restore } = createFixture()
+  try {
+    useRemoteLanesStore.setState({ hosts: { harbor: { ...ready, brainAccess: ['read'] } } })
+    await render('harbor')
+    expect(node.querySelector('[aria-label="Find in Brain"]')).not.toBeNull()
+    expect(node.querySelector('[aria-label="Ask Brain, or tell Brain Agent"]')).toBeNull()
+    await click('Conversation')
+    expect(node.textContent).toContain('Conversation requires all Brain permissions')
+    expect(node.querySelector('[aria-label="Transcript"]')).toBeNull()
+    expect(node.querySelector('[aria-label="Brain Agent composer"]')).toBeNull()
+    expect(hostInvoke.mock.calls.some(([, request]) => request.method === 'brain:laneShow')).toBe(
+      false,
+    )
   } finally {
     restore()
   }
