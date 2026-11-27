@@ -38,10 +38,10 @@ test('Desktop streams a real Host lane, reads Files and becomes a viewer on cont
       .toBe(true)
     // Host folders' lane lists carry their own (empty) reorder announcer, as This Mac's do.
     await expect(
-      h.page.getByRole('status').filter({ hasText: 'Second client has control · connected' }),
+      h.page.getByRole('status').filter({ hasText: 'Second client took control from you.' }),
     ).toBeVisible()
     await expect(composer).toHaveCount(0)
-    await expect(h.page.getByRole('button', { name: 'Take over…', exact: true })).toBeVisible()
+    await expect(h.page.getByRole('button', { name: 'Take back…', exact: true })).toBeVisible()
     await h.page.getByRole('button', { name: /^Files pane/ }).click()
     await file(h, 'remote.txt')
     await expect(h.page.locator('.monaco-editor')).toContainText('REMOTE_FILE_FROM_REAL_HOST')

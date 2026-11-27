@@ -259,9 +259,7 @@ test('A revoked save fence keeps an unconfirmed draft without automatic retry', 
       await expect.poll(() => h.writeRequests().length).toBe(1)
       restoreTraffic()
       await h.takeover()
-      await expect(
-        h.page.getByText('Second client has control · connected', { exact: true }),
-      ).toBeVisible()
+      await expect(h.page.getByText(/^Second client took control from you\./)).toBeVisible()
       restoreConnection = h.severConnection()
       restoreConnection()
       // The tree may also show its own list error while the Host reconnects; that one clears
