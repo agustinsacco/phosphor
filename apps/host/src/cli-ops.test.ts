@@ -140,8 +140,8 @@ it('asks the local owner for all catalog help forms and routes the service updat
 
 it('keeps ordinary CLI envelopes compatible with the old owner’s deadline ceiling', async () => {
   const run = vi.fn(async (request: OpRequestEnvelope) => {
-    const wait =
-      request.argv[0] === 'lane.wait' || (request.argv[0] === 'lane' && request.argv[1] === 'wait')
+    const [domain, verb] = request.argv ?? []
+    const wait = domain === 'lane.wait' || (domain === 'lane' && verb === 'wait')
     const oldOwnerLimit = wait ? LANE_WAIT_DEADLINE_MS : 600_000
     if (request.deadlineMs > oldOwnerLimit) throw new Error('Invalid operation request')
     return { status: 'ok' as const, text: 'owner reply', applies: 'now' as const }

@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSy
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
+import type * as GitExecModule from '@phosphor/session-runtime/git/git-exec'
 import { createSessionPathRuntime } from '@phosphor/session-runtime/pi/session-path-lock'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { createWorkspaceLeases } from '../../owner/lease'
@@ -12,7 +13,7 @@ import { domainHandlers, type DaemonHandlerDeps } from './index'
 
 const afterPruneDryRun = vi.hoisted(() => vi.fn())
 vi.mock('@phosphor/session-runtime/git/git-exec', async (original) => {
-  const actual = await original<typeof import('@phosphor/session-runtime/git/git-exec')>()
+  const actual = await original<typeof GitExecModule>()
   const git: typeof actual.git = async (cwd, args, options) => {
     const result = await actual.git(cwd, args, options)
     if (args.includes('prune') && args.includes('--dry-run')) afterPruneDryRun()
