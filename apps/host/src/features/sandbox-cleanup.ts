@@ -1,6 +1,6 @@
 import { lstatSync, rmdirSync, type BigIntStats } from 'node:fs'
 import { lstat, opendir, realpath } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { basename, dirname } from 'node:path'
 import {
   claudeProjectDirForCwd,
   piSessionsRoot,
@@ -8,6 +8,8 @@ import {
 } from '@phosphor/session-runtime/pi/pi-paths'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import { isWithinFolder } from '@phosphor/shared/paths'
+import { oneLine } from '@phosphor/session-runtime/ops/confirm-message'
+import { validateSandboxName } from '@phosphor/session-runtime/sandboxes/folders'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { SandboxPorts } from './sandboxes'
 import type { OwnerFolders } from '../config/folders-file'
@@ -51,7 +53,10 @@ async function candidate(
   held = false,
 ): Promise<CleanupCandidate | Skip> {
   try {
+    const name = basename(path)
     if (
+      validateSandboxName(name) !== name ||
+      oneLine(name) !== name ||
       dirname(path) !== r.base ||
       (await realpath(path)) !== path ||
       r.configured.some((root) => isWithinFolder(root, path))

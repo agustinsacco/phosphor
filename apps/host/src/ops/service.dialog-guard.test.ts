@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { AGENT_POLICY_DEFAULT } from '@phosphor/shared/ops'
 import type { LaneSummary } from '@phosphor/shared/host-protocol'
 import { openStore, type HostStore } from '../lanes/store'
@@ -32,11 +32,23 @@ const owner = {
   caps: ['sessions.read', 'sessions.control', 'machine.configure'],
 } as const
 
+const initialCandidate = {
+  kind: 'sandbox',
+  path: '/owned/scratch',
+  bytes: 0,
+  reason: 'empty',
+  identity: 'original',
+}
+let candidates: (typeof initialCandidate)[]
+const apply = vi.fn(async () => ({ removed: 1, remaining: 0 }))
+
 let directory: string
 let store: HostStore
 let service: OpsService
 
 beforeEach(async () => {
+  candidates = [initialCandidate]
+  apply.mockClear()
   directory = mkdtempSync(join(tmpdir(), 'host-ops-guard-'))
   store = await openStore(join(directory, 'state'), uid, {})
   service = await createOpsService({
@@ -45,6 +57,9 @@ beforeEach(async () => {
     selfIds: () => [MACHINE],
     enrolledId: () => MACHINE,
     store,
+    sandboxes: {
+      cleanup: { inspect: async () => ({ rows: candidates, skipped: {} }), apply },
+    } as never,
     lanes: {} as never,
     shellEnvironment: null,
     editing: {} as never,
@@ -140,4 +155,27 @@ it('starts a catalog download as a job without terminating the asking lane for a
     text: expect.stringMatching(/^Started:/),
   })
   expect(reply).not.toHaveProperty('terminate', true)
+})
+
+it('names the exact sandbox in a user confirmation and refuses its replacement', async () => {
+  const cli = { kind: 'local', clientId: 'cleanup-test' } as const
+  const scan = await service.dispatcher.run(cli, { op: 'maintenance.scan', args: {} })
+  if (scan.status !== 'ok') throw new Error(scan.text)
+  const { plan } = scan.data as { plan: string }
+  const request = { op: 'maintenance.run', args: { plan } }
+  const ask = await service.dispatcher.run(cli, request)
+  expect(ask).toMatchObject({ status: 'confirm', message: expect.stringContaining('• scratch') })
+  if (ask.status !== 'confirm') throw new Error('No cleanup confirmation.')
+  const { confirmId, digest } = ask
+  expect(apply).not.toHaveBeenCalled()
+  const approved = await service.dispatcher.run(owner, {
+    op: 'confirm.approve',
+    args: { confirmId },
+  })
+  expect(approved.status).toBe('ok')
+  candidates = [{ ...initialCandidate, identity: 'replacement' }]
+  await expect(
+    service.dispatcher.run(cli, { ...request, confirm: { confirmId, digest } }),
+  ).resolves.toMatchObject({ status: 'denied', text: expect.stringContaining('stale') })
+  expect(apply).not.toHaveBeenCalled()
 })
