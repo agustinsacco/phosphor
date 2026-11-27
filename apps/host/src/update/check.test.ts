@@ -159,3 +159,22 @@ it('offers only what this Host’s updater can install: no offer for a v2-only t
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+it('reads only the signed v1 manifest the updater reads: its artifacts decide the offer', async () => {
+  vi.useRealTimers()
+  const root = mkdtempSync(join(tmpdir(), 'release-check-'))
+  try {
+    const mirror = localReleaseMirror(root)
+    const source = { env: mirror.env, keys: mirror.keys }
+    const signal = new AbortController().signal
+    // A v1-only mirror without this machine's artifact offers nothing.
+    mirror.publish({ version: '1.4.0', v2: 'absent', targets: ['linux-x64'] })
+    expect(await newestRelease(source, 'darwin-arm64', signal)).toBeUndefined()
+    expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.4.0')
+    // A broken v2 beside a good v1 does not matter: the updater never reads v2.
+    mirror.publish({ version: '1.5.0', v2: 'invalid', targets: ['linux-x64'] })
+    expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.5.0')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})

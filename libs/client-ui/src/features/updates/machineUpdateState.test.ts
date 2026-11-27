@@ -1,6 +1,15 @@
 import { expect, it } from 'vitest'
 import type { HostConnectionView } from '@shared/ipc'
-import { lastUpdateOf, readUpdateJob, readUpdateStatus, reportedRun } from './machineUpdateFacts'
+import {
+  lastUpdateOf,
+  nextOffer,
+  observeResult,
+  readUpdateJob,
+  readUpdateStatus,
+  reportedRun,
+  resultId,
+} from './machineUpdateFacts'
+import { softwareUpdateLines } from './softwareUpdateText'
 import {
   deriveMachineUpdate,
   holdUpdatePage,
@@ -9,6 +18,7 @@ import {
   observePause,
   startRun,
   tickRun,
+  trackReady,
   type UpdateRun,
   type Waiting,
 } from './machineUpdateState'
@@ -300,9 +310,136 @@ it('turns a rollback the Host reports without a tracked run into one failed run,
     owner: false,
   })
   expect(state.phase).toBe('failed')
-  expect(reportedRun({ last, run }, last, now)).toBeUndefined()
+  expect(reportedRun({ last, run, resultSeen: resultId(last) }, last, now)).toBeUndefined()
   expect(reportedRun({}, { ...last, outcome: 'failed' }, now)).toMatchObject({ finish: 'apply' })
   expect(reportedRun({}, { ...last, outcome: 'updated' }, now)).toBeUndefined()
   expect(reportedRun({}, { ...last, at: '2026-11-25T11:59:00.000Z' }, now)).toBeUndefined()
   expect(reportedRun({}, undefined, now)).toBeUndefined()
+})
+
+it('keeps an offer until a status checked later says otherwise', () => {
+  const offer = { version: '1.3.0', checkedAt: '2026-11-26T12:00:00.000Z' }
+  expect(nextOffer(undefined, { supported: true, ...offer, available: '1.3.0' })).toEqual(offer)
+  // A restarted Host that has not checked yet: no checkedAt changes nothing.
+  expect(nextOffer(offer, { supported: true })).toBe(offer)
+  expect(nextOffer(offer, { supported: true, checkedAt: '2026-11-26T11:00:00.000Z' })).toBe(offer)
+  expect(nextOffer(offer, { supported: true, checkedAt: offer.checkedAt })).toBe(offer)
+  expect(
+    nextOffer(offer, { supported: true, checkedAt: '2026-11-26T13:00:00.000Z' }),
+  ).toBeUndefined()
+  expect(nextOffer(offer, { supported: false })).toBeUndefined()
+  // A Host without a report keeps nothing of its own: peers decide.
+  expect(nextOffer(offer, undefined)).toBeUndefined()
+  const state = deriveMachineUpdate({
+    machineId: 'm',
+    label: 'dev',
+    host,
+    peers: [],
+    entry: {
+      offer,
+      status: readUpdateStatus({ pause: { kind: 'none' }, update: { supported: true } }),
+    },
+    configure: true,
+    terminal: true,
+    owner: false,
+  })
+  expect(state).toMatchObject({ phase: 'available', available: '1.3.0', availableFrom: 'host' })
+})
+
+it('records readiness per machine in its entry', () => {
+  const ready = trackReady({}, host, 5)
+  expect(ready).toMatchObject({ readySince: 5 })
+  expect(trackReady(ready, host, 9)).toBe(ready)
+  expect(trackReady(ready, { ...host, state: 'reconnecting' }, 12)).toMatchObject({
+    readySince: undefined,
+    downSince: 12,
+  })
+  expect(trackReady({}, undefined, 1)).toEqual({})
+})
+
+it('keeps a finished update’s result for 8 seconds before a newer offer', () => {
+  const status = readUpdateStatus({
+    pause: { kind: 'none' },
+    update: { supported: true, available: '1.4.0' },
+  })
+  const run = {
+    ...startRun('op', {}, host, 0),
+    finish: 'updated' as const,
+    to: '1.3.0',
+    settled: true as const,
+    settledAt: 1000,
+  }
+  const phase = (now: number) =>
+    deriveMachineUpdate({
+      machineId: 'm',
+      label: 'dev',
+      host: { ...host, hostVersion: '1.3.0' },
+      peers: [],
+      entry: { status, run },
+      configure: true,
+      terminal: true,
+      owner: false,
+      now,
+    }).phase
+  expect(phase(8999)).toBe('done')
+  expect(phase(9000)).toBe('available')
+})
+
+it('acknowledges a reported result by its identity, not by whether a run exists', () => {
+  const now = Date.parse('2026-11-26T12:00:00.000Z')
+  const last = {
+    from: '1.2.3',
+    to: '1.3.0',
+    outcome: 'rolled-back',
+    at: '2026-11-26T11:00:00.000Z',
+  } as const
+  const current = {
+    ...startRun('op', {}, host, 0),
+    finish: 'current' as const,
+    settled: true as const,
+  }
+  const first = observeResult({ run: current, last }, now)
+  expect(first.run).toMatchObject({ reported: true, finish: 'rolled-back', to: '1.3.0' })
+  expect(first.resultSeen).toBe(resultId(last))
+  expect(observeResult(first, now + 1)).toBe(first)
+  const again = { ...last, at: '2026-11-26T11:30:00.000Z' }
+  expect(observeResult({ ...first, last: again }, now).run).toMatchObject({ before: again.at })
+  // A run that restarted owns the first new result it sees: no second row.
+  const restarting = { ...startRun('op', {}, host, 0), restartAt: 5 }
+  const owned = observeResult({ run: restarting, last }, now)
+  expect(owned.run).toMatchObject({ claimed: true })
+  expect(owned.run?.reported).toBeUndefined()
+  expect(owned.resultSeen).toBe(resultId(last))
+  // A result already there when the run started is not its own.
+  const started = startRun('op', { last }, host, 0)
+  expect(observeResult({ run: started, last }, now).run).toBe(started)
+})
+
+it('keeps a failure’s explanation above a later offer in Software', () => {
+  const status = readUpdateStatus({
+    pause: { kind: 'none' },
+    update: { supported: true, available: '1.3.0' },
+  })
+  const run = {
+    ...startRun('op', {}, host, 0),
+    finish: 'rolled-back' as const,
+    to: '1.3.0',
+    settled: true as const,
+    seen: true as const,
+  }
+  const state = deriveMachineUpdate({
+    machineId: 'm',
+    label: 'dev',
+    host,
+    peers: [],
+    entry: { status, run },
+    configure: true,
+    terminal: true,
+    owner: false,
+  })
+  expect(state.phase).toBe('available')
+  expect(softwareUpdateLines(state)).toEqual([
+    '1.3.0 didn’t pass its health check, so dev is back on 1.2.3.',
+    'Version 1.3.0 is available.',
+  ])
 })

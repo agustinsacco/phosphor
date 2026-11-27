@@ -16,7 +16,7 @@ import { useMachineUpdatesStore } from '@/stores/machineUpdates'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { reportedRun } from './machineUpdateFacts'
-import type { MachineUpdateEntry, UpdateRun } from './machineUpdateState'
+import { trackReady, type MachineUpdateEntry, type UpdateRun } from './machineUpdateState'
 import { useUpdatesStore } from './updatesStore'
 import { UpdatesFooter } from './UpdatesFooter'
 
@@ -46,7 +46,22 @@ const run = (over: Partial<UpdateRun>): UpdateRun => ({
 
 let root: Root
 let container: HTMLDivElement
+let stopReadiness: () => void = () => {}
 const navigate = vi.fn()
+
+/** What the shell's update observer does on a connection change: each machine's readiness. */
+function observeReadiness() {
+  const apply = () =>
+    useMachineUpdatesStore.setState((s) => {
+      const hosts = useRemoteLanesStore.getState().hosts
+      const byMachine = { ...s.byMachine }
+      for (const id of new Set([...Object.keys(hosts), ...Object.keys(byMachine)]))
+        byMachine[id] = trackReady(byMachine[id] ?? {}, hosts[id], Date.now())
+      return { byMachine }
+    })
+  apply()
+  return useRemoteLanesStore.subscribe(apply)
+}
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -62,7 +77,7 @@ beforeEach(() => {
   navigate.mockReset()
   useUpdatesStore.setState({ update: { phase: 'idle' }, acting: false })
   // The shell's update observer starts with the app; the footer's start delay counts from it.
-  useMachineUpdatesStore.setState({ byMachine: {}, startedAt: Date.now() })
+  useMachineUpdatesStore.setState({ byMachine: {}, startedAt: Date.now(), footer: undefined })
   useMachinesStore.setState({
     machines: [{ id: 'bee', label: 'bee1' } as never, { id: 'stark', label: 'stark' } as never],
   })
@@ -70,8 +85,10 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
+  stopReadiness = observeReadiness()
 })
 afterEach(() => {
+  stopReadiness()
   act(() => root.unmount())
   container.remove()
   vi.useRealTimers()
@@ -98,10 +115,21 @@ const rows = () =>
     (row) => `${row.dataset.updateRow}: ${row.textContent?.replace(/\s+/g, ' ').trim()}`,
   )
 const setApp = (update: UpdateState) => act(() => useUpdatesStore.setState({ update }))
+/** Replaces a machine's update facts; its readiness stays the observer's. */
 const setEntry = (id: string, entry: MachineUpdateEntry) =>
   act(() =>
-    useMachineUpdatesStore.setState((s) => ({ byMachine: { ...s.byMachine, [id]: entry } })),
+    useMachineUpdatesStore.setState((s) => {
+      const { readySince, downSince } = s.byMachine[id] ?? {}
+      return { byMachine: { ...s.byMachine, [id]: { readySince, downSince, ...entry } } }
+    }),
   )
+function remount(platform: Platform) {
+  act(() => root.unmount())
+  root = createRoot(container)
+  mount(platform)
+}
+const button = (slot: string) =>
+  container.querySelector<HTMLButtonElement>(`[data-update-row="${slot}"] button`)!
 
 it('shows nothing during app start, then the app row above This Mac’s service row on Desktop', () => {
   useRemoteLanesStore.setState({ hosts: { svc: host({ local: true }) }, filter: 'svc' })
@@ -349,4 +377,73 @@ it('shows a rollback the Host reported without a tracked run', () => {
   mount(COMPACT_PLATFORM)
   wait(3000)
   expect(rows()).toEqual(['machine: bee1 · Update didn’t finish'])
+})
+
+it('keeps a machine’s readiness across mounts: a reopened sidebar shows its offer at once', () => {
+  useMachineUpdatesStore.setState({ startedAt: Date.now() - 60_000 })
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  wait(10_000)
+  setEntry('bee', available)
+  mount(DESKTOP_PLATFORM)
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
+})
+
+it('keeps a row’s dwell and collapse across a remount', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  setEntry('bee', available)
+  mount(COMPACT_PLATFORM)
+  wait(3000)
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
+  act(() => root.unmount())
+  act(() => useRemoteLanesStore.setState({ filter: 'local' }))
+  root = createRoot(container)
+  mount(COMPACT_PLATFORM)
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
+  wait(150)
+  expect(rows()).toEqual([])
+})
+
+it('keeps the old text during its dwell but never its old action', () => {
+  setApp({ phase: 'downloaded', version: '2.0.0' })
+  mount(DESKTOP_PLATFORM)
+  wait(3000)
+  setApp({ phase: 'installing', version: '2.0.0' })
+  expect(rows()).toEqual(['app: Desktop · Restart to update'])
+  expect(button('app').disabled).toBe(true)
+  act(() => button('app').click())
+  expect(window.phosphor.invoke).not.toHaveBeenCalledWith('updates:restartAndInstall')
+  wait(600)
+  expect(rows()).toEqual(['app: Desktop · Installing…'])
+})
+
+it('opens nothing from a machine row that is collapsing', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  setEntry('bee', available)
+  mount(COMPACT_PLATFORM)
+  wait(3000)
+  act(() => useRemoteLanesStore.setState({ filter: 'local' }))
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
+  act(() => button('machine').click())
+  expect(navigate).not.toHaveBeenCalled()
+})
+
+it('shows the 8 second result before a newer offer', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host({ hostVersion: '1.3.0' }) }, filter: 'bee' })
+  setEntry('bee', {
+    version: '1.3.0',
+    status: { pause: { kind: 'none' }, update: { supported: true, available: '1.4.0' } },
+    run: run({
+      step: 'health',
+      reached: 'health',
+      finish: 'updated',
+      to: '1.3.0',
+      settled: true,
+      settledAt: Date.now() + 2000,
+    }),
+  })
+  mount(COMPACT_PLATFORM)
+  wait(3000)
+  expect(rows()).toEqual(['machine: bee1 · Updated to 1.3.0'])
+  wait(7000)
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
 })

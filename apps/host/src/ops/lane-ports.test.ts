@@ -5,7 +5,12 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type * as CheckModule from '../update/check'
 import { newestRelease, startReleaseCheck } from '../update/check'
 import { writeUpdateResult } from '../update/health'
-import { daemonLanePorts, machineUpdate, type DaemonLanePortsInput } from './lane-ports'
+import {
+  daemonLanePorts,
+  machineUpdate,
+  updaterEnvironment,
+  type DaemonLanePortsInput,
+} from './lane-ports'
 import { createRunEndings } from './lane-reload'
 
 vi.mock('../update/check', async (importOriginal) => {
@@ -117,4 +122,23 @@ it('checks the daemon’s own release mirror for this machine’s target, not pi
   } finally {
     reporter.stop()
   }
+})
+
+it('stages from the same release source the check reads: the daemon’s own mirror', () => {
+  const pi = { HOME: '/home/me', PATH: '/bin', PHOSPHOR_HOST_RELEASE_URL: 'file:///pi-mirror' }
+  const program = { PHOSPHOR_HOST_RELEASE_URL: 'file:///pi-mirror', XDG_STATE_HOME: '/s' }
+  expect(
+    updaterEnvironment(pi, program, { PHOSPHOR_HOST_RELEASE_URL: 'file:///daemon-mirror' }),
+  ).toEqual({
+    HOME: '/home/me',
+    PATH: '/bin',
+    XDG_STATE_HOME: '/s',
+    PHOSPHOR_HOST_RELEASE_URL: 'file:///daemon-mirror',
+  })
+  // No mirror for the daemon means the default source for both, whatever pi was passed.
+  expect(updaterEnvironment(pi, program, {})).toEqual({
+    HOME: '/home/me',
+    PATH: '/bin',
+    XDG_STATE_HOME: '/s',
+  })
 })

@@ -11,6 +11,7 @@ import {
 } from '@/platform/Platform'
 import { useMachinesStore } from '@/stores/machines'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { CompactHome } from './CompactHome'
 import { CompactLanes } from './CompactLanes'
 
 beforeEach(() => {
@@ -24,7 +25,7 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-async function footers(platform: Platform): Promise<number> {
+async function footers(platform: Platform, home = false): Promise<number> {
   const element = document.createElement('div')
   document.body.append(element)
   const root = createRoot(element)
@@ -32,7 +33,7 @@ async function footers(platform: Platform): Promise<number> {
     root.render(
       <PlatformProvider value={platform}>
         <NavigationProvider value={{ location: { to: 'lanes' }, navigate: vi.fn() }}>
-          <CompactLanes />
+          {home ? <CompactHome /> : <CompactLanes />}
         </NavigationProvider>
       </PlatformProvider>,
     ),
@@ -46,4 +47,9 @@ async function footers(platform: Platform): Promise<number> {
 it('gives a phone the machine update row on its Lanes page; a wide browser has it in the sidebar', async () => {
   expect(await footers(COMPACT_PLATFORM)).toBe(1)
   expect(await footers(WIDE_BROWSER_PLATFORM)).toBe(0)
+})
+
+it('gives a phone the update row on its unscoped Home too, for runs and held results', async () => {
+  expect(await footers(COMPACT_PLATFORM, true)).toBe(1)
+  expect(await footers(WIDE_BROWSER_PLATFORM, true)).toBe(0)
 })
