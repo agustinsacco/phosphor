@@ -30,9 +30,10 @@ test('Control takeover guards remote mutations and explicit take restores send a
     await files(h)
     await file(h, 'remote.txt')
     await h.takeover()
-    // The lock tells this client who took the lane from it, and offers it back after a question.
+    // The lock tells this client who took the lane from it and offers it back (asking first
+    // only while the taker is still connected).
     await expect(h.page.getByText(/^Second client took control from you\./)).toBeVisible()
-    await expect(h.page.getByRole('button', { name: 'Take back…', exact: true })).toBeVisible()
+    await expect(h.page.getByRole('button', { name: /^Take back…?$/ })).toBeVisible()
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toHaveCount(0)
     for (const action of ['New file', 'New folder', 'Save', 'Trash'])
       await expect(h.page.getByRole('button', { name: action, exact: true })).toHaveCount(0)
