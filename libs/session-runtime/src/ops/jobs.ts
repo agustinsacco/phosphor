@@ -7,6 +7,9 @@
  * Living contract: docs/agent-control.md.
  */
 import type { DatabaseSync } from 'node:sqlite'
+import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
+import { opCommand } from '@phosphor/shared/ops-cli'
 import type { RuntimeLog } from '../file-log'
 import { OpRefusal } from './builtins'
 import type { OpsJobPort } from './ports'
@@ -141,18 +144,26 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
 
 export type JobStore = ReturnType<typeof createJobStore>
 
+function continuation(job: AgentJob): string {
+  const next = job.result?.next
+  if (typeof next !== 'string' || next.length > OPS_LIMITS.pageChars || !/^[\w-]+$/.test(next))
+    return ''
+  const spec = OP_CATALOG.find((entry) => entry.name === job.op && entry.paged)
+  return spec
+    ? `\nMore: phosphor ${opCommand(spec.name)} --page ${next}\nKeep any original filters and options (except the previous --page).`
+    : ''
+}
+
 /** `job.status` and `job.list`, each limited to the asking principal's own jobs. */
 export function jobHandlers(jobs: Pick<JobStore, 'get' | 'list'>) {
   return {
     'job.status': op<{ jobId: string }>(({ jobId }, ctx) => {
       const job = jobs.get(jobId, principalKey(ctx.principal))
       if (!job) throw new OpRefusal('forbidden', `No job ${jobId} that you started.`)
-      const done = job.state === 'done' && job.result ? `\n${job.result.text}` : ''
-      const next = job.state === 'done' ? job.result?.next : undefined
+      const done = job.state === 'done' && job.result
       return {
         ...dataResult(job),
-        text: `Job ${jobId}: ${job.state}.${done}`,
-        ...(next ? { next } : {}),
+        text: `Job ${jobId}: ${job.state}.${done ? `${continuation(job)}\n${done.text}` : ''}`,
       }
     }),
     'job.list': jobInventory(jobs),

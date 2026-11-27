@@ -5,7 +5,7 @@ import { choices, integerRange } from './constraints'
 import { argumentLabel, type CatalogSpec } from './domains/spec'
 import { OP_CATALOG } from './index'
 
-const command = (name: string) => kebab(name).replaceAll('.', ' ')
+export const opCommand = (name: string) => kebab(name).replaceAll('.', ' ')
 const unavailable = (s: CatalogSpec) => s.tier === 'never' || s.surfaceOnly === true
 
 function fieldUsage(spec: CatalogSpec, key: string): string {
@@ -33,7 +33,7 @@ export function opUsage(spec?: CatalogSpec): string {
   ]
   return [
     'Usage: phosphor',
-    command(spec.name),
+    opCommand(spec.name),
     ...keys.map((key) => fieldUsage(spec, key)),
     '[options]',
   ].join(' ')
@@ -83,7 +83,7 @@ function overview(catalog: readonly CatalogSpec[]): string {
   const singles = catalog.filter((s) => !s.name.includes('.') && !unavailable(s)).map((s) => s.name)
   const aliases = Object.entries(OP_ALIASES)
     .filter(([, name]) => catalog.some((s) => s.name === name && !unavailable(s)))
-    .map(([alias]) => command(alias))
+    .map(([alias]) => opCommand(alias))
   return [
     opUsage(),
     `Domains: ${[...domains].map((name) => kebab(name!)).join(', ')}`,
@@ -110,9 +110,9 @@ export function renderHelp(
   const group = catalog.filter((s) => s.name.startsWith(`${name}.`))
   if (group.length) {
     const available = group.filter((s) => !unavailableReason(s))
-    if (!available.length) return `${command(name)} has no operations on this binding.`
+    if (!available.length) return `${opCommand(name)} has no operations on this binding.`
     return [
-      `${command(name)}:`,
+      `${opCommand(name)}:`,
       ...available
         .filter((s) => !unavailable(s))
         .map((s) => `  ${s.name}: ${s.summary}${tierNotes ? note(s) : ''}`),
@@ -134,7 +134,7 @@ export function renderHelp(
       ? ['Also: phosphor service.update. Top-level phosphor update is the installer.']
       : []),
     ...(example && (spec.name !== 'lane.list' || spec.paged)
-      ? [`Example: phosphor ${command(spec.name)} ${example}`]
+      ? [`Example: phosphor ${opCommand(spec.name)} ${example}`]
       : []),
   ].join('\n')
 }
