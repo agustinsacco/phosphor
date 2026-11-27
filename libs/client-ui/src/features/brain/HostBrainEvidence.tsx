@@ -4,6 +4,7 @@ import { useNavigation } from '@/navigation/Navigation'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useState } from 'react'
 import { Button } from '@/components/form'
+import { TooltipSummary } from '@/components/Tooltip'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { SectionLabel } from '@/features/sessions/SidebarPrimitives'
 import { promptChoice } from '@/stores/prompt'
@@ -75,7 +76,7 @@ function ReadContent({
         onMemory={(id) => select({ kind: 'memory', id })}
       />
       <details>
-        <summary>Source lane at extraction</summary>
+        <TooltipSummary>Source lane at extraction</TooltipSummary>
         <HostSource brain={brain} laneId={data.sourceLaneId} />
         {data.source.segments.map((segment) => (
           <article key={segment.entryId} className="border-border rounded-md border p-3">

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { HostBrainJob } from '@shared/host-brain'
 import type { HostBrainRequest } from '@shared/host-brain-request'
 import { Button } from '@/components/form'
+import { TooltipSummary } from '@/components/Tooltip'
 import { changeRows } from './changes/changeRows'
 import { ChangeLine } from './changes/WhatChanged'
 import { useBrainRequest, type ReadyBrainSurface } from './useHostBrain'
@@ -142,7 +143,7 @@ function HostChangeList({
         ) : (
           <li key={row.runId}>
             <details>
-              <summary>Brain Agent run · {row.changes.length} changes</summary>
+              <TooltipSummary>Brain Agent run · {row.changes.length} changes</TooltipSummary>
               <ul>{row.changes.map(line)}</ul>
             </details>
             {undoRun && row.changes.some((change) => change.undoable && !change.undoneAt) && (
