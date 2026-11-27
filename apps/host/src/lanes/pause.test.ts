@@ -86,7 +86,8 @@ describe('service pause limits', () => {
     await vi.advanceTimersByTimeAsync(1000)
     expect(await outcome).toBe('deadline')
     expect(abortTurns).not.toHaveBeenCalled()
-    expect(pauses.state()).toEqual({ kind: 'none' })
+    // Every window, not only the one whose job asked, can tell a timeout from a cancel.
+    expect(pauses.state()).toEqual({ kind: 'none', ended: 'deadline' })
     expect(pauses.admits({ type: 'prompt' })).toBe(true)
     expect(f.store.pauses.list()).toEqual([])
     expect(log).toHaveBeenCalledWith('pause.deadline', { turns: 1, subagents: 0, routines: 0 })
@@ -185,6 +186,21 @@ describe('service pause waits and Abort now', () => {
     expect(await first).toBe('cancelled')
     expect(pauses.pauseFor(f.lane.laneId)).toBeUndefined()
     expect(changed).toEqual([[f.lane.laneId], [f.lane.laneId]])
+  })
+
+  it('reports how the last wait ended until the next pause begins', async () => {
+    const { pauses } = setup(() => [
+      { laneId: f.lane.laneId, sessionId: 'pi-live', working: true },
+    ])
+    expect(pauses.state()).toEqual({ kind: 'none' })
+    const first = pauses.begin('update')
+    pauses.cancel()
+    await first
+    expect(pauses.state()).toEqual({ kind: 'none', ended: 'cancelled' })
+    void pauses.begin('update')
+    expect(pauses.state()).toMatchObject({ kind: 'pausing' })
+    expect(pauses.state()).not.toHaveProperty('ended')
+    pauses.close()
   })
 })
 
