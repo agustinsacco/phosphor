@@ -10,6 +10,7 @@ import {
   TABS,
   installedExtensionTabs,
   platformIndex,
+  resolveTab,
   rowOnMachine,
   visibleSections,
 } from './settingsIndex'
@@ -293,5 +294,13 @@ it('offers the Host Brain section independently of the legacy Desktop preview', 
       platformIndex(platform, 'host'),
     )
     expect(groups.map((group) => group.tab)).toEqual(['brain'])
+  }
+})
+
+it('opens Agent for a section a Host lacks, and Brain when Brain is asked for', () => {
+  for (const platform of [DESKTOP_PLATFORM, WIDE_BROWSER_PLATFORM]) {
+    const host = visibleSections(platform, 'host')
+    expect(resolveTab('optimization', host)).toBe('agent')
+    expect(resolveTab('brain', host)).toBe('brain')
   }
 })

@@ -98,7 +98,7 @@ settings section renders it on a Host; a machine lists only its own (Optimizatio
 This Mac's). Lanes and Voice are device sections: how this client shows lanes and names
 their branches, and its dictation, whichever machine runs the lane. So switching machines
 keeps the open concern, an extension item the other machine does not list opens its
-Extensions, and anything else opens the machine's first section. Search lists a
+Extensions, and anything else opens its Agent (its first section without one). Search lists a
 section's rows only on the machine that renders them.
 
 Every machine section opens under one **scope line** (`SettingsScopeLine`):
