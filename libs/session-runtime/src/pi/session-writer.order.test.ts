@@ -2,10 +2,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type * as FsPromises from 'node:fs/promises'
 
 const events: string[] = []
 vi.mock('node:fs/promises', async (importOriginal) => {
-  const fs = await importOriginal<typeof import('node:fs/promises')>()
+  const fs = await importOriginal<typeof FsPromises>()
   return {
     ...fs,
     stat: vi.fn(async (...args: Parameters<typeof fs.stat>) => {
