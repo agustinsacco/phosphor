@@ -46,6 +46,11 @@ export async function opsRun(
       : connection.call(OPS_RUN, parsed))
     if (result.ok) return answer(result.data)
     if (result.error.code === 'unsupported') return tooOld
+    // Hosts that predate request page sizes refuse unknown keys before running anything.
+    if (result.error.code === 'bad-request' && parsed.limit !== undefined) {
+      const { limit: _limit, ...older } = parsed
+      return opsRun(connection, older, options)
+    }
     throw new Error(result.error.message)
   }
   const receipt = await connection.send({ type: OPS_RUN, ...parsed })
