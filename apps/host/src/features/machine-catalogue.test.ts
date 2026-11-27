@@ -1,7 +1,8 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { existsSync } from 'node:fs'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createSkillsFeature } from './skills'
 
 let home: string
@@ -75,6 +76,8 @@ it('delivers the answer before shutdown but holds the resource slot until child 
     const fs = require('node:fs'); const marker = ${JSON.stringify(marker)};
     const overlap = fs.existsSync(marker); fs.writeFileSync(marker, 'live');
     process.on('exit', () => fs.rmSync(marker, {force:true}));
+    // The child is detached: if the test ends early it must not outlive the run.
+    setTimeout(() => process.exit(), 10_000);
     process.stdin.once('data', input => {
       console.log(JSON.stringify({id:JSON.parse(input).id,type:'response',success:true,
         data:{commands:[{name:overlap?'overlap':'alone',source:'extension'}]}}));
@@ -90,6 +93,8 @@ it('delivers the answer before shutdown but holds the resource slot until child 
     await writeFile(release, 'ok')
   }
   expect(await next).toMatchObject({ data: { commands: [{ name: 'alone' }] } })
+  // Wait for the second child to see `release` and exit before afterEach deletes it.
+  await vi.waitFor(() => expect(existsSync(marker)).toBe(false), { timeout: 5000 })
 })
 
 it('reads a positive configured window in a cold catalogue without starting pi', async () => {
