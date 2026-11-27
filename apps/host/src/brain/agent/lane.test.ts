@@ -9,10 +9,23 @@ import { EXTENSIONS_ROOT } from '../../__fixtures__/machine'
 import type { BrainSurfaceAuthority } from '../../api/brain-adapter'
 import { createHostLog } from '../../machine/log'
 import { createHostRuntime, type HostRuntime } from '../../session/runtime'
-import { createBrainCuratorContribution } from './curator-contribution'
-import { createHostBrainAgentLane, type HostBrainAgentLane } from './lane'
-import { createBrainAgentLaunchProfile } from './profile'
-import { hostBrainAgentReservation } from './reservation'
+import type { HostBrainAgentLane } from './lane'
+import { createProductionBrainAgent } from './production'
+
+// Only the synthetic tests supply qualification. Use production's composition for
+// the reservation, curator contribution, binding, conversation and Defrag.
+const qualification = vi.hoisted(() => ({ provider: 'fake', id: 'fake-model' }))
+vi.mock('./profile', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./profile')>()
+  return {
+    ...original,
+    createBrainAgentLaunchProfile: (guard: string | null) =>
+      original.createBrainAgentLaunchProfile(guard, {
+        matches: ({ model }) =>
+          model?.provider === qualification.provider && model.id === qualification.id,
+      }),
+  }
+})
 
 const FAKE_PI = join(import.meta.dirname, '../../__fixtures__/fake-pi.cjs')
 
@@ -38,23 +51,42 @@ afterEach(async () => {
     await draining
   }
   runtimes = []
+  qualification.provider = 'fake'
+  qualification.id = 'fake-model'
   vi.unstubAllEnvs()
   rmSync(dir, { recursive: true, force: true })
 })
 
-/** A Host on the fake pi with Brain Agent's lane composed as run would compose it. */
-function boot(): { runtime: HostRuntime; agent: HostBrainAgentLane } {
+interface BootOptions {
+  provider?: string
+  model?: string
+  reportedFile?: () => string | undefined
+  beforePrompt?: () => Promise<void>
+}
+
+/** A Host composed through the production factory, with only synthetic subprocesses. */
+function boot(options: BootOptions = {}): { runtime: HostRuntime; agent: HostBrainAgentLane } {
   // The fake pi lists the guard's command when it is loaded with it, as pi does.
   const guard = join(dir, 'brain-agent-guard.mjs')
   writeFileSync(guard, 'export default () => {}\n')
-  // Synthetic: the fake pi stands in for a qualified launch; no production launch qualifies.
-  const profile = createBrainAgentLaunchProfile(guard, { matches: () => true })
-  const lane = hostBrainAgentReservation(state)
+  const production = createProductionBrainAgent(
+    state,
+    join(agentDir, 'sessions'),
+    () => {},
+    async () => undefined,
+    guard,
+  )
   const runtime = createHostRuntime(
     {
-      brainCurator: createBrainCuratorContribution(lane, async () => undefined, profile),
+      brainCurator: production.contribution,
       pi: { binaryPath: process.execPath, prefixArgs: [FAKE_PI] },
-      env: { PATH: process.env.PATH!, HOME: dir, PI_CODING_AGENT_DIR: agentDir },
+      env: {
+        PATH: process.env.PATH!,
+        HOME: dir,
+        PI_CODING_AGENT_DIR: agentDir,
+        ...(options.provider && { PI_FAKE_PROVIDER: options.provider }),
+        ...(options.model && { PI_FAKE_MODEL: options.model }),
+      },
       roots: [join(dir, 'harbor')],
       resourceRoot: EXTENSIONS_ROOT,
       contextBudget: '',
@@ -66,14 +98,21 @@ function boot(): { runtime: HostRuntime; agent: HostBrainAgentLane } {
   runtimes.push(runtime)
   runtime.life.to('validating')
   runtime.life.to('ready')
-  const agent = createHostBrainAgentLane({
-    runtime,
-    lane,
-    profile,
-    sessionsRoot: join(agentDir, 'sessions'),
-    log: () => {},
+  const reserve = runtime.reserve
+  vi.spyOn(runtime, 'reserve').mockImplementation((lane) => {
+    const reserved = reserve(lane)
+    const command = reserved.command
+    vi.spyOn(reserved, 'command').mockImplementation(async (...args) => {
+      if (args[1].type === 'prompt') await options.beforePrompt?.()
+      const response = await command(...args)
+      const file = args[1].type === 'get_state' && options.reportedFile?.()
+      return file && response.success && response.data && typeof response.data === 'object'
+        ? { ...response, data: { ...response.data, sessionFile: file } }
+        : response
+    })
+    return reserved
   })
-  return { runtime, agent }
+  return { runtime, agent: production.agent({ runtime }) }
 }
 
 function client(label: string, admitted = () => true): BrainSurfaceAuthority {
@@ -242,6 +281,107 @@ describe('the Host’s Brain Agent lane', { timeout: 30_000 }, () => {
       'the resumed reply',
     )
     expect(binding()).toMatchObject({ ref: before.ref, sessionFile: before.sessionFile })
+  })
+
+  it.each(['synthetic-native', 'synthetic-cli'])(
+    'keeps the selected %s model on the same transcript across Send, Defrag and Tell',
+    async (provider) => {
+      qualification.provider = provider
+      qualification.id = 'selected-model'
+      const { runtime, agent } = boot({ provider, model: qualification.id })
+      const rina = client('Rina Okafor')
+      expect(await agent.surface.send('PHX-before', 1, rina)).toBe('ok')
+      await until(
+        async () => (await agent.surface.show(null, rina)).entries.length === 2,
+        'Send reply',
+      )
+      const before = binding()
+      const defrag = await agent.host.turn('PHX-defrag', new AbortController().signal, {
+        opened: () => {},
+        sending: () => {},
+      })
+      expect(defrag).toMatchObject({ outcome: 'finished', sessionPath: before.sessionFile })
+      expect(await agent.surface.tell('PHX-after', rina)).toBe('ok')
+      await until(
+        async () => (await agent.surface.show(null, rina)).entries.length === 6,
+        'Tell reply',
+      )
+      expect(binding()).toEqual(before)
+      expect(runtime.list()).toEqual([])
+      await runtime.drain('check stopped history')
+      const stopped = await agent.surface.show(null, rina)
+      expect(stopped.entries.map(({ text }) => text)).toEqual([
+        'PHX-before',
+        'PHX-before',
+        'PHX-defrag',
+        'PHX-defrag',
+        'PHX-after',
+        'PHX-after',
+      ])
+    },
+  )
+
+  it.each([
+    { provider: 'other', model: 'fake-model' },
+    { provider: 'fake', model: 'other' },
+  ])(
+    'refuses a live provider/model mismatch before the prompt or the transcript binds (%o)',
+    async (options) => {
+      const sentToPi = vi.fn()
+      const { agent } = boot({ ...options, beforePrompt: sentToPi })
+      expect(await agent.surface.send('PHX-refused', 1, client('Rina Okafor'))).toBe('unavailable')
+      expect(sentToPi).not.toHaveBeenCalled()
+      expect(binding().sessionFile).toBeNull()
+    },
+  )
+
+  it('does not bind or prompt on a different transcript reported when reopening from Defrag', async () => {
+    let reported: string | undefined
+    const beforePrompt = vi.fn(async () => {})
+    const { agent } = boot({ reportedFile: () => reported, beforePrompt })
+    const defrag = await agent.host.turn('PHX-defrag', new AbortController().signal, {
+      opened: () => {},
+      sending: () => {},
+    })
+    expect(defrag.outcome).toBe('finished')
+    const before = binding()
+    reported = join(dir, 'unrelated.jsonl')
+    beforePrompt.mockClear()
+    const rina = client('Rina Okafor')
+    expect(await agent.surface.tell('PHX-refused', rina)).toBe('unavailable')
+    expect(beforePrompt).not.toHaveBeenCalled()
+    expect(binding()).toEqual(before)
+    expect((await agent.surface.show(null, rina)).entries.map(({ text }) => text)).toEqual([
+      'PHX-defrag',
+      'PHX-defrag',
+    ])
+  })
+
+  it('rechecks the controller fence when preflight finally dispatches the prompt', async () => {
+    const { promise: entered, resolve: enter } = Promise.withResolvers<void>()
+    const { promise: pending, resolve: release } = Promise.withResolvers<void>()
+    const { agent } = boot({
+      beforePrompt: async () => {
+        enter()
+        await pending
+      },
+    })
+    const rina = client('Rina Okafor')
+    const tom = client('Tom Lee')
+    const sent = agent.surface.send('PHX-stale', 1, rina)
+    try {
+      await Promise.race([
+        entered,
+        sent.then(() => {
+          throw new Error('Send never reached preflight')
+        }),
+      ])
+      expect(await agent.surface.take(2, tom)).toBe('ok')
+    } finally {
+      release()
+    }
+    expect(await sent).toBe('not-controller')
+    expect((await agent.surface.show(null, tom)).entries).toEqual([])
   })
 
   it('pages history backwards by a Host-issued cursor', async () => {
