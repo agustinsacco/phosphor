@@ -42,6 +42,8 @@ import {
   localGrantIssueResponse,
 } from '@phosphor/shared/host-local'
 import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
+import { acquireHostBrainWriterLock, HOST_BRAIN_WRITER_LOCK } from '../brain/writer-lock'
+
 import type * as RunBrain from '../brain/run'
 import {
   ACTIVE,
@@ -634,6 +636,50 @@ it.skipIf(process.platform === 'win32')(
     })
     for (const leftover of [paths.claim, paths.stage, paths.sealed])
       await expect(access(leftover)).rejects.toMatchObject({ code: 'ENOENT' })
+  },
+  30_000,
+)
+
+it.skipIf(process.platform === 'win32')(
+  'serves lanes without rolling the move forward under another writer hold',
+  async () => {
+    const host = await scratchHost()
+    useOfflineReader()
+    const stateDir = hostStateDirectory(host.cli.env, host.root)
+    const migrationId = randomUUID()
+    await mkdir(stateDir, { recursive: true, mode: 0o700 })
+    const desktop = createBrainHandoverHandlers({
+      stateDir,
+      uid: host.cli.uid,
+      laneForSessionFile: () => false,
+      readerReadiness: () => Promise.resolve('qualified'),
+      embeddingModel: PINNED_MODEL,
+      probeModel: () => Promise.resolve(true),
+      importAgentTranscripts: () => Promise.reject(new Error('The Host stopped first.')),
+    })
+    const { staging } = await desktop['owner.brainHandover.begin']({ migrationId, ...BEGIN })
+    const files = stageBrain(staging)
+    await desktop['owner.brainHandover.verify']({ migrationId, files, activeTranscript: ACTIVE })
+    const verified = readHandover(stateDir, migrationId)!
+    await publishSealed(stateDir, verified)
+    const paths = handoverPaths(stateDir, migrationId)
+    await writeFile(paths.record, JSON.stringify(verified))
+
+    // The raw hold is not shared through the run process's writer lease registry.
+    const writer = await acquireHostBrainWriterLock(stateDir)
+    try {
+      const before = await readFile(join(stateDir, HOST_BRAIN_WRITER_LOCK), 'utf8')
+      const running = await host.start()
+      expect(readHandover(stateDir, migrationId)?.state).toBe('verified')
+      await expect(access(paths.sealed)).resolves.toBeUndefined()
+      expect(await readFile(join(stateDir, HOST_BRAIN_WRITER_LOCK), 'utf8')).toBe(before)
+      expect(await running.stop()).toBe(0)
+    } finally {
+      await writer.release()
+    }
+    await host.start()
+    expect(readHandover(stateDir, migrationId)?.state).toBe('committed')
+    await expect(access(paths.sealed)).rejects.toMatchObject({ code: 'ENOENT' })
   },
   30_000,
 )
