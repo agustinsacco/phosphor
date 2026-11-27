@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -10,8 +10,20 @@ import { createGitFeature } from '../../features/git'
 import { laneRefFor } from '../lane-ref'
 import { domainHandlers, type DaemonHandlerDeps } from './index'
 
+const afterPruneDryRun = vi.hoisted(() => vi.fn())
+vi.mock('@phosphor/session-runtime/git/git-exec', async (original) => {
+  const actual = await original<typeof import('@phosphor/session-runtime/git/git-exec')>()
+  const git: typeof actual.git = async (cwd, args, options) => {
+    const result = await actual.git(cwd, args, options)
+    if (args.includes('prune') && args.includes('--dry-run')) afterPruneDryRun()
+    return result
+  }
+  return { ...actual, git }
+})
+
 const temporary: string[] = []
 afterEach(() => {
+  afterPruneDryRun.mockReset()
   for (const path of temporary.splice(0)) rmSync(path, { recursive: true, force: true })
 })
 const git = (cwd: string, ...args: string[]) =>
@@ -220,3 +232,40 @@ it('prunes only the named registration, refusing while another would be affected
   expect(git(f.root, 'worktree', 'list', '--porcelain')).not.toContain(join(parent, 'one'))
   expect(git(f.root, 'worktree', 'list', '--porcelain')).toContain(join(parent, 'two'))
 })
+
+it('leaves a sibling registration that becomes stale after the prune dry run', async () => {
+  const f = fixture()
+  const parent = join(f.root, '.phosphor', 'worktrees')
+  const path = join(parent, 'one')
+  const sibling = join(parent, 'two')
+  git(f.root, 'worktree', 'add', '-b', 'one', path)
+  git(f.root, 'worktree', 'add', '-b', 'two', sibling)
+  rmSync(path, { recursive: true })
+  afterPruneDryRun.mockImplementationOnce(() => rmSync(sibling, { recursive: true }))
+
+  expect(await f.run('worktree.prune', { path })).toMatchObject({ data: { pruned: [path] } })
+  expect(afterPruneDryRun).toHaveBeenCalledOnce()
+  const registrations = git(f.root, 'worktree', 'list', '--porcelain')
+  expect(registrations).not.toContain(path)
+  expect(registrations).toContain(sibling)
+})
+
+it.each(['locked', 'gitdir', 'restored path'])(
+  'refuses to prune when the %s changes after the dry run',
+  async (change) => {
+    const f = fixture()
+    const path = join(f.root, '.phosphor', 'worktrees', 'one')
+    const admin = join(f.root, '.git', 'worktrees', 'one')
+    git(f.root, 'worktree', 'add', '-b', 'one', path)
+    rmSync(path, { recursive: true })
+    afterPruneDryRun.mockImplementationOnce(() => {
+      if (change === 'locked') git(f.root, 'worktree', 'lock', path)
+      else if (change === 'gitdir') writeFileSync(join(admin, 'gitdir'), `${path}-other/.git\n`)
+      else symlinkSync(admin, path)
+    })
+
+    await expect(f.run('worktree.prune', { path })).rejects.toMatchObject({ code: 'bad-request' })
+    expect(afterPruneDryRun).toHaveBeenCalledOnce()
+    expect(existsSync(admin)).toBe(true)
+  },
+)
