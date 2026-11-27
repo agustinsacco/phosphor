@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
+import { writeUpdateResult } from '../update/health'
 import { daemonLanePorts, type DaemonLanePortsInput } from './lane-ports'
 import { createRunEndings } from './lane-reload'
 
@@ -25,6 +26,8 @@ function input(over: Partial<DaemonLanePortsInput> = {}) {
     env: {},
     home,
     platform: 'darwin',
+    stateDirectory: home,
+    uid: undefined,
     log: () => {},
     ...over,
   }
@@ -60,4 +63,25 @@ it('reloads through the runtime and continues through the lane command', async (
     type: 'prompt',
     message: 'Phosphor reloaded this lane: skills. Continue.',
   })
+})
+
+it('reports a source install as not updatable, never checks, and still reports the last result', () => {
+  vi.useFakeTimers()
+  try {
+    const h = input()
+    const built = daemonLanePorts(h.ports)
+    expect(built.machineUpdate.report()).toEqual({ supported: false })
+    const last = {
+      from: '1.2.0',
+      to: '1.3.0',
+      outcome: 'rolled-back' as const,
+      at: new Date().toISOString(),
+    }
+    writeUpdateResult(h.ports.stateDirectory, undefined, last)
+    expect(built.machineUpdate.report()).toEqual({ supported: false, last })
+    expect(vi.getTimerCount()).toBe(0)
+    built.machineUpdate.stop()
+  } finally {
+    vi.useRealTimers()
+  }
 })

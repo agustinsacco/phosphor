@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { HostConnectionView } from '@shared/ipc'
-import { readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
+import { lastUpdateOf, readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
 import {
   deriveMachineUpdate,
   holdUpdatePage,
@@ -162,4 +162,85 @@ it('only shows controls during a live pause and with explicit support or the own
   expect(deriveMachineUpdate({ ...input, owner: true }).can.stopTurns).toBe(true)
   const status = readUpdateStatus({ pause: waiting, update: { pauseControl: true } })
   expect(deriveMachineUpdate({ ...input, entry: { run, status } }).can.cancel).toBe(true)
+})
+
+it('takes availability from the Host’s own report before any peer', () => {
+  const update = { supported: true, available: '1.3.0', checkedAt: '2026-11-26T12:00:00.000Z' }
+  const status = readUpdateStatus({ pause: { kind: 'none' }, update })
+  expect(status).toEqual({ pause: { kind: 'none' }, update })
+  const input = {
+    machineId: 'm',
+    label: 'dev',
+    host,
+    peers: [{ ...host, hostVersion: '1.4.0' }],
+    entry: { status },
+    configure: true,
+    terminal: true,
+    owner: false,
+  }
+  expect(deriveMachineUpdate(input)).toMatchObject({
+    phase: 'available',
+    available: '1.3.0',
+    availableFrom: 'host',
+    checkedAt: '2026-11-26T12:00:00.000Z',
+  })
+  // The Host is authoritative: current, or a source install, hides a newer peer.
+  const current = readUpdateStatus({ pause: { kind: 'none' }, update: { supported: true } })
+  expect(deriveMachineUpdate({ ...input, entry: { status: current } }).phase).toBe('current')
+  const source = readUpdateStatus({ pause: { kind: 'none' }, update: { supported: false } })
+  expect(deriveMachineUpdate({ ...input, entry: { status: source } }).available).toBeUndefined()
+  const older = readUpdateStatus({
+    pause: { kind: 'none' },
+    update: { ...update, available: '1.2.3' },
+  })
+  expect(deriveMachineUpdate({ ...input, entry: { status: older } }).phase).toBe('current')
+})
+
+it('still offers the update after a cancelled run', () => {
+  const update = { supported: true, available: '1.3.0' }
+  const status = readUpdateStatus({ pause: { kind: 'none' }, update })
+  const run = {
+    ...startRun('op', {}, host, 0),
+    finish: 'cancelled' as const,
+    settled: true as const,
+  }
+  const state = deriveMachineUpdate({
+    machineId: 'm',
+    label: 'dev',
+    host,
+    peers: [],
+    entry: { status, run },
+    configure: true,
+    terminal: true,
+    owner: false,
+  })
+  expect(state.phase).toBe('available')
+})
+
+it('reads a rollback from the Host’s reported last result', () => {
+  const last = {
+    from: '1.2.3',
+    to: '1.3.0',
+    outcome: 'rolled-back',
+    at: '2026-11-26T11:00:00.000Z',
+  }
+  const before = readUpdateStatus({ pause: { kind: 'none' }, update: { supported: true } })
+  const after = readUpdateStatus({ pause: { kind: 'none' }, update: { supported: true, last } })
+  expect(lastUpdateOf({}, before)).toBeUndefined()
+  expect(lastUpdateOf({ last }, before)).toBeUndefined()
+  expect(lastUpdateOf({}, after)).toEqual(last)
+  // A tier 1 read says nothing about the last result: keep what is known.
+  expect(lastUpdateOf({ last }, readUpdateStatus({ pause: { kind: 'none' } }))).toEqual(last)
+  expect(lastUpdateOf({ last }, before, { lastUpdate: null } as never)).toBeUndefined()
+  const run = startRun('op', {}, host, 0)
+  const entry = { last: lastUpdateOf({}, after) }
+  expect(observeConnection(run, entry, host, 1)).toMatchObject({
+    finish: 'rolled-back',
+    to: '1.3.0',
+  })
+})
+
+it('records when a run settled', () => {
+  const run = { ...startRun('op', {}, host, 0), finish: 'download' as const }
+  expect(nextRun(run, 700)).toMatchObject({ settled: true, settledAt: 700 })
 })

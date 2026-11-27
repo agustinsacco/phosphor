@@ -191,6 +191,37 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     expect(parseResultFrame(result)).toStrictEqual(result)
   })
 
+  it('reads a machine.status result carrying the self-check report inside opaque result data', () => {
+    // host-receipts.ts (including parseResultFrame) is unchanged since 684cb3478.
+    const result = {
+      type: 'result',
+      id: UUID(9),
+      ok: true,
+      data: {
+        status: 'ok',
+        text: 'Machine status',
+        applies: 'now',
+        data: {
+          hostVersion: '1.2.0',
+          pause: { kind: 'none' },
+          update: {
+            supported: true,
+            available: '1.3.0',
+            checkedAt: '2026-11-26T12:00:00.000Z',
+            pauseControl: true,
+            last: {
+              from: '1.1.0',
+              to: '1.2.0',
+              outcome: 'updated',
+              at: '2026-11-26T11:00:00.000Z',
+            },
+          },
+        },
+      },
+    }
+    expect(parseResultFrame(result)).toStrictEqual(result)
+  })
+
   it('negotiates partial catalogue reads without changing the legacy call', () => {
     const ready = HOST_FRAMES.ready.ready
     for (const partialModels of [true, false]) {
