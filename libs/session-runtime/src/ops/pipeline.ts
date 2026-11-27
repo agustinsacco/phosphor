@@ -18,7 +18,7 @@ import type { AuditDecision, LaneEffect, OpFacts } from '@phosphor/shared/ops'
 import { inverse, completed, afterAudit, confirmationArgs, withToast } from './completion'
 import type { UndoRecord } from './audit'
 import type { LaneDeferredQueue } from './deferred'
-import { placeDeferred, reloadPlan } from './pipeline-deferred'
+import { askingLanePending, placeDeferred, reloadPlan } from './pipeline-deferred'
 import {
   argsError,
   availability,
@@ -190,12 +190,6 @@ async function finish(
     ...(plan.terminate ? { terminate: plan.terminate } : {}),
     ...(j.spec.untrustedResult ? { untrusted: true as const } : {}),
   }
-}
-
-function askingLanePending(env: PipelineEnv, j: Judged) {
-  if (j.scope === 'self' && j.self && j.principal.kind === 'agent')
-    return env.deferred.pending(j.principal.sessionId)
-  return undefined
 }
 
 async function perform(

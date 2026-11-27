@@ -57,3 +57,10 @@ export async function placeDeferred(
       message: outcome.message,
     })
 }
+
+/** Pending deferred work, read only by the asking lane about itself. */
+export function askingLanePending(env: PipelineEnv, j: Judged) {
+  if (j.scope === 'self' && j.self && j.principal.kind === 'agent')
+    return env.deferred.pending(j.principal.sessionId)
+  return undefined
+}
