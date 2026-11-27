@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { inside } from '../features/files'
+import { isInsideResolved as inside } from '@phosphor/session-runtime/fs-safety'
 
 // The lexical containment the Host's archive, delete and file routes share:
 // both paths are resolved, the root itself counts, and only whole segments do.

@@ -1,4 +1,4 @@
-import { sep } from 'node:path'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 
 /**
  * The Host's filesystem safety predicates. They classify values and compare
@@ -30,6 +30,25 @@ export function errnoIs(error: unknown, ...codes: readonly string[]): boolean {
 export function isInside(root: string, candidate: string): boolean {
   if (root === sep) return candidate.startsWith(sep)
   return candidate === root || candidate.startsWith(root + sep)
+}
+
+/**
+ * `isInside` after resolving both paths against the working directory.
+ * Lexical only: nothing is read from disk, so a symlink is not followed.
+ */
+export function isInsideResolved(root: string, candidate: string): boolean {
+  return isInside(resolve(root), resolve(candidate))
+}
+
+/**
+ * Is `candidate` below `root` by `path.relative`, which resolves both first?
+ * Lexical only. `includeRoot` says whether the root itself counts; a name
+ * that merely starts with `..` (`..notes`) is inside.
+ */
+export function isWithinRelative(root: string, candidate: string, includeRoot: boolean): boolean {
+  const rel = relative(root, candidate)
+  if (rel === '') return includeRoot
+  return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + sep)
 }
 
 /** The ownership fields of an lstat or fstat result. */

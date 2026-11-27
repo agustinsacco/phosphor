@@ -2,7 +2,14 @@ import { chmodSync, lstatSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { errnoCode, errnoIs, isInside, isOwnerPrivate } from './fs-safety'
+import {
+  errnoCode,
+  errnoIs,
+  isInside,
+  isInsideResolved,
+  isOwnerPrivate,
+  isWithinRelative,
+} from './fs-safety'
 
 const coded = (code: unknown) => Object.assign(new Error('failed'), { code })
 const octal = (modes: number[]) =>
@@ -144,5 +151,20 @@ describe('isOwnerPrivate(stat, uid)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('isInsideResolved and isWithinRelative', () => {
+  it.each<[string, string, boolean, boolean]>([
+    ['/repo', '/repo', true, false],
+    ['/repo', '/repo/a', true, true],
+    ['/repo', '/repo/..notes', true, true],
+    ['/repo', '/repo/../etc', false, false],
+    ['/repo', '/repo-sibling', false, false],
+    ['/repo/', '/repo/a/', true, true],
+  ])('%s holds %s: resolved %s, strict %s', (root, path, resolved, strict) => {
+    expect(isInsideResolved(root, path)).toBe(resolved)
+    expect(isWithinRelative(root, path, true)).toBe(resolved)
+    expect(isWithinRelative(root, path, false)).toBe(strict)
   })
 })

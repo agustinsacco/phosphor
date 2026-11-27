@@ -15,7 +15,7 @@ import {
 import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
 import { isLaneBranchName, type RejectCode } from '@phosphor/shared/host-protocol'
 import type { HostStore } from './store'
-import { inside } from '../features/files'
+import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 import { canonicalRemovedPath } from '../machine/repositories'
 import {
   defaultBranchRefs,
@@ -137,8 +137,9 @@ export function createLaneDeletion(options: DeletionPorts) {
         return canonicalRemovedPath(lane.cwd)
       })
       if (
-        !inside(root, cwd) ||
-        (lane.worktree && (!inside(join(root, '.phosphor', 'worktrees'), cwd) || cwd === root))
+        !isInsideResolved(root, cwd) ||
+        (lane.worktree &&
+          (!isInsideResolved(join(root, '.phosphor', 'worktrees'), cwd) || cwd === root))
       )
         return { ok: false, code: 'bad-request' }
       await options.stop(lane.laneId, allowed)

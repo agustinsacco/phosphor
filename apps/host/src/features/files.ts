@@ -1,12 +1,12 @@
 import { access, constants, realpath, stat } from 'node:fs/promises'
-import { join, relative, resolve, sep } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { walkFiles } from '@phosphor/session-runtime/files/walk'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import { FILE_LIMITS, isFilePath, type FileRead } from '@phosphor/shared/host-protocol-files'
 import { FILE_BYTES_METHOD } from '@phosphor/shared/host-protocol-file-bytes'
 import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import type { FeatureContext, FeatureOutcome, HostFeature } from './feature'
-import { errnoIs, isInside } from '@phosphor/session-runtime/fs-safety'
+import { errnoIs, isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 import { queryFiles } from './files/query'
 import { validateList } from './files/validate-list'
 
@@ -15,9 +15,6 @@ export class FileFailure extends Error {
     super(code)
   }
 }
-export function inside(root: string, path: string): boolean {
-  return isInside(resolve(root), resolve(path))
-}
 export async function laneRoot(context: FeatureContext, laneId: string): Promise<string> {
   const lane = context.store.getLane(laneId)
   const repo = lane && context.store.listRepositories().find((r) => r.id === lane.repositoryId)
@@ -25,7 +22,7 @@ export async function laneRoot(context: FeatureContext, laneId: string): Promise
   try {
     const root = await realpath(lane.cwd)
     if (
-      !inside(await realpath(repo.path), root) ||
+      !isInsideResolved(await realpath(repo.path), root) ||
       root.split(sep).some((s) => s.toLowerCase() === '.git') ||
       !(await stat(root)).isDirectory()
     )
@@ -46,7 +43,7 @@ export async function checkedPath(root: string, path: string, missing = false): 
       try {
         const resolved = await realpath(current)
         if (
-          !inside(root, resolved) ||
+          !isInsideResolved(root, resolved) ||
           relative(root, resolved)
             .split(sep)
             .some((s) => s.toLowerCase() === '.git')

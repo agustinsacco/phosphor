@@ -6,7 +6,8 @@ import {
   type FolderList,
 } from '@phosphor/shared/host-protocol-repositories'
 import type { HostFeature } from '../feature'
-import { failure, FileFailure, inside } from '../files'
+import { failure, FileFailure } from '../files'
+import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 import { loadRepositoryConfig, type RepositoryConfigOptions } from './config'
 
 export type HomeFolder = { root: string; full: string; path: string }
@@ -45,7 +46,7 @@ export function createFoldersFeature(
             break
           }
           const full = await realpath(join(folder.full, entry.name))
-          if (!inside(folder.root, full)) continue
+          if (!isInsideResolved(folder.root, full)) continue
           const isRepository = await lstat(join(full, '.git')).then(
             (s) => s.isDirectory() || s.isFile(),
             () => false,

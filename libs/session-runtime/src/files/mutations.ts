@@ -1,6 +1,7 @@
 import { constants } from 'node:fs'
 import { cp, lstat, realpath, link, unlink, rename, mkdir, readdir, chmod } from 'node:fs/promises'
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path'
+import { isWithinRelative } from '../fs-safety'
 
 export function filesystemCode(error: unknown): string | undefined {
   return typeof error === 'object' &&
@@ -30,10 +31,6 @@ export async function renameNoReplace(from: string, to: string): Promise<void> {
     await rename(from, to)
   } else throw new Error('Only files and folders can be transferred')
 }
-function inside(root: string, path: string): boolean {
-  const rel = relative(root, path)
-  return rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + sep))
-}
 /** Copy imports may originate outside the workspace; moves may not. Never merge/replace.
  * Remote callers supply a guard that refuses symlinks and rechecks parents before I/O.
  */
@@ -48,17 +45,20 @@ export async function transferEntry(
   const root = await realpath(workspace)
   const dir = await realpath(directory)
   const from = await realpath(source)
-  if (!inside(root, dir) || !inside(resolve(workspace), resolve(directory)))
+  if (
+    !isWithinRelative(root, dir, true) ||
+    !isWithinRelative(resolve(workspace), resolve(directory), true)
+  )
     throw new Error('Destination must be inside the workspace')
   if (!(await lstat(dir)).isDirectory()) throw new Error('Destination is not a folder')
-  if (mode === 'move' && (!inside(root, from) || from === root))
+  if (mode === 'move' && (!isWithinRelative(root, from, true) || from === root))
     throw new Error('Only entries inside this workspace can be moved')
   if (relative(root, dir).split(sep).includes('.git') || basename(source) === '.git')
     throw new Error('Git metadata cannot be transferred')
   const info = await lstat(source)
   if (!info.isFile() && !info.isDirectory())
     throw new Error('Only files and folders can be transferred')
-  if (info.isDirectory() && inside(from, dir))
+  if (info.isDirectory() && isWithinRelative(from, dir, true))
     throw new Error('A folder cannot be placed inside itself')
   let target = join(directory, basename(source))
   if (dir === dirname(from)) {

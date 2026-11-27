@@ -1,6 +1,7 @@
 import { constants } from 'node:fs'
 import { lstat, open, realpath } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
+import { isWithinRelative } from '../fs-safety'
 import {
   isTextPreview,
   looksBinary,
@@ -66,11 +67,6 @@ const GONE: Candidate = { kind: 'gone' }
 const OPEN_FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0)
 const CHECK_LINKS = constants.O_NOFOLLOW === undefined
 
-function inside(root: string, path: string): boolean {
-  const rel = relative(root, path)
-  return rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel)
-}
-
 /**
  * A file's text, or why there is none: `skipped` for what a search passes
  * over (binary, too large, unreadable), `gone` for what is not a file any more
@@ -128,7 +124,8 @@ function createReader(root: string): (path: string) => Promise<Candidate> {
     let real = folders.get(dir)
     if (!real) {
       real = Promise.all([realRoot, realpath(dir)]).then(
-        ([top, resolved]) => (resolved === top || inside(top, resolved) ? resolved : null),
+        ([top, resolved]) =>
+          resolved === top || isWithinRelative(top, resolved, false) ? resolved : null,
         () => null,
       )
       folders.set(dir, real)
@@ -139,7 +136,7 @@ function createReader(root: string): (path: string) => Promise<Candidate> {
     // Images, video, audio and PDFs are bytes, however they sniff.
     if (previewKindForPath(path) && !isTextPreview(path)) return SKIPPED
     const full = resolve(root, path)
-    if (!inside(root, full)) return GONE
+    if (!isWithinRelative(root, full, false)) return GONE
     const folder = await realFolder(dirname(full))
     return folder === null ? GONE : readText(join(folder, basename(full)))
   }

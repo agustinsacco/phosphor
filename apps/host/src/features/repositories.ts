@@ -2,7 +2,8 @@ import { lstat, mkdir, realpath } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import { isHomePath, type RepositoryOp } from '@phosphor/shared/host-protocol-repositories'
 import type { RejectCode, RepositorySummary } from '@phosphor/shared/host-protocol'
-import { inside, FileFailure } from './files'
+import { FileFailure } from './files'
+import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 import { createFoldersFeature, type HomeFolder } from './repositories/browse'
 import {
   loadRepositoryConfig,
@@ -14,7 +15,7 @@ export async function homeDirectory(home: string, path: string): Promise<HomeFol
   if (!isHomePath(path)) throw new FileFailure('bad-request')
   const root = await realpath(home)
   const full = await realpath(join(root, path))
-  if (!inside(root, full) || !(await lstat(full)).isDirectory())
+  if (!isInsideResolved(root, full) || !(await lstat(full)).isDirectory())
     throw new FileFailure('bad-request')
   const canonical = relative(root, full)
   if (!isHomePath(canonical)) throw new FileFailure('bad-request')
