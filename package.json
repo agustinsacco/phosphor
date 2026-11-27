@@ -29,7 +29,7 @@
     "typecheck:client": "tsc --noEmit -p libs/host-client/tsconfig.json",
     "typecheck:host": "tsc --noEmit -p apps/host/tsconfig.json",
     "build:host": "node apps/host/scripts/build.mjs",
-    "lint": "eslint . && oxlint --type-aware . && node tools/scripts/dead-mocks.mjs",
+    "lint": "eslint . --cache --cache-strategy content --cache-location node_modules/.cache/eslint/ && oxlint --type-aware . && node tools/scripts/dead-mocks.mjs",
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
