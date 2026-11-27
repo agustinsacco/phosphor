@@ -207,14 +207,36 @@ describe('deleteManySessions settlement', () => {
     })
   })
 
-  it('refuses a second run while one is in flight', async () => {
+  it('ignores a second run while one is in flight, leaving the first untouched', async () => {
     const trash = deferred<string[]>()
     answer((channel) => (channel === 'sessions:delete' ? trash.promise : undefined))
     const first = useSessionsStore.getState().deleteManySessions('/repo', [laneA], keepWorktree)
     await expect(
       useSessionsStore.getState().deleteManySessions('/repo', [laneB], keepWorktree),
-    ).rejects.toThrow('Another delete is running.')
+    ).resolves.toEqual([])
+    expect(useSessionsStore.getState().bulkDelete).toMatchObject({
+      running: true,
+      lanes: [{ path: laneA.path, title: 'a' }],
+    })
     trash.resolve([])
     await expect(first).resolves.toMatchObject([{ path: laneA.path, ok: true }])
+    expect(invoke).not.toHaveBeenCalledWith('sessions:delete', laneB.path, undefined)
+  })
+
+  it('reads cancellation from the store between lanes', async () => {
+    const trash = deferred<string[]>()
+    answer((channel, path) =>
+      channel === 'sessions:delete' && path === laneA.path ? trash.promise : undefined,
+    )
+    const run = useSessionsStore
+      .getState()
+      .deleteManySessions('/repo', [laneA, laneB], keepWorktree)
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('sessions:delete', laneA.path, undefined),
+    )
+    useSessionsStore.setState((s) => ({ bulkDelete: { ...s.bulkDelete!, cancelled: true } }))
+    trash.resolve([])
+    expect(await run).toEqual([{ path: laneA.path, title: 'a', ok: true }])
+    expect(invoke).not.toHaveBeenCalledWith('sessions:delete', laneB.path, undefined)
   })
 })
