@@ -78,15 +78,28 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-it('starts one live subscription on registration, clears on sign-out and unsubscribes on quit', async () => {
+it('keeps a remembered account idle until Machines is requested, then stops live updates on sign-out', async () => {
   const { registerControlHandlers } = await import('./control-handlers')
   expect(state.realtime).not.toHaveBeenCalled()
   expect(state.accountListeners.size).toBe(0)
   expect(state.quit).toHaveLength(0)
   registerControlHandlers()
+  for (const listener of state.accountListeners)
+    listener({
+      account: {
+        status: 'signed-in',
+        user: { login: 'test', name: null, email: null },
+        remembered: true,
+      },
+    })
+  expect(state.realtime).not.toHaveBeenCalled()
+  expect(state.client.machines).not.toHaveBeenCalled()
+  state.client.machines.mockResolvedValue({ ok: true, machines: [] })
+  await state.handlers.get('control:machines')?.({ sender: { id: 7 } })
+  await state.handlers.get('control:machines')?.({ sender: { id: 7 } })
   expect(state.realtime).toHaveBeenCalledOnce()
-  // Observation clearing and the live subscription each observe the account.
-  expect(state.accountListeners.size).toBe(2)
+  // The runtime projects one account subscription into its live consumers.
+  expect(state.accountListeners.size).toBe(1)
   expect(state.quit).toHaveLength(2)
   expect([...state.handlers.keys()]).toEqual([
     'control:machines',
@@ -101,7 +114,7 @@ it('starts one live subscription on registration, clears on sign-out and unsubsc
   expect(state.close).toHaveBeenCalledOnce()
   expect(vi.getTimerCount()).toBe(0)
   for (const quit of state.quit) quit()
-  expect(state.off).toHaveBeenCalledTimes(2)
+  expect(state.off).toHaveBeenCalledOnce()
   expect(state.accountListeners.size).toBe(0)
   state.quit.length = 0
 })
@@ -109,10 +122,12 @@ it('starts one live subscription on registration, clears on sign-out and unsubsc
 it('stops a still-active live subscription at will-quit', async () => {
   const { registerControlHandlers } = await import('./control-handlers')
   registerControlHandlers()
+  state.client.machines.mockResolvedValue({ ok: true, machines: [] })
+  await state.handlers.get('control:machines')?.({ sender: { id: 7 } })
   expect(state.close).not.toHaveBeenCalled()
   for (const quit of state.quit) quit()
   expect(state.close).toHaveBeenCalledOnce()
-  expect(state.off).toHaveBeenCalledTimes(2)
+  expect(state.off).toHaveBeenCalledOnce()
   expect(state.accountListeners.size).toBe(0)
   expect(vi.getTimerCount()).toBe(0)
   state.quit.length = 0

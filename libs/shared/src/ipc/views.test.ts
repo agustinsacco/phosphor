@@ -180,6 +180,7 @@ export interface BaselineLocalMachineStatus {
   failure?: { step: string; code: string }
   service?: 'ready' | 'connecting' | 'down' | 'attestation-failed'
   serviceVersion?: string
+  ownerKeyAccess?: 'checking' | 'unavailable'
   pause?: ServicePauseState
   lastUpdate?: {
     readonly from: string
@@ -198,6 +199,7 @@ export interface BaselineLocalMachineStatus {
 
 export type BaselineLocalMachineAction =
   | 'retry-migration'
+  | 'retry-owner-key'
   | 'consent-migration'
   | 'restart-to-finish'
   | 'start-service'

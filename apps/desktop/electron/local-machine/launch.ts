@@ -9,6 +9,7 @@ import {
   launchGateStatus,
   onLaunchGateStatus,
   requestMigrationRetry,
+  retryOwnerKeyAccess,
   runLaunchGate,
 } from './launch-gate'
 import { openServiceChannel } from './migration/desktop-ports'
@@ -51,6 +52,7 @@ export async function decideLocalRuntime(): Promise<LocalRuntimeMode | 'quit'> {
     status: launchGateStatus,
     onStatus: onLaunchGateStatus,
     retry: requestMigrationRetry,
+    retryOwnerKey: retryOwnerKeyAccess,
     consent: consentMigration,
   })
   const mode = await runLaunchGate({ postCommit: createPostCommitSteps({ routinesFile }) })

@@ -98,6 +98,26 @@ function migrationRow(status: LocalMachineStatus, button: Click) {
   }
 }
 
+function OwnerKeyRow({
+  access,
+  button,
+}: {
+  access: NonNullable<LocalMachineStatus['ownerKeyAccess']>
+  button: Click
+}) {
+  return (
+    <>
+      <p role="status">
+        Phosphor uses your system’s protected storage to open the key for its local service.
+        {access === 'checking'
+          ? ' If your system asks for approval, respond in its own dialog, not in Phosphor.'
+          : ' Phosphor couldn’t open the key. Check that your Keychain or keyring is available, then retry.'}
+      </p>
+      {access === 'unavailable' && button('retry-owner-key', 'Retry key access')}
+    </>
+  )
+}
+
 function ServiceCard({ machine, children }: { machine: string; children?: ReactNode }) {
   const { status, error, reload } = useLocalServiceStatus()
   const updating = useMachineUpdatesStore(
@@ -130,7 +150,8 @@ function ServiceCard({ machine, children }: { machine: string; children?: ReactN
   )
   const recovery = status?.mode === 'daemon' && status.service !== 'ready'
   const migration = status && migrationRow(status, button)
-  if (!updating && (error || recovery || migration || message || action.error)) {
+  const keyAccess = status?.ownerKeyAccess
+  if (keyAccess || (!updating && (error || recovery || migration || message || action.error))) {
     return (
       <>
         <section className="space-y-2 pb-3">
@@ -141,7 +162,8 @@ function ServiceCard({ machine, children }: { machine: string; children?: ReactN
             </div>
           )}
           {migration}
-          {recovery && (
+          {keyAccess && <OwnerKeyRow access={keyAccess} button={button} />}
+          {recovery && !updating && (
             <>
               <p>
                 Phosphor service unavailable.{' '}
@@ -150,7 +172,7 @@ function ServiceCard({ machine, children }: { machine: string; children?: ReactN
                   : 'This Mac’s lanes stay on the service. They will reappear when it reconnects.'}
               </p>
               {status.notice !== 'dev-build' && button('start-service', 'Start service')}
-              <Button onClick={retryService}>Retry</Button>
+              {!keyAccess && <Button onClick={retryService}>Retry</Button>}
             </>
           )}
           {(action.error || message) && <p role="status">{action.error || message}</p>}

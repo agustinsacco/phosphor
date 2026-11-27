@@ -60,6 +60,8 @@ Signing in can enroll the service over the owner socket without restarting lanes
 
 In **Settings → Advanced → Software**, **Update…** stages a signed release and waits for working turns, live sub-agents and routines. **Stop turns and update now** saves and stops unfinished turns; **Cancel update** leaves the service on the same version. A wait that times out stops nothing. Settings stays mounted during the restart and shows success only when the version changes; the same pipeline appears for a remote Host in Desktop and the PWA. A genuine outage outside an update still offers **Start service** or **Retry**. A failed move offers **Retry** or **Export diagnostics** (status-only JSON).
 
+If Desktop cannot open the service key, **Settings → Advanced → Phosphor service** explains why it uses protected storage and offers **Retry key access**. Automatic reconnects do not ask again in the same run. Enter a password only in the operating system’s dialog, never in Phosphor.
+
 The owner socket reports the most recent update result. Desktop projects it into its optional local-machine status field so Settings can distinguish a rollback from a stale result.
 
 ## Break-glass restore

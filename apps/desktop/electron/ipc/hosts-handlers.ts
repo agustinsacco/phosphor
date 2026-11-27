@@ -20,7 +20,12 @@ import { createHostConnection } from '../hosts/connection'
 import { createHostManager } from '../hosts/manager'
 import { bindOpsHosts } from './ops-handlers'
 import { e2eHostEndpoint, openHostSocket } from '../hosts/socket'
-import { controlClient, onMachinesChanged } from './control-handlers'
+import {
+  controlClient,
+  onMachinesChanged,
+  onRemoteAccountChange,
+  remoteAccountUserId,
+} from '../control/runtime'
 import { handle, setRemoteReadRouter } from './handle'
 import {
   createArtifactHost,
@@ -171,10 +176,10 @@ export function registerHostsHandlers(): void {
   const manager = createHostManager({
     directory: desktopDirectory,
     testEndpoint,
-    user: accountUserId,
+    user: remoteAccountUserId,
     clientId: clients.current,
     resetReplacementBudget: clients.resetReplacementBudget,
-    accountChanged: (cb) => onAccountChange(cb),
+    accountChanged: onRemoteAccountChange,
     machinesChanged: onMachinesChanged,
     machines: () => control.machines(),
     clearGrants: (id) => grants.clear(id),

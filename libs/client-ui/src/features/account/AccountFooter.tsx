@@ -57,6 +57,19 @@ export function AccountAvatar({
   )
 }
 
+function MachinesOnlineCount({ signedIn }: { signedIn: boolean }) {
+  const { localLanes } = usePlatform()
+  const directoryLoaded = useMachinesStore((s) => s.directoryLoaded)
+  const hostsUp = useMachinesStore(
+    (s) => Object.values(s.statuses).filter((status) => status === 'up').length,
+  )
+  if (signedIn && !directoryLoaded) return null
+  // The Machines page lists This Mac wherever it runs lanes, so the count does too.
+  return (
+    <span className="text-text-secondary text-base">{(localLanes ? 1 : 0) + hostsUp} online</span>
+  )
+}
+
 export function AccountFooter(): React.JSX.Element {
   const { view, error: loadError } = useAccount()
   const { navigate } = useNavigation()
@@ -67,11 +80,6 @@ export function AccountFooter(): React.JSX.Element {
   const shortcut = platform.appShortcuts ? formatShortcut('mod', ',') : null
   const account = view?.account ?? { status: 'signed-out' }
   const user = account.status === 'signed-in' ? account.user : undefined
-  // The Machines page lists This Mac wherever it runs lanes, so the count does too.
-  const hostsUp = useMachinesStore(
-    (s) => Object.values(s.statuses).filter((status) => status === 'up').length,
-  )
-  const online = (platform.localLanes ? 1 : 0) + hostsUp
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -145,7 +153,7 @@ export function AccountFooter(): React.JSX.Element {
                 useMachinesStore.getState().show({ kind: 'list' })
               }}
             >
-              Machines <span className="text-text-secondary text-base">{online} online</span>
+              Machines <MachinesOnlineCount signedIn={account.status === 'signed-in'} />
             </TooltipButton>
             {!user && (
               <TooltipButton

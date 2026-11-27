@@ -95,6 +95,20 @@ it('says in-app why the Phosphor service is not set up yet, and what happens nex
   )
 })
 
+it('explains protected storage and offers an explicit key access retry after failure', async () => {
+  current = { ...ready, service: 'down', ownerKeyAccess: 'checking' }
+  await show()
+  expect(el.textContent).toContain('respond in its own dialog')
+  expect(el.textContent).not.toContain('Retry key access')
+  push({ ...current, ownerKeyAccess: 'unavailable' })
+  expect(el.textContent).toContain('Keychain or keyring')
+  expect([...el.querySelectorAll('button')].some((b) => b.textContent === 'Retry')).toBe(false)
+  await click('Retry key access')
+  expect(action).toHaveBeenCalledWith('retry-owner-key')
+  push(ready)
+  expect(el.textContent).not.toContain('Retry key access')
+})
+
 it('offers Start service for a genuine outage, not a shutdown during an update', async () => {
   current = { ...ready, service: 'down' }
   await show()

@@ -1,12 +1,9 @@
 import { homedir } from 'node:os'
-import { join } from 'node:path'
 import { app } from 'electron'
 import type { LocalMachineStatus, LocalRuntimeMode } from '@phosphor/shared/ipc'
 import { getLoginShellPath } from '@phosphor/session-runtime/pi/shell-env'
-import { cipher } from '../account'
 import { log } from '../debug-log'
 import { createDaemonInstall, type DaemonInstall } from '../daemon/install'
-import { loadOwnerKey } from '../daemon/owner-key'
 import { daemonRoots } from '../daemon/roots'
 import { resolveBinary } from '../pi/binary-lookup'
 import { desktopGatePorts } from './migration/desktop-ports'
@@ -16,6 +13,7 @@ import { migrationPermit } from './migration/journal'
 import type { PostCommitSteps } from './migration/post-commit'
 import { writeServiceRecord } from './migration/service-record'
 import { installView, logInstallChanges } from './install-status'
+import { ownerKeyAccess } from './owner-key-access'
 
 /**
  * This Mac's launch gate in Desktop main (D1 §3.6-3.7): called once after
@@ -42,6 +40,7 @@ export interface LaunchGateOptions {
 export async function runLaunchGate(options: LaunchGateOptions = {}): Promise<LocalRuntimeMode> {
   gate ??= createLaunchGate(desktopGatePorts(options.postCommit ?? {}))
   gate.onStatus(notify)
+  ownerKeyAccess.onChange(notify)
   let mode: LocalRuntimeMode
   try {
     mode = await gate.run()
@@ -57,7 +56,12 @@ export async function runLaunchGate(options: LaunchGateOptions = {}): Promise<Lo
 /** The gate's status; while in-app, with the background service install's progress. */
 export function launchGateStatus(): LocalMachineStatus {
   const status = gate?.status() ?? BEFORE_GATE
-  return status.mode === 'in-app' && installing ? { ...status, install: installing } : status
+  const ownerKeyAccessStatus = ownerKeyAccess.status()
+  return {
+    ...status,
+    ...(status.mode === 'in-app' && installing ? { install: installing } : {}),
+    ...(ownerKeyAccessStatus ? { ownerKeyAccess: ownerKeyAccessStatus } : {}),
+  }
 }
 
 function notify(): void {
@@ -74,6 +78,21 @@ const NOT_READY: ActionResult = { ok: false, message: 'Phosphor is still startin
 
 export function requestMigrationRetry(): Promise<ActionResult> {
   return gate ? gate.retry() : Promise.resolve(NOT_READY)
+}
+
+export async function retryOwnerKeyAccess(): Promise<ActionResult> {
+  if (ownerKeyAccess.status() !== 'unavailable')
+    return { ok: false, message: 'There is no protected-storage failure to retry.' }
+  const result = await ownerKeyAccess.retry()
+  if (!result.ok) return { ok: false, message: result.reason }
+  install?.retry()
+  return {
+    ok: true,
+    message:
+      gate?.status().mode === 'in-app'
+        ? 'Service key unlocked. Restart Phosphor if the move to the service is still waiting.'
+        : 'Service key unlocked. Phosphor will reconnect to the local service.',
+  }
 }
 
 export function consentMigration(): Promise<ActionResult> {
@@ -102,7 +121,7 @@ function startServiceInstall(): void {
     if (value) baseEnv[name] = value
   }
   install = createDaemonInstall(roots, {
-    ownerKey: () => loadOwnerKey({ dir: join(userData, 'daemon'), cipher: cipher() }),
+    ownerKey: ownerKeyAccess.get,
     findPi: () => resolveBinary('pi'),
     shellPath: getLoginShellPath,
     baseEnv,

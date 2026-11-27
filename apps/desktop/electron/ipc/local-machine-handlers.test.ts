@@ -30,6 +30,7 @@ const act = (name: LocalMachineAction) => invoke('app:localMachineAction', name)
 let status: LocalMachineStatus
 let cb: (() => void) | undefined
 const retry = vi.fn(),
+  retryOwnerKey = vi.fn(),
   consent = vi.fn(),
   off = vi.fn()
 const machine = 'mac'
@@ -78,6 +79,7 @@ beforeEach(() => {
   bindLocalMachineGate({
     status: () => status,
     retry,
+    retryOwnerKey,
     consent,
     onStatus(listener) {
       cb = () => listener(status)
@@ -121,6 +123,17 @@ it('pushes gate and local slot transitions without polling; duplicate lane notif
   expect(off).toHaveBeenCalledOnce()
   expect(get()).toEqual({ mode: 'in-app', migration: 'not-needed' })
 })
+it('offers key access retry only after protected storage could not be opened', async () => {
+  expect(await act('retry-owner-key')).toMatchObject({ ok: false })
+  status = { ...status, ownerKeyAccess: 'checking' }
+  expect(await act('retry-owner-key')).toMatchObject({ ok: false })
+  expect(retryOwnerKey).not.toHaveBeenCalled()
+  status = { ...status, ownerKeyAccess: 'unavailable' }
+  retryOwnerKey.mockResolvedValue({ ok: true })
+  expect(await act('retry-owner-key')).toEqual({ ok: true })
+  expect(retryOwnerKey).toHaveBeenCalledOnce()
+})
+
 it('routes update only over the local service write receipt; before Abort now and Cancel rechecks the live pause', async () => {
   const c = slot()
   expect(await act('update-service')).toEqual({ ok: true, message: 'Started: update' })

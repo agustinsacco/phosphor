@@ -1,5 +1,5 @@
 import { visibleMachines } from '../hosts/dedupe'
-import { controlClient, initControlRuntime } from '../control/runtime'
+import { activateRemoteAccess, controlClient, initControlRuntime } from '../control/runtime'
 import { handle } from './handle'
 
 export { controlClient, onMachinesChanged } from '../control/runtime'
@@ -7,7 +7,10 @@ export { controlClient, onMachinesChanged } from '../control/runtime'
 export function registerControlHandlers(): void {
   initControlRuntime()
   const client = controlClient()
-  handle('control:machines', async () => visibleMachines(await client.machines()))
+  handle('control:machines', async () => {
+    activateRemoteAccess()
+    return visibleMachines(await client.machines())
+  })
   handle('control:lookupEnrollment', (_event, code) => client.lookupEnrollment(code))
   handle('control:approveEnrollment', (_event, code, label) =>
     client.approveEnrollment(code, label),

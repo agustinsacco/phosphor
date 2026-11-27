@@ -34,7 +34,12 @@ vi.mock('../hosts/socket', () => ({
   openHostSocket: vi.fn(),
   e2eHostEndpoint: () => undefined,
 }))
-vi.mock('./control-handlers', () => ({ controlClient: () => ({}), onMachinesChanged: vi.fn() }))
+vi.mock('../control/runtime', () => ({
+  controlClient: () => ({}),
+  onMachinesChanged: vi.fn(),
+  onRemoteAccountChange: () => () => {},
+  remoteAccountUserId: () => null,
+}))
 vi.mock('./handle', () => ({ handle: mocks.handle, setRemoteReadRouter: mocks.router }))
 vi.mock('@phosphor/host-client/artifacts', () => ({
   createArtifactHost: vi.fn(),

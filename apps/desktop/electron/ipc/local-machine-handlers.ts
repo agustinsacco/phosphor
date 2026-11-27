@@ -13,6 +13,7 @@ export interface LocalMachineGate {
   status(): LocalMachineStatus
   onStatus(cb: (s: LocalMachineStatus) => void): () => void
   retry(): Promise<Answer>
+  retryOwnerKey?(): Promise<Answer>
   consent(): Promise<Answer>
 }
 let gate: LocalMachineGate | null = null
@@ -116,6 +117,8 @@ const unavailable = () =>
   )
 async function action(current: LocalMachineGate, name: LocalMachineAction): Promise<Answer> {
   const base = current.status()
+  if (name === 'retry-owner-key' && base.ownerKeyAccess === 'unavailable')
+    return current.retryOwnerKey?.() ?? unavailable()
   if (name === 'retry-migration' && ['failed', 'reverted', 'waiting'].includes(base.migration))
     return current.retry()
   if (base.mode === 'in-app') {

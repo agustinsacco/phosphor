@@ -132,6 +132,8 @@ export interface LocalMachineStatus {
   failure?: { step: string; code: string }
   service?: 'ready' | 'connecting' | 'down' | 'attestation-failed'
   serviceVersion?: string
+  /** The system store may be prompting, or opening the sealed key failed. */
+  ownerKeyAccess?: 'checking' | 'unavailable'
   pause?: ServicePauseState
   lastUpdate?: LocalStatus['lastUpdate']
   /**
@@ -160,6 +162,7 @@ export interface LocalServiceInstall {
 /** A button on This Mac's runtime card; main decides what is legal now. */
 export type LocalMachineAction =
   | 'retry-migration'
+  | 'retry-owner-key'
   | 'consent-migration'
   | 'restart-to-finish'
   | 'start-service'

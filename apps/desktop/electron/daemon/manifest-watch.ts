@@ -86,6 +86,7 @@ export interface ManifestWatch {
   start(): void
   /** A window gained focus: attempt now if the last attempt began 30 minutes ago. */
   focus(): void
+  retry(): void
   stop(): void
   /** When the next timed attempt runs, or null while one runs or after 'done'. */
   nextAt(): number | null
@@ -144,6 +145,7 @@ export function createManifestWatch(ports: ManifestWatchPorts): ManifestWatch {
     focus() {
       if (now() - lastStart >= MANIFEST_RETRY_MS) run()
     },
+    retry: run,
     stop() {
       state = 'stopped'
       cancel?.()
