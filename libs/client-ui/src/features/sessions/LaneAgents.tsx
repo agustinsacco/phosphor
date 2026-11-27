@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { useCurrentWork } from '@/features/chat/currentWork'
 import { useChatStore } from '@/stores/chat'
+import { holdsHostLane } from '@/stores/hostLaneOpen'
 import { useSessionsStore } from '@/stores/sessions'
 import { laneAgents, laneDoing, type LaneAgents } from './laneWork'
 
@@ -30,9 +31,7 @@ export function useLaneWork(sessionId: string | undefined): {
 export function useHostLaneSessionId(hostId: string | undefined, laneId: string) {
   return useSessionsStore((s) =>
     hostId
-      ? Object.values(s.live).find(
-          (e) => e.target?.kind === 'remote' && e.target.hostId === hostId && e.laneId === laneId,
-        )?.phosphorId
+      ? Object.values(s.live).find((e) => holdsHostLane(e, { hostId, laneId }))?.phosphorId
       : undefined,
   )
 }

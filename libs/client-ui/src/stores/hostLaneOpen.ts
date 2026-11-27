@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { LiveSessionInfo } from '@shared/models'
 import { remoteLaneKey } from '@shared/remote-host'
 import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
 import { warmOpenedLane } from '@/platform/serviceLaneControl'
@@ -64,6 +65,18 @@ export async function adoptHostLane(
   return info.sessionId
 }
 
+/** This live session is the one this client holds for that Host lane. */
+export function holdsHostLane(
+  entry: { target?: LiveSessionInfo['target']; laneId?: string } | undefined,
+  lane: { hostId: string; laneId: string },
+): boolean {
+  return (
+    entry?.target?.kind === 'remote' &&
+    entry.target.hostId === lane.hostId &&
+    entry.laneId === lane.laneId
+  )
+}
+
 /**
  * Claims the screen for a Host lane before it opens: no page in the way, the
  * lane opening. A lane this client already holds switches without the opening
@@ -74,12 +87,7 @@ export function beginHostLaneOpening(lane: { hostId: string; laneId: string }, t
   // Adoption publishes the handle before its transcript and state are ready.
   const held =
     !running.has(remoteLaneKey(lane.hostId, lane.laneId)) &&
-    Object.values(sessions.live).some(
-      (entry) =>
-        entry.target?.kind === 'remote' &&
-        entry.target.hostId === lane.hostId &&
-        entry.laneId === lane.laneId,
-    )
+    Object.values(sessions.live).some((entry) => holdsHostLane(entry, lane))
   if (held) return sessions.claimNav()
   useLayoutStore.getState().setPage(null)
   return sessions.beginOpening({

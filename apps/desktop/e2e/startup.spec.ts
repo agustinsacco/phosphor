@@ -365,7 +365,6 @@ for (const theme of ['light', 'dark'] as const) {
         })
       }, h.workspace)
       await expect(row).not.toHaveAttribute('data-pending')
-      // The row names neither the worktree nor the branch; the dirty count stays.
       await expect(row.locator('[data-segment="dirty"]')).toHaveCount(1)
       await expect(row).not.toContainText('feature/appearance-aware-long-branch')
       await expect(row).toHaveAttribute('data-activity', 'working')

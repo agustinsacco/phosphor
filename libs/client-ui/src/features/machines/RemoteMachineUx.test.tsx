@@ -297,7 +297,7 @@ it("characterize: a Host's lane preview shows the shared Host lane rows, and Vie
   const rows = [...(preview?.querySelectorAll('[data-testid=remote-session-row]') ?? [])]
   expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual(['Lane 0', 'Lane 1', 'Lane 2'])
   expect(rows.every((row) => row.classList.contains('lane-row'))).toBe(true)
-  expect(rows[0]?.textContent).toContain('feature/0')
+  expect(rows[0]?.textContent).not.toContain('feature/0')
   expect(container.textContent).toContain('4 lanes')
   expect(button('View all 4 lanes').textContent).toBe('View all 4 lanes →')
 })
