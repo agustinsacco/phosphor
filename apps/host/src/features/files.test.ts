@@ -63,6 +63,15 @@ describe('files feature', () => {
     await rm(f.base, { recursive: true, force: true })
   })
   const code = (c: string) => ({ ok: false, error: { code: c, message: expect.any(String) } })
+  it('searches literal text without following file or directory links', async () => {
+    await writeFile(join(f.root, 'tracked'), 'first\na+b literal\naab')
+    await symlink(join(f.root, 'tracked'), join(f.root, 'alias'))
+    const feature = createFilesFeature(f.context)
+    expect(await feature.call('files.search', { laneId: f.laneId, query: 'a+b' })).toMatchObject({
+      ok: true,
+      data: { rows: [{ path: 'tracked', line: 2, snippet: 'a+b literal' }] },
+    })
+  })
   it('lists tracked and non-ignored files and reads text and binary', async () => {
     await writeFile(join(f.root, '.gitignore'), 'ignored\n')
     await writeFile(join(f.root, 'ignored'), 'secret')
@@ -247,14 +256,5 @@ describe('files feature', () => {
       data: { files: ['tracked'] },
     })
     expect(JSON.stringify(vi.mocked(f.context.log).mock.calls)).not.toContain(f.root)
-  })
-  it('searches literal text without following file or directory links', async () => {
-    await writeFile(join(f.root, 'tracked'), 'first\na+b literal\naab')
-    await symlink(join(f.root, 'tracked'), join(f.root, 'alias'))
-    const feature = createFilesFeature(f.context)
-    expect(await feature.call('files.search', { laneId: f.laneId, query: 'a+b' })).toMatchObject({
-      ok: true,
-      data: { rows: [{ path: 'tracked', line: 2, snippet: 'a+b literal' }] },
-    })
   })
 })

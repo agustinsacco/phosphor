@@ -99,7 +99,13 @@ export async function executeRoutineOperation(
       scheduler.pauseAll()
       break
     case 'routine.delete':
-      return deleteRoutine(state, op.routineId)
+      if (state.deleting.has(op.routineId)) throw new Error('routine already being deleted')
+      state.deleting.add(op.routineId)
+      try {
+        return await deleteRoutine(state, op.routineId)
+      } finally {
+        state.deleting.delete(op.routineId)
+      }
   }
   options.changed()
   return {}

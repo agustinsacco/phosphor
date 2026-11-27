@@ -65,6 +65,7 @@ export const routines = [
   ),
   routine('routine.check', 'Check whether a routine can run.', 'read', object({ definition }), {
     sensitive: ['definition'],
+    deadlineMs: 15_000,
   }),
   routine(
     'routine.create',
@@ -78,7 +79,7 @@ export const routines = [
     'Promote a routine run to a lane.',
     'persistence',
     object({ runId: id }),
-    { positional: ['runId'] },
+    { positional: ['runId'], requires: guarded },
   ),
   routine(
     'routine.edit',

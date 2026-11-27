@@ -372,6 +372,10 @@
       "types": "./src/pi/session-content.ts",
       "default": "./src/pi/session-content.ts"
     },
+    "./routines/preflight": {
+      "types": "./src/routines/preflight.ts",
+      "default": "./src/routines/preflight.ts"
+    },
     "./routines/repository": {
       "types": "./src/routines/repository.ts",
       "default": "./src/routines/repository.ts"

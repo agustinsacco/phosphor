@@ -1,3 +1,7 @@
+import { checkRoutine, readRoutineInput } from '@phosphor/session-runtime/routines/preflight'
+import type { RemoteRoutineInput } from '@phosphor/shared/host-protocol-routines'
+import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
+import { promoteRoutine } from './promotion'
 import { join } from 'node:path'
 import { RoutineRepository } from '@phosphor/session-runtime/routines/repository'
 import { RoutineScheduler } from '@phosphor/session-runtime/routines/scheduler'
@@ -40,6 +44,7 @@ export function createHostRoutines(ports: HostRoutineOptions) {
     repository,
     now,
     closing: false,
+    deleting: new Set(),
     stopped: undefined,
     closed: false,
     scheduler: new RoutineScheduler(
@@ -68,6 +73,8 @@ export function createHostRoutines(ports: HostRoutineOptions) {
   return {
     feature: createRoutineQueries(state),
     scheduler: state.scheduler,
+    check: (input: RemoteRoutineInput) => preflight(options, input),
+    promote: (id: string, signal: AbortSignal) => promoteRoutine(state, id, signal),
     sessionPathForRun: (id: string) => repository.run(id).sessionPath,
     start() {
       state.scheduler.start()
@@ -94,3 +101,25 @@ export function createHostRoutines(ports: HostRoutineOptions) {
   }
 }
 export type HostRoutines = ReturnType<typeof createHostRoutines>
+
+async function preflight(
+  options: HostRoutineOptions,
+  { repositoryId, ...input }: RemoteRoutineInput,
+) {
+  const configured = options.store.listRepositories().find((root) => root.id === repositoryId)
+  if (!configured) throw new OpRefusal('bad-request', 'Choose an admitted repository.')
+  try {
+    admittedRoutineRoot(options, configured.path)
+    const definition = await readRoutineInput({ ...input, workspacePath: configured.path })
+    return await checkRoutine(
+      definition,
+      () => options.checkPi?.(),
+      (path) => options.runtime.list().some((session) => session.workspacePath === path),
+    )
+  } catch (error) {
+    if (error instanceof OpRefusal) throw error
+    const message =
+      error instanceof Error && !('code' in error) ? error.message : 'Workspace unavailable.'
+    throw new OpRefusal('bad-request', message)
+  }
+}

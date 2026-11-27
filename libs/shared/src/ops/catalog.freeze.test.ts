@@ -272,6 +272,7 @@ it('freezes lane tool deadline overrides', () => {
     'worktree.recreate': 100_000,
     'worktree.remove': 100_000,
     'worktree.restore': 100_000,
+    'routine.check': 15_000,
     'files.search': 20_000,
     'service.update': 600_000,
     'package.list': 600_000,

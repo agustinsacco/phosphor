@@ -141,6 +141,17 @@ async function startRuntime(
     uid: context.uid,
     store,
     runtime,
+    checkPi() {
+      if (!machine.pi) throw new Error('pi is unavailable.')
+    },
+    promotion: {
+      sessionsRoot: piSessionsRoot(context.env, context.home),
+      adopt: (input) => store.ensureLane(input),
+      publish: (id) => {
+        const summary = live.summaryFor(id)
+        if (summary) live.lanesTopic.delta([summary])
+      },
+    },
     changed: live.lanesTopic.routinesChanged,
     resourceChanged: live.lanesTopic.resourceChanged,
     now: context.now,

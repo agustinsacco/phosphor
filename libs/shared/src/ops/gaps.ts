@@ -78,8 +78,6 @@ const daemon = [
   'brain.find',
   'brain.queue',
   'brain.status',
-  'routine.check',
-  'routine.fromLane',
   'maintenance.scan',
   'maintenance.run',
 ]

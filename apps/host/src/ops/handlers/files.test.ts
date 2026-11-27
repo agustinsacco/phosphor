@@ -5,7 +5,7 @@ import { gitHandlers } from './git'
 import type { DaemonHandlerDeps } from './index'
 
 const lane = { ref: 'host:h1/lane:L1', sessionId: null, title: 'L', cwd: '/w', busy: false }
-const ctx = (over: Partial<OpHandlerContext> = {}) =>
+const ctx = (over: Partial<OpHandlerContext & { limit: number }> = {}) =>
   ({ principal: { kind: 'local', clientId: 'cli' }, lane, log: () => {}, ...over }) as never
 
 function harness() {

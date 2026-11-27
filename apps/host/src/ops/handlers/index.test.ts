@@ -14,8 +14,7 @@ const served = {
 }
 
 /** Reconcile-v1 B8 minus N7 (`mcp.lane`, `artifact.remove`), plus reconcile-v2 #6's additions. */
-const ALLOWED_GAPS = `lane.move maintenance.scan maintenance.run
- skill.share brain.find brain.queue brain.status routine.check routine.fromLane`
+const ALLOWED_GAPS = `lane.move maintenance.scan maintenance.run skill.share brain.find brain.queue brain.status`
   .trim()
   .split(/\s+/)
 
