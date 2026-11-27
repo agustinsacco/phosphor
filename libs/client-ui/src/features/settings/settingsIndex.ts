@@ -227,13 +227,15 @@ export function platformIndex(
 /**
  * The tab to show when `tab` is not listed (another machine kind, a removed
  * package, a capability this platform lacks): its parent Extensions entry, the
- * machine's first section, then the first. Every machine names a shared concern
- * by the same id, so switching machines keeps it open without a lookup.
+ * machine's Agent section (not Brain, listed first), its first section, then the
+ * first. Every machine names a shared concern by the same id, so switching
+ * machines keeps it open without a lookup.
  */
 export function resolveTab(tab: SettingsTab, listed: readonly SettingsSection[]): SettingsTab {
   const has = (id: SettingsTab): boolean => listed.some((section) => section.id === id)
   if (has(tab)) return tab
   if (EXTENSION_TABS.some((t) => t.id === tab) && has('extensions')) return 'extensions'
+  if (findSection(tab)?.scope === 'machine' && has('agent')) return 'agent'
   const firstMachine = listed.find((section) => section.scope === 'machine')
   return (
     (findSection(tab)?.scope === 'machine' && firstMachine ? firstMachine : listed[0])?.id ??
