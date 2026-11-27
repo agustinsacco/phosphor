@@ -69,13 +69,21 @@ const READ_ONLY = new Set([
   'commit-tree',
 ])
 
+/** The subcommand and its arguments, after any leading `-c key=value` overrides. */
+function subcommand(args: string[]): string[] {
+  let i = 0
+  while (args[i] === '-c' && i + 1 < args.length) i += 2
+  return args.slice(i)
+}
+
 export async function git(cwd: string, args: string[], options: GitOptions = {}): Promise<string> {
+  const cmd = subcommand(args)
   const readOnly =
-    READ_ONLY.has(args[0] ?? '') ||
-    (args[0] === 'worktree' && args[1] === 'list') ||
-    (args[0] === 'remote' && args[1] === 'get-url') ||
-    (args[0] === 'symbolic-ref' && args[1] === '--short' && args.length === 3) ||
-    (Boolean(options.env?.GIT_INDEX_FILE) && ['add', 'read-tree'].includes(args[0] ?? ''))
+    READ_ONLY.has(cmd[0] ?? '') ||
+    (cmd[0] === 'worktree' && cmd[1] === 'list') ||
+    (cmd[0] === 'remote' && cmd[1] === 'get-url') ||
+    (cmd[0] === 'symbolic-ref' && cmd[1] === '--short' && cmd.length === 3) ||
+    (Boolean(options.env?.GIT_INDEX_FILE) && ['add', 'read-tree'].includes(cmd[0] ?? ''))
   // Unknown commands conservatively invalidate. Shared refs affect sibling
   // worktrees too, so mutations clear all display entries, before and after.
   if (!readOnly) gitInfoCache.invalidate()
@@ -120,7 +128,9 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
 export type GitRunner = typeof git
 
 export async function dirtyCount(cwd: string, run: GitRunner = git): Promise<number> {
-  const status = await run(cwd, ['status', '--porcelain'])
+  const status = await run(cwd, ['-c', 'core.fsmonitor=false', 'status', '--porcelain'], {
+    env: { GIT_OPTIONAL_LOCKS: '0', GIT_NO_LAZY_FETCH: '1' },
+  })
   return status.trim().split('\n').filter(Boolean).length
 }
 

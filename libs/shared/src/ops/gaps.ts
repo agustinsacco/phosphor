@@ -74,13 +74,8 @@ const desktopGap: Readonly<Record<string, string>> = {
   'job.list': jobNotice,
   'job.status': jobNotice,
 }
-const daemon = [
-  'brain.find',
-  'brain.queue',
-  'brain.status',
-  'maintenance.scan',
-  'maintenance.run',
-]
+const hostBrainGap =
+  "Brain is owned by Desktop's main-process bridge; serving it from the Host needs a scoped Host credential that hasn't been designed yet."
 
 /** Positive gap lists, not permission grants. A never-tier denial takes precedence. */
 export const OP_GAPS: Readonly<
@@ -95,12 +90,12 @@ export const OP_GAPS: Readonly<
     ),
   ),
   daemon: Object.freeze({
+    'brain.find': hostBrainGap,
+    'brain.status': hostBrainGap,
+    'brain.queue': hostBrainGap,
     'lane.move':
       "Moving a lane between machines runs from the Phosphor app: open the lane's menu and choose Move to…",
     'skill.share':
       'The Phosphor service cannot copy skills between machines; share skills from the Phosphor app.',
-    ...Object.fromEntries(
-      daemon.map((name) => [name, `${name} is not available through the Phosphor service.`]),
-    ),
   }),
 })

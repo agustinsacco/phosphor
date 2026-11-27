@@ -14,9 +14,7 @@ const served = {
 }
 
 /** Reconcile-v1 B8 minus N7 (`mcp.lane`, `artifact.remove`), plus reconcile-v2 #6's additions. */
-const ALLOWED_GAPS = `lane.move maintenance.scan maintenance.run skill.share brain.find brain.queue brain.status`
-  .trim()
-  .split(/\s+/)
+const ALLOWED_GAPS = `lane.move skill.share brain.find brain.queue brain.status`.trim().split(/\s+/)
 
 /** Ops the never tier refuses to every principal except the surface they are for. */
 const surfaceOnlyNever = OP_CATALOG.filter((s) => s.tier === 'never' && s.surfaceOnly === true)
@@ -210,9 +208,6 @@ it('reports the self-check and the last update in machine.status data.update', a
 })
 
 it.each([
-  ['brain.find', 'read'],
-  ['brain.status', 'read'],
-  ['brain.queue', 'lane'],
   ['files.search', 'read'],
   ['mcp.expose', 'persistence'],
   ['routine.check', 'read'],

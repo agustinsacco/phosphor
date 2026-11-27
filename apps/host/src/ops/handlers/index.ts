@@ -34,6 +34,7 @@ import { laneSelfHandlers } from './lane-self'
 import type { DaemonLaneRuntime } from './lane-target'
 import { laneCoordinationHandlers } from './lane-coordination'
 import { laneHandlers } from './lanes'
+import { maintenanceHandlers } from './maintenance'
 import { machineHandlers } from './machine'
 import { mcpHandlers } from './mcp'
 import { packageHandlers } from './packages'
@@ -104,6 +105,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
     ...laneSelfHandlers(deps),
     ...laneEditingHandlers(deps),
     ...machineHandlers(deps),
+    ...maintenanceHandlers(deps),
     ...fileHandlers(deps),
     ...gitHandlers(deps),
     ...hostsHandlers(deps),

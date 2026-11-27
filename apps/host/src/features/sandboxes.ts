@@ -1,3 +1,4 @@
+import { applyCleanup, inspectCleanup, type CleanupCandidate } from './sandbox-cleanup'
 import { guardSandboxTranscripts } from './sandbox-transcript-guard'
 import { lstatSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
@@ -135,6 +136,20 @@ export function createHostSandboxes(p: SandboxPorts) {
     }
   }
   return {
+    cleanup: {
+      inspect: async (signal?: AbortSignal) => inspectCleanup(p, await records(p), signal),
+      apply: (rows: readonly CleanupCandidate[], signal: AbortSignal) =>
+        write((r) =>
+          applyCleanup(p, r, rows, signal, (removed) => {
+            const repos = publish(
+              p,
+              r,
+              r.file.items.filter((item) => !removed.includes(item.path)),
+            )
+            publishSandboxChange(p, repos)
+          }),
+        ),
+    },
     list: () => listSandboxFolders(readBase(p, readOwnerFolders(dirname(p.configPath), p.uid))),
     create: (name: string) =>
       write(async (r) => {

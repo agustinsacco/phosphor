@@ -151,6 +151,8 @@ export interface OpsDispatcherDeps {
   background?(request: OpsRunRequest, self: boolean): boolean
   /** Resolve a destructive wildcard to the exact ids being authorized. */
   archiveIds?(): Promise<string[]>
+  /** Names in a verified cleanup plan; included in the confirmation fingerprint. */
+  maintenanceTargets?(plan: string, signal?: AbortSignal): Promise<string[]>
   /** Absent: `--host` takes Host ids as given and refuses `all`. */
   hosts?: OpsHostResolver
   log: RuntimeLog

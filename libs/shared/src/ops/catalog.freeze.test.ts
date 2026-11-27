@@ -163,8 +163,8 @@ machine.commands read machine now - - - - paged c57e5987bdbbc8d6bf059cc32f8702b7
 machine.usage read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 service.update destructive machine now - - - job - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 service.pause never machine now - surface local - - 58b0ac567e7d7cddafe40ed512d78d6d4c95ac9b95f76170f97764185435a4b7
-maintenance.scan read machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
-maintenance.run destructive machine now - - - - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+maintenance.scan read machine now - - - - paged 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
+maintenance.run destructive machine now - - - - - 92da1e638c429fe96d86b3c74ff44820f089e6fdeeb7523e958a800334ad1a60
 hosts.list read machine now - - local - - 32062bdb9024160d3b9816f12ba2f337808ee107449f8bf08d55b0026944f51e
 brain.search read self now - - local - - bb88ccb4ab6f43e369959e481ff8de8bf4b6d42e14bba0cc7a696671147b17b2
 brain.flag lane self now - - local - - 5b85d6a81378bcd3832d874a33ff22ecc970492f17ede6109ec083a89881b556
@@ -272,6 +272,8 @@ it('freezes lane tool deadline overrides', () => {
     'worktree.recreate': 100_000,
     'worktree.remove': 100_000,
     'worktree.restore': 100_000,
+    'maintenance.scan': 15_000,
+    'maintenance.run': 15_000,
     'routine.check': 15_000,
     'files.search': 20_000,
     'service.update': 600_000,

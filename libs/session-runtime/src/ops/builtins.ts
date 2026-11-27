@@ -60,6 +60,10 @@ export function confirmItems(
   j: Judged,
 ): ConfirmItem[] {
   const a = j.args
+  if (j.spec.name === 'maintenance.run' && Array.isArray(a.targets)) {
+    const names = a.targets.filter((v): v is string => typeof v === 'string')
+    return [{ hostId: binding.machineId, op: j.spec.name, ids: names, labels: names }]
+  }
   const ids = Array.isArray(a.ids)
     ? a.ids.filter((id): id is string => typeof id === 'string')
     : a.all === true

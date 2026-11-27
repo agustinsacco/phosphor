@@ -10,6 +10,7 @@ import { AGENT_OPS_SCHEMA, createAuditLog } from '@phosphor/session-runtime/ops/
 import { confirmPort, createConfirmStore } from '@phosphor/session-runtime/ops/confirm'
 import { createOpsDispatcher } from '@phosphor/session-runtime/ops/dispatcher'
 import { createJobStore } from '@phosphor/session-runtime/ops/jobs'
+import { maintenanceTargets } from './handlers/maintenance'
 import { archiveSelection } from './handlers/archives'
 import { laneJob } from './handlers/lanes'
 import { recordCreator } from './binding'
@@ -254,6 +255,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     redact: argsSummary,
     background: (r, self) => !inverseRequests.has(r) && laneJob(r.op, self),
     archiveIds: () => archiveSelection(domain),
+    maintenanceTargets: (plan, signal) => maintenanceTargets(domain, plan, signal),
     undo: { run: (principal, id) => undo(principal, id) },
     jobs: jobs.port,
     ...(ports.directory

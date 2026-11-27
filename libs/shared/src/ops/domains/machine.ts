@@ -67,8 +67,18 @@ export const machineOps = [
     object({ action: choice('abort-now', 'cancel') }),
     { surfaceOnly: true, routable: false },
   ),
-  machine('maintenance.scan', 'Scan for cleanup candidates.', 'read'),
-  machine('maintenance.run', 'Run destructive workspace cleanup.', 'destructive'),
+  machine('maintenance.scan', 'Scan for cleanup candidates.', 'read', undefined, {
+    ...paged,
+    ...untrusted,
+    deadlineMs: 15_000,
+  }),
+  machine(
+    'maintenance.run',
+    'Apply an exact plan from maintenance.scan.',
+    'destructive',
+    object({ plan: text(64) }),
+    { positional: ['plan'], deadlineMs: 15_000 },
+  ),
   read('hosts.list', 'List machines available to this lane.', 'read', undefined, {
     routable: false,
   }),

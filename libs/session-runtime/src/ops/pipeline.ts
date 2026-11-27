@@ -346,22 +346,37 @@ async function execute(
   if (refusal) return refuse(env, j, refusal)
   const verdict = policyVerdict(policyCheck(j))
   if (verdict.kind === 'deny') return refuse(env, j, verdict)
-  if (j.spec.name === 'archive.purge' && j.args.all === true && env.deps.archiveIds) {
-    try {
-      const { all: _all, ...rest } = j.args
-      j = { ...j, args: { ...rest, ids: await env.deps.archiveIds() } }
-    } catch (error) {
-      return denied(
-        error instanceof OpRefusal ? error.code : 'unavailable',
-        error instanceof Error ? error.message : 'Inventory unavailable.',
-      )
-    }
+  try {
+    j = await selectDestructiveTargets(env.deps, j, extras.signal)
+  } catch (error) {
+    return denied(
+      error instanceof OpRefusal ? error.code : 'unavailable',
+      error instanceof OpRefusal ? error.message : 'Inventory unavailable.',
+    )
   }
   if (verdict.kind === 'ask') {
     const pending = await ask(env, j)
     if (pending) return pending
   }
   return perform(env, j, verdict.kind === 'ask' ? 'approved' : 'allowed', extras.signal)
+}
+
+async function selectDestructiveTargets(deps: OpsDispatcherDeps, j: Judged, signal?: AbortSignal) {
+  if (j.spec.name === 'archive.purge' && j.args.all === true && deps.archiveIds) {
+    const { all: _all, ...rest } = j.args
+    return { ...j, args: { ...rest, ids: await deps.archiveIds() } }
+  }
+  if (
+    j.spec.name === 'maintenance.run' &&
+    typeof j.args.plan === 'string' &&
+    deps.maintenanceTargets
+  ) {
+    return {
+      ...j,
+      args: { ...j.args, targets: await deps.maintenanceTargets(j.args.plan, signal) },
+    }
+  }
+  return j
 }
 
 export function createOpPipeline(

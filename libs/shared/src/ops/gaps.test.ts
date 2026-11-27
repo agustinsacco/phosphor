@@ -2,14 +2,12 @@ import { expect, it } from 'vitest'
 import { OP_CATALOG, OP_GAPS } from './index'
 
 it('keeps only the reviewed Phosphor service gaps', () => {
-  const expected =
-    `lane.move skill.share brain.find brain.queue brain.status maintenance.scan maintenance.run`
-      .trim()
-      .split(/\s+/)
+  const expected = `lane.move skill.share brain.find brain.queue brain.status`.trim().split(/\s+/)
   expect(Object.keys(OP_GAPS.daemon).sort()).toEqual(expected.sort())
   expect(
     Object.entries(OP_GAPS.daemon).every(
-      ([op, reason]) => op === 'lane.move' || reason?.includes('Phosphor service'),
+      ([op, reason]) =>
+        op === 'lane.move' || op.startsWith('brain.') || reason?.includes('Phosphor service'),
     ),
   ).toBe(true)
   expect(OP_GAPS.daemon['lane.move']).toBe(
@@ -67,3 +65,11 @@ it('explains why the in-app runtime cannot coordinate lanes', () => {
   expect(OP_GAPS.desktop['lane.message']).toMatch(/lane command queue/i)
   expect(OP_GAPS.desktop['lane.wait']).toMatch(/activity stream/i)
 })
+it.each(['brain.find', 'brain.status', 'brain.queue'])(
+  'explains why %s cannot be served',
+  (name) => {
+    expect(OP_GAPS.daemon[name]).toBe(
+      "Brain is owned by Desktop's main-process bridge; serving it from the Host needs a scoped Host credential that hasn't been designed yet.",
+    )
+  },
+)

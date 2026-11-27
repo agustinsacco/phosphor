@@ -96,14 +96,18 @@ export function policyDecision(check: Omit<PolicyCheck, 'governed'>): PolicyDeci
   const otherLane = check.scope === 'other-lane' && check.tier !== 'read'
   const otherLaneWrite = otherLane && check.laneArg === 'target'
   const codeConnector =
-    check.tier === 'destructive' && (check.op === 'mcp.add' || check.op === 'mcp.update')
+    check.tier === 'destructive' &&
+    (check.op === 'mcp.add' || check.op === 'mcp.update' || check.op === 'mcp.expose')
   const base = stricterDecision(
     otherLaneWrite ? 'ask' : defaultDecision(check.tier),
     byTier ?? 'allow',
   )
   const byOp = check.policy.ops?.[check.op]
   if (byOp === undefined) return base
-  return codeConnector || otherLaneWrite || (otherLane && check.tier === 'destructive')
+  return check.op === 'maintenance.run' ||
+    codeConnector ||
+    otherLaneWrite ||
+    (otherLane && check.tier === 'destructive')
     ? stricterDecision(base, byOp)
     : byOp
 }
