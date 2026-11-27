@@ -82,7 +82,7 @@ function whenWords(change: BrainTidyOperation): string {
     .join(' · ')
 }
 
-function ChangeLine({
+export function ChangeLine({
   change,
   busy,
   onUndo,

@@ -19,6 +19,7 @@ import type { LanePauses } from '../lanes/pause'
 import type { LaneService } from '../lanes/service'
 import type { HostStore } from '../lanes/store'
 import type { LaneAdapter } from '../api/lanes'
+import type { BrainSurfaceBinding } from '../api/brain-adapter'
 import type { AppServices } from '../session/app-services'
 import { runLogin } from './login'
 import type { RunContext } from './run'
@@ -72,6 +73,8 @@ export interface LocalSocketLanes {
   peers(): Iterable<{ clientId(): string | undefined }>
   /** The service pause `machine.pause` drives, while lanes run. */
   pauses?: LanePauses
+  /** The Host's Brain surface, the same binding the TCP API serves; absent: no Brain. */
+  brain?: BrainSurfaceBinding
 }
 
 /** The owner socket as run drives it. */

@@ -1,7 +1,7 @@
 import { useAgentChangesItem } from '@/features/agent-control/LaneAgentChanges'
 import { PaletteButton } from '@/components/PaletteButton'
 import { requestChatFind } from '@/features/chat/useChatFind'
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { ActionSheet, ActionSheetItem } from '@/components/ActionSheet'
 import type { ContextMenuItem } from '@/components/ContextMenu'
@@ -177,6 +177,12 @@ function HostLaneMenu({
       }).then((name) => (name ? actions.saveName(name) : false))
     },
   })
+  // The sheet opening is this menu's open: it reads what only an open menu shows.
+  const onMenuOpen = useRef(actions.menuTrigger.onOpen)
+  onMenuOpen.current = actions.menuTrigger.onOpen
+  useEffect(() => {
+    if (open) onMenuOpen.current()
+  }, [open])
   return (
     <>
       {actions.dialogs}

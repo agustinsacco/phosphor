@@ -136,6 +136,19 @@ describe('attemptDaemonInstall', () => {
     expect(readdirSync(join(m.roots.lib, 'versions')).sort()).toEqual(['1.2.0', '1.2.3'])
     expect(readdirSync(m.roots.lib).filter((name) => name.startsWith('.'))).toEqual([])
   })
+  it('does not replace a pinned install even without a configured service', async () => {
+    const m = machine()
+    m.installed('1.2.0', ['local-mode', 'owner-socket'])
+    m.mirror.publish({ files: { 'bin/phosphor': fakeSetup() } })
+    writeFileSync(join(m.roots.lib, '.brain-required'), '1\n', { mode: 0o600 })
+    expect(await attemptDaemonInstall(m.ports, signal())).toMatchObject({
+      state: 'failed',
+      detail: expect.stringContaining('Brain'),
+    })
+    expect(readlinkSync(join(m.roots.lib, 'current'))).toBe('versions/1.2.0')
+    expect(readdirSync(join(m.roots.lib, 'versions'))).toEqual(['1.2.0'])
+    expect(existsSync(join(m.roots.home, 'setup-args'))).toBe(false)
+  })
   it('finishes a newer release an earlier attempt unpacked but never made current', async () => {
     const m = machine()
     m.installed('1.2.0', ['local-mode', 'owner-socket'])

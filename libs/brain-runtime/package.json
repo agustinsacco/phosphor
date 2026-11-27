@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./agent/agent-lane": {
+      "types": "./src/agent/agent-lane.ts",
+      "default": "./src/agent/agent-lane.ts"
+    },
     "./agent/auto-run": {
       "types": "./src/agent/auto-run.ts",
       "default": "./src/agent/auto-run.ts"
@@ -15,6 +19,10 @@
     "./agent/curator-context": {
       "types": "./src/agent/curator-context.ts",
       "default": "./src/agent/curator-context.ts"
+    },
+    "./agent/curator-turn": {
+      "types": "./src/agent/curator-turn.ts",
+      "default": "./src/agent/curator-turn.ts"
     },
     "./agent/curator-view": {
       "types": "./src/agent/curator-view.ts",
@@ -43,6 +51,10 @@
     "./agent/refusal": {
       "types": "./src/agent/refusal.ts",
       "default": "./src/agent/refusal.ts"
+    },
+    "./agent/rules": {
+      "types": "./src/agent/rules.ts",
+      "default": "./src/agent/rules.ts"
     },
     "./api": {
       "types": "./src/api.ts",

@@ -1,3 +1,4 @@
+import { omitPrivateTraffic } from './private-traffic'
 import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
 import { browserCrypto, type IdentityCrypto } from './crypto'
 import { createHandshake } from './handshake'
@@ -86,6 +87,7 @@ export function createHostConnection(ports: {
     transportFailed: () => socket?.close(1000, 'Transport failed'),
   })
   const watches = new Map<string, LaneWatch>()
+  let brainAuthorityEpoch = 0
   let runtimeEpoch = ''
   const terminals = new Map<
     string,
@@ -139,6 +141,7 @@ export function createHostConnection(ports: {
   /** The traffic log is diagnostic: it must never affect the connection. */
   function observe(direction: 'in' | 'out', frame: ClientFrame | HostFrame, text: string) {
     try {
+      if (omitPrivateTraffic(frame, requests)) return
       ports.traffic?.(direction, frame, utf8Length(text))
     } catch {
       /* Ignored on purpose. */
@@ -204,6 +207,8 @@ export function createHostConnection(ports: {
       error === 'account-disabled'
     ) {
       update({
+        brain: false,
+        brainAccess: [],
         state: code === 4409 ? 'unsupported' : 'reconnecting',
         lastError: error ?? 'forbidden',
       })
@@ -211,7 +216,12 @@ export function createHostConnection(ports: {
       if (error === 'account-disabled') ports.disabled?.()
       return
     }
-    update({ state: 'reconnecting', lastError: error ?? 'disconnected' })
+    update({
+      brain: false,
+      brainAccess: [],
+      state: 'reconnecting',
+      lastError: error ?? 'disconnected',
+    })
     retry.schedule(code === 4429 || error === 'too-many-requests')
   }
   function renew(expiresAt: string) {
@@ -303,7 +313,12 @@ export function createHostConnection(ports: {
       clearTimeout(renewalTimeout)
       timers.delete(renewalTimeout)
       renewalTimeout = undefined
-      if (f.capabilities) update({ capabilities: [...f.capabilities] })
+      if (view.brain && view.brainAccess?.some((right) => !f.brainAccess?.includes(right)))
+        brainAuthorityEpoch++
+      update({
+        ...(f.capabilities ? { capabilities: [...f.capabilities] } : {}),
+        ...(view.brain ? { brainAccess: [...(f.brainAccess ?? [])] } : {}),
+      })
       renew(f.grantExpiresAt)
     } else if (f.type === 'pong') lastPong = now()
     else if (f.type === 'lanes' && f.id === 'lanes') {
@@ -443,6 +458,7 @@ export function createHostConnection(ports: {
   void connect()
   return {
     snapshot: () => connectionView(view, watches.values(), runtimeEpoch),
+    brainAuthorityEpoch: () => brainAuthorityEpoch,
     incarnation: () => ({ generation, runtimeEpoch }),
     watchTerminal(
       terminalId: string,
@@ -500,6 +516,8 @@ export function createHostConnection(ports: {
       key = ''
       update({
         state: 'signed-out',
+        brain: false,
+        brainAccess: [],
         capabilities: [],
         repositories: [],
         lanes: [],

@@ -53,7 +53,9 @@ it('releases automatically only when Nx reports the Host affected since its newe
 it('gives the signing key to the signing step only, and verifies before publishing', () => {
   const uses = steps.filter((s) => s.includes('HOST_RELEASE_SIGNING_KEY'))
   expect(uses).toEqual([step('Sign both manifests')])
-  expect(step('Build the four bundles')).toContain('installer.mjs --require')
+  expect(step('Collect the four verified bundles and generate the installer')).toContain(
+    'installer.mjs --require',
+  )
   const verify = step('Verify the signatures against the pinned keys')
   expect(verify).toContain('installer.mjs --allowed-signers')
   expect(verify).toContain('ssh-keygen -Y verify')
@@ -102,9 +104,11 @@ it('builds node-pty on each target runner and stages it into that target only', 
   // build-native resolves node-pty from apps/desktop, which has its own lockfile.
   expect(native).toContain('npm ci --prefix apps/desktop --ignore-scripts')
   expect(workflow).toContain('    needs: [plan, native]\n')
-  expect(step('Build the four bundles')).toContain(
-    '--native "native-artifacts/host-native-$target"',
-  )
+  const archive = step('Verify the default release archive on its target')
+  expect(archive).toContain('--verify')
+  expect(archive).toContain('--native "$RUNNER_TEMP/native"')
+  expect(native).toContain('name: host-bundle-${{ matrix.target }}')
+  expect(workflow).toContain('pattern: host-bundle-*')
 })
 
 it('resumes a failed publication from the same commit without replacing published bytes', () => {

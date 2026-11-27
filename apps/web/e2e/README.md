@@ -80,3 +80,13 @@ ownership. Integration should add a browser e2e command for this config, include
 its explicit TypeScript check, install both engines/dependencies in CI, set
 `WEB_E2E_EVIDENCE` to a runner-owned directory and upload the selected results.
 Never enable traces or upload disposable identity directories.
+
+## Selected Host Brain
+
+`brain.spec.ts` uses the same compact app, real Control grants and byte-forwarding
+proxy, with two independent in-process Host API listeners and signed Host identities.
+These listeners run the actual Brain wire adapter and lane subscription protocol;
+knowledge, source transcripts and Agent data come from synthetic ports, and the
+requesting CLI principal uses the adapter's local-link fixture. No model, live
+Brain store, installed service or OS-level socket attestation is exercised.
+The spec deliberately reuses the same entity, memory and lane IDs across Hosts.

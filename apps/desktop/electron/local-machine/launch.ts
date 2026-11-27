@@ -2,7 +2,9 @@ import { setTimeout as wait } from 'node:timers/promises'
 import { app, dialog } from 'electron'
 import type { LocalRuntimeMode } from '@phosphor/shared/ipc'
 import { log } from '../debug-log'
-import { bindLocalMachineGate } from '../ipc/local-machine-handlers'
+import { settleBrainOwnerAtLaunch } from './brain-handover/launch'
+import { launchedBrainOwner } from '../brain/owner-gate'
+import { bindLocalMachineGate, notifyLocalMachineChanged } from '../ipc/local-machine-handlers'
 import { routinesFileName } from '../routines'
 import {
   consentMigration,
@@ -49,7 +51,7 @@ export async function decideLocalRuntime(): Promise<LocalRuntimeMode | 'quit'> {
     }
   }
   bindLocalMachineGate({
-    status: launchGateStatus,
+    status: () => ({ ...launchGateStatus(), brainOwner: launchedBrainOwner(userData) }),
     onStatus: onLaunchGateStatus,
     retry: requestMigrationRetry,
     retryOwnerKey: retryOwnerKeyAccess,
@@ -57,6 +59,9 @@ export async function decideLocalRuntime(): Promise<LocalRuntimeMode | 'quit'> {
   })
   const mode = await runLaunchGate({ postCommit: createPostCommitSteps({ routinesFile }) })
   if (mode === 'daemon' && permit.allowed) await tripwire(userData, routinesFile)
+  // Before Brain can start: settle or start its move to the service (docs/brain-handover.md).
+  await settleBrainOwnerAtLaunch(mode, permit)
+  notifyLocalMachineChanged()
   return mode
 }
 

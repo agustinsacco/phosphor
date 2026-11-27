@@ -4,11 +4,21 @@ Brain remembers what it learns from the local lanes you choose. **A read saves w
 Other lanes can recall the memories, see who said what and follow the relationships between them.
 Brain Agent checks guesses and disagreements after the save. You can inspect a read and undo it.
 
-Brain is off by default. It runs on Desktop, on one machine. The graph, index and journal stay
-on disk. This does not mean the work is offline: the reader sends scrubbed conversation text to
+Brain is off by default. In ordinary releases, Desktop owns the graph, index and journal on disk. This does not mean the work is offline: the reader sends scrubbed conversation text to
 its provider. Brain Agent can receive memories and excerpts and check sources through its lane's
 connectors. Recalled memories can enter the asking lane's provider context. Nothing syncs to a
 Host or another Desktop. The PWA has no local Brain.
+
+**Does my Host support Brain?** Ordinary Host bundles do not include the native runtime
+needed to take over a Desktop Brain. An update alone does not move your data. Only a
+macOS Apple silicon bundle can be qualified, and the build must pass a read with the
+verified embedding model after extraction. A synthetic smoke test is not qualification.
+See [Host Brain packaging](host-brain-packaging.md) for the support requirements.
+
+**Can I message Brain Agent on a Host?** Not yet. Authorized clients can read its saved
+conversation, but Send and Tell are disabled. No production launch is verified to route
+every tool call through the Host's permission checks. Ask still searches the selected
+Host's memories. This restriction does not change Desktop-owned Brain Agent or Defrag.
 
 ## Turn it on
 
@@ -53,6 +63,17 @@ Use a local lane's menu:
 
 Cancel a queued or running read from the menu. Interrupted reads return to the queue at startup.
 Retry resumes the same job from saved steps unless another read of the lane comes after it.
+
+**A Host lane's menu** (right-click on Desktop, or the long-press or lane-header sheet on a
+phone) has the same direct **Queue for knowledge extraction**, or **Read new messages for Brain**
+after a finished read. You need Brain read and configure access on that Host. Nothing is read for
+the list: when the menu opens, it asks the Host once for Brain's status and that lane's state,
+and shows **Checking Brain…** until the answer arrives. The item appears only if Brain is on and
+the lane is not excluded or already being read. A title rule shows as a disabled row. The queue
+goes to that Host over the same connection, once per open. If the Host reconnects, your Brain
+access changes or Brain knowledge is reset in the meantime, nothing is queued; open the menu
+again. **Cancel knowledge extraction**, **Never let Brain read this lane**
+and **Read again for Brain…** stay in **Brain read…**.
 
 ### What the reader saves
 

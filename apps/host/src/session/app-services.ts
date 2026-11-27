@@ -8,7 +8,7 @@ import { HOST_SIDECARS } from '@phosphor/shared/host-local'
 import type { AppServiceRegistration, LocalStatus } from '@phosphor/shared/host-protocol-owner'
 import type { HostReleaseFeature } from '@phosphor/shared/host-release'
 import { readSidecar, writeSidecar } from '../config/sidecar'
-import type { OwnerHandlers } from '../owner/adapter'
+import { OwnerCallRefused, type OwnerHandlers } from '../owner/adapter'
 
 type Lane = { piSessionId: () => string | undefined; cwd: string }
 const sidecar = HOST_SIDECARS.appServices
@@ -64,7 +64,11 @@ function registration(reg: AppServiceRegistration, uid: number | undefined) {
 }
 
 /** Only an attested owner's connection can install this capability. Only recall preference survives it. */
-export function createAppServices(directory: string, uid: number | undefined) {
+export function createAppServices(
+  directory: string,
+  uid: number | undefined,
+  legacyAllowed: () => boolean = () => true,
+) {
   const lanes = new Map<string, Lane>()
   let active: ReturnType<typeof registration> | undefined
   const known = () =>
@@ -78,6 +82,7 @@ export function createAppServices(directory: string, uid: number | undefined) {
   const handlers = {
     'app.service.register': async (reg, call) => {
       call.signal.throwIfAborted()
+      if (!legacyAllowed()) throw new OwnerCallRefused('forbidden', 'Legacy Brain is unavailable.')
       const next = registration(reg, uid)
       writeSidecar(
         directory,
@@ -104,6 +109,7 @@ export function createAppServices(directory: string, uid: number | undefined) {
       return { brain: active ? 'registered' : known().state === 'ok' ? 'known' : 'none' }
     },
     resources(root: string) {
+      if (!legacyAllowed()) return undefined
       const read = known()
       if (read.state === 'ok' && read.value.recall)
         return {
@@ -121,7 +127,7 @@ export function createAppServices(directory: string, uid: number | undefined) {
     },
     forLane(handle: string, title: string) {
       const lane = lanes.get(handle)
-      return lane && active?.port(lane, title)
+      return legacyAllowed() && lane ? active?.port(lane, title) : undefined
     },
   }
 }

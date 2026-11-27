@@ -22,7 +22,8 @@ export interface HostOpsLanePorts {
  * skill while agent control is on, and the session binding. The lane's own op
  * dialogs are bound to their pending confirmations, and a settled run applies
  * deferred work. Null without ports, so a runtime built without agent control
- * spawns exactly as before.
+ * spawns exactly as before. A reserved lane (Brain Agent's) gets no channel: its
+ * only tools are its own.
  */
 export function createOpsContribution(ports?: HostOpsLanePorts): SpawnContribution | null {
   if (!ports) return null
@@ -34,7 +35,10 @@ export function createOpsContribution(ports?: HostOpsLanePorts): SpawnContributi
   })
   return {
     ...contribution,
+    spawn: (execution, policy) =>
+      execution.reserved ? undefined : contribution.spawn(execution, policy),
     attach(session, ctx) {
+      if (session.reserved) return
       contribution.attach?.(session, ctx)
       const id = session.sessionId
       if (ctx.execution.unattended === true) {

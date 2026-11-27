@@ -23,7 +23,8 @@ import {
 
 export interface SessionStartupRuntime {
   registry: Pick<SessionRegistry, 'create' | 'dispose'>
-  resolveWorkspace: (path: string) => string | null
+  /** The real folder; an owner with reserved lanes admits their folders only to their own spawns. */
+  resolveWorkspace: (path: string, execution: SessionExecution) => string | null
   launch: () => ReturnType<typeof prepareSessionLaunch>
   policy: SessionPolicyRuntime
   log: RuntimeLog
@@ -103,7 +104,8 @@ async function spawnSession(
   const started = performance.now()
   const options = {
     ...rawOptions,
-    workspacePath: runtime.resolveWorkspace(rawOptions.workspacePath) ?? rawOptions.workspacePath,
+    workspacePath:
+      runtime.resolveWorkspace(rawOptions.workspacePath, execution) ?? rawOptions.workspacePath,
   }
   if (options.sessionPath) {
     const healed = await healMissingSessionCwd(options.sessionPath, options.workspacePath).catch(
@@ -132,7 +134,7 @@ async function spawnSession(
     runtime.laneReload && !launch.stub
       ? await runtime.laneReload.capture(options.workspacePath)
       : null
-  const session = runtime.registry.create(options.workspacePath, spawnOptions)
+  const session = runtime.registry.create(options.workspacePath, spawnOptions, execution.reserved)
   applyLanePriority(session.client.pid, lowPriority, runtime.log)
   session.refreshDirectives = refreshDirectives
   const spawned = performance.now()

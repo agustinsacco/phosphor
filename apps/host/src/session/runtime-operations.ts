@@ -9,6 +9,14 @@ import { stopSession } from './lifecycle'
 import { parseSessionRequest } from './request'
 import { RequestError, type Delivery, type RuntimeState } from './runtime-state'
 import type { RuntimeDeletion, RuntimeService } from './runtime-wiring'
+import type { ReservedLane } from '@phosphor/session-runtime/pi/reserved-lane'
+import {
+  OUTSIDE_REPOSITORIES,
+  assertOrdinary,
+  isReservedPath,
+  ordinarySession,
+  reserveLane,
+} from './reserved-lanes'
 
 const ignore: Delivery = () => {}
 const MOVING =
@@ -45,6 +53,9 @@ async function parse(state: RuntimeState, request: unknown, deleting = false) {
   state.life.assertReady()
   const parsed = await parseSessionRequest(request, state.roots, { deleting })
   if (!parsed.ok) throw new RequestError(parsed.errors)
+  // A reserved lane's folder is no repository folder to an ordinary request.
+  if (isReservedPath(state, parsed.options.workspacePath))
+    throw new RequestError([{ pointer: '/repository', message: OUTSIDE_REPOSITORIES }])
   return parsed.options
 }
 
@@ -74,6 +85,7 @@ async function command(
   id: string,
   command: RpcCommand,
 ) {
+  assertOrdinary(state, id)
   const refusal = commandRefusal(command)
   if (refusal) throw new Error(refusal)
   if (!mayRunExtensionCommand(command)) return service.command(id, command)
@@ -84,6 +96,36 @@ async function command(
   } finally {
     await relearnFile(state, id)
     state.moving--
+  }
+}
+
+/** The routine runner's own handle on its sessions; never a reserved lane's. */
+function routineOperations(state: RuntimeState, service: RuntimeService) {
+  const { registry, options, timings } = state
+  return {
+    /** Internal runner only: still uses the shared service and path-lock domain. */
+    async startRoutine(request: unknown, deliver: Delivery, execution: SessionExecution) {
+      const parsed = await parse(state, request)
+      const create = () =>
+        service.create(parsed, deliver, {
+          ...execution,
+          unattended: true,
+        })
+      return options.leases
+        ? options.leases.withUse(parsed.workspacePath, 'routine', create)
+        : create()
+    },
+    routineClient(id: string) {
+      if (!options.routines?.owns(id)) throw new Error('not a routine session')
+      const session = ordinarySession(state, id)
+      if (!session) throw new Error('routine session unavailable')
+      return session.client
+    },
+    async stopRoutine(id: string) {
+      if (!options.routines?.owns(id)) throw new Error('not a routine session')
+      const session = ordinarySession(state, id)
+      if (session) await stopSession(session, registry, timings)
+    },
   }
 }
 
@@ -102,58 +144,44 @@ export function createRuntimeOperations(
       roots.splice(0, roots.length, ...next)
       machineContext.repositories = next.map((repository) => basename(repository))
     },
-    /** Internal runner only: still uses the shared service and path-lock domain. */
-    async startRoutine(request: unknown, deliver: Delivery, execution: SessionExecution) {
-      const parsed = await parse(state, request)
-      const create = () =>
-        service.create(parsed, deliver, {
-          ...execution,
-          unattended: true,
-        })
-      return options.leases
-        ? options.leases.withUse(parsed.workspacePath, 'routine', create)
-        : create()
-    },
-    routineClient(id: string) {
-      if (!options.routines?.owns(id)) throw new Error('not a routine session')
-      const session = registry.get(id)
-      if (!session) throw new Error('routine session unavailable')
-      return session.client
-    },
-    async stopRoutine(id: string) {
-      if (!options.routines?.owns(id)) throw new Error('not a routine session')
-      const session = registry.get(id)
-      if (session) await stopSession(session, registry, timings)
-    },
-    list: (): LiveSessionInfo[] => registry.list(),
+    ...routineOperations(state, service),
+    /** Live sessions, without reserved lanes. */
+    list: (): LiveSessionInfo[] =>
+      registry.list().filter(({ sessionId }) => !registry.get(sessionId)?.reserved),
+    /** The only handle on `lane`'s sessions (`reserved-lanes.ts`). */
+    reserve: (lane: ReservedLane) => reserveLane(state, service, lane),
     /** Start or resume; an already running session is refused. */
     start: (request: unknown, deliver: Delivery = ignore) =>
       start(state, service, request, deliver),
     /** A pi RPC command, unless commandRefusal refuses it. */
     command: (id: string, request: RpcCommand) => command(state, service, id, request),
     /** The session as one HTML document, exported to a Host-owned file that is then removed. */
-    exportHtml: (id: string, maxBytes: number) =>
-      exportSessionHtml((sid, request) => service.command(sid, request), id, maxBytes),
+    exportHtml: async (id: string, maxBytes: number) => {
+      assertOrdinary(state, id)
+      return exportSessionHtml((sid, request) => service.command(sid, request), id, maxBytes)
+    },
     /** Inspect or reconnect a connector inside a live lane, under the service's admission. */
-    mcpControl: (id: string, name: string, operation: 'inspect' | 'reconnect') =>
-      service.mcpControl(id, name, operation),
+    mcpControl: async (id: string, name: string, operation: 'inspect' | 'reconnect') => {
+      assertOrdinary(state, id)
+      return service.mcpControl(id, name, operation)
+    },
     /** Reload a settled lane's pi now (`lane.reload`); never throws. */
     async reloadNow(id: string) {
-      const session = registry.get(id)
+      const session = ordinarySession(state, id)
       if (!session?.client.alive) return 'failed' as const
       return reloadLaneNow(id, session.client, state.machine.log.write)
     },
     /** Send a controller's answer without treating it as an RPC command. */
     extensionUiResponse(id: string, response: ExtensionUIResponse): void {
       life.assertReady()
-      const session = registry.get(id)
+      const session = ordinarySession(state, id)
       if (!session || !session.client.alive) throw new Error('the session is not running')
       service.respond(id, response)
     },
     /** Let the turn end and be saved, then stop pi and its process group. */
     async stop(id: string): Promise<void> {
       if (options.routines?.owns(id)) throw new Error('routine owns this session')
-      const session = registry.get(id)
+      const session = ordinarySession(state, id)
       if (!session) throw new Error(`Unknown session: ${id}`)
       await stopSession(session, registry, timings)
     },

@@ -1,3 +1,4 @@
+import { hostBrain } from '@phosphor/host-client/brain'
 import { machineReads } from '@phosphor/host-client/machine-reads'
 import { repositoryReads } from '@phosphor/host-client/repository-reads'
 import { prStatusReads, routePrStatus } from '@phosphor/host-client/pr-status-reads'
@@ -5,7 +6,8 @@ import { handle } from './handle'
 
 type ReadConnection = Parameters<typeof machineReads>[0] &
   Parameters<typeof repositoryReads>[0] &
-  Parameters<typeof prStatusReads>[0]
+  Parameters<typeof prStatusReads>[0] &
+  Parameters<typeof hostBrain>[0]
 
 /**
  * GitHub reads that name a Host: a repository's PRs by branch (`gh:prsForRepo`
@@ -27,6 +29,8 @@ function hostGithubRouter(
 
 /** Read-only Host catalogues and repository files, answered over the manager's connection. */
 export function registerHostReadHandlers(connection: ReadConnection) {
+  const brain = hostBrain(connection)
+  handle('hosts:brain', (_event, scope, request) => brain.invoke(scope, request))
   const repositories = repositoryReads(connection)
   handle('hosts:repositoryFiles', (_event, hostId, repositoryId) =>
     repositories.list(hostId, repositoryId),

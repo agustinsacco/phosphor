@@ -4,6 +4,22 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./host-brain": {
+      "types": "./src/host-brain.ts",
+      "default": "./src/host-brain.ts"
+    },
+    "./host-brain-request": {
+      "types": "./src/host-brain-request.ts",
+      "default": "./src/host-brain-request.ts"
+    },
+    "./host-brain-result": {
+      "types": "./src/host-brain-result.ts",
+      "default": "./src/host-brain-result.ts"
+    },
+    "./brain-access": {
+      "types": "./src/brain-access.ts",
+      "default": "./src/brain-access.ts"
+    },
     "./brain-tidy": {
       "types": "./src/brain-tidy.ts",
       "default": "./src/brain-tidy.ts"

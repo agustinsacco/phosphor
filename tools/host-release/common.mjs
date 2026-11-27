@@ -11,7 +11,9 @@ export function isEntryPoint(url) {
   )
 }
 export const root = fileURLToPath(new URL('../../', import.meta.url))
-export const pin = JSON.parse(readFileSync(new URL('node.json', import.meta.url), 'utf8'))
+export const pin = JSON.parse(
+  readFileSync(new URL('../../apps/host/src/brain/node.json', import.meta.url), 'utf8'),
+)
 export const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
 const result = await build({
   stdin: {

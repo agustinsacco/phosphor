@@ -95,7 +95,7 @@ export function SentenceMap({
   )
 }
 
-function MapDrawing({
+export function MapDrawing({
   layout,
   label,
   width,

@@ -12,6 +12,7 @@ import {
 import { desktopPlatform, PlatformProvider, WIDE_BROWSER_PLATFORM } from '@/platform/Platform'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { PromptHost } from '@/components/PromptHost'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { CardMemories } from './card/CardMemories'
 import { BrainPage } from './BrainPage'
 import { useBrainNavigation } from './brainNavigation'
@@ -84,10 +85,10 @@ afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
-async function render(): Promise<void> {
+async function render(desktopOwnsBrain = true): Promise<void> {
   await act(async () =>
     root.render(
-      <PlatformProvider value={desktopPlatform(true, false)}>
+      <PlatformProvider value={desktopPlatform(desktopOwnsBrain, false, desktopOwnsBrain)}>
         <BrainPage />
         <PromptHost />
       </PlatformProvider>,
@@ -138,6 +139,31 @@ it('is one screen: no tabs and no Lanes, with Defrag and how many things wait', 
   const total = Object.values(status.agent.waiting).reduce((sum, n) => sum + n, 0)
   expect(container.querySelector('.page-shell-header')?.textContent).toContain(`${total} waiting`)
   expect(button('Defrag')?.dataset.tooltip).toContain('1 unlinked pair')
+})
+
+it('does not load This Mac’s Brain for a selected Host without Brain support', async () => {
+  const previous = useRemoteLanesStore.getState()
+  useRemoteLanesStore.setState({
+    filter: 'harbor',
+    snapshotStatus: 'ready',
+    hosts: {
+      harbor: {
+        connectionToken: 'harbor-epoch',
+        state: 'ready',
+        capabilities: ['sessions.read'],
+        repositories: [],
+        lanes: [],
+      },
+    },
+  })
+  try {
+    await render()
+    expect(called('brain:status')).toEqual([])
+    expect(region('Map')).toBeNull()
+    expect(container.textContent).toContain('does not support Brain')
+  } finally {
+    act(() => useRemoteLanesStore.setState(previous))
+  }
 })
 
 it('centres the map on you and opens your card', async () => {
@@ -371,7 +397,7 @@ it('opens Brain settings and refuses Brain on a platform without it', async () =
       </PlatformProvider>,
     ),
   )
-  expect(container.textContent).toContain('Brain is available on Desktop')
+  expect(container.textContent).toContain('Choose a Host to view its Brain.')
 })
 
 it('never shows a model name, cost or tokens', async () => {
@@ -379,4 +405,36 @@ it('never shows a model name, cost or tokens', async () => {
   const status = (await mock('brain:status', [])) as BrainStatus
   expect(container.textContent).not.toMatch(/tokens|\$\d|demo\/harbor-model/)
   expect(status.jobs.some((job) => job.model === 'demo/harbor-model')).toBe(true)
+})
+
+it('keeps the Desktop Brain until ownership changes, even when the local service supports Brain', async () => {
+  const previous = useRemoteLanesStore.getState()
+  const local = {
+    connectionToken: 'harbor-incarnation',
+    local: true as const,
+    state: 'ready' as const,
+    capabilities: [],
+    lanes: [],
+    repositories: [],
+  }
+  try {
+    useRemoteLanesStore.setState({
+      filter: 'harbor',
+      hosts: { harbor: local },
+      snapshotStatus: 'ready',
+    })
+    await render()
+    expect(cardTitle()).toBe('Mara Voss')
+    calls.length = 0
+    await act(async () =>
+      useRemoteLanesStore.setState({ hosts: { harbor: { ...local, brain: true } } }),
+    )
+    expect(cardTitle()).toBe('Mara Voss')
+    await render(false)
+    expect(region('Card')).toBeNull()
+    expect(container.textContent).toContain('You do not have access to this Host’s Brain.')
+    expect(called('brain:status')).toEqual([])
+  } finally {
+    await act(async () => useRemoteLanesStore.setState(previous))
+  }
 })

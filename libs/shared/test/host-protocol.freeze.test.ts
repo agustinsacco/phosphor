@@ -525,6 +525,12 @@ describe('Host API constants and op lists', () => {
       'owner.account.prepare',
       'owner.account.register',
       'owner.account.discard',
+      'owner.brainHandover.pin',
+      'owner.brainHandover.status',
+      'owner.brainHandover.begin',
+      'owner.brainHandover.verify',
+      'owner.brainHandover.commit',
+      'owner.brainHandover.abort',
     ])
     expect(OWNER_METHODS_ANY_LOCAL).toStrictEqual([
       'machine.local',

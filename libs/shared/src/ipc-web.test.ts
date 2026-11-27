@@ -84,3 +84,15 @@ it("serves agent ops through the Host and the reach switch through control; only
   for (const channel of ['app:localMachine', 'app:localMachineAction'] as const)
     expect(IPC_WEB[channel].kind).toBe('unsupported')
 })
+it('refuses the Host Brain IPC channels in the browser, which binds the hostBrain port directly', () => {
+  for (const channel of [
+    'hosts:brain',
+    'hosts:brainAccess',
+    'hosts:brainApprovals',
+    'hosts:brainAnswer',
+  ] as const)
+    expect(IPC_WEB[channel]).toEqual({
+      kind: 'unsupported',
+      reason: 'This native or mutating Host feature is unavailable in the browser.',
+    })
+})

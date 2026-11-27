@@ -43,7 +43,11 @@ export async function navigateDesktop(location: Location): Promise<void> {
       // Opening resets the machine choice, so a named machine is chosen after it.
       useSettingsUiStore.getState().setOpen(true)
       if (location.machine) useSettingsUiStore.getState().setMachine(location.machine)
-    } else useLayoutStore.getState().setPage(location.page)
+    } else {
+      if (location.page === 'brain' && location.machine)
+        useRemoteLanesStore.getState().setFilter(location.machine)
+      useLayoutStore.getState().setPage(location.page)
+    }
     return
   }
   if (location.to === 'new' && location.create) {

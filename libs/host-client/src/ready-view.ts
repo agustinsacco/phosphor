@@ -27,6 +27,8 @@ type ReadyView = Pick<
   | 'folderDirectives'
   | 'configFiles'
   | 'pagedLanes'
+  | 'brain'
+  | 'brainAccess'
   | 'capabilities'
 >
 
@@ -60,6 +62,8 @@ export function readyView(frame: Extract<HostFrame, { type: 'ready' }>, local = 
     sandboxes: frame.sandboxes === true,
     folderDirectives: frame.folderDirectives === true,
     configFiles: frame.configFiles === true,
+    brain: frame.brain === true,
+    brainAccess: frame.brain === true ? [...(frame.brainAccess ?? [])] : [],
     pagedLanes: frame.pagedLanes === true,
     ...(local ? { ownerLocal: frame.ownerLocal === true } : {}),
     capabilities: [...frame.capabilities],

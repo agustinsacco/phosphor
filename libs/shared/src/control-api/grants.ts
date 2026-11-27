@@ -4,6 +4,7 @@
  * carries one. Parsers keep known fields only.
  */
 
+import { parseBrainAccess } from '../brain-access'
 import { GRANT_LIMITS, GRANT_PREFIX } from '../host-grant'
 import {
   fail,
@@ -39,8 +40,11 @@ export function parseClientRegisterResponse(value: unknown): Parsed<ClientRegist
 export function parseGrantIssueRequest(value: unknown): Parsed<GrantIssueRequest> {
   if (!isRecord(value) || !isUuid(value.hostId) || !isUuid(value.clientId)) return fail('ids')
   if (value.configure !== undefined && value.configure !== true) return fail('configure')
+  const brainAccess = parseBrainAccess(value.brainAccess)
+  if (value.brainAccess !== undefined && !brainAccess?.length) return fail('brain-access')
   return ok({
     hostId: value.hostId,
+    ...(brainAccess ? { brainAccess } : {}),
     clientId: value.clientId,
     ...(value.configure === true ? { configure: true as const } : {}),
   })

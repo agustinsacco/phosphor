@@ -73,7 +73,7 @@ export function useSentenceMap(
   return { map: result, error, retry, truncated: data?.truncated ?? false }
 }
 
-function withSentences(
+export function withSentences(
   layout: MapLayout<BrainLink>,
   label: (id: string) => string,
   now: number,

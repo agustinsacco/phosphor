@@ -1,3 +1,4 @@
+import { runCliBrain } from './cli-brain'
 import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { errorText } from '@phosphor/shared/errors'
@@ -112,6 +113,7 @@ export async function runCliOps(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
+  if (argv[0] === 'brain') return runCliBrain(argv.slice(1), io, context)
   const normalized = helpArgv(argv, OP_CATALOG)
   const op = catalogOp(normalized)
   if (!op) {

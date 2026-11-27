@@ -1,3 +1,4 @@
+import type { BrainAccess } from '../brain-access'
 import type { LaneReceipt } from '../lane-receipt'
 import type { HostCapability } from '../remote-host'
 import type {
@@ -104,6 +105,8 @@ export interface HostConnectionView {
   configFiles?: boolean
   /** Host pages its folder and lane lists past the single-frame caps. */
   pagedLanes?: boolean
+  brain?: boolean
+  brainAccess?: readonly BrainAccess[]
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
   lanes: HostLaneView[]
@@ -118,6 +121,8 @@ export type LocalRuntimeMode = 'in-app' | 'daemon'
 
 /** This Mac's runtime, its one-time move to the Phosphor service and that service's health. */
 export interface LocalMachineStatus {
+  /** Local-only launch decision, independent of which runtime owns lanes. */
+  brainOwner?: 'desktop' | 'host' | 'moving'
   mode: LocalRuntimeMode
   migration:
     | 'not-needed'

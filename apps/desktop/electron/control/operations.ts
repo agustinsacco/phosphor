@@ -1,3 +1,4 @@
+import type { BrainAccess } from '@phosphor/shared/brain-access'
 import {
   CONTROL_ROUTES,
   isUuid,
@@ -112,11 +113,17 @@ export function createControlOperations(ports: OperationPorts) {
         ? call(CONTROL_ROUTES.clients, 'POST', parseClientRegisterResponse, parsed.value)
         : Promise.resolve(controlFailure('bad-request'))
     },
-    grant(hostId: unknown, clientId: unknown, configure?: true) {
+    grant(
+      hostId: unknown,
+      clientId: unknown,
+      configure?: true,
+      brainAccess?: readonly BrainAccess[],
+    ) {
       const parsed = parseGrantIssueRequest({
         hostId,
         clientId,
         ...(configure ? { configure } : {}),
+        ...(brainAccess?.length ? { brainAccess } : {}),
       })
       return parsed.ok
         ? call(CONTROL_ROUTES.grants, 'POST', parseGrantIssueResponse, parsed.value)

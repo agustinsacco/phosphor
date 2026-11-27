@@ -1,3 +1,4 @@
+import type { BrainAccess } from '@phosphor/shared/brain-access'
 import type { AccountStatusView, AccountView } from '@phosphor/shared/account'
 import {
   CONTROL_ROUTES,
@@ -375,13 +376,14 @@ export function createBrowserControl(ports: ControlPorts) {
       if (!current || stopped) throw new Error('signed-out')
       configurationHosts.add(hostId)
     },
-    async grant(hostId: string) {
+    async grant(hostId: string, brainAccess?: readonly BrainAccess[]) {
       if (!current) throw new Error('signed-out')
       try {
         return await parsed(CONTROL_ROUTES.grants, parseGrantIssueResponse, 'POST', {
           hostId,
           clientId: current.clientId,
           ...(configurationHosts.has(hostId) ? { configure: true } : {}),
+          ...(brainAccess?.length ? { brainAccess } : {}),
         })
       } catch (error) {
         throw grantFailure(error)

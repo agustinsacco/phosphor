@@ -1,3 +1,4 @@
+import { BRAIN_ACCESS } from '@phosphor/shared/brain-access'
 import { createPublicKey, randomBytes, verify, type KeyObject } from 'node:crypto'
 import {
   LOCAL_LIMITS,
@@ -51,6 +52,7 @@ export interface LocalAuthPorts {
   nonces: LocalNonces
   /** `owner-clients.json`, re-read on every auth so a new pairing needs no restart. */
   ownerClients(): OwnerClientsFile | null
+  brain?(): boolean
   readyFlags?(): ReadonlySet<ReadyOpFlag>
   now?: () => number
 }
@@ -136,10 +138,13 @@ export function createLocalAuth(ports: LocalAuthPorts): ConnectionAuthenticator 
       const expiresAt = at + LOCAL_LIMITS.grantTtlSec * 1000
       const grantExpiresAt = new Date(expiresAt).toISOString()
       const owner = principal.kind === 'owner'
+      const brain = ports.brain?.() === true
+      const brainAccess = brain ? (owner ? BRAIN_ACCESS : []) : undefined
       outcome.accept({
         client: payload.client,
         principal,
         caps,
+        brainAccess,
         closeAt: expiresAt + LOCAL_LIMITS.iatSkewSec * 1000,
         grantExpiresAt,
         ready: (answered, connectionId) =>
@@ -154,6 +159,8 @@ export function createLocalAuth(ports: LocalAuthPorts): ConnectionAuthenticator 
             flags: ports.readyFlags?.(),
             warmOnOpen: true,
             ownerLocal: owner,
+            brain,
+            brainAccess,
           }),
       })
     },

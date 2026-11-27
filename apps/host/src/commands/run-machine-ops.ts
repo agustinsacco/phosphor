@@ -86,6 +86,7 @@ export async function bindRunOps(
     ...started.resources,
     workspaceLeases: started.leases,
     appServices: parts.services?.appServices,
+    brainRecall: parts.brain?.recall ?? null,
     sandboxes: runSandboxes(context, ports, started),
     ...daemonLanePorts({
       runtime,

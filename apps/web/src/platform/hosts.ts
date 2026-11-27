@@ -1,4 +1,5 @@
 import type { HostResourceChangedEvent } from '@phosphor/shared/ipc'
+import { parseBrainAccess, type BrainAccess } from '@phosphor/shared/brain-access'
 import {
   createHostConnection,
   hostEndpoint,
@@ -48,6 +49,56 @@ export interface HostPorts {
   attention: (hostId: string, event: AttentionEvent) => void
   now?: () => number
 }
+function saveBrainRights(
+  choices: Map<string, readonly BrainAccess[]>,
+  id: string,
+  rights: readonly BrainAccess[],
+) {
+  if (rights.length) choices.set(id, rights)
+  else choices.delete(id)
+}
+
+async function grantFingerprint(value: GrantIssueResponse) {
+  // Bind grant metadata to the exact directory entry, including enrolled key fingerprint.
+  const raw = Uint8Array.from(
+    atob(value.host.publicKey.replace(/-/g, '+').replace(/_/g, '/')),
+    (c) => c.charCodeAt(0),
+  )
+  return formatKeyFingerprint(new Uint8Array(await crypto.subtle.digest('SHA-256', raw)))
+}
+
+function checkGrantTarget(
+  value: GrantIssueResponse,
+  machine: MachineView,
+  fingerprint: string,
+  now: number,
+) {
+  const remaining = Date.parse(value.expiresAt) - now
+  if (
+    value.host.id !== machine.id ||
+    value.host.endpoint !== machine.endpoint ||
+    fingerprint !== machine.keyFingerprint ||
+    remaining <= 0 ||
+    remaining > 330_000
+  )
+    throw new Error('grant-refused')
+}
+
+/** Duplicate ids make endpoint ownership ambiguous; such a directory is not admitted. */
+function admissibleDirectory(machines: readonly MachineView[]) {
+  return machines.length <= 32 && new Set(machines.map((m) => m.id)).size === machines.length
+}
+
+function refusedDirectory() {
+  return {
+    ok: false as const,
+    error: {
+      code: 'unavailable' as const,
+      message: 'Invalid or oversized machine directory (maximum 32 Hosts).',
+    },
+  }
+}
+
 /** Directory, grants and connections belong to exactly one in-memory cookie generation. */
 export function createBrowserHosts(ports: HostPorts) {
   const identity = ports.identity ?? browserCrypto,
@@ -56,6 +107,7 @@ export function createBrowserHosts(ports: HostPorts) {
     string,
     { machine: MachineView; connection?: Connection; cached: HostConnectionSnapshot }
   >()
+  const brainRights = new Map<string, readonly BrainAccess[]>()
   const grants = new Map<string, GrantIssueResponse>()
   const flights = new Map<string, { promise: Promise<GrantIssueResponse>; token: object }>()
   let generation = 0,
@@ -73,6 +125,7 @@ export function createBrowserHosts(ports: HostPorts) {
     sequence++
     for (const entry of entries.values()) entry.connection?.close()
     entries.clear()
+    brainRights.clear()
     directoryReady = false
     grants.clear()
     flights.clear()
@@ -82,6 +135,9 @@ export function createBrowserHosts(ports: HostPorts) {
     const entry = entries.get(hostId)
     entry?.connection?.close()
     if (entry) entry.connection = undefined
+    forgetGrant(hostId)
+  }
+  function forgetGrant(hostId: string) {
     grants.delete(hostId)
     flights.delete(hostId)
   }
@@ -95,15 +151,11 @@ export function createBrowserHosts(ports: HostPorts) {
     if (flight) return flight.promise
     const token = {}
     const promise = (async () => {
-      const value = await ports.control.grant(machine.id)
-      // Bind grant metadata to the exact directory entry, including enrolled key fingerprint.
-      const raw = Uint8Array.from(
-        atob(value.host.publicKey.replace(/-/g, '+').replace(/_/g, '/')),
-        (c) => c.charCodeAt(0),
-      )
-      const fingerprint = formatKeyFingerprint(
-        new Uint8Array(await crypto.subtle.digest('SHA-256', raw)),
-      )
+      const rights = brainRights.get(machine.id)
+      const value = await (rights
+        ? ports.control.grant(machine.id, rights)
+        : ports.control.grant(machine.id))
+      const fingerprint = await grantFingerprint(value)
       if (
         stopped ||
         epoch !== generation ||
@@ -112,15 +164,7 @@ export function createBrowserHosts(ports: HostPorts) {
         flights.get(machine.id)?.token !== token
       )
         throw new Error('signed-out')
-      const remaining = Date.parse(value.expiresAt) - now()
-      if (
-        value.host.id !== machine.id ||
-        value.host.endpoint !== machine.endpoint ||
-        fingerprint !== machine.keyFingerprint ||
-        remaining <= 0 ||
-        remaining > 330_000
-      )
-        throw new Error('grant-refused')
+      checkGrantTarget(value, machine, fingerprint, now())
       grants.set(machine.id, value)
       return value
     })()
@@ -176,19 +220,9 @@ export function createBrowserHosts(ports: HostPorts) {
       directoryReady = false
       return result
     }
-    // Duplicate ids make endpoint ownership ambiguous; do not admit the directory.
-    if (
-      result.machines.length > 32 ||
-      new Set(result.machines.map((m) => m.id)).size !== result.machines.length
-    ) {
+    if (!admissibleDirectory(result.machines)) {
       directoryReady = false
-      return {
-        ok: false as const,
-        error: {
-          code: 'unavailable' as const,
-          message: 'Invalid or oversized machine directory (maximum 32 Hosts).',
-        },
-      }
+      return refusedDirectory()
     }
     directoryReady = true
     directoryAt = now()
@@ -196,6 +230,7 @@ export function createBrowserHosts(ports: HostPorts) {
       if (!result.machines.some((m) => m.id === id)) {
         drop(id)
         entries.delete(id)
+        brainRights.delete(id)
       }
     offset = Date.parse(result.serverTime) - now()
     for (const machine of result.machines) {
@@ -208,6 +243,7 @@ export function createBrowserHosts(ports: HostPorts) {
       ) {
         drop(machine.id)
         entries.delete(machine.id)
+        brainRights.delete(machine.id)
       }
       const entry = entries.get(machine.id)
       if (entry) {
@@ -238,11 +274,18 @@ export function createBrowserHosts(ports: HostPorts) {
       const entry = entries.get(id)
       return entry ? grant(entry.machine) : Promise.reject(new Error('grant-refused'))
     },
-    /** Drops the cached and in-flight grant only; the open connection keeps its admission. */
-    forgetGrant(id: string) {
-      grants.delete(id)
-      flights.delete(id)
+    setBrainAccess(id: string, value: readonly BrainAccess[]) {
+      const rights = parseBrainAccess(value)
+      if (!rights || (rights.length && !entries.has(id))) throw new Error('grant-refused')
+      const previous = brainRights.get(id) ?? []
+      saveBrainRights(brainRights, id, rights)
+      if (previous.some((right) => !rights.includes(right))) {
+        drop(id)
+        reconcile()
+      } else forgetGrant(id)
     },
+    /** Drops the cached and in-flight grant only; the open connection keeps its admission. */
+    forgetGrant,
     present: (id: string) => entries.has(id),
     label: (id: string) => entries.get(id)?.machine.label ?? 'Host',
     /**

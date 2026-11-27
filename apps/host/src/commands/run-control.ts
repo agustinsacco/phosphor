@@ -6,6 +6,7 @@ import type { Receipt } from '@phosphor/shared/host-protocol'
 import { createAuthority, type Authority } from '../api/authority'
 import type { LaneAdapter } from '../api/lanes'
 import { startApi } from '../api/server'
+import type { BrainSurfaceBinding } from '../api/brain-adapter'
 import type { ControlClient } from '../control/client'
 import { prepareControl, withCommandLock } from '../control/command'
 import { createControlLink, type ControlLink, type ControlLinkPorts } from '../control/link'
@@ -74,6 +75,8 @@ export function startRunApi(
     laneAdapter?: LaneAdapter
     peers?: () => Iterable<{ clientId(): string | undefined }>
     ops?: OpsAdapterPorts
+    /** The Brain surface the owner socket serves too; absent: this Host serves no Brain. */
+    brain?: BrainSurfaceBinding
   },
 ) {
   const { control, config } = options
@@ -84,6 +87,7 @@ export function startRunApi(
     laneAdapter: options.laneAdapter,
     peers: options.peers,
     ops: options.ops,
+    brain: options.brain,
     authority: control.authority,
     origin: control.url,
     hostId: control.identity.hostId,
@@ -188,6 +192,7 @@ export function createRunLink(
     accounts?: HostClaudeAccounts
     /** Agent control: run's slot, and the identity reach and confirm items use, kept current here. */
     ops?: { slot: OpsAdapterPorts; enrolled: { current: EnrolledControl | null } }
+    brain?: BrainSurfaceBinding
   },
 ): ControlLink {
   const { config, stateDirectory, accounts } = options
@@ -214,6 +219,7 @@ export function createRunLink(
           laneAdapter: options.laneAdapter,
           peers: options.peers,
           ops: options.ops?.slot,
+          brain: options.brain,
         })
         return createRunHeartbeat(context, { control, config, stateDirectory, accounts })
       },

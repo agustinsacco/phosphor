@@ -1,4 +1,8 @@
 import type { HostResourceChange } from '../host-protocol/resource-change'
+import type { BrainSurfaceScope, BrainApproval } from './host-brain'
+import type { BrainAccess } from '../brain-access'
+import type { HostBrainRequest } from '../host-brain-request'
+import type { HostBrainMap, HostBrainMethod } from '../host-brain'
 import type { LaneArchiveList } from '../lane-archive'
 import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
@@ -25,6 +29,22 @@ export interface HostResourceChangedEvent extends HostResourceChange {
 }
 
 export interface HostsInvokeMap {
+  'hosts:brainAccess': {
+    args: [scope: BrainSurfaceScope, rights: readonly BrainAccess[]]
+    result: void
+  }
+  'hosts:brainApprovals': {
+    args: [scope: BrainSurfaceScope]
+    result: BrainApproval[]
+  }
+  'hosts:brainAnswer': {
+    args: [scope: BrainSurfaceScope, id: string, approved: boolean]
+    result: void
+  }
+  'hosts:brain': {
+    args: [scope: BrainSurfaceScope, request: HostBrainRequest]
+    result: HostBrainMap[HostBrainMethod]['result']
+  }
   'hosts:archiveLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:archives': { args: [hostId: string, measure?: boolean]; result: LaneArchiveList }
   'hosts:restoreArchive': { args: [hostId: string, id: string]; result: void }

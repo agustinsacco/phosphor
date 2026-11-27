@@ -1,4 +1,5 @@
 /** The ready frame: the Host's enrolled hello, its proof and the connection's capabilities. */
+import { parseBrainAccess } from '../brain-access'
 import { isIsoTime, isUuid } from '../control-api'
 import {
   HOST_CAPABILITIES,
@@ -65,8 +66,11 @@ export function parseReadyFrame(
     return null
   const h = validateHostHello(v.hello, v.hello.hostId)
   const flags = readyOpFlags(v)
+  const brainAccess = parseBrainAccess(v.brainAccess)
   if (
     !flags ||
+    (v.brain !== undefined && typeof v.brain !== 'boolean') ||
+    (v.brainAccess !== undefined && (v.brain !== true || !brainAccess)) ||
     !h.ok ||
     v.protocolVersion !== HOST_PROTOCOL_VERSION ||
     !text(v.proof, 86, 86) ||
@@ -113,6 +117,8 @@ export function parseReadyFrame(
     ...(v.prStatus !== undefined ? { prStatus: v.prStatus as boolean } : {}),
     ...(v.webPushKey !== undefined ? { webPushKey: v.webPushKey } : {}),
     ...(v.prTracking !== undefined ? { prTracking: v.prTracking as boolean } : {}),
+    ...(typeof v.brain === 'boolean' ? { brain: v.brain } : {}),
+    ...(brainAccess ? { brainAccess } : {}),
     ...flags,
   }
 }

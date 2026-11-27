@@ -327,12 +327,29 @@ jobs:
           path: apps/site/test-results/
           retention-days: 3
 
+  host-brain-package:
+    name: Host Brain synthetic native package
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.4
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify packaged workers with synthetic CPU inference (not model qualification)
+        env:
+          HOST_RELEASE_VERSION: 0.0.0
+        run: |
+          node tools/host-release/build-bundle.mjs --target darwin-arm64 \
+            --out "$RUNNER_TEMP/host-brain-smoke" --cache "$RUNNER_TEMP/node-cache" --brain-smoke
+
   # The one required status check. Branch rules name this job instead of every
   # matrix leg, so shard counts and platforms can change without editing them.
   result:
     name: CI result
     if: always()
-    needs: [changes, e2e, checks, unit, web-e2e, control-schema, site]
+    needs: [changes, e2e, checks, unit, web-e2e, control-schema, site, host-brain-package]
     runs-on: [self-hosted, Linux, X64]
     steps:
       # A job is skipped only when `changes` succeeded and said it is not

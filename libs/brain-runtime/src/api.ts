@@ -11,7 +11,7 @@ import {
   type BrainStatus,
 } from '@phosphor/shared/brain'
 import type { BrainStore } from '@phosphor/memory-engine/types'
-import type { BrainApi, BrainServiceOptions, BrainSearchPort } from './types'
+import type { BrainApi, BrainMutationCheck, BrainServiceOptions, BrainSearchPort } from './types'
 import type { ExtractionQueue } from './queue'
 import { extractionView } from './extraction-view'
 import { laneInfo } from './lane'
@@ -31,7 +31,12 @@ interface ApiContext {
   startModel(run: () => Promise<void>): void
   maintenance: Pick<TidyMaintenance, 'reset'>
   defrag: Defrag
+  beforeMutation?: BrainMutationCheck
 }
+function checkMutation(context: ApiContext, source?: { sessionId: string; sessionPath: string }) {
+  context.beforeMutation?.(context.store.snapshot(), source)
+}
+
 function checkPrefs(prefs: BrainPrefs): void {
   if (
     !prefs ||
@@ -44,11 +49,8 @@ function checkPrefs(prefs: BrainPrefs): void {
   checkBrainReaderModel(prefs.model)
   checkBrainNeverRead(prefs.neverRead)
 }
-async function enqueue(
-  ref: BrainLaneRef,
-  { store, options, queue, files }: ApiContext,
-  replaces?: string,
-): Promise<void> {
+async function enqueue(ref: BrainLaneRef, context: ApiContext, replaces?: string): Promise<void> {
+  const { store, options, queue, files } = context
   const check = () => {
     if (!queue.accepting) throw new Error('Brain is resetting.')
     if (!store.snapshot().prefs.enabled) throw new Error('Turn on Brain before queueing a lane.')
@@ -69,6 +71,7 @@ async function enqueue(
     title: lane.title ?? '',
   })
   if (refusal) throw new Error(refusal)
+  checkMutation(context, { sessionId: lane.sessionId, sessionPath: ref.sessionPath })
   store.enqueue(
     {
       replaces,
@@ -103,6 +106,7 @@ export function createApi(context: ApiContext): BrainApi {
   const { store, options, search, queue, changed } = context
   const status = (): BrainStatus => apiStatus(context)
   const mutate = async (run: () => void): Promise<BrainStatus> => {
+    checkMutation(context)
     run()
     await search.refresh()
     changed()
@@ -133,35 +137,45 @@ export function createApi(context: ApiContext): BrainApi {
       return status()
     },
     cancel: async (id) => {
+      checkMutation(context)
       queue.cancel(id)
       return status()
     },
     retry: async (id) => {
+      checkMutation(context, store.job(id))
       queue.retry(id)
       return status()
     },
     extraction: async (id) => extractionView(store, id),
-    reset: async () => {
-      await queue.pause()
-      try {
-        context.maintenance.reset()
-        store.reset()
-        await Promise.all(
-          ['calls', 'forks'].map((name) =>
-            rm(join(options.directory, name), { recursive: true, force: true }),
-          ),
-        )
-        await search.refresh()
-        changed()
-        return status()
-      } finally {
-        queue.resume()
-      }
-    },
+    reset: () => resetApi(context, status),
     ...tidyApi(store, status, mutate),
-    ...defragApi(store, context.defrag, status, mutate),
+    ...defragApi(store, context.defrag, status, mutate, () => checkMutation(context)),
     ...readApi(context),
     forget: async (id) => mutate(() => store.forget(id)),
+  }
+}
+
+export class BrainResetBusy extends Error {}
+
+async function resetApi(context: ApiContext, status: () => BrainStatus) {
+  const { queue, store, options, search, changed } = context
+  checkMutation(context)
+  if (context.beforeMutation && queue.hasWork) throw new BrainResetBusy()
+  await queue.pause()
+  try {
+    checkMutation(context)
+    context.maintenance.reset()
+    store.reset()
+    await Promise.all(
+      ['calls', 'forks'].map((name) =>
+        rm(join(options.directory, name), { recursive: true, force: true }),
+      ),
+    )
+    await search.refresh()
+    changed()
+    return status()
+  } finally {
+    queue.resume()
   }
 }
 
@@ -172,6 +186,7 @@ function modelApi(
   const { store, options, changed, queue, startModel } = context
   return {
     neverRead: async (sessionId, never) => {
+      checkMutation(context)
       store.setPrefs(setBrainLaneNeverRead(store.snapshot().prefs, sessionId, never))
       changed()
       queue.kick()
@@ -180,7 +195,15 @@ function modelApi(
     setPrefs: async (prefs) => {
       checkPrefs(prefs)
       const previous = store.snapshot().prefs
-      store.setPrefs(prefs)
+      checkMutation(context)
+      store.setPrefs(
+        context.beforeMutation
+          ? {
+              ...prefs,
+              neverRead: { ...prefs.neverRead, sessionIds: previous.neverRead.sessionIds },
+            }
+          : prefs,
+      )
       if (previous.enabled !== prefs.enabled)
         startModel(() => options.embeddings.setEnabled(prefs.enabled))
       changed()
@@ -188,13 +211,23 @@ function modelApi(
       return status()
     },
     download: async () => {
+      checkMutation(context)
       startModel(() => options.embeddings.download())
       return status()
     },
     removeModel: async () => {
       if (store.snapshot().prefs.enabled)
         throw new Error('Turn off Brain before removing its model.')
-      await options.embeddings.remove()
+      checkMutation(context)
+      await options.embeddings.remove(
+        context.beforeMutation
+          ? () => {
+              checkMutation(context)
+              if (store.snapshot().prefs.enabled)
+                throw new Error('Turn off Brain before removing its model.')
+            }
+          : undefined,
+      )
       changed()
       return status()
     },

@@ -123,13 +123,20 @@ jobs:
         run: |
           set -euo pipefail
           node --input-type=module -e 'import {nodeArchive} from "./tools/host-release/build-bundle.mjs"; await nodeArchive(process.env.TARGET, process.env.RUNNER_TEMP + "/node-cache")'
-          V=$(node -p "require('./tools/host-release/node.json').version")
+          V=$(node -p "require('./apps/host/src/brain/node.json').version")
           tar -xzf "$RUNNER_TEMP/node-cache/node-v$V-$TARGET.tar.gz" -C "$RUNNER_TEMP"
           node tools/host-release/build-native.mjs --out "$RUNNER_TEMP/native" --node "$RUNNER_TEMP/node-v$V-$TARGET/bin/node"
+      - name: Verify the default release archive on its target
+        env:
+          TARGET: ${{ matrix.target }}
+          HOST_RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          node tools/host-release/build-bundle.mjs --target "$TARGET" --verify \
+            --out "$RUNNER_TEMP/check-release" --cache "$RUNNER_TEMP/node-cache" --native "$RUNNER_TEMP/native"
       - uses: actions/upload-artifact@v4
         with:
-          name: host-native-${{ matrix.target }}
-          path: ${{ runner.temp }}/native
+          name: host-bundle-${{ matrix.target }}
+          path: ${{ runner.temp }}/check-release/*.tar.gz
           if-no-files-found: error
 
   release:
@@ -217,18 +224,15 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: host-native-*
-          path: native-artifacts
+          pattern: host-bundle-*
+          path: dist
+          merge-multiple: true
 
-      - name: Build the four bundles
-        env:
-          HOST_RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+      - name: Collect the four verified bundles and generate the installer
         run: |
           set -euo pipefail
           node tools/host-release/installer.mjs --require
-          for target in linux-x64 linux-arm64 darwin-arm64 darwin-x64; do
-            node tools/host-release/build-bundle.mjs --target "$target" --out dist --cache "$RUNNER_TEMP/node-cache" --native "native-artifacts/host-native-$target"
-          done
+          node --input-type=module -e 'import {generateInstaller} from "./tools/host-release/installer.mjs"; generateInstaller("dist/install.sh")'
 
       - name: Sign both manifests
         env:

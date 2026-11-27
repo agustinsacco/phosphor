@@ -1,7 +1,6 @@
-// Characterizes the public control-api entry before it is split into leaf
-// modules behind the same path. Literal baselines only, never snapshots: every
-// runtime export, every wire type, the signed bytes, the canonical encodings,
-// the per-field rules and the projection that drops unknown fields.
+// Freeze the public Control API at its entry point: exports, wire types, signatures,
+// encodings and field projection. Use literal baselines, not snapshots.
+import type { BrainAccess } from './brain-access'
 import { createHash, createPrivateKey, sign } from 'node:crypto'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import vector from './__fixtures__/control-signing-vector.json'
@@ -309,6 +308,7 @@ describe('public inventory', () => {
       readonly hostId: string
       readonly clientId: string
       readonly configure?: true
+      readonly brainAccess?: readonly BrainAccess[]
     }>()
     expectTypeOf<GrantIssueResponse>().toEqualTypeOf<{
       readonly grant: string

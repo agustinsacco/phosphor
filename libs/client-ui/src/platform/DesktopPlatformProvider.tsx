@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useBrain } from '@/features/brain/useBrain'
+import { useLocalServiceStatus } from '@/features/updates/useLocalServiceStatus'
 import { desktopPlatform, PlatformProvider } from './Platform'
 
-const brainEnabled = (): boolean => useBrain.getState().status?.prefs.enabled === true
-
-/**
- * Desktop renders before `brain:status` answers. The first status that arrives
- * decides whether Brain was enabled at launch; once shown, Brain stays for the
- * launch, and a failed status leaves the preview choice as it is.
- */
+/** The main-process launch decision, not the visibility of a service capability, picks the owner. */
 export function DesktopPlatformProvider({
   brainPreview,
   children,
@@ -16,24 +11,43 @@ export function DesktopPlatformProvider({
   brainPreview: boolean
   children: ReactNode
 }): ReactNode {
-  const [enabledAtLaunch, setEnabledAtLaunch] = useState(brainEnabled)
+  const { status } = useLocalServiceStatus()
+  const eligible = status?.brainOwner === 'desktop'
+  const [owner, setOwner] = useState(false)
+  const [enabledAtLaunch, setEnabledAtLaunch] = useState(false)
   useEffect(() => {
-    if (enabledAtLaunch) return undefined
-    // The status can land between the first render and this effect.
-    if (useBrain.getState().status) {
-      if (brainEnabled()) setEnabledAtLaunch(true)
+    if (!eligible) {
+      setOwner(false)
       return undefined
     }
-    const off = useBrain.subscribe((state) => {
-      if (!state.status) return
-      off()
-      if (state.status.prefs.enabled) setEnabledAtLaunch(true)
-    })
-    return off
-  }, [enabledAtLaunch])
+    let active = true
+    // This IPC is guarded by the durable Brain owner, independently of lane mode.
+    // A refusal is expected after handover, so don't surface it as a legacy UI toast.
+    void window.phosphor.invoke('brain:status').then(
+      (brain) => {
+        if (!active) return
+        setOwner(brain.supported)
+        if (!brain.supported) return
+        if (brain.prefs.enabled) setEnabledAtLaunch(true)
+        const existing = useBrain.getState()
+        if (!existing.status && !existing.saving) useBrain.setState({ status: brain, error: '' })
+      },
+      () => {
+        if (active) setOwner(false)
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [eligible])
   const platform = useMemo(
-    () => desktopPlatform(enabledAtLaunch, brainPreview),
-    [enabledAtLaunch, brainPreview],
+    () =>
+      desktopPlatform(
+        eligible && owner && enabledAtLaunch,
+        eligible && owner && brainPreview,
+        eligible,
+      ),
+    [eligible, owner, enabledAtLaunch, brainPreview],
   )
   return <PlatformProvider value={platform}>{children}</PlatformProvider>
 }

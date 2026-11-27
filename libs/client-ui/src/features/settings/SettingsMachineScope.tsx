@@ -1,4 +1,5 @@
 import { localServiceId, serviceScope, orderedHostIds } from '@/stores/localServiceScope'
+import { brainMachine } from '@/features/brain/brainMachine'
 import { useMemo } from 'react'
 import { usePlatform } from '@/platform/Platform'
 import { localMachineLabel } from '@/lib/localMachine'
@@ -46,8 +47,8 @@ export interface SettingsMachineChoice {
 }
 
 /** This Mac when the client has local lanes, then every known Host when it can configure one. */
-function useSettingsMachineChoices(): SettingsMachineChoice[] {
-  const { localLanes, machineSettings } = usePlatform()
+function useSettingsMachineChoices(brain: boolean): SettingsMachineChoice[] {
+  const { localLanes, machineSettings, localBrain, desktopBrainOwner } = usePlatform()
   const machines = useMachinesStore((s) => s.machines)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   return useMemo(() => {
@@ -58,11 +59,16 @@ function useSettingsMachineChoices(): SettingsMachineChoice[] {
       machines.map((m) => m.id),
       hosts,
     )
+    const legacy = brain && desktopBrainOwner
     return [
-      ...(localLanes && !local ? [{ id: 'local', label: localMachineLabel() }] : []),
-      ...(machineSettings ? hostIds.map((id) => ({ id, label: label(id) })) : []),
+      ...((localLanes && !local) || (legacy && localBrain)
+        ? [{ id: 'local', label: localMachineLabel() }]
+        : []),
+      ...(machineSettings
+        ? hostIds.filter((id) => !legacy || id !== local).map((id) => ({ id, label: label(id) }))
+        : []),
     ]
-  }, [localLanes, machineSettings, machines, hosts])
+  }, [localLanes, machineSettings, machines, hosts, brain, localBrain, desktopBrainOwner])
 }
 
 /**
@@ -74,13 +80,27 @@ export function useSettingsMachine(fallback?: string): {
   choices: SettingsMachineChoice[]
   machine: SettingsMachineChoice | null
 } {
-  const choices = useSettingsMachineChoices()
+  const brain = useSettingsUiStore((s) => s.tab === 'brain')
+  const choices = useSettingsMachineChoices(brain)
+  const { desktopBrainOwner } = usePlatform()
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const chosen = useSettingsUiStore((s) => s.machine)
   const host = useSettingsHost()
   const find = (id: string | null | undefined): SettingsMachineChoice | undefined =>
-    id ? choices.find((choice) => choice.id === serviceScope(id, hosts)) : undefined
+    id
+      ? choices.find(
+          (choice) =>
+            choice.id ===
+            (brain ? brainMachine(id, hosts, desktopBrainOwner) : serviceScope(id, hosts)),
+        )
+      : undefined
   const machine =
-    find(chosen) ?? find(host) ?? find('local') ?? find(fallback) ?? choices[0] ?? null
+    find(chosen) ??
+    (brain ? find(fallback) : undefined) ??
+    find(host) ??
+    find('local') ??
+    find(fallback) ??
+    choices[0] ??
+    null
   return { choices, machine }
 }

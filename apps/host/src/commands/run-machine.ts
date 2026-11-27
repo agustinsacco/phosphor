@@ -43,10 +43,15 @@ import { createRunEndings } from '../ops/lane-reload'
 import type { HostOpsLanePorts } from '../session/contributions/ops'
 import type { EnrolledControl } from './run-control'
 import { bindRunOps, laneManagement } from './run-machine-ops'
+import { qualifiedRunBrain, type HostBrainCollaborators } from '../brain/run'
+import { settleBrainHandover } from '../brain-handover/recover'
+import type { BrainSurfaceBinding } from '../api/brain-adapter'
 
 /** What the machine needs from the rest of run: state it opened, and the control link's ports. */
 export interface RunMachinePorts {
   appServices?: AppServices
+  /** The Brain Agent lane and the Desktop move's guard, from their owners. */
+  brain?: HostBrainCollaborators
   local?: boolean
   epoch: string
   config: RunConfig
@@ -108,6 +113,39 @@ function startRoutines(
   })
 }
 
+/**
+ * The runtime's machine, with the Host's Brain for its lanes' recall. Only a qualified bundle
+ * has a Brain, and a fresh Host's stays off and creates nothing.
+ */
+function runtimeMachine(
+  context: RunContext,
+  parts: RunParts,
+  ports: RunMachinePorts,
+  machine: HostMachine,
+  accounts: HostClaudeAccounts,
+): HostMachine {
+  parts.brain = qualifiedRunBrain(machine.resourceRoot, {
+    ...ports.brain,
+    stateDirectory: ports.stateDirectory,
+    pi: machine.pi,
+    env: machine.env,
+    accounts,
+    store: ports.store,
+    sessionsRoot: piSessionsRoot(context.env, context.home),
+    busy: (path) => parts.runtime?.sessionFileBusy(path),
+    runtime: () => parts.runtime,
+    local: ports.local,
+    install: context,
+    log: (message, data) => machine.log.write('brain', message, data),
+  })
+  return {
+    ...machine,
+    appServices: ports.appServices,
+    ...(parts.brain ? { brainRecall: parts.brain.recall, brainCurator: parts.brain.curator } : {}),
+    headroom: ports.headroom,
+  }
+}
+
 /** The runtime and what owns its lanes: live lanes, routines and the lane namer. */
 async function startRuntime(
   context: RunContext,
@@ -131,7 +169,7 @@ async function startRuntime(
   } satisfies HostOpsLanePorts
   const policy = hostLivePolicy(config.path, config.config)
   const runtime = createHostRuntime(
-    { ...machine, log, appServices: ports.appServices, headroom: ports.headroom },
+    runtimeMachine(context, parts, ports, { ...machine, log }, accounts),
     {
       leases,
       claudeAccounts: accounts,
@@ -313,7 +351,7 @@ export async function startRunMachine(
   parts: RunParts,
   ports: RunMachinePorts,
   signal: AbortSignal,
-): Promise<{ lanes?: LaneService; accounts?: HostClaudeAccounts }> {
+): Promise<{ lanes?: LaneService; accounts?: HostClaudeAccounts; brain?: BrainSurfaceBinding }> {
   const inspection = await inspectHost(context, { captureShell: true })
   signal.throwIfAborted()
   if (!inspection.machine) {
@@ -335,6 +373,7 @@ export async function startRunMachine(
       (event, fields) => log.write('host', event, fields),
     )
   const started = await startRuntime(context, parts, ports, machine, log)
+  await settleBrainHandover(ports.stateDirectory, parts.brain?.handover, context.handover, log)
   const { live, runtime } = started
   parts.services = startServices(context, ports, machine, log, started)
   const {
@@ -379,5 +418,5 @@ export async function startRunMachine(
   }
   await bindRunOps(context, parts, ports, { ...started, ...opsCommands, machine, log, lanes })
   started.routines.start()
-  return { lanes, accounts: started.accounts }
+  return { lanes, accounts: started.accounts, brain: parts.brain?.surface }
 }

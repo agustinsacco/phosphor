@@ -3,6 +3,7 @@ import type { BrainService } from '@phosphor/brain-runtime/types'
 import { validateBrainRequest } from '@phosphor/brain-client/validate'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { OWNER_LIMITS, type OwnerIndex } from '@phosphor/shared/host-protocol-owner'
+import { BrainOwnerMoved, launchedDesktopOwnsBrain } from './owner-gate'
 
 type Bridge = Pick<Awaited<ReturnType<typeof createBrainBridge>>, 'registration' | 'close'>
 type Source = () => Promise<Pick<BrainService, 'agent' | 'recallLaunch'>>
@@ -61,6 +62,7 @@ export class BrainAppService {
 
   constructor(
     private readonly open: (invoke: BridgeInvoke) => Promise<Bridge> = createBrainBridge,
+    private readonly ownsBrain: () => boolean = () => true,
   ) {}
 
   install(source: Source, report: () => void) {
@@ -125,7 +127,7 @@ export class BrainAppService {
 
   brainChanged() {
     const owner = this.owner
-    if (!owner || !this.source) return
+    if (!owner || !this.source || !this.ownsBrain()) return
     owner.dirty = true
     if (!owner.syncing) void this.sync(owner, this.source)
   }
@@ -133,26 +135,28 @@ export class BrainAppService {
   private async sync(owner: Owner, source: Source) {
     owner.syncing = true
     try {
-      while (this.owner === owner && owner.dirty) {
+      while (this.owner === owner && this.ownsBrain() && owner.dirty) {
         owner.dirty = false
         const service = await source()
         const recall = !!(await service.recallLaunch())
         if (this.owner !== owner || recall === owner.registered) continue
         // Host lanes hold only the lane token; this bridge's curator token is never handed out.
         this.bridge ??= this.open(async (method, input, signal, role) => {
-          if (role !== 'lane') throw new Error('Brain request unavailable')
+          if (role !== 'lane' || !this.ownsBrain()) throw new Error('Brain request unavailable')
           return service.agent(method, validateBrainRequest(method, input), signal)
         }).catch((err: unknown) => {
           this.bridge = undefined
           throw err
         })
         const bridge = await this.bridge
-        if (this.owner !== owner) break
+        if (this.owner !== owner || !this.ownsBrain()) break
         const result = await owner.link.call('app.service.register', bridge.registration(recall))
         if (!result.ok) throw new Error('Registration refused')
         owner.registered = recall
       }
-    } catch {
+    } catch (error) {
+      // Brain moved to the service: Desktop has nothing to register, now or later.
+      if (error instanceof BrainOwnerMoved) return
       if (this.owner === owner) {
         // Never log the request, endpoint, token or a transport error containing them.
         this.report()
@@ -174,4 +178,4 @@ export class BrainAppService {
   }
 }
 
-export const desktopBrainApp = new BrainAppService()
+export const desktopBrainApp = new BrainAppService(createBrainBridge, launchedDesktopOwnsBrain)

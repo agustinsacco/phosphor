@@ -1,22 +1,32 @@
 import { brainContribution } from '@phosphor/session-runtime/pi/contributions/brain'
 import type { SpawnContribution } from '@phosphor/session-runtime/pi/spawn-contributions'
+import type { HostLaneRecall } from '../../brain/lane-recall'
 import type { AppServices } from '../app-services'
 
-/** The recall preference persists when Desktop disconnects; the port and briefing refs do not. */
+/** Only ordinary lanes receive recall. The legacy bridge serves them until Host cutover. */
 export function createBrainContribution(brain: {
-  appServices: AppServices
+  appServices?: AppServices
   resourceRoot: string
+  native?: HostLaneRecall
 }): SpawnContribution {
+  const native = brain.native
+  const recall = brainContribution(async (workspacePath) =>
+    native?.active()
+      ? native.resources(workspacePath)
+      : brain.appServices?.resources(brain.resourceRoot),
+  )
   return {
-    ...brainContribution(async () => brain.appServices.resources(brain.resourceRoot)),
+    ...recall,
+    spawn: (execution, policy) =>
+      execution.reserved ? undefined : recall.spawn(execution, policy),
     attach(session) {
-      // The registry handle is live now; pi reports its saved session id after startup.
-      const forget = brain.appServices.attachLane(
-        session.sessionId,
-        session.workspacePath,
-        () => session.client.piSessionId,
-      )
-      session.client.once('exit', forget)
+      if (session.reserved) return
+      const piSessionId = () => session.client.piSessionId
+      const forget = [
+        brain.appServices?.attachLane(session.sessionId, session.workspacePath, piSessionId),
+        native?.attachLane(session.sessionId, session.workspacePath, piSessionId),
+      ]
+      session.client.once('exit', () => forget.forEach((release) => release?.()))
     },
   }
 }

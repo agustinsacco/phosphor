@@ -1,5 +1,5 @@
 import { createRequire as createBuiltinRequire } from 'node:module'
-import type { DatabaseSync } from 'node:sqlite'
+import type { backup, DatabaseSync } from 'node:sqlite'
 
 // Only a builtin is loaded, so the executable is a valid base in both ESM and CJS bundles.
 const requireBuiltin = createBuiltinRequire(process.execPath)
@@ -31,4 +31,11 @@ export function loadSqlite(
   } finally {
     process.emitWarning = original
   }
+}
+
+/** `node:sqlite`'s online backup, loaded like `loadSqlite`. */
+export function loadSqliteBackup(): typeof backup {
+  // The default loader returns the whole builtin module; only its type names `DatabaseSync`.
+  const sqlite = loadSqlite() as unknown as { backup: typeof backup }
+  return sqlite.backup
 }

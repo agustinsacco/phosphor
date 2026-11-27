@@ -690,6 +690,29 @@ may call. Mutations are idempotent by their key (`migrationId`, `leaseId`,
   with the Desktop record's paths and identities kept byte-equal. Account folders
   live in the account root the section names. Bindings name known accounts.
   Unread marks import as `attention = read + 1`. Routine workspaces are realpaths.
+- Brain handover: `owner.brainHandover.pin|status|begin|verify|commit|abort` move This Mac's
+  Desktop Brain once into the service's empty `<state>/brain` ([Brain handover](brain-handover.md)).
+  Owner-only; no grant connection and no other local process reaches them. `pin` takes no
+  arguments. It returns `{ pinned: true }` only after checking the installed release under the
+  install lock and recording that replacements must support Brain. Desktop requires this reply
+  before fencing its empty Brain or handing over a verified store. `status` (with or
+  without a `migrationId`) reports `support` (`handover`, preflight `reader`, `target` empty,
+  occupied or claimed, optional `ownerSelection: 1` when native local admission requires a
+  durable initial owner grant) and the move's `state` (`none`, `staged`, `verified`, `published`,
+  `committed`, `aborted`); it is read-only and answers while another handover call runs. `begin`
+  claims the empty target and returns the private staging folder the service created; it refuses
+  an occupied target, another live move, a Host without every production port, or a reader that
+  is not `qualified`. `verify` names staged files only by allowlisted relative names with size and
+  SHA-256, and `activeTranscript` (the staged transcript Desktop resumes next, or `null` when it
+  has none); the service seals copies, upgrades and compares them, and runs its packaged
+  embedding worker on the sealed model. `commit` rechecks the reader, publishes the sealed bytes
+  with one rename and binds Brain Agent's conversation. Every mutation is idempotent by
+  `migrationId`. After a lost answer, ask `status` with the id: `published` or `committed` means
+  the service owns the Brain, and `abort` then refuses; anything earlier may be aborted. A
+  restarted service may commit a published move itself, so `commit` then answers `committed`.
+  `abort` naming the claim of a `begin` that stopped before its record releases that claim and
+  answers `none`. A refusal
+  is `forbidden` (target, reader, state) or `bad-request` (what was staged).
 - Leases: `owner.lease.take|renew|release` over absolute folder paths.
 - `owner.transcript.page` is a reserved contract without a daemon handler.
 - `app.service.register {service: 'brain', endpoint, token, recall}` registers the Desktop

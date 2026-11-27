@@ -88,6 +88,10 @@
       "types": "./pi-ext/pi-api.ts",
       "default": "./pi-ext/pi-api.ts"
     },
+    "./brain-agent-guard": {
+      "types": "./pi-ext/brain-agent-guard.ts",
+      "default": "./pi-ext/brain-agent-guard.ts"
+    },
     "./brain-fork-guard": {
       "types": "./pi-ext/brain-fork-guard.ts",
       "default": "./pi-ext/brain-fork-guard.ts"

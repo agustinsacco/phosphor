@@ -14,6 +14,7 @@ import { createSessionStartup } from '@phosphor/session-runtime/pi/session-start
 import type { LaneReload } from '@phosphor/session-runtime/pi/lane-reload'
 import { isInside } from '@phosphor/session-runtime/fs-safety'
 import { unlinkTranscript } from './transcript-removal'
+import { isReservedPath } from './reserved-lanes'
 import type { Delivery, RuntimeState } from './runtime-state'
 import { hostSpawnContributions } from './contributions'
 import { HOST_PID_ENV } from '../update/host-pid'
@@ -37,9 +38,16 @@ export function wireRuntimeStartup(
   return createSessionStartup({
     registry,
     log: machine.log.write,
-    // The parser resolved it already. This holds for a caller that skipped it, too.
-    resolveWorkspace: (workspace) => {
+    // The parser resolved it already. This holds for a caller that skipped it, too. A reserved
+    // folder belongs only to its own lane's spawn.
+    resolveWorkspace: (workspace, { reserved }) => {
       const real = realpathSync.native(workspace)
+      if (reserved) {
+        if (state.reserved.includes(reserved) && real === reserved.folder) return real
+        throw new Error('the folder is not this reserved lane’s')
+      }
+      if (isReservedPath(state, real))
+        throw new Error('the folder is outside the configured repositories')
       if (roots.some((root) => isInside(root, real))) return real
       throw new Error('the folder is outside the configured repositories')
     },
@@ -85,11 +93,16 @@ export function wireRuntimeStartup(
     contributions: hostSpawnContributions(
       machine.shellEnvironment,
       machine.log,
-      machine.appServices
-        ? { appServices: machine.appServices, resourceRoot: machine.resourceRoot }
+      machine.appServices || machine.brainRecall
+        ? {
+            ...(machine.appServices ? { appServices: machine.appServices } : {}),
+            ...(machine.brainRecall ? { native: machine.brainRecall } : {}),
+            resourceRoot: machine.resourceRoot,
+          }
         : undefined,
       machine.headroom,
       options.ops,
+      machine.brainCurator,
     ),
   })
 }

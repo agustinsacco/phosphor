@@ -29,6 +29,7 @@ esac
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/phosphor-install.XXXXXXXX")
 stage=
 new_version=
+selection_started=0
 committed=0
 command_published=0
 lock=
@@ -55,7 +56,7 @@ cleanup() {
   trap - 0
   if [ "$committed" = 0 ]; then
     restore_failed=0
-    if [ -n "$new_version" ] && selects_new; then
+    if [ "$selection_started" = 1 ] && selects_new; then
       if [ -n "$old_current" ]; then
         ln -s "$old_current" "$stage/restore-current" && rename_safe "$stage/restore-current" "$root/current"
       else rm -f "$root/current"; fi
@@ -72,7 +73,7 @@ cleanup() {
     fi
     if [ "$restore_failed" = 1 ]; then
       # Keep the complete new bundle. Roll forward only through entries we own.
-      if [ -n "$new_version" ] && [ -d "$new_version" ]; then
+      if { [ -n "$new_version" ] || [ "$selection_started" = 1 ]; } && [ -d "$root/versions/$version" ]; then
         if ! selects_new; then
           ln -s "versions/$version" "$stage/forward-current" && rename_safe "$stage/forward-current" "$root/current"
         fi
@@ -230,10 +231,52 @@ fi
 lock=$lock_path
 printf '%s\n' "$$" > "$lock/pid" || fail
 end_critical
+# A stateful install is protected even after uninstall or with a different XDG root.
+# Inspect parents first so a dangling link cannot look like absent state.
+state_has_brain() {
+  for name in brain brain-handover; do
+    if [ -L "$1/$name" ] || [ -e "$1/$name" ]; then return 0; fi
+  done
+  return 1
+}
+safe_state_path() (
+  [ "$1" != / ] || return 0
+  safe_state_path "$(dirname "$1")" || return 1
+  [ ! -L "$1" ] && { [ ! -e "$1" ] || { [ -d "$1" ] && [ -x "$1" ]; }; }
+)
+command=$home/.local/bin/phosphor
+brain_required=0
+if [ -L "$root/.brain-required" ] || [ -e "$root/.brain-required" ]; then
+  brain_required=1
+else
+  case ${XDG_STATE_HOME:-} in
+    /*) state=$XDG_STATE_HOME/phosphor-host ;;
+    *) state=$home/.local/state/phosphor-host ;;
+  esac
+  for state_path in "$state" "$home/.local/state/phosphor-host"; do
+    safe_state_path "$state_path" || fail
+    if state_has_brain "$state_path"; then brain_required=1; fi
+  done
+fi
+if [ "$brain_required" = 1 ]; then
+  # Run only with the signature/hash-verified candidate's Node. No installed code proves repair.
+  cat > "$tmp/verify-brain.mjs" <<'PHOSPHOR_BRAIN_VERIFIER'
+@BRAIN_VERIFIER@
+PHOSPHOR_BRAIN_VERIFIER
+  if ! env -i PATH=/usr/bin:/bin "$tmp/unpacked/node/bin/node" "$tmp/verify-brain.mjs" "$tmp/unpacked" "$root" "$version" "$command"; then
+    printf '%s\n' 'This install requires a qualified Host Brain bundle and safe repair paths.' >&2
+    fail
+  fi
+fi
 [ ! -e "$root/current" ] || [ -L "$root/current" ] || fail
 already=0
+reuse=0
 if [ -e "$root/versions/$version" ] || [ -L "$root/versions/$version" ]; then
-  if [ ! -L "$root/versions/$version" ] && [ -d "$root/versions/$version" ] &&
+  if [ "$brain_required" = 1 ]; then
+    # The protected verifier checked the entire installed tree against the signed unpacked tree.
+    reuse=1
+    if selects_new; then already=1; fi
+  elif [ ! -L "$root/versions/$version" ] && [ -d "$root/versions/$version" ] &&
     [ -L "$root/current" ] && [ "$(CDPATH= cd -P "$root/current" && pwd)" = "$root/versions/$version" ] &&
     [ ! -L "$root/current/VERSION" ] && [ -f "$root/current/VERSION" ] &&
     [ "$(wc -c < "$root/current/VERSION" | tr -d ' ')" -le 32 ] &&
@@ -243,7 +286,6 @@ if [ -e "$root/versions/$version" ] || [ -L "$root/versions/$version" ]; then
     exit 1
   fi
 fi
-command=$home/.local/bin/phosphor
 backup=$command.before-release
 ours=0
 if [ -L "$command" ] && [ "$(readlink "$command")" = "$root/current/bin/phosphor" ]; then ours=1; fi
@@ -265,7 +307,7 @@ if [ -L "$root/current" ]; then old_current=$(readlink "$root/current"); fi
 stage=$(mktemp -d "$root/.install.XXXXXXXX")
 # Cross-filesystem staging can be interrupted safely before publication.
 if [ "$already" = 0 ]; then
-  mv "$tmp/unpacked" "$stage/version" || fail
+  if [ "$reuse" = 0 ]; then mv "$tmp/unpacked" "$stage/version" || fail; fi
   ln -s "versions/$version" "$stage/current"
 fi
 ln -s "$root/current/bin/phosphor" "$stage/phosphor"
@@ -273,7 +315,7 @@ if [ "$ours" = 1 ]; then cp -P "$command" "$stage/old-command"; fi
 # Only same-filesystem renames occur while signals are deferred. Finish a
 # consistent publication, or roll it back, before honoring the signal.
 critical=1
-if [ "$already" = 0 ]; then
+if [ "$already" = 0 ] && [ "$reuse" = 0 ]; then
   new_version=$root/versions/$version
   rename_safe "$stage/version" "$new_version" || fail
 fi
@@ -285,11 +327,17 @@ if [ "$ours" = 0 ]; then
   command_published=1
   rename_safe "$stage/phosphor" "$command" || fail
 fi
-if [ "$already" = 0 ]; then rename_safe "$stage/current" "$root/current" || fail; fi
+if [ "$already" = 0 ]; then
+  selection_started=1
+  rename_safe "$stage/current" "$root/current" || fail
+fi
 committed=1
 end_critical
-# Use the installed runtime while the install lock still serializes rc updates.
-path_message=$("$command" internal-install-path) || path_message='Could not update shell startup file; use the PATH export below.'
+# Ordinary installs add PATH under the lock. Protected repair changes only install pointers.
+path_message=
+if [ "$brain_required" = 0 ]; then
+  path_message=$("$command" internal-install-path) || path_message='Could not update shell startup file; use the PATH export below.'
+fi
 # Finish cleanup before claiming success; it can record a deferred signal too.
 cleanup
 if [ "$foreign" = 1 ]; then

@@ -5,26 +5,29 @@ import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { rebuildPrompt } from './stage-input'
 import { inputHash } from './windows'
 import { repairPrompt } from './stage-call'
+import type { BrainSavedSource } from './types'
 import type { StageInput } from './stage-types'
 
 const UNAVAILABLE = 'Prompt not available: the inputs for this step are no longer stored.'
 export async function extractionView(
   store: BrainStore,
   jobId: string,
+  canReadSource?: (source: BrainSavedSource) => boolean,
 ): Promise<BrainExtractionView> {
   const record = store.extraction(jobId)
   const source: BrainExtractionView['source'] = {
     sessionPath: record.sessionPath,
     title: record.title,
     leafId: record.leafId,
-    exists: true,
+    exists: !canReadSource || canReadSource(record),
     segments: [],
   }
   let segments: TranscriptSegment[] = []
   try {
-    segments = transcriptSegments(
-      transcriptAtLeaf(await readLaneEntries(record.sessionPath), record.leafId),
-    )
+    if (source.exists)
+      segments = transcriptSegments(
+        transcriptAtLeaf(await readLaneEntries(record.sessionPath), record.leafId),
+      )
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     source.exists = false
@@ -32,15 +35,17 @@ export async function extractionView(
   source.segments = segments
     .slice(-300)
     .map((s) => ({ ...s, text: scrubExcerpt(s.text).slice(0, 4000) }))
-  const prompts = record.calls.map((call) => {
-    if (!source.exists) return UNAVAILABLE
-    try {
-      const prompt = promptFor(store, jobId, call, segments, record.calls)
-      return inputHash(prompt) === call.inputHash ? prompt : UNAVAILABLE
-    } catch {
-      return UNAVAILABLE
-    }
-  })
+  const prompts = canReadSource
+    ? []
+    : record.calls.map((call) => {
+        if (!source.exists) return UNAVAILABLE
+        try {
+          const prompt = promptFor(store, jobId, call, segments, record.calls)
+          return inputHash(prompt) === call.inputHash ? prompt : UNAVAILABLE
+        } catch {
+          return UNAVAILABLE
+        }
+      })
   return {
     ...record,
     prompts,

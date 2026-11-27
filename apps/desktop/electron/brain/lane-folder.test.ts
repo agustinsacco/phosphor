@@ -1,17 +1,14 @@
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink } from 'node:fs/promises'
 import { realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import {
   BRAIN_AGENT_RULES,
-  BRAIN_AGENT_RULES_V7,
-  brainLaneFolder,
   ensureBrainLane,
-  isBrainLaneFolder,
-  laneBrainLaunch,
   readBrainRules,
-} from './lane-folder'
+} from '@phosphor/brain-runtime/agent/rules'
+import { brainLaneFolder, isBrainLaneFolder, laneBrainLaunch } from './lane-folder'
 
 let root: string
 beforeEach(async () => {
@@ -30,17 +27,6 @@ it('names <userData>/brain/Brain by its real path, before and after it exists', 
   expect(isBrainLaneFolder(join(root, 'alias', 'brain', 'Brain'), folder)).toBe(true)
   expect(isBrainLaneFolder(userData, folder)).toBe(false)
   expect(isBrainLaneFolder(join(root, 'missing'), folder)).toBe(false)
-})
-
-it('writes the default rules only while AGENTS.md is missing', async () => {
-  const folder = join(root, 'brain', 'Brain')
-  expect(await readBrainRules(folder)).toBeNull()
-  await ensureBrainLane(folder)
-  expect(await readBrainRules(folder)).toBe(BRAIN_AGENT_RULES)
-  await writeFile(join(folder, 'AGENTS.md'), '# Owner rules')
-  await ensureBrainLane(folder)
-  expect(await readFile(join(folder, 'AGENTS.md'), 'utf8')).toBe('# Owner rules')
-  expect(BRAIN_AGENT_RULES.split('\n')[0]).toBe('# Brain Agent')
 })
 
 it('hands the Brain lane Brain Agent’s tools and its rules, and every other lane recall', async () => {
@@ -65,16 +51,4 @@ it('hands the Brain lane Brain Agent’s tools and its rules, and every other la
   expect(await readBrainRules(folder)).toBe(BRAIN_AGENT_RULES)
   expect(service.recallLaunch).toHaveBeenCalledTimes(1)
   expect(service.curatorLaunch).toHaveBeenCalledTimes(1)
-})
-
-it('upgrades only the exact v7 rules', async () => {
-  expect(BRAIN_AGENT_RULES_V7).toBeTypeOf('string')
-  for (const suffix of ['', '\n']) {
-    await writeFile(join(root, 'AGENTS.md'), BRAIN_AGENT_RULES_V7 + suffix)
-    await ensureBrainLane(root)
-    expect(await readBrainRules(root)).toBe(
-      suffix ? BRAIN_AGENT_RULES_V7 + suffix : BRAIN_AGENT_RULES,
-    )
-  }
-  expect(BRAIN_AGENT_RULES).toContain('## Links')
 })

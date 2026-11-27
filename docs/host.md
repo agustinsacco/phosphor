@@ -331,8 +331,10 @@ A running service is not restarted by local installation.
 `node apps/host/scripts/build.mjs`, which also takes `--out DIR` and `--sha SHA`:
 
 - `phosphor.mjs`: one ESM file for Node 22, built by esbuild from `src/main.ts`.
-  Dev builds also carry a linked source map. Release builds have no source map
-  or `sourceMappingURL`. Run it as `node phosphor.mjs <command>`.
+  Dev builds also carry a linked source map. Release builds omit source maps,
+  `sourceMappingURL` and esbuild’s generated source paths. The standalone Brain
+  extension bundles also omit generated source paths. Both keep bundled legal notices.
+  Run the Host as `node phosphor.mjs <command>`.
 - `pi-ext/`: the bundled extensions, copied with Desktop's filter (every `.ts`
   file but tests). A session loads them from beside the bundle unless the config
   sets `resourceRoot`.
@@ -348,7 +350,11 @@ untracked files when computing `sourceDirty`. Otherwise the
 version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha` names
 another. The build fails if the bundle reaches Electron, `electron-store`,
 `electron-updater`, a direct `node-pty` import, Desktop or the site, imports anything but a Node
-builtin, or lacks one of the six extensions. It only replaces an empty folder or
+builtin, or lacks one of the six extensions. Every `@phosphor/*` import resolves
+through the exports of the building checkout's own `libs/<pkg>/package.json`, never
+through `node_modules`, whose links may lead into another checkout: the build fails
+on a subpath its package does not export, a package `libs/` lacks, or any input from
+outside the checkout that no `node_modules` folder holds. It only replaces an empty folder or
 an earlier build: a real folder whose `BUILD-INFO.json` is a regular file naming
 `phosphor`, schema 1, that lists every other file in it. Anything else, a link
 inside included, is refused and left alone, and the check is repeated just
@@ -367,7 +373,8 @@ the committed SHA-256 on download and on cache reuse. Its sorted ustar entries
 have fixed timestamps, owners and modes; repeated builds of the same tree on
 one platform are byte-identical. The archive includes Node and its license,
 `lib/` with the Host and its resources, `VERSION`, and a POSIX launcher that
-resolves symlinks without `readlink -f`.
+resolves symlinks without `readlink -f`. [Host Brain packaging](host-brain-packaging.md)
+describes its distinct, offline qualification path.
 
 After all four targets are built, `tools/host-release/manifest.mjs --out DIR`
 writes two manifests with the same version, protocols, pinned Node version,
@@ -498,11 +505,21 @@ place, and the command prints the config and state directories. Add `--json`
 for a machine-readable result. On a screen, `phosphor uninstall` without `--yes`
 first asks; No exits 0 and Escape exits 130, both leaving everything in place.
 
-`phosphor uninstall --purge --yes` refuses a non-private state folder, unknown top-level entries, or foreign files in its logs folder. Otherwise it first logs out remotely and only on success
-removes the default config and state directories too. Both flags are required.
-A failed logout keeps the program, service and data and exits 75. Every directory
-removed is checked for ownership, its expected location and symlinked ancestors.
-pi's sessions and provider credentials are never removed.
+`phosphor uninstall --purge --yes` refuses a non-private state folder, unknown top-level
+entries, or foreign files in its logs folder. For Host Brain state it checks the known files
+and directories, validates the exact owner record when present, and refuses unknown
+entries, links, and claimed or unfinished moves. Finish or
+abort a move before purging. Purge removes only the selected Host's state and config, not
+Desktop's original Brain backup, pi's sessions, or provider credentials.
+
+Both flags are required, and logout must succeed before any files are removed.
+Failed logout keeps the program, service and data and exits 75. Both uninstall
+modes also exit 75 without changing anything if the install requires Brain
+compatibility and a signed qualified repair cannot be proven. Purging one state
+root cannot prove that no other roots use the same release. The release, launcher,
+state and pathless `.brain-required` marker stay in place. See
+[qualified repair](host-brain-packaging.md#updates-rollback-and-repair) if the
+selection or launcher is already missing.
 
 ## Config
 

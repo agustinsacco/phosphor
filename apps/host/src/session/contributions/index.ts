@@ -15,6 +15,7 @@ export function hostSpawnContributions(
   brain?: Parameters<typeof createBrainContribution>[0],
   headroom?: DaemonHeadroom,
   ops?: HostOpsLanePorts,
+  curator?: SpawnContribution,
 ): readonly SpawnContribution[] {
   shell?.bindLog(log)
   return [
@@ -23,5 +24,6 @@ export function hostSpawnContributions(
     createDirectivesContribution(),
     createHeadroomContribution(headroom),
     brain ? createBrainContribution(brain) : null,
+    curator ?? null,
   ].filter((contribution) => contribution !== null)
 }

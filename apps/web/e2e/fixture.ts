@@ -1,20 +1,19 @@
 import { expect, test as base } from '@playwright/test'
 import { createHash, generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto'
-import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
-import { once } from 'node:events'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { createServer } from 'node:http'
 import { connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
 import { directoryRpc } from './fixture-directory'
-import { askToPurge, seedPeer } from './seed-peer'
+import { startCliFixtureHost } from './cli-fixture-host'
 import { createApp, type AppDeps } from '../../control/src/app'
 import { parseConfig } from '../../control/src/config'
 import { ControlFailure } from '../../control/src/http'
 import { RateLimiter, RATE_PURPOSE_CAPACITIES } from '../../control/src/limits'
 import { formatKeyFingerprint, type MachineView } from '@phosphor/shared/control-api'
 import { evidence } from '../playwright.config'
+import { startBrainFixtureHost, type BrainFixtureHost } from './brain-host'
 
 const project = resolve(import.meta.dirname, '../../..')
 const endpoint = 'https://fixture.ts.net'
@@ -66,7 +65,7 @@ function webSessionRpc(
 }
 
 /** Disposable real Control handlers + Host CLI. Only Auth/database ports and pi are synthetic. */
-export async function browserFixture(production = false, agentOps = false) {
+export async function browserFixture(production = false, brain = false, agentOps = false) {
   const root = await createRoot()
   const cleanups: (() => Promise<unknown>)[] = [() => removeRoot(root)]
   const close = async () => {
@@ -94,7 +93,7 @@ export async function browserFixture(production = false, agentOps = false) {
     }
     const machine: MachineView = {
       id: hostId,
-      label: 'Synthetic Host',
+      label: brain ? 'Harbor' : 'Synthetic Host',
       hostname: 'fixture',
       platform: 'linux',
       arch: 'x64',
@@ -109,6 +108,18 @@ export async function browserFixture(production = false, agentOps = false) {
       lanes: { running: 0, waiting: 0 },
       endpoint,
     }
+    const ledgerKey = brain ? generateKeyPairSync('ed25519') : undefined
+    const ledgerPublicKey = ledgerKey?.publicKey.export({ format: 'jwk' }).x
+    const ledger = ledgerPublicKey && {
+      ...machine,
+      id: randomUUID(),
+      label: 'Ledger',
+      endpoint: 'https://ledger.fixture.ts.net',
+      keyFingerprint: formatKeyFingerprint(
+        createHash('sha256').update(Buffer.from(ledgerPublicKey, 'base64url')).digest(),
+      ),
+    }
+    let ledgerPort = 0
     let origin = '',
       controlOrigin = '',
       hostPort = 0
@@ -259,13 +270,16 @@ export async function browserFixture(production = false, agentOps = false) {
               return { outcome: 'revoked' }
             }
             case 'control_machines':
+              if (ledger && args.p_user_id === owners[0])
+                return { machines: [machine, ledger], serverTime: new Date().toISOString() }
+              return directoryRpc(name, args, owners[0]!, machine, state)
             case 'control_machine_reach_list':
             case 'control_machine_reach_set':
               return directoryRpc(name, args, owners[0]!, machine, state)
             case 'control_grant_issue': {
               const client = clients.get(String(args.p_client))
               if (
-                args.p_host !== hostId ||
+                (args.p_host !== hostId && (!ledger || args.p_host !== ledger.id)) ||
                 args.p_user !== owners[0] ||
                 !client ||
                 client.owner !== args.p_user ||
@@ -277,14 +291,16 @@ export async function browserFixture(production = false, agentOps = false) {
                 outcome: 'issued',
                 epoch: 1,
                 client: { id: args.p_client, label: 'Synthetic browser' },
-                endpoint,
-                publicKey,
+                endpoint: ledger && args.p_host === ledger.id ? ledger.endpoint : endpoint,
+                publicKey: ledger && args.p_host === ledger.id ? ledgerPublicKey : publicKey,
               }
             }
             case 'control_host_key':
               return args.p_host_id === hostId
                 ? { outcome: 'active', publicKey }
-                : { outcome: 'gone' }
+                : ledger && args.p_host_id === ledger.id
+                  ? { outcome: 'active', publicKey: ledgerPublicKey }
+                  : { outcome: 'gone' }
             case 'control_host_self':
               return {
                 outcome: 'active',
@@ -315,11 +331,13 @@ export async function browserFixture(production = false, agentOps = false) {
     // Transparent local transport mapping, not a TLS proxy or production fallback.
     // Preserve the browser Origin; rewrite only the loopback Host authority/path.
     server.on('upgrade', (req, socket, head) => {
-      if (production || gate.held || req.url !== '/fixture-host' || req.headers.origin !== origin) {
+      const port =
+        req.url === '/fixture-host' ? hostPort : req.url === '/fixture-ledger' ? ledgerPort : 0
+      if (production || gate.held || !port || req.headers.origin !== origin) {
         socket.destroy()
         return
       }
-      const upstream = connect(hostPort, '127.0.0.1')
+      const upstream = connect(port, '127.0.0.1')
       sockets.add(upstream)
       hostSockets.add(upstream)
       state.connections++
@@ -338,161 +356,36 @@ export async function browserFixture(production = false, agentOps = false) {
         .filter(([key]) => key !== 'host')
         .map(([key, value]) => `${key}: ${value}`)
         .join('\r\n')
-      upstream.write(`GET /v1/stream HTTP/1.1\r\nHost: 127.0.0.1:${hostPort}\r\n${headers}\r\n\r\n`)
+      upstream.write(`GET /v1/stream HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n${headers}\r\n\r\n`)
       upstream.write(head)
       socket.pipe(upstream).pipe(socket)
     })
     if (production) return { origin, state, hostId, close, owners, ...UNSEEDED, ...gate.api }
 
-    const reserve = createServer()
-    await new Promise<void>((done) => reserve.listen(0, '127.0.0.1', done))
-    const reserved = reserve.address()
-    if (!reserved || typeof reserved === 'string') throw new Error('Missing Host port')
-    hostPort = reserved.port
-    await new Promise<void>((done) => reserve.close(() => done()))
-    const repo = join(root, 'repository'),
-      second = join(root, 'other'),
-      agent = join(root, 'agent'),
-      conf = join(root, 'config')
-    for (const dir of [
-      repo,
-      second,
-      agent,
-      join(root, 'agent-added-folder'),
-      join(conf, 'identity'),
-      join(root, 'bin'),
-    ])
-      await mkdir(dir, { recursive: true, mode: 0o700 })
-    await writeFile(join(repo, 'remote.txt'), 'HOST_A_ONLY synthetic file\n')
-    await writeFile(join(second, 'remote.txt'), 'HOST_B_ONLY synthetic file\n')
-    execFileSync('git', ['init', '-q', second])
-    await writeFile(
-      join(root, 'bin/tailscale'),
-      '#!/bin/sh\necho \'{"BackendState":"Stopped"}\'\n',
-      { mode: 0o700 },
-    )
-    await writeFile(
-      join(agent, 'settings.json'),
-      JSON.stringify({ defaultProvider: 'fake', defaultModel: 'fake-model' }),
-    )
-    await writeFile(
-      join(agent, 'auth.json'),
-      JSON.stringify({ fake: { type: 'api_key', key: 'synthetic-not-a-credential' } }),
-      { mode: 0o600 },
-    )
-    await writeFile(
-      join(conf, 'identity/host.json'),
-      JSON.stringify({
-        version: 1,
-        hostId,
-        label: machine.label,
-        ownerLogin: 'fixture-owner',
-        controlUrl: controlOrigin,
-        savedAt: new Date().toISOString(),
-      }),
-      { mode: 0o600 },
-    )
-    await writeFile(
-      join(conf, `identity/host-key.${hostId}.pem`),
-      hostKey.privateKey.export({ type: 'pkcs8', format: 'pem' }),
-      { mode: 0o600 },
-    )
-    const configPath = join(conf, 'config.json')
-    await writeFile(
-      configPath,
-      JSON.stringify({
-        version: 1,
-        pi: {
-          node: process.execPath,
-          executable: resolve(
-            project,
-            agentOps
-              ? 'apps/desktop/e2e/fixtures/host-ops-pi.cjs'
-              : 'apps/host/src/__fixtures__/fake-pi.cjs',
-          ),
-        },
-        repositories: [repo, second],
-        control: { url: controlOrigin },
-        api: { port: hostPort, webOrigin: origin },
-      }),
-      { mode: 0o600 }, // not the umask's: the Host refuses a group-writable config
-    )
-    const child = spawn(
-      process.execPath,
-      [resolve(project, 'apps/host/dist/phosphor.mjs'), 'run', '--config', configPath],
-      {
-        env: {
-          HOME: root,
-          PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}`,
-          XDG_STATE_HOME: join(root, 'state'),
-          PI_CODING_AGENT_DIR: agent,
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-    cleanups.push(() => stop(child))
-    // Drain output, retaining only a bounded synthetic diagnostic on startup failure.
-    let output = ''
-    for (const stream of [child.stdout, child.stderr])
-      stream.on('data', (chunk: Buffer) => {
-        output = (output + chunk.toString()).slice(-4096)
-      })
-    await expect
-      .poll(
-        async () => {
-          if (child.exitCode !== null) throw new Error(`Fixture Host exited: ${output}`)
-          return fetch(`http://127.0.0.1:${hostPort}/v1/hello?challenge=${'a'.repeat(64)}`)
-            .then((r) => r.status)
-            .catch(() => 0)
-        },
-        { timeout: 20_000 },
-      )
-      .toBe(200)
-    const ports = {
-      hostPort,
-      keys: config.grantKeys!,
+    if (ledger && ledgerKey) {
+      const ports = { controlOrigin, origin, owner: owners[0]!, cleanups }
+      const harbor = await startBrainFixtureHost(ports, machine, hostKey.privateKey)
+      hostPort = harbor.port
+      const second = await startBrainFixtureHost(ports, ledger, ledgerKey.privateKey)
+      ledgerPort = second.port
+      const brainHosts: [BrainFixtureHost, BrainFixtureHost] = [harbor, second]
+      return { origin, state, hostId, close, owners, brainHosts, ...UNSEEDED, ...gate.api }
+    }
+
+    const { hostPort: port, ...seeded } = await startCliFixtureHost({
+      agentOps,
+      root,
+      hostId,
+      label: machine.label,
+      key: hostKey.privateKey,
+      origin,
       controlOrigin,
       owner: owners[0]!,
       sid,
-      hostId,
+      keys: config.grantKeys!,
       cleanups,
-    }
-    const { send, frames, command } = await seedPeer(ports)
-    send({ type: 'subscribe', id: 'seed', topic: 'lanes' })
-    await expect.poll(() => frames.some((f) => f.type === 'lanes')).toBe(true)
-    const directory = frames.find((f) => f.type === 'lanes')
-    if (directory?.type !== 'lanes') throw new Error('Missing Host directory')
-    const lanes: string[] = []
-    for (const [index, name] of ['repository', 'other'].entries()) {
-      const repositoryId = directory.repositories.find((r) => r.name === name)!.id
-      const result = await command({
-        type: 'lane.create',
-        repositoryId,
-        name: index ? 'Second synthetic lane' : 'Synthetic acceptance lane',
-        worktree: null,
-      })
-      const laneId = result.laneId!
-      lanes.push(laneId)
-      const control = await command({ type: 'control.take' }, laneId)
-      await command({ type: 'prompt', message: 'PHX-synthetic artifact' }, laneId, control.fence)
-      await expect
-        .poll(() =>
-          frames.some(
-            (f) =>
-              f.type === 'lanes-delta' &&
-              f.upsert.some((l) => l.laneId === laneId && l.attention > 0),
-          ),
-        )
-        .toBe(true)
-      await command({ type: 'control.release' }, laneId, control.fence)
-    }
-    // `repository` is the first lane's folder on the Host, which a spec may read and change.
-    const seeded = {
-      askToPurge: (id: string, reason: string) => askToPurge(ports, id, reason),
-      laneId: lanes[0]!,
-      secondLaneId: lanes[1]!,
-      repository: repo,
-    }
+    })
+    hostPort = port
     return { origin, state, hostId, close, owners, ...seeded, ...gate.api }
   } catch (error) {
     await close()
@@ -520,25 +413,13 @@ function hostGate(sockets: Set<Socket>) {
   return gate
 }
 
-async function stop(child: ChildProcess) {
-  if (child.exitCode !== null || child.signalCode !== null) return
-  const exited = once(child, 'exit')
-  const timer = setTimeout(() => child.kill('SIGKILL'), 5000)
-  try {
-    child.kill('SIGTERM')
-    await exited
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
 export const test = base.extend<{
   stack: Awaited<ReturnType<typeof browserFixture>>
   agentOps: boolean
 }>({
   agentOps: [false, { option: true }],
   stack: async ({ agentOps }, use) => {
-    const stack = await browserFixture(false, agentOps)
+    const stack = await browserFixture(false, false, agentOps)
     try {
       await use(stack)
     } finally {

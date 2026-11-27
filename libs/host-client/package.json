@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain": {
+      "types": "./src/brain.ts",
+      "default": "./src/brain.ts"
+    },
     "./connection": {
       "types": "./src/connection.ts",
       "default": "./src/connection.ts"

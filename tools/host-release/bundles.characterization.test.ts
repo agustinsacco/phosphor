@@ -23,7 +23,7 @@ import { writeNodeShim } from './__fixtures__/node-shim'
 const root = resolve(import.meta.dirname, '../..')
 const target = `${process.platform}-${process.arch}`
 const nodeVersion = (
-  JSON.parse(readFileSync(join(root, 'tools/host-release/node.json'), 'utf8')) as {
+  JSON.parse(readFileSync(join(root, 'apps/host/src/brain/node.json'), 'utf8')) as {
     version: string
   }
 ).version

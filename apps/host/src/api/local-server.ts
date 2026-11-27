@@ -106,6 +106,7 @@ export async function clearStaleSocket(path: string): Promise<void> {
 export interface LocalLanes {
   epoch: string
   capabilities: readonly HostCapability[]
+  brain?: boolean
   /** Owner, machine guard and `ops.run`, as on the TCP listener. */
   links: readonly FrameLinkFactory[]
   handler(connection: ReadyConnection): AuthenticatedHandler
@@ -232,7 +233,11 @@ function socketUpgrades(options: LocalServerOptions, state: SocketState) {
             ? createAdapterChain(lanes.links, lanes.handler)(ready)
             : createAdapterChain(options.links, undefined)(ready)
         },
-        authenticate: createLocalAuth({ ...options.auth, ...state }),
+        authenticate: createLocalAuth({
+          ...options.auth,
+          ...state,
+          brain: () => state.lanes()?.brain === true,
+        }),
         admit: (clientId): boolean => {
           const peers = state.lanes()?.peers?.() ?? []
           const held: number = [...upgrades.connections(), ...peers].filter(

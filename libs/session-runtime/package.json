@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./brain/local-owner": {
+      "types": "./src/brain/local-owner.ts",
+      "default": "./src/brain/local-owner.ts"
+    },
     "./spawn-helper": {
       "types": "./src/spawn-helper.ts",
       "default": "./src/spawn-helper.ts"
@@ -227,6 +231,10 @@
     "./pi/provider-detect": {
       "types": "./src/pi/provider-detect.ts",
       "default": "./src/pi/provider-detect.ts"
+    },
+    "./pi/reserved-lane": {
+      "types": "./src/pi/reserved-lane.ts",
+      "default": "./src/pi/reserved-lane.ts"
     },
     "./pi/resume-provider": {
       "types": "./src/pi/resume-provider.ts",
@@ -539,6 +547,10 @@
     "./fs-safety": {
       "types": "./src/fs-safety.ts",
       "default": "./src/fs-safety.ts"
+    },
+    "./host-install/brain-compatibility": {
+      "types": "./src/host-install/brain-compatibility.ts",
+      "default": "./src/host-install/brain-compatibility.ts"
     },
     "./host-install/start-service": {
       "types": "./src/host-install/start-service.ts",

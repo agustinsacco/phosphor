@@ -20,6 +20,7 @@ export function BrainGraph3D({
   onFocus,
   onClear,
   toolbar,
+  renderEdge,
 }: {
   graph: BrainGraph
   path?: BrainLink[] | null
@@ -30,6 +31,7 @@ export function BrainGraph3D({
   onFocus: (id: string) => void
   onClear?: () => void
   toolbar?: React.ReactNode
+  renderEdge?: (edge: GraphLink) => React.ReactNode
 }): React.JSX.Element {
   const model = useMemo(() => graphModel(graph), [graph])
   const [dimensions, setDimensions] = useState<2 | 3>(3)
@@ -80,7 +82,7 @@ export function BrainGraph3D({
           </p>
         )}
       </div>
-      {edge && <EdgeDetail key={edge.id} edge={edge} />}
+      {edge && (renderEdge ? renderEdge(edge) : <EdgeDetail key={edge.id} edge={edge} />)}
       <div className="border-border border-t p-3">
         <GraphLegend nodes={model.nodes} />
       </div>

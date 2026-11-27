@@ -129,6 +129,8 @@ it('allows only the Host build modules imported by its TypeScript script tests',
     .map((file) => relative(root, file.fileName).replaceAll('\\', '/'))
     .filter((path) => !path.includes('node_modules/') && /\.(c|m)?js$/.test(path))
   expect(javascript.sort()).toEqual([
+    'apps/host/scripts/brain-package-files.mjs',
+    'apps/host/scripts/build-brain.mjs',
     'apps/host/scripts/build-bundle.mjs',
     'apps/host/scripts/build-info.mjs',
     'apps/host/scripts/build-resources.mjs',

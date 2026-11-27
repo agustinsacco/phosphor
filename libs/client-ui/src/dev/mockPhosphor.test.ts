@@ -91,6 +91,7 @@ it("answers agent ops, This Mac's runtime from their stub modules", async () => 
   expect(await window.phosphor.invoke('app:localMachine')).toEqual({
     mode: 'in-app',
     migration: 'not-needed',
+    brainOwner: 'desktop',
   })
   expect(await window.phosphor.invoke('app:localMachineAction', 'retry-migration')).toMatchObject({
     ok: false,

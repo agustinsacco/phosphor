@@ -17,7 +17,7 @@ export function ExtractionOutcomes({
   data,
   onMemory,
 }: {
-  data: BrainExtractionView
+  data: Pick<BrainExtractionView, 'outcomes'>
   onMemory: (id: string, label: string) => void
 }): React.JSX.Element {
   const [shown, setShown] = useState(20)

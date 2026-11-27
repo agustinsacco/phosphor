@@ -277,16 +277,14 @@ it('lands service actions on one persistent This Mac section, never a transient 
   }
 })
 
-it('omits the Brain section and search rows only when the capability is off', () => {
-  expect(desktopPlatform).toBeTypeOf('function')
+it('offers the Host Brain section independently of the legacy Desktop preview', () => {
   for (const platform of [desktopPlatform(false, false), WIDE_BROWSER_PLATFORM]) {
-    expect(visibleSections(platform, 'host').map((section) => section.id)).not.toContain('brain')
-    expect(platformIndex(platform, 'host').some((row) => row.tab === 'brain')).toBe(false)
+    expect(visibleSections(platform, 'local').map((section) => section.id)).not.toContain('brain')
   }
   for (const platform of [
-    desktopPlatform(true, false),
+    desktopPlatform(false, false),
     desktopPlatform(false, true),
-    { ...WIDE_BROWSER_PLATFORM, localBrain: true },
+    WIDE_BROWSER_PLATFORM,
   ]) {
     const sections = new Set(visibleSections(platform, 'host').map((section) => section.id))
     const groups = searchSettings(

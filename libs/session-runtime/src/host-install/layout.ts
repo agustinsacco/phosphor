@@ -8,13 +8,16 @@ export interface InstalledLayout {
   version: string
   current: string
 }
+export const hostInstallRoot = (home: string) =>
+  join(realpathSync(home), '.local/lib/phosphor-host')
+
 export function installedLayout(
   execPath: string,
   bundlePath: string,
   home: string,
 ): InstalledLayout | null {
   try {
-    const lib = join(realpathSync(home), '.local/lib/phosphor-host')
+    const lib = hostInstallRoot(home)
     const node = realpathSync(execPath)
     const bundle = realpathSync(bundlePath)
     const folder = dirname(dirname(bundle))

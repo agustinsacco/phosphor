@@ -8,6 +8,7 @@ import {
 import { scrubExcerpt } from '@phosphor/memory-engine/secrets'
 import { plainRefusal } from './refusal'
 import { BRAIN_OFF, type CuratorApi, type CuratorContext } from './curator-context'
+import { BRAIN_TURN_REFUSAL, curatorTurn, type CuratorTurn } from './curator-turn'
 
 const RESOLVED: Record<BrainResolve['action']['kind'], string> = {
   merge: 'Merged.',
@@ -33,24 +34,29 @@ const refused = (message: string): BrainAgentWrite => ({
 })
 
 interface Writer {
-  /** The journal note: the Defrag run Brain Agent is answering, if any, and the scrubbed reason. */
-  note(reason: string): { runId: string | null; reason: string }
-  /** Applies one change, maps engine refusals to statuses, then refreshes search and shows it. */
-  write(change: () => string | null, message: string): Promise<BrainAgentWrite>
+  /** The journal note: the Defrag run of the asking turn, if any, and the scrubbed reason. */
+  note(turn: CuratorTurn, reason: string): { runId: string | null; reason: string }
+  /**
+   * Applies one change for `turn`, rechecking its authority right before the change; maps
+   * engine refusals to statuses, then refreshes search and shows it.
+   */
+  write(
+    turn: CuratorTurn | null,
+    change: (turn: CuratorTurn) => string | null,
+    message: string,
+  ): Promise<BrainAgentWrite>
 }
 
 function writer(context: CuratorContext): Writer {
   const { search, queue } = context
   return {
-    note: (reason) => ({
-      runId: context.defrag.turnRun()?.runId ?? null,
-      reason: scrubExcerpt(reason),
-    }),
-    async write(change, message) {
+    note: (turn, reason) => ({ runId: turn.runId(), reason: scrubExcerpt(reason) }),
+    async write(turn, change, message) {
       if (!context.enabled()) return refused(BRAIN_OFF)
+      if (!turn?.admit()) return refused(BRAIN_TURN_REFUSAL)
       let operationId: string | null
       try {
-        operationId = change()
+        operationId = change(turn)
       } catch (error) {
         const text = error instanceof Error ? error.message : ''
         if (text === BRAIN_ERASE_LIMIT_REFUSAL || text === BRAIN_RELATE_LIMIT_REFUSAL)
@@ -72,14 +78,22 @@ export function curatorWrites(
   const { store, options } = context
   const tools = writer(context)
   const { note, write } = tools
+  const turn = () => curatorTurn(context)
   return {
     relate: async ({ reason, ...link }) =>
-      write(() => store.relate(link, note(reason)), 'Stated the relationship.'),
+      write(turn(), (t) => store.relate(link, note(t, reason)), 'Stated the relationship.'),
     resolve: async ({ suggestionId, action, reason }) =>
-      write(() => store.resolve(suggestionId, action, note(reason)), RESOLVED[action.kind]),
+      write(
+        turn(),
+        (t) => store.resolve(suggestionId, action, note(t, reason)),
+        RESOLVED[action.kind],
+      ),
     edit: async ({ edit, reason }) =>
-      write(() => store.agentEdit(edit, note(reason)), EDITED[edit.kind]),
+      write(turn(), (t) => store.agentEdit(edit, note(t, reason)), EDITED[edit.kind]),
     correct: async ({ memoryId, summary, source, quote, links, ends, reason }, signal) => {
+      // The turn that asked, captured before the model runs: the write rechecks it after.
+      const asking = turn()
+      if (!asking) return refused(BRAIN_TURN_REFUSAL)
       const text = scrubExcerpt(summary)
       // No local model saves it without a vector; a cancelled call saves nothing.
       const vector = await options.embeddings
@@ -88,43 +102,52 @@ export function curatorWrites(
         .catch(() => null)
       signal.throwIfAborted()
       let report = ''
-      const result = await write(() => {
-        const fixed = store.correct(
-          {
-            memoryId,
-            links,
-            ends,
-            summary: text,
-            source: scrubExcerpt(source),
-            quote: scrubExcerpt(quote),
-          },
-          vector,
-          note(reason),
-        )
-        const list = (links: typeof fixed.carried) =>
-          links.length
-            ? links
-                .map((l) => l.id)
-                .join(', ')
-                .slice(0, 160)
-            : 'none'
-        report = `Corrected. Current links: ${list(fixed.carried)}. Ended: ${list(fixed.ended)}. Undo restores the old memory.`
-        return fixed.operationId
-      }, 'Corrected.')
+      const result = await write(
+        asking,
+        (t) => {
+          const fixed = store.correct(
+            {
+              memoryId,
+              links,
+              ends,
+              summary: text,
+              source: scrubExcerpt(source),
+              quote: scrubExcerpt(quote),
+            },
+            vector,
+            note(t, reason),
+          )
+          const list = (links: typeof fixed.carried) =>
+            links.length
+              ? links
+                  .map((l) => l.id)
+                  .join(', ')
+                  .slice(0, 160)
+              : 'none'
+          report = `Corrected. Current links: ${list(fixed.carried)}. Ended: ${list(fixed.ended)}. Undo restores the old memory.`
+          return fixed.operationId
+        },
+        'Corrected.',
+      )
       return result.status === 'done' ? { ...result, message: report } : result
     },
     erase: async ({ memoryId, reason }) => {
       const result = await write(
-        () => store.erase(memoryId, note(reason)),
+        turn(),
+        (t) => store.erase(memoryId, note(t, reason)),
         'Erased. This is final: only your reason is kept.',
       )
       // An erasure cannot be undone, so it offers no operation.
       return { ...result, operationId: null }
     },
     undo: async ({ operationId, reason }) =>
-      write(() => {
-        store.agentUndo(operationId, note(reason))
-        return null
-      }, 'Undone.'),
+      write(
+        turn(),
+        (t) => {
+          store.agentUndo(operationId, note(t, reason))
+          return null
+        },
+        'Undone.',
+      ),
   }
 }

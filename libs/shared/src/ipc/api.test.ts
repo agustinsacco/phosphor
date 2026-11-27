@@ -1,3 +1,4 @@
+import type { BrainSurfacePort } from './host-brain'
 import { expectTypeOf, it } from 'vitest'
 import type { AppPrefs } from '../models'
 import type {
@@ -32,6 +33,7 @@ export interface BaselinePhosphorApi {
    * flashing the wrong modifier first.
    */
   platform: BaselinePhosphorPlatform
+  hostBrain?: BrainSurfacePort
 
   invoke<C extends IpcInvokeChannel>(
     channel: C,

@@ -36,7 +36,7 @@ export function RemoteLaneRow({
   const { navigate } = useNavigation()
   const actions = useRemoteLaneActions({ hostId, lane, ready, onRename: rename })
   const { title, canRename } = actions
-  const menu = useMenuTriggers(actions.items, { title, disabled: !ready, revision: lane.activity })
+  const menu = useMenuTriggers(actions.items, { title, disabled: !ready, ...actions.menuTrigger })
   const inline = useInlineRename(title, (name) => void actions.saveName(name), {
     maxLength: 80,
     label: 'Lane name',

@@ -19,6 +19,7 @@ import { admitsBrowserOrigin, resolveWebOrigin } from './browser-origin'
 import { createWsUpgrade, rejectTransport } from './ws-upgrade'
 import { createAdapterChain } from './adapter'
 import { createMachineAdapter } from './machine-adapter'
+import { createBrainAdapter, type BrainSurfaceBinding } from './brain-adapter'
 import { createOwnerAdapter, type OwnerHandlers } from '../owner/adapter'
 import { createOpsAdapter, type OpsAdapterPorts } from '../ops/adapter'
 
@@ -94,6 +95,7 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
     webPushKey: options.lanes?.webPushKey,
     warmOnOpen: options.warmOnOpen,
     readyFlags: options.ops?.readyFlags,
+    brain: Boolean(options.brain),
   })
 }
 
@@ -102,15 +104,27 @@ function grantAuth(options: ApiOptions, keyset: Keyset, hello: HostHello) {
  * last. The guard answers only machine grants, so it sits ahead of `ops.run`
  * to refuse surface-only ops before the dispatcher sees them.
  */
-export function hostLinks(ops?: OpsAdapterPorts, owner?: OwnerHandlers) {
-  return [createOwnerAdapter(owner), createMachineAdapter(), createOpsAdapter(ops)]
+export function hostLinks(
+  ops?: OpsAdapterPorts,
+  owner?: OwnerHandlers,
+  brain?: BrainSurfaceBinding,
+) {
+  return [
+    createOwnerAdapter(owner),
+    brain?.link ?? createBrainAdapter(),
+    createMachineAdapter(),
+    createOpsAdapter(ops),
+  ]
 }
 
 function connectionAdapters(options: ApiOptions) {
   const adapter =
     options.laneAdapter ??
     (options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined)
-  return { adapter, handler: createAdapterChain(hostLinks(options.ops), adapter?.handler) }
+  return {
+    adapter,
+    handler: createAdapterChain(hostLinks(options.ops, undefined, options.brain), adapter?.handler),
+  }
 }
 
 interface ApiOptions {
@@ -128,6 +142,7 @@ interface ApiOptions {
   peers?: () => Iterable<ClientConnection>
   /** Unbound until the Host serves ops; `ops.run` then reaches the lane adapter as before. */
   ops?: OpsAdapterPorts
+  brain?: BrainSurfaceBinding
   key: KeyObject
   port?: number
   fetch?: typeof fetch

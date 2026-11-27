@@ -4,6 +4,11 @@ import { PageShell } from '@/components/PageShell'
 import { Button } from '@/components/form'
 import { useOpenSettings } from '@/features/settings/useOpenSettings'
 import { usePlatform } from '@/platform/Platform'
+import { useNavigation } from '@/navigation/Navigation'
+import { locationMachine } from '@/navigation/location'
+import { brainMachine } from './brainMachine'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { HostBrainPage } from './HostBrainPage'
 import { formatCount } from '@/lib/format'
 import { useBrain } from './useBrain'
 import { useBrainSync } from './useBrainSync'
@@ -14,6 +19,23 @@ import './brain.css'
 import './map/map.css'
 
 export function BrainPage(): React.JSX.Element {
+  const { location } = useNavigation()
+  const platform = usePlatform()
+  const explicit = locationMachine(location)
+  const selected = useRemoteLanesStore((s) =>
+    brainMachine(
+      explicit ?? (platform.localLanes ? s.filter : 'all'),
+      s.hosts,
+      platform.desktopBrainOwner,
+    ),
+  )
+  if (selected === 'local' && platform.localBrain) return <LegacyBrainPage />
+  return (
+    <HostBrainPage hostId={selected !== 'local' && selected !== 'all' ? selected : undefined} />
+  )
+}
+
+function LegacyBrainPage(): React.JSX.Element {
   useBrainSync()
   const supported = usePlatform().localBrain
   const status = useBrain((s) => s.status)

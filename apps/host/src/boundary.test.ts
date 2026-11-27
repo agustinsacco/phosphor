@@ -11,6 +11,10 @@ const LIBRARIES: Record<string, string[]> = {
   '@phosphor/session-runtime': exported('libs/session-runtime'),
   // Brain's lane-scoped briefing and private socket client, not its engine or store.
   '@phosphor/brain-client': exported('libs/brain-client'),
+  // The Host's own Brain (its engine, store and worker protocols) and the handover's copy,
+  // digest and checks. The libraries' boundary tests keep them free of Electron.
+  '@phosphor/brain-runtime': exported('libs/brain-runtime'),
+  '@phosphor/memory-engine': exported('libs/memory-engine'),
   // Browser-safe: the reach pool speaks the Host protocol as a client.
   '@phosphor/host-client': exported('libs/host-client'),
   // This subpath is a pure wire-literal module.
@@ -25,6 +29,12 @@ const files = readdirSync(src, { recursive: true, encoding: 'utf8' })
 function assertPackageImport(specifier: string | undefined, file: string, support: boolean) {
   if (specifier === 'ws') {
     if (!file.startsWith(join(src, 'api') + '/')) throw new Error('ws is only allowed in Host api/')
+    return
+  }
+  // Only the embedding worker's own process loads the model runtime, never the Host bundle.
+  if (specifier === '@huggingface/transformers') {
+    if (file !== join(src, 'brain/embedding-worker.ts'))
+      throw new Error('@huggingface/transformers is only allowed in the Brain embedding worker')
     return
   }
   // The terminal screen is the one place that draws with Clack; commands stay plain.
@@ -47,6 +57,18 @@ describe('Host import boundary', () => {
       'ws is only allowed in Host api/',
     )
     expect(() => assertPackageImport('ws', join(src, 'api/server.ts'), false)).not.toThrow()
+  })
+  it('refuses the embedding model runtime outside its worker', () => {
+    expect(() =>
+      assertPackageImport('@huggingface/transformers', join(src, 'brain/runtime.ts'), false),
+    ).toThrow('only allowed in the Brain embedding worker')
+    expect(() =>
+      assertPackageImport(
+        '@huggingface/transformers',
+        join(src, 'brain/embedding-worker.ts'),
+        false,
+      ),
+    ).not.toThrow()
   })
   it('refuses Clack outside the terminal screen', () => {
     expect(() =>
