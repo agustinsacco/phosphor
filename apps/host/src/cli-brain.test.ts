@@ -237,6 +237,17 @@ describe('runCliBrain', () => {
     expect(json.out.stdout).toBe(`${JSON.stringify(data)}\n`)
   })
 
+  it('closes the socket at expiry even when the status poll never returns', async () => {
+    vi.useFakeTimers()
+    const pending = host(confirm(Date.now() + 50))
+    pending.runBrain.mockImplementation(() => new Promise(() => {}))
+    const exit = runCliBrain(['status'], pending.io, context)
+    await vi.advanceTimersByTimeAsync(50)
+    expect(pending.close).toHaveBeenCalledOnce()
+    expect(await exit).toBe(75)
+    expect(pending.runBrain).toHaveBeenCalledTimes(2)
+  })
+
   it('reports a denial and stops polling', async () => {
     const denied = host(confirm(Date.now() + 60_000), state('denied'))
     expect(await runCliBrain(['status'], denied.io, context)).toBe(1)

@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -58,6 +58,14 @@ it('reclaims the lock of a killed writer, and of a reused pid with another start
   // pid 20 now belongs to an unrelated process that started later.
   const reused = ports(30, new Set([20, 30]), (p) => (p === 20 ? 'later' : `start-${p}`))
   await (await acquireHostBrainWriterLock(state, { ports: reused })).release()
+})
+
+it('refuses a gate left after stale-record removal without publishing a new writer', async () => {
+  const path = join(state, HOST_BRAIN_WRITER_LOCK)
+  await mkdir(path + '-recovery')
+  await expect(acquireHostBrainWriterLock(state)).rejects.toThrow(/needs repair/)
+  expect(existsSync(path)).toBe(false)
+  expect(existsSync(path + '-recovery')).toBe(true)
 })
 
 it('reclaims an invalid lock file and never parses a record without its fields', async () => {
