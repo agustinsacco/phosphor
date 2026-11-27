@@ -1,18 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UpdateState } from '@shared/models'
-import { isUpdateVisible, useUpdatesStore } from './updatesStore'
+import { useUpdatesStore } from './updatesStore'
+import { appUpdateRow } from './updatesFooterRows'
 
-describe('isUpdateVisible', () => {
-  const visible = (phase: UpdateState['phase']): boolean => isUpdateVisible({ phase })
+describe('appUpdateRow', () => {
+  const visible = (phase: UpdateState['phase']): boolean => appUpdateRow({ phase }) !== null
 
   it('shows only when there is something to see or act on', () => {
     expect(visible('downloading')).toBe(true)
+    expect(visible('installing')).toBe(true)
     expect(visible('downloaded')).toBe(true)
     expect(visible('manual-download')).toBe(true)
   })
 
   it('stays hidden for idle, checking, and unsupported', () => {
-    // The pill must not flicker on every 30-minute poll, and a dev build has
+    // The row must not flicker on every 30-minute poll, and a dev build has
     // no update mechanism at all — neither should draw the eye.
     expect(visible('idle')).toBe(false)
     expect(visible('checking')).toBe(false)

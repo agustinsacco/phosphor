@@ -9,7 +9,7 @@ import {
 } from '@/stores/machineUpdates'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { localServiceId } from '@/stores/localServiceScope'
-import { readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
+import { lastUpdateOf, readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
 import { changeUpdateRun, reconnectForUpdate, updateOp } from './machineUpdateRun'
 import {
   observeConnection,
@@ -30,7 +30,7 @@ function applyStatus(
       ...entry,
       status: status ?? entry.status,
       version: host.hostVersion ?? local?.serviceVersion ?? entry.version,
-      last: local?.lastUpdate === null ? undefined : (local?.lastUpdate ?? entry.last),
+      last: lastUpdateOf(entry, status, local),
     }
     const pause = status?.pause
     const active = pause && pause.kind !== 'none'
@@ -67,9 +67,11 @@ function applyLocalStatus(status: LocalMachineStatus) {
   if (!id || !host || status.mode !== 'daemon') return
   const entry = machineUpdateEntry(id)
   if (status.service === 'ready' && host.state === 'ready') {
+    // The owner socket says nothing about availability: keep the Host's own report.
     const facts = status.pause && {
       pause: status.pause,
       pauseControl: entry.status?.pauseControl,
+      update: entry.status?.update,
     }
     applyStatus(id, host, facts, status)
   }

@@ -223,7 +223,7 @@ it('reads a rollback from the Host’s reported last result', () => {
     to: '1.3.0',
     outcome: 'rolled-back',
     at: '2026-11-26T11:00:00.000Z',
-  }
+  } as const
   const before = readUpdateStatus({ pause: { kind: 'none' }, update: { supported: true } })
   const after = readUpdateStatus({ pause: { kind: 'none' }, update: { supported: true, last } })
   expect(lastUpdateOf({}, before)).toBeUndefined()

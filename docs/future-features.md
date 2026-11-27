@@ -29,25 +29,9 @@ refuse with the fixed unavailable hint; they never run against This Mac instead.
 
 ## Updates: knowing an update exists
 
-The Software pipeline (Settings → Advanced, [updates.md](updates.md)) updates This
-Mac's service and every Host. What is not built is learning that an update exists
-without opening Settings:
+Hosts report their own update status and the sidebar's update rows show it
+([updates.md](updates.md#surfaces)). What is left:
 
-- **A Host reports its own update status.** The Host checks its signed release
-  manifest in the background (the check `update/handoff.ts` already does, no
-  download), a few minutes after start and then every few hours, and reports
-  them in `machine.status` `data.update`, beside today's `pauseControl`: `available?`,
-  `checkedAt?` and `last?`, where
-  `last` is the existing `update-result.json` (updated, rolled back, failed). Older
-  Hosts fall back to "a newer version runs on another of your machines". No new op,
-  frame or capability.
-- **One update area, bottom-left, above the account row,** on Desktop and the PWA:
-  a Desktop app row and a row for the machine in scope ("bee1 · Update available",
-  then the pipeline's steps, then "Updated to X"), with an out-of-date mark on each
-  machine in the switcher and the Machines page. Rows open that machine's Settings
-  row, which holds the one confirm. Rules: the account row never moves, each step
-  shows at least 600 ms, a reconnect never changes a row, nothing shows during app
-  start.
 - **Not decided:** one "Update both" action for Desktop and This Mac's service
   (service first, then Desktop), and opt-in automatic Host updates while no lane is
   working.

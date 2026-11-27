@@ -662,6 +662,37 @@ html {
     transform: scale(1.025);
   }
 }
+/* The bottom-left update rows (UpdatesFooter). Each slot opens and shuts its
+ * own grid track, so the account row below never moves; the text cross-fades
+ * in place when it changes. */
+.px-update-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows 200ms ease-out,
+    opacity 150ms ease-out;
+}
+.px-update-slot-open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+@keyframes px-update-text-in {
+  from {
+    opacity: 0;
+  }
+}
+.px-update-text {
+  animation: px-update-text-in 120ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .px-update-slot,
+  .px-update-text {
+    transition: none;
+    animation: none;
+  }
+}
 /* The notification drawer's width. The toast stack reads it to sit beside
  * the open drawer instead of over it. */
 :root {

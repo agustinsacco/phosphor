@@ -281,6 +281,7 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
     bindMachineOps,
     agentControl: async () => (await policy.read()).policy.agentControl !== 'off',
     close() {
+      ports.machineUpdate?.stop()
       jobs.close()
       db.close()
     },
@@ -314,6 +315,7 @@ export interface RunOpsPorts extends Pick<
   | 'serviceUpdate'
   | 'pauseState'
   | 'pauseControl'
+  | 'machineUpdate'
   | 'log'
   | 'now'
 > {

@@ -86,7 +86,11 @@ function mount(platform: Platform) {
     ),
   )
 }
-const wait = (ms: number) => act(() => vi.advanceTimersByTime(ms))
+function wait(ms: number): void {
+  act(() => {
+    vi.advanceTimersByTime(ms)
+  })
+}
 const rows = () =>
   [...container.querySelectorAll<HTMLElement>('[data-update-row]:not([aria-hidden="true"])')].map(
     (row) => `${row.dataset.updateRow}: ${row.textContent?.replace(/\s+/g, ' ').trim()}`,

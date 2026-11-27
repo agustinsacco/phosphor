@@ -1,5 +1,6 @@
 import type { HostConnectionView, LocalMachineStatus } from '@shared/ipc'
 import type { ServicePauseState } from '@shared/host-protocol-owner'
+import type { MachineUpdateReport } from '@shared/machine-update'
 import { compareVersions } from '@shared/version'
 
 export type UpdateStep = 'downloading' | 'waiting' | 'paused' | 'restarting' | 'health'
@@ -28,6 +29,8 @@ export type Waiting = Extract<ServicePauseState, { kind: 'pausing' }>
 export interface UpdateStatus {
   pause: ServicePauseState
   pauseControl?: true
+  /** The Host's own report (tier 2); absent from an older Host. */
+  update?: MachineUpdateReport
 }
 export interface UpdateRun {
   path: UpdatePath
@@ -45,6 +48,9 @@ export interface UpdateRun {
   wentOffline?: true
   finish?: UpdateFinish
   settled?: true
+  settledAt?: number
+  /** Its Settings row was shown, so the bottom-left row lets a failure go. */
+  seen?: true
   jobId?: string
   awaitingJob?: true
   taskExit?: { code: number; at: number }
@@ -63,7 +69,7 @@ export function nextRun(run: UpdateRun, now: number): UpdateRun {
   const at = UPDATE_STEPS.indexOf(run.step)
   const reached = UPDATE_STEPS.indexOf(run.reached)
   if (run.finish && (at >= reached || (run.finish !== 'updated' && run.finish !== 'rolled-back')))
-    return { ...run, settled: true }
+    return { ...run, settled: true, settledAt: now }
   if (at >= reached) return run
   const next = UPDATE_STEPS[at + 1]!
   const step =
@@ -208,6 +214,25 @@ export function holdUpdatePage(run: UpdateRun | undefined): boolean {
   )
 }
 
+/** The Host's own report wins (tier 2); an older Host only learns of a newer version elsewhere. */
+function newerRelease(
+  installed: string | undefined,
+  report: MachineUpdateReport | undefined,
+  peers: Iterable<HostConnectionView>,
+): { available?: string; availableFrom?: 'host' | 'peer' } {
+  if (!installed) return {}
+  if (report)
+    return report.available && compareVersions(report.available, installed) > 0
+      ? { available: report.available, availableFrom: 'host' }
+      : {}
+  let available: string | undefined
+  for (const peer of peers) {
+    const version = peer.hostVersion
+    if (version && compareVersions(version, available ?? installed) > 0) available = version
+  }
+  return available ? { available, availableFrom: 'peer' } : {}
+}
+
 export function deriveMachineUpdate(input: {
   machineId: string
   label: string
@@ -222,12 +247,7 @@ export function deriveMachineUpdate(input: {
   const { run } = entry
   const ready = host?.state === 'ready'
   const installed = (ready ? host.hostVersion : undefined) ?? entry.version
-  let available: string | undefined
-  if (installed)
-    for (const peer of peers) {
-      const version = peer.hostVersion
-      if (version && compareVersions(version, available ?? installed) > 0) available = version
-    }
+  const { available, availableFrom } = newerRelease(installed, entry.status?.update, peers)
   const path: UpdatePath | 'none' = host?.ops
     ? 'op'
     : host?.capabilities.includes('terminal') && terminal
@@ -254,7 +274,7 @@ export function deriveMachineUpdate(input: {
         ? 'done'
         : run?.finish && run.finish !== 'current' && run.finish !== 'cancelled'
           ? 'failed'
-          : available && !run
+          : available && (!run || run.finish === 'cancelled')
             ? 'available'
             : installed || ready
               ? 'current'
@@ -267,7 +287,8 @@ export function deriveMachineUpdate(input: {
     path,
     installed,
     available,
-    availableFrom: available ? ('peer' as const) : undefined,
+    availableFrom,
+    checkedAt: entry.status?.update?.checkedAt,
     waitingOn: run?.waiting?.waitingOn,
     deadline: run?.waiting?.deadline,
     from: run?.from,

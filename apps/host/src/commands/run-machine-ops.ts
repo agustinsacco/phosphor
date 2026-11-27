@@ -94,6 +94,8 @@ export async function bindRunOps(
       env: started.machine.env,
       home: context.home,
       platform: context.platform,
+      stateDirectory: ports.stateDirectory,
+      uid: context.uid,
       log: started.log.write,
     }),
     ...(started.writes ? { writes: started.writes } : {}),

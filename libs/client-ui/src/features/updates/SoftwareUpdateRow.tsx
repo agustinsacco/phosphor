@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Row, SectionTitle } from '@/components/form'
 import { CheckIcon, Spinner } from '@/components/icons'
 import { TooltipSummary } from '@/components/Tooltip'
@@ -7,7 +7,12 @@ import { usePlatform } from '@/platform/Platform'
 import { EMPTY_MACHINE_UPDATE, useMachineUpdatesStore } from '@/stores/machineUpdates'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { promptChoice } from '@/stores/prompt'
-import { beginMachineUpdate, controlMachineUpdate, reconnectForUpdate } from './machineUpdateRun'
+import {
+  beginMachineUpdate,
+  changeUpdateRun,
+  controlMachineUpdate,
+  reconnectForUpdate,
+} from './machineUpdateRun'
 import {
   deriveMachineUpdate,
   UPDATE_STEPS,
@@ -25,9 +30,11 @@ const STEP_LABEL: Record<UpdateStep, string> = {
 
 function updateLine(state: MachineUpdateState): string | undefined {
   const { run, to, label, installed, available } = state
-  if (!run)
+  if (!run || (state.phase === 'available' && run.settled))
     return available
-      ? `A newer version (${available}) runs on another machine.`
+      ? state.availableFrom === 'host'
+        ? `Version ${available} is available.`
+        : `A newer version (${available}) runs on another machine.`
       : (state.can.why ?? 'Check for the newest signed release.')
   if (!run.settled) {
     if (run.step === 'downloading')
@@ -223,6 +230,11 @@ export function SoftwareUpdateRow({
   )
   const [asking, setAsking] = useState(false)
   const pending = useRef(false)
+  const unseen = state.phase === 'failed' && !state.run?.seen ? state.run?.started : undefined
+  // Shown here, a failure no longer needs the bottom-left row.
+  useEffect(() => {
+    if (unseen !== undefined) changeUpdateRun(id, unseen, (run) => ({ ...run, seen: true }))
+  }, [id, unseen])
   async function update() {
     if (pending.current || !state.can.start || state.path === 'none') return
     pending.current = true

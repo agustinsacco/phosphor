@@ -27,7 +27,7 @@ function input(over: Partial<DaemonLanePortsInput> = {}) {
     home,
     platform: 'darwin',
     stateDirectory: home,
-    uid: undefined,
+    uid: process.getuid?.(),
     log: () => {},
     ...over,
   }
@@ -77,7 +77,7 @@ it('reports a source install as not updatable, never checks, and still reports t
       outcome: 'rolled-back' as const,
       at: new Date().toISOString(),
     }
-    writeUpdateResult(h.ports.stateDirectory, undefined, last)
+    writeUpdateResult(h.ports.stateDirectory, h.ports.uid, last)
     expect(built.machineUpdate.report()).toEqual({ supported: false, last })
     expect(vi.getTimerCount()).toBe(0)
     built.machineUpdate.stop()

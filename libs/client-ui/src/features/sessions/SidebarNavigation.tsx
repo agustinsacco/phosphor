@@ -1,10 +1,9 @@
 import { PlusIcon } from '@/components/icons'
 import { AccountFooter } from '@/features/account/AccountFooter'
-import { UpdatePill } from '@/features/updates/UpdatePill'
+import { UpdatesFooter } from '@/features/updates/UpdatesFooter'
 import { useNavigation } from '@/navigation/Navigation'
 import { NavigationItem } from '@/navigation/NavigationItem'
 import { PageLinks } from '@/navigation/PageLinks'
-import { usePlatform } from '@/platform/Platform'
 import type { GlobalPage } from '@/stores/layout'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { MachineSwitcher, OtherMachinesActivity, type MachineScopeChange } from './MachineSwitcher'
@@ -52,12 +51,11 @@ export function SidebarNavigation({
   )
 }
 
-/** The bottom of the left navigation: the native update notice, then the account and Settings. */
+/** The bottom of the left navigation: the update rows, then the account and Settings. */
 export function SidebarFooter(): React.JSX.Element {
-  const { appInfo } = usePlatform()
   return (
     <div className="border-border border-t px-3 py-2">
-      {appInfo && <UpdatePill />}
+      <UpdatesFooter />
       <AccountFooter />
     </div>
   )

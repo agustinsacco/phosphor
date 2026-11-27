@@ -1,3 +1,4 @@
+import type { MachineUpdateReport } from '@phosphor/shared/machine-update'
 import type { AppServices } from '../../session/app-services'
 import { createBrainHandlers } from './brain'
 import type { SettingsOps } from './settings-access'
@@ -72,6 +73,11 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   /** The service pause, for `machine.status`. */
   readonly pauseState?: () => ServicePauseState
   readonly pauseControl?: (action: 'abort-now' | 'cancel') => boolean
+  /** `machine.status` `data.update`: the release self-check and the last result; stopped on close. */
+  readonly machineUpdate?: {
+    report(): Omit<MachineUpdateReport, 'pauseControl'>
+    stop(): void
+  }
 }
 
 /** Every domain file's handlers. Meta ops come from `meta.ts`, bound over the dispatcher's stores. */

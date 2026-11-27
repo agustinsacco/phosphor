@@ -183,9 +183,33 @@ timer would otherwise start a second one on top of it.
 
 ## Surfaces
 
-- `UpdatePill` (sidebar footer) renders only `downloading`, `installing`,
-  `downloaded`, `manual-download`. Only the last two are clickable, because only
-  those can do anything.
+- `UpdatesFooter` (`features/updates/UpdatesFooter.tsx`, the sidebar footer on
+  Desktop and the PWA) has at most two fixed rows above the account row, each
+  `name · text` with the full sentence in its tooltip. Desktop and each
+  machine's service update separately, each with its own action; there is no
+  combined action and no automatic update.
+  1. `app`, only where the platform has `appInfo`: **Desktop · Downloading 42%**,
+     **Installing…**, **Restart to update** (restarts) or **Download update**
+     (opens the release page). Idle, checking and unsupported show nothing.
+  2. `machine`: the machine in scope (This Mac's service in service mode, or the
+     Host in scope; nothing for in-app This Mac or All machines). **Update
+     available**, then the running pipeline's steps (**Downloading update…**,
+     **Waiting for 2 turns**, **Restarting…**), then **Updated to X** for 8
+     seconds or **Update didn’t finish**, which stays until that machine's
+     Software row has been shown. The row never starts an update: it opens that
+     machine's Settings → Advanced, where the one confirm lives. While an update
+     runs on any machine, that run holds the row until it ends, whatever the scope.
+
+  Availability comes from the Host's own report (`machine.status` `data.update`,
+  [host.md](host.md#updating)); a Host without one falls back to a newer version
+  running on another of your machines. The rows never jump or flicker: nothing
+  shows for the first 3 seconds after start; "Update available" appears only after
+  a successful read and 3 seconds of the machine being ready, survives a reconnect
+  for up to 10 minutes, and leaves only when a read says current or the scope
+  changes; each phase shows at least 600 ms; a scope switch replaces the text in
+  place and waits 150 ms before collapsing. Each row is 28 px and its height
+  animates in 200 ms (none under reduced motion), so the account row never moves.
+
 - Settings → About and This Mac's Settings → Advanced have **Check now** (one
-  shared row, `useAppUpdate`), the way to ask "am I current?" while the pill is
-  hidden.
+  shared row, `useAppUpdate`), the way to ask "am I current?" while the app row
+  is hidden.

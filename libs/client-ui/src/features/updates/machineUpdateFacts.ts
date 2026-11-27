@@ -1,6 +1,8 @@
 import { record } from '@shared/host-protocol/primitives'
 import type { OpsRunResult } from '@shared/host-protocol-ops'
-import type { UpdateStatus, UpdateRun } from './machineUpdateState'
+import type { LocalMachineStatus } from '@shared/ipc'
+import { parseMachineUpdateReport } from '@shared/machine-update'
+import type { LastUpdate, MachineUpdateEntry, UpdateStatus, UpdateRun } from './machineUpdateState'
 import { reach } from './machineUpdateState'
 
 const count = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0
@@ -9,7 +11,11 @@ export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
   if (!record(value) || !record(value.pause)) return undefined
   const pause = value.pause
   const support = record(value.update) && value.update.pauseControl === true
-  const flags = support ? { pauseControl: true as const } : {}
+  const report = parseMachineUpdateReport(value.update)
+  const flags = {
+    ...(support ? { pauseControl: true as const } : {}),
+    ...(report ? { update: report } : {}),
+  }
   if (pause.kind === 'none') return { pause: { kind: 'none' }, ...flags }
   if (pause.purpose !== 'update' || typeof pause.since !== 'string') return undefined
   const base = { purpose: 'update' as const, since: pause.since }
@@ -27,6 +33,20 @@ export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
     },
     ...flags,
   }
+}
+
+/**
+ * The last update's result: the owner socket's on This Mac, else the Host's
+ * own report. A read without a report (an older Host) keeps what is known.
+ */
+export function lastUpdateOf(
+  entry: MachineUpdateEntry,
+  status: UpdateStatus | undefined,
+  local?: Pick<LocalMachineStatus, 'lastUpdate'>,
+): LastUpdate | undefined {
+  if (local?.lastUpdate === null) return undefined
+  if (local?.lastUpdate) return local.lastUpdate
+  return status?.update ? status.update.last : entry.last
 }
 
 export function appendUpdateDetails(run: UpdateRun, text: string): UpdateRun {
