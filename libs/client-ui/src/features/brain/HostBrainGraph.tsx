@@ -16,11 +16,11 @@ import type { MapOverlay } from './map/useSentenceMap'
 
 export function HostBrainGraph({
   brain,
-  onTell,
+  searchRef,
   openMemory,
 }: {
   brain: ReadyBrainSurface
-  onTell: () => void
+  searchRef: React.Ref<HTMLInputElement>
   openMemory: (id: string) => void
 }) {
   const [whole, setWhole] = useState(false)
@@ -38,7 +38,12 @@ export function HostBrainGraph({
   const visit = (id: string) => walk.step({ to: { id, label: label(id) }, link: null })
   return (
     <section aria-label="Knowledge graph" className="space-y-3">
-      <HostGraphSearch brain={brain} step={walk.step} openMemory={openMemory} />
+      <HostGraphSearch
+        brain={brain}
+        step={walk.step}
+        openMemory={openMemory}
+        searchRef={searchRef}
+      />
       <WalkTrail
         walk={walk.walk}
         start={walk.place?.label ?? null}
@@ -82,7 +87,6 @@ export function HostBrainGraph({
       )}
       <HostGraphAsk
         brain={brain}
-        onTell={onTell}
         openMemory={openMemory}
         onAnswer={(recall) => lightAnswer(recall, walk.step, setOverlay)}
       />

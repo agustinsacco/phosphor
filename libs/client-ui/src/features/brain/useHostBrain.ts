@@ -150,11 +150,12 @@ export type ReadyBrainSurface = HostBrainSurface & { status: HostBrainStatus }
 export function useBrainRequest<K extends HostBrainMethod>(
   brain: HostBrainSurface,
   request: HostBrainRequest<K> | null,
+  { trackRevision = true }: { trackRevision?: boolean } = {},
 ) {
   const { invoke, status } = brain
   const [attempt, setAttempt] = useState(0)
   const [reply, setReply] = useState<{ key: string; data?: HostBrainMap[K]['result'] }>()
-  const key = JSON.stringify([request, status?.generation, status?.revision])
+  const key = JSON.stringify([request, status?.generation, trackRevision ? status?.revision : null])
   useEffect(() => {
     if (!request) return undefined
     let active = true
@@ -169,7 +170,7 @@ export function useBrainRequest<K extends HostBrainMethod>(
     return () => {
       active = false
     }
-    // The serialized key includes the full bounded request, generation and revision.
+    // The serialized key includes the full bounded request, generation and, by default, the knowledge revision.
   }, [invoke, key, attempt])
   return {
     data: reply?.key === key ? reply.data : undefined,

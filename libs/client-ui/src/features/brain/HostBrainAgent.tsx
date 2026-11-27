@@ -1,27 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BRAIN_TELL_MAX } from '@shared/brain'
 import type { HostBrainLanePage } from '@shared/host-brain'
 import type { ExtensionUIRequest, ExtensionUIResponse } from '@shared/rpc'
 import { Button } from '@/components/form'
+import { ignoreShortcut } from '@/lib/shortcutContext'
 import { useBrainRequest, type ReadyBrainSurface } from './useHostBrain'
 
 export function HostBrainAgent({ brain }: { brain: ReadyBrainSurface }): React.JSX.Element {
-  const latest = useBrainRequest<'brain:laneShow'>(brain, { method: 'brain:laneShow', args: [] })
   const [older, setOlder] = useState<HostBrainLanePage[]>([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const inFlight = useRef(false)
+  const latest = useConversationPage(brain, busy)
   const page = latest.data
-  const retry = latest.retry
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      if (!document.hidden && !busy) retry()
-    }, 2000)
-    return () => window.clearInterval(timer)
-  }, [busy, retry])
-  const cursor = older.at(0)?.next ?? (older.length ? null : page?.next)
+  const cursor = older[0] ? older[0].next : page?.next
   const act = async (operation: () => Promise<unknown>, refresh = true) => {
-    if (busy) return
+    if (inFlight.current) return
+    inFlight.current = true
     setBusy(true)
     setError('')
     try {
@@ -29,6 +25,7 @@ export function HostBrainAgent({ brain }: { brain: ReadyBrainSurface }): React.J
     } catch {
       setError('The Host did not confirm that action. Check Brain Agent before trying again.')
     } finally {
+      inFlight.current = false
       setBusy(false)
       if (refresh) latest.retry()
     }
@@ -41,16 +38,20 @@ export function HostBrainAgent({ brain }: { brain: ReadyBrainSurface }): React.J
     ).values(),
   ]
   return (
-    <section aria-label="Brain Agent" className="space-y-3">
-      <h2>Brain Agent</h2>
+    <section aria-label="Brain Agent" className="mx-auto w-full max-w-3xl space-y-4">
+      <h2 className="text-lg font-semibold">Private conversation</h2>
       {error && <p role="alert">{error}</p>}
-      <Button size="xs" onClick={latest.retry}>
-        Refresh conversation
-      </Button>
       {!page ? (
-        <p role="status">
-          {latest.error ? 'The Host refused the conversation.' : 'Loading conversation…'}
-        </p>
+        <div className="flex flex-wrap items-center gap-2 text-text-secondary">
+          <p role="status">
+            {latest.error ? 'The Host did not provide the conversation.' : 'Loading conversation…'}
+          </p>
+          {latest.error && (
+            <Button size="sm" onClick={latest.retry}>
+              Retry
+            </Button>
+          )}
+        </div>
       ) : (
         <>
           {cursor && (
@@ -63,7 +64,7 @@ export function HostBrainAgent({ brain }: { brain: ReadyBrainSurface }): React.J
                     method: 'brain:laneWatch',
                     args: [cursor],
                   })
-                  setOlder((pages) => [next, ...pages].slice(0, 4))
+                  setOlder((pages) => [next, ...pages])
                 }, false)
               }
             >
@@ -85,16 +86,43 @@ export function HostBrainAgent({ brain }: { brain: ReadyBrainSurface }): React.J
   )
 }
 
+function useConversationPage(brain: ReadyBrainSurface, busy: boolean) {
+  const latest = useBrainRequest<'brain:laneShow'>(
+    brain,
+    { method: 'brain:laneShow', args: [] },
+    // Saving knowledge does not reset the conversation; the Host's generation still does.
+    { trackRevision: false },
+  )
+  const { retry } = latest
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (!document.hidden && !busy) retry()
+    }, 2000)
+    return () => window.clearInterval(timer)
+  }, [busy, retry])
+  return latest
+}
+
 function AgentTranscript({ entries }: { entries: HostBrainLanePage['entries'] }) {
   return (
-    <ol aria-label="Transcript" className="space-y-2">
-      {entries.map((entry) => (
-        <li key={entry.id}>
-          <strong>{entry.role === 'user' ? 'You' : 'Brain Agent'}</strong>
-          <p className="whitespace-pre-wrap break-words">{entry.text}</p>
-        </li>
-      ))}
-    </ol>
+    <>
+      {entries.length === 0 && <p className="text-text-secondary">No messages yet.</p>}
+      <ol aria-label="Transcript" className="space-y-3">
+        {entries.map((entry) => (
+          <li
+            key={entry.id}
+            className={entry.role === 'user' ? 'rounded-md bg-user-bubble p-3' : 'px-3 py-2'}
+          >
+            <strong className="text-base font-semibold text-text-secondary">
+              {entry.role === 'user' ? 'You' : 'Brain Agent'}
+            </strong>
+            <p className="whitespace-pre-wrap wrap-anywhere [font-size:var(--px-chat-font-size)]">
+              {entry.text}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </>
   )
 }
 
@@ -115,58 +143,65 @@ function AgentControls({
 }): React.JSX.Element {
   const held = page.controller?.self === true
   const { fence, turn } = page
+  const reason = !page.messaging
+    ? 'Read-only. This Host can’t send messages yet.'
+    : page.controller && !held
+      ? 'Read-only. Another client has control.'
+      : page.running
+        ? 'Brain Agent is working.'
+        : null
   return (
     <>
-      <p role="status">
-        {page.running ? 'Brain Agent is responding.' : 'Brain Agent is idle.'}
-        {page.controller && (held ? ' You have control.' : ' Another client has control.')}
-      </p>
-      {!held && (page.controller || page.dialogs.length > 0) && (
-        <Button
-          disabled={busy}
-          onClick={() =>
-            void act(() =>
-              brain.invoke<'brain:laneTake'>({ method: 'brain:laneTake', args: [fence] }),
-            )
-          }
-        >
-          Take control
-        </Button>
-      )}
-      {page.running && held && turn && (
-        <Button
-          disabled={busy}
-          onClick={() =>
-            void act(() =>
-              brain.invoke<'brain:laneStop'>({ method: 'brain:laneStop', args: [fence, turn] }),
-            )
-          }
-        >
-          Stop
-        </Button>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {reason && (
+          <p role="status" className="text-text-secondary">
+            {reason}
+          </p>
+        )}
+        {!held && (page.controller || page.dialogs.length > 0) && (
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() =>
+              void act(() =>
+                brain.invoke<'brain:laneTake'>({ method: 'brain:laneTake', args: [fence] }),
+              )
+            }
+          >
+            Take control
+          </Button>
+        )}
+        {page.running && held && turn && (
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() =>
+              void act(() =>
+                brain.invoke<'brain:laneStop'>({ method: 'brain:laneStop', args: [fence, turn] }),
+              )
+            }
+          >
+            Stop
+          </Button>
+        )}
+      </div>
       <AgentDialogs page={page} brain={brain} disabled={!held || busy} act={act} />
-      {!page.messaging && (
-        <p role="note">
-          This Host can’t run messages to Brain Agent yet. It shows the saved conversation, and
-          Defrag still runs.
-        </p>
-      )}
-      <AgentComposer
-        disabled={busy || !page.messaging || (!!page.controller && !held)}
-        messaging={page.messaging}
-        draft={draft}
-        setDraft={setDraft}
-        send={() =>
-          void act(async () => {
-            await brain.invoke<'brain:laneSend'>({
-              method: 'brain:laneSend',
-              args: [draft.trim(), fence],
+      {!reason && (
+        <AgentComposer
+          busy={busy}
+          draft={draft}
+          setDraft={setDraft}
+          send={() =>
+            void act(async () => {
+              await brain.invoke<'brain:laneSend'>({
+                method: 'brain:laneSend',
+                args: [draft.trim(), fence],
+              })
+              setDraft('')
             })
-            setDraft('')
-          })
-        }
-      />
+          }
+        />
+      )}
     </>
   )
 }
@@ -199,37 +234,53 @@ function AgentDialogs({
 }
 
 function AgentComposer({
-  disabled,
-  messaging,
+  busy,
   draft,
   setDraft,
   send,
 }: {
-  disabled: boolean
-  /** Whether the Host can run a message at all; typing waits for nothing else. */
-  messaging: boolean
+  busy: boolean
   draft: string
   setDraft: (value: string) => void
   send: () => void
 }) {
+  const canSend = !busy && !!draft.trim()
   return (
     <form
       aria-label="Brain Agent composer"
+      className="rounded-composer border border-border bg-surface p-2 focus-within:border-border-focus"
       onSubmit={(event) => {
         event.preventDefault()
-        if (!disabled && draft.trim()) send()
+        if (canSend) send()
       }}
     >
       <textarea
         aria-label="Message for Brain Agent"
-        disabled={!messaging}
+        placeholder="Message Brain Agent"
+        className="block w-full resize-y bg-transparent px-2 py-1 outline-none"
+        readOnly={busy}
+        rows={2}
         value={draft}
         maxLength={BRAIN_TELL_MAX}
         onChange={(event) => setDraft(event.target.value)}
-      />{' '}
-      <Button type="submit" disabled={disabled || !draft.trim()}>
-        Send
-      </Button>
+        onKeyDown={(event) => {
+          if (
+            event.key !== 'Enter' ||
+            event.shiftKey ||
+            event.ctrlKey ||
+            event.metaKey ||
+            ignoreShortcut(event.nativeEvent)
+          )
+            return
+          event.preventDefault()
+          if (canSend) send()
+        }}
+      />
+      <div className="flex justify-end">
+        <Button type="submit" variant="primary" size="sm" disabled={!canSend}>
+          Send
+        </Button>
+      </div>
     </form>
   )
 }

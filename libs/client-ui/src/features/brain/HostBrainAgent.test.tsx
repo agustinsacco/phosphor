@@ -25,11 +25,11 @@ afterEach(() => {
 })
 
 async function render(
-  page: HostBrainLanePage,
-  watch: (cursor: string) => HostBrainLanePage = () => page,
+  page: HostBrainLanePage | (() => HostBrainLanePage),
+  watch: (cursor: string) => HostBrainLanePage = () => base,
 ) {
   const invoke = vi.fn(async (request: HostBrainRequest) => {
-    if (request.method === 'brain:laneShow') return page
+    if (request.method === 'brain:laneShow') return typeof page === 'function' ? page() : page
     if (request.method === 'brain:laneWatch') return watch(request.args[0]!)
     return null
   })
@@ -109,4 +109,21 @@ it('sends unmodified Enter once, not Shift+Enter or an IME commit', async () => 
   expect(invoke.mock.calls.filter(([request]) => request.method === 'brain:laneSend')).toEqual([
     [{ method: 'brain:laneSend', args: ['Synthetic draft', 4] }],
   ])
+})
+
+it('recovers from a failed first transcript load without showing a composer before admission', async () => {
+  let failed = false
+  const { node, button } = await render(() => {
+    if (!failed) {
+      failed = true
+      throw new Error('Synthetic read failure')
+    }
+    return { ...base, running: false, turn: null }
+  })
+  expect(node.textContent).toContain('The Host did not provide the conversation.')
+  expect(node.querySelector('[aria-label="Transcript"]')).toBeNull()
+  expect(node.querySelector('textarea')).toBeNull()
+  await act(async () => button('Retry')!.click())
+  expect(node.querySelector('[aria-label="Transcript"]')?.textContent).toContain('owns Harbor')
+  expect(node.querySelectorAll('textarea')).toHaveLength(1)
 })

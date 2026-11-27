@@ -1,16 +1,18 @@
 import { useState } from 'react'
-import { BRAIN_ASK_MAX, BRAIN_TELL_MAX } from '@shared/brain'
+import { BRAIN_ASK_MAX } from '@shared/brain'
 import type { HostBrainMap } from '@shared/host-brain'
-import { Button } from '@/components/form'
-import { useBrainRequest, useHostBrainOffers, type ReadyBrainSurface } from './useHostBrain'
+import { Button, TextInput } from '@/components/form'
+import { useBrainRequest, type ReadyBrainSurface } from './useHostBrain'
 import type { MapStep } from './map/SentenceMap'
 
 export function HostGraphSearch({
   brain,
   step,
   openMemory,
+  searchRef,
 }: {
   brain: ReadyBrainSurface
+  searchRef: React.Ref<HTMLInputElement>
   step: (step: MapStep) => void
   openMemory: (id: string) => void
 }) {
@@ -23,17 +25,22 @@ export function HostGraphSearch({
   return (
     <section aria-label="Search Brain">
       <form
+        className="flex flex-wrap items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault()
           setQuery(input.trim())
         }}
       >
-        <input
+        <TextInput
+          ref={searchRef}
+          type="search"
+          placeholder="Find names or memories"
+          className="min-w-0 flex-auto"
           aria-label="Find in Brain"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           maxLength={BRAIN_ASK_MAX}
-        />{' '}
+        />
         <Button type="submit">Search</Button>
       </form>
       {error && (
@@ -70,69 +77,53 @@ export function HostGraphSearch({
 
 export function HostGraphAsk({
   brain,
-  onTell,
   onAnswer,
   openMemory,
 }: {
   brain: ReadyBrainSurface
-  onTell: () => void
   openMemory: (id: string) => void
   onAnswer: (recall: HostBrainMap['brain:ask']['result']) => void
 }) {
   const [draft, setDraft] = useState('')
-  const canTell = useHostBrainOffers(brain.hostId, 'brain:tell')
   const [answer, setAnswer] = useState<HostBrainMap['brain:ask']['result']>()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const send = async (method: 'ask' | 'tell') => {
+  const searchMemories = async () => {
     const text = draft.trim()
-    if (busy || !text || (method === 'ask' && text.length > BRAIN_ASK_MAX)) return
+    if (busy || !text) return
     setError('')
     setBusy(true)
     try {
-      if (method === 'tell') {
-        await brain.invoke<'brain:tell'>({ method: 'brain:tell', args: [text] })
-        onTell()
-      } else {
-        const found = await brain.invoke<'brain:ask'>({ method: 'brain:ask', args: [text] })
-        onAnswer(found)
-        setAnswer(found)
-      }
+      const found = await brain.invoke<'brain:ask'>({ method: 'brain:ask', args: [text] })
+      onAnswer(found)
+      setAnswer(found)
     } catch {
-      setError(
-        method === 'tell'
-          ? 'The Host did not confirm your message. Check Brain Agent before trying again.'
-          : 'The Host did not answer.',
-      )
+      setError('The Host could not search memories.')
     } finally {
       setBusy(false)
     }
   }
   return (
-    <section aria-label="Ask and Tell">
+    <section aria-label="Search memories by meaning" className="space-y-2">
       <form
+        className="flex flex-wrap items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault()
-          void send('ask')
+          void searchMemories()
         }}
       >
-        <textarea
-          aria-label="Ask Brain, or tell Brain Agent"
-          maxLength={BRAIN_TELL_MAX}
+        <TextInput
+          type="search"
+          aria-label="Search memories by meaning"
+          placeholder="Search memories by meaning"
+          className="min-w-0 flex-auto"
+          maxLength={BRAIN_ASK_MAX}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-        />{' '}
-        <Button
-          type="submit"
-          disabled={busy || !draft.trim() || draft.trim().length > BRAIN_ASK_MAX}
-        >
-          Ask
-        </Button>{' '}
-        {canTell && (
-          <Button disabled={busy || !draft.trim()} onClick={() => void send('tell')}>
-            Tell Brain Agent
-          </Button>
-        )}
+        />
+        <Button type="submit" disabled={busy || !draft.trim()}>
+          Search memories
+        </Button>
       </form>
       {error && <p role="alert">{error}</p>}
       {answer && (

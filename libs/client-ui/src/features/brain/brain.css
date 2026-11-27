@@ -121,3 +121,10 @@
     overflow-y: visible;
   }
 }
+
+/* Host Brain has one page scroller in both shells. */
+.host-brain-body > .page-body-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
