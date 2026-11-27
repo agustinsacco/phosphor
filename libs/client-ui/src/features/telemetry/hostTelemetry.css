@@ -1,0 +1,37 @@
+/*
+ * The machine popover's two drawn surfaces: the braille graph and the core grid.
+ * Colours are theme tokens; nothing here is a hex value.
+ */
+
+/* Braille cells are the graph. Wrapping one would reorder the series. */
+.telemetry-graph {
+  white-space: pre;
+  overflow: hidden;
+  line-height: 1;
+  font-variant-ligatures: none;
+}
+
+/*
+ * One bar per core, as wide as the grid allows, filled from the bottom by
+ * `--fill`. A 4-core nettop and a 128-core box both read at a glance, which a
+ * list of 128 percentages would not.
+ */
+.telemetry-cores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7px, 1fr));
+  gap: 2px;
+  height: 22px;
+}
+.telemetry-core {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--px-border-strong);
+}
+.telemetry-core::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: var(--fill, 0%);
+  background: var(--fill-color, var(--px-accent));
+}

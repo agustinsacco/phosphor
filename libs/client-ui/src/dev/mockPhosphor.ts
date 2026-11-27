@@ -33,6 +33,7 @@ import { OPS_MOCK, mockOpsInvoke, mockOpsSnapshot, onMockOpsChanged } from './mo
 import { LOCAL_MACHINE_MOCK, mockLocalMachineInvoke } from './mock/localMachine'
 import { MAINTENANCE_MOCK, mockMaintenanceInvoke, mockMaintenancePrefs } from './mock/maintenance'
 import { REACH_MOCK, mockReachFlags, mockReachInvoke } from './mock/reach'
+import { TELEMETRY_MOCK, mockTelemetryInvoke } from './mock/telemetry'
 import { readBrowserImage, writeBrowserImage } from '@phosphor/shared/browser-image-clipboard'
 import type {
   ConnectorAuthPush,
@@ -995,6 +996,7 @@ export function installMockPhosphor(): void {
       if (OPS_MOCK.has(channel)) return mockOpsInvoke(args) as never
       if (LOCAL_MACHINE_MOCK.has(channel)) return mockLocalMachineInvoke(channel) as never
       if (MAINTENANCE_MOCK.has(channel)) return mockMaintenanceInvoke(channel, args) as never
+      if (TELEMETRY_MOCK.has(channel)) return mockTelemetryInvoke(channel, args) as never
       if (REACH_MOCK.has(channel))
         return mockReachInvoke(
           args,

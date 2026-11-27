@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { telemetryReadout } from './machine'
+import { telemetryReadout } from './machine-telemetry'
 import type { MachineTelemetry } from '@phosphor/shared/host-protocol-telemetry'
 
 const GIB = 1 << 30
