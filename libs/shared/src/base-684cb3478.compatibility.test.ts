@@ -273,3 +273,13 @@ it('both readers accept a summary event carrying stopped composer data', async (
     parseEventFrame({ ...stopped, event: { ...event, stoppedComposer: { tokens: -1 } } }),
   ).toStrictEqual(stopped)
 })
+
+it('old readers ignore laneRename; current readers retain only booleans', () => {
+  const plain = HOST_FRAMES.ready.ready
+  for (const laneRename of [true, false]) {
+    const frame = { ...plain, laneRename }
+    expect(base.parseReadyFrame(frame)).toEqual(parseReadyFrame(plain))
+    expect(parseReadyFrame(frame)).toMatchObject({ laneRename })
+  }
+  expect(parseReadyFrame({ ...plain, laneRename: 'yes' })).toBeNull()
+})

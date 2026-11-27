@@ -11,7 +11,6 @@ import {
   LANE_MOVE_NEEDS_UPDATE,
   MOVE_STOPS_LANE,
   WAIT_BEFORE_MOVE,
-  ONLY_WHILE_RUNNING,
   TAKE_CONTROL_FIRST,
   type RemoteLaneActionState,
 } from './remoteLaneActions'
@@ -152,7 +151,7 @@ describe('hostLaneContext', () => {
       handlers(),
     )
     expect(item(stopped, 'Resume')).toMatchObject({ disabled: false, hint: undefined })
-    expect(item(stopped, 'Rename…')?.hint).toBe(ONLY_WHILE_RUNNING)
+    expect(item(stopped, 'Rename…')?.hint).toBe('Update this Host to rename stopped lanes.')
   })
 
   it('names one obstacle for Pin and Lane marker: not ready, an old Host, then no control', () => {
