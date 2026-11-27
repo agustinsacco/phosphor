@@ -272,21 +272,18 @@ function connectAgentTool() {
   })
   const dispatch = vi.fn(async (prefill: string) => {
     const request = parseOpChannelRequest(prefill)
-    if (!request) throw new Error('Expected an encoded tool request')
+    if (!request || !('argv' in request)) throw new Error('Expected an argv tool request')
     return service.dispatcher.runFromTool('pi-live', request)
   })
-  const run = (args: string[]) =>
-    tool.execute('call', { args }, undefined, undefined, {
-      isIdle: () => true,
-      modelRegistry: { find: () => undefined },
-      sessionManager: { getSessionId: () => 'pi-live', getBranch: () => [] },
-      ui: {
-        setStatus: vi.fn(),
-        notify: vi.fn(),
-        confirm: vi.fn(async () => false),
-        editor: async (_title: string, prefill: string) => JSON.stringify(await dispatch(prefill)),
-      },
-    })
+  const ctx = {
+    sessionManager: { getSessionId: () => 'pi-live' },
+    ui: {
+      notify: vi.fn(),
+      confirm: vi.fn(async () => false),
+      editor: async (_title: string, prefill: string) => JSON.stringify(await dispatch(prefill)),
+    },
+  }
+  const run = (args: string[]) => tool.execute('call', { args }, undefined, undefined, ctx)
   return { run, dispatch }
 }
 
