@@ -66,6 +66,22 @@ describe('the enrolled machines projection', () => {
     expect(invoke.mock.calls).toEqual([['account:get'], ['control:machines']])
     expect(store.getState().directoryLoaded).toBe(true)
   })
+  it('loads the directory for an open Desktop window when main starts discovery after launch', async () => {
+    const store = await start(true, true)
+    expect(invoke.mock.calls).toEqual([['account:get']])
+    invoke.mockResolvedValue({ ok: true, machines: [], serverTime: new Date().toISOString() })
+    push({
+      account: {
+        status: 'signed-in',
+        user: { login: 'test', name: null, email: null },
+        remembered: true,
+      },
+      remoteDiscoveryActive: true,
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(invoke.mock.calls).toEqual([['account:get'], ['control:machines']])
+    expect(store.getState().directoryLoaded).toBe(true)
+  })
   it('coalesces signals during a request into one follow-up and ignores late signed-out data', async () => {
     const { MACHINE } = await import('@/features/machines/__fixtures__/control')
     let finish: ((value: unknown) => void) | undefined

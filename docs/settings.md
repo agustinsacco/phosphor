@@ -565,9 +565,12 @@ signed out) in Desktop and the browser.
 It lets you add and manage Hosts on the Machines page
 ([remote-access.md](remote-access.md)). Local work never needs it.
 Desktop launch reads the plain profile without unlocking the saved account.
-Opening Machines or signing in starts remote Host discovery and live updates
-for that run. An encrypted credential is read only when a signed-in request
-needs a token. The local service's owner key is separate.
+Opening Machines, opening the **Lanes on** menu or signing in starts remote
+Host discovery and live updates for that run. So does loading the local
+service's owner key: it shares the account's protected storage, so once the
+key opens, reading the account token asks nothing more and a signed-in launch
+shows its machines at once. An encrypted credential is read only when a
+signed-in request needs a token.
 
 - **GitHub through Supabase Auth**, with no email. Main runs PKCE: the system
   browser opens Supabase's authorize page, and Supabase sends it back to a

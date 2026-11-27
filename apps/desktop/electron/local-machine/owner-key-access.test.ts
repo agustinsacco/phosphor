@@ -35,3 +35,19 @@ it('shares the first request, remembers a refusal, and only tries protected stor
   expect(status).toEqual(['checking', 'unavailable', 'checking', undefined])
   expect(load).toHaveBeenCalledTimes(2)
 })
+
+it('reports protected storage as opened only after a load succeeds', async () => {
+  const load = vi.fn<() => Promise<OwnerKeyResult>>()
+  load.mockResolvedValueOnce({ ok: false, reason: 'denied' })
+  const access = createOwnerKeyAccess(load)
+  expect(access.opened()).toBe(false)
+  await access.get()
+  expect(access.opened()).toBe(false)
+  load.mockResolvedValueOnce({
+    ok: true,
+    created: false,
+    key: { id: 'test', publicKey: 'test', label: 'test', sign: () => new Uint8Array() },
+  })
+  await access.retry()
+  expect(access.opened()).toBe(true)
+})
