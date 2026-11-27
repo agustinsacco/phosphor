@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { startReleaseCheck } from './check'
+import { localReleaseMirror } from '@phosphor/session-runtime/host-install/__fixtures__/local-release'
+import { newestRelease, startReleaseCheck } from './check'
 
 const MIN = 60_000
 const HOUR = 60 * MIN
@@ -10,7 +14,10 @@ beforeEach(() => {
 })
 afterEach(() => vi.useRealTimers())
 
-function checker(random: () => number, latest = vi.fn(async () => '1.3.0')) {
+function checker(
+  random: () => number,
+  latest = vi.fn<(signal: AbortSignal) => Promise<string | undefined>>(async () => '1.3.0'),
+) {
   const log = vi.fn()
   const check = startReleaseCheck({ installed: '1.2.0', latest, log, random })
   return { check, latest, log }
@@ -97,4 +104,42 @@ it('never refreshes from a read before the first scheduled check', async () => {
   check.report()
   expect(latest).not.toHaveBeenCalled()
   check.stop()
+})
+
+it('clears an offer when the newest release for this machine is older or absent', async () => {
+  const latest = vi.fn<(signal: AbortSignal) => Promise<string | undefined>>(async () => '1.3.0')
+  const { check } = checker(() => 0, latest)
+  await vi.advanceTimersByTimeAsync(2 * MIN)
+  expect(check.report().available).toBe('1.3.0')
+  // A withdrawn release: the manifest now names an older version than the one running.
+  latest.mockResolvedValueOnce('1.1.0')
+  await vi.advanceTimersByTimeAsync(5.5 * HOUR)
+  expect(check.report()).toEqual({ checkedAt: '2026-11-26T17:32:00.000Z' })
+  latest.mockResolvedValueOnce('1.3.0')
+  await vi.advanceTimersByTimeAsync(5.5 * HOUR)
+  latest.mockResolvedValueOnce(undefined)
+  await vi.advanceTimersByTimeAsync(5.5 * HOUR)
+  expect(check.report()).toEqual({ checkedAt: '2026-11-27T04:32:00.000Z' })
+  check.stop()
+})
+
+it('reads the v2 manifest for this machine’s target and falls back to v1', async () => {
+  vi.useRealTimers()
+  const root = mkdtempSync(join(tmpdir(), 'release-check-'))
+  try {
+    const mirror = localReleaseMirror(root)
+    const source = { env: mirror.env, keys: mirror.keys }
+    const signal = new AbortController().signal
+    mirror.publish({ version: '1.3.0', targets: ['darwin-arm64', 'darwin-x64', 'linux-x64'] })
+    expect(await newestRelease(source, 'darwin-x64', signal)).toBe('1.3.0')
+    expect(await newestRelease(source, 'linux-arm64', signal)).toBeUndefined()
+    // An older release is an answer, not a failure: the updater's downgrade guard stays its own.
+    mirror.publish({ version: '1.0.0', targets: ['darwin-x64', 'linux-x64'] })
+    expect(await newestRelease(source, 'darwin-x64', signal)).toBe('1.0.0')
+    mirror.publish({ version: '1.4.0', v2: 'absent' })
+    expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.4.0')
+    expect(await newestRelease(source, 'darwin-x64', signal)).toBeUndefined()
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

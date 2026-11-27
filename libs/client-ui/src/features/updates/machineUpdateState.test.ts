@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import type { HostConnectionView } from '@shared/ipc'
-import { lastUpdateOf, readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
+import { lastUpdateOf, readUpdateJob, readUpdateStatus, reportedRun } from './machineUpdateFacts'
 import {
   deriveMachineUpdate,
   holdUpdatePage,
@@ -9,6 +9,7 @@ import {
   observePause,
   startRun,
   tickRun,
+  type UpdateRun,
   type Waiting,
 } from './machineUpdateState'
 
@@ -243,4 +244,65 @@ it('reads a rollback from the Host’s reported last result', () => {
 it('records when a run settled', () => {
   const run = { ...startRun('op', {}, host, 0), finish: 'download' as const }
   expect(nextRun(run, 700)).toMatchObject({ settled: true, settledAt: 700 })
+})
+
+it('lets a later, newer offer replace a settled run', () => {
+  const offer = (available: string) =>
+    readUpdateStatus({ pause: { kind: 'none' }, update: { supported: true, available } })
+  const settled = (over: Partial<UpdateRun>): UpdateRun => ({
+    ...startRun('op', {}, host, 0),
+    settled: true,
+    settledAt: 0,
+    ...over,
+  })
+  const phase = (run: UpdateRun, status = offer('1.4.0'), version = '1.3.0') =>
+    deriveMachineUpdate({
+      machineId: 'm',
+      label: 'dev',
+      host: { ...host, hostVersion: version },
+      peers: [],
+      entry: { status, run },
+      configure: true,
+      terminal: true,
+      owner: false,
+    }).phase
+  expect(phase(settled({ finish: 'updated', to: '1.3.0' }))).toBe('available')
+  expect(phase(settled({ finish: 'updated', to: '1.3.0' }), offer('1.3.0'))).toBe('done')
+  expect(phase(settled({ finish: 'current' }))).toBe('available')
+  expect(phase(settled({ finish: 'download' }))).toBe('failed')
+  expect(phase(settled({ finish: 'download', seen: true }))).toBe('available')
+})
+
+it('turns a rollback the Host reports without a tracked run into one failed run, within 24 hours', () => {
+  const now = Date.parse('2026-11-26T12:00:00.000Z')
+  const last = {
+    from: '1.2.3',
+    to: '1.3.0',
+    outcome: 'rolled-back',
+    at: '2026-11-26T11:00:00.000Z',
+  } as const
+  const run = reportedRun({}, last, now)
+  expect(run).toMatchObject({
+    finish: 'rolled-back',
+    settled: true,
+    from: '1.2.3',
+    to: '1.3.0',
+    reported: true,
+  })
+  const state = deriveMachineUpdate({
+    machineId: 'm',
+    label: 'dev',
+    host,
+    peers: [],
+    entry: { last, run },
+    configure: true,
+    terminal: true,
+    owner: false,
+  })
+  expect(state.phase).toBe('failed')
+  expect(reportedRun({ last, run }, last, now)).toBeUndefined()
+  expect(reportedRun({}, { ...last, outcome: 'failed' }, now)).toMatchObject({ finish: 'apply' })
+  expect(reportedRun({}, { ...last, outcome: 'updated' }, now)).toBeUndefined()
+  expect(reportedRun({}, { ...last, at: '2026-11-25T11:59:00.000Z' }, now)).toBeUndefined()
+  expect(reportedRun({}, undefined, now)).toBeUndefined()
 })

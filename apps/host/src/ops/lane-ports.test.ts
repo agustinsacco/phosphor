@@ -2,9 +2,20 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
+import type * as CheckModule from '../update/check'
+import { newestRelease, startReleaseCheck } from '../update/check'
 import { writeUpdateResult } from '../update/health'
-import { daemonLanePorts, type DaemonLanePortsInput } from './lane-ports'
+import { daemonLanePorts, machineUpdate, type DaemonLanePortsInput } from './lane-ports'
 import { createRunEndings } from './lane-reload'
+
+vi.mock('../update/check', async (importOriginal) => {
+  const actual = await importOriginal<typeof CheckModule>()
+  return {
+    ...actual,
+    startReleaseCheck: vi.fn(actual.startReleaseCheck),
+    newestRelease: vi.fn(async () => '9.9.9'),
+  }
+})
 
 let home: string | undefined
 afterEach(() => {
@@ -24,6 +35,7 @@ function input(over: Partial<DaemonLanePortsInput> = {}) {
     endings: createRunEndings(),
     pauses: () => null,
     env: {},
+    releaseEnv: {},
     home,
     platform: 'darwin',
     stateDirectory: home,
@@ -83,5 +95,26 @@ it('reports a source install as not updatable, never checks, and still reports t
     built.machineUpdate.stop()
   } finally {
     vi.useRealTimers()
+  }
+})
+
+it('checks the daemon’s own release mirror for this machine’s target, not pi’s environment', async () => {
+  const h = input({
+    env: { HOME: '/home/me' },
+    releaseEnv: { PHOSPHOR_HOST_RELEASE_URL: 'file:///mirror', HOME: '/home/me' },
+    platform: 'darwin',
+  })
+  const reporter = machineUpdate(h.ports, true)
+  try {
+    const { latest } = vi.mocked(startReleaseCheck).mock.calls.at(-1)![0]
+    const signal = new AbortController().signal
+    expect(await latest(signal)).toBe('9.9.9')
+    expect(vi.mocked(newestRelease)).toHaveBeenCalledWith(
+      { env: { PHOSPHOR_HOST_RELEASE_URL: 'file:///mirror', HOME: '/home/me' } },
+      `darwin-${process.arch}`,
+      signal,
+    )
+  } finally {
+    reporter.stop()
   }
 })

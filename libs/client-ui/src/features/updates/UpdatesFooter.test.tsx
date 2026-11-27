@@ -15,6 +15,7 @@ import { useMachinesStore } from '@/stores/machines'
 import { useMachineUpdatesStore } from '@/stores/machineUpdates'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { reportedRun } from './machineUpdateFacts'
 import type { MachineUpdateEntry, UpdateRun } from './machineUpdateState'
 import { useUpdatesStore } from './updatesStore'
 import { UpdatesFooter } from './UpdatesFooter'
@@ -60,7 +61,8 @@ beforeEach(() => {
   })
   navigate.mockReset()
   useUpdatesStore.setState({ update: { phase: 'idle' }, acting: false })
-  useMachineUpdatesStore.setState({ byMachine: {} })
+  // The shell's update observer starts with the app; the footer's start delay counts from it.
+  useMachineUpdatesStore.setState({ byMachine: {}, startedAt: Date.now() })
   useMachinesStore.setState({
     machines: [{ id: 'bee', label: 'bee1' } as never, { id: 'stark', label: 'stark' } as never],
   })
@@ -267,5 +269,83 @@ it('cross-fades a scope switch in place and waits 150 ms before collapsing', () 
   expect(rows()).toEqual(['machine: bee1 · Update available'])
   act(() => useRemoteLanesStore.setState({ filter: 'local' }))
   wait(150)
+  // bee1 replaced stark 100 ms ago: it still has its 600 ms.
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
+  wait(350)
   expect(rows()).toEqual([])
+})
+
+it('waits out a phase’s 600 ms before collapsing it', () => {
+  mount(DESKTOP_PLATFORM)
+  wait(3000)
+  setApp({ phase: 'downloading', version: '2.0.0', progressPercent: 1 })
+  wait(100)
+  setApp({ phase: 'idle' })
+  wait(150)
+  expect(rows()).toEqual(['app: Desktop · Downloading 1%'])
+  wait(349)
+  expect(rows()).toEqual(['app: Desktop · Downloading 1%'])
+  wait(1)
+  expect(rows()).toEqual([])
+})
+
+it('applies the start delay once per app, not each time the sidebar mounts', () => {
+  setApp({ phase: 'downloaded', version: '2.0.0' })
+  mount(DESKTOP_PLATFORM)
+  wait(3000)
+  act(() => root.unmount())
+  root = createRoot(container)
+  mount(DESKTOP_PLATFORM)
+  expect(rows()).toEqual(['app: Desktop · Restart to update'])
+})
+
+it('lets an active run on one machine outrank an unread result on another', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host(), stark: host() }, filter: 'local' })
+  setEntry('bee', {
+    version: '1.2.0',
+    run: run({ started: 1, finish: 'download', settled: true, settledAt: 0 }),
+  })
+  setEntry('stark', { version: '1.2.0', run: run({ started: 2 }) })
+  mount(COMPACT_PLATFORM)
+  wait(3000)
+  expect(rows()).toEqual(['machine: stark · Downloading update…'])
+})
+
+it('keeps an offer through a reconnect until a status read on the new connection says current', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  setEntry('bee', { ...available, readToken: '1' })
+  mount(COMPACT_PLATFORM)
+  wait(3000)
+  act(() =>
+    useRemoteLanesStore.setState({
+      hosts: { bee: host({ connectionToken: '2', hostVersion: '1.3.0' }) },
+    }),
+  )
+  wait(5000)
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
+  setEntry('bee', {
+    version: '1.3.0',
+    readToken: '2',
+    status: { pause: { kind: 'none' }, update: { supported: true } },
+  })
+  wait(1000)
+  expect(rows()).toEqual([])
+})
+
+it('shows a rollback the Host reported without a tracked run', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  const last = {
+    from: '1.2.0',
+    to: '1.3.0',
+    outcome: 'rolled-back' as const,
+    at: new Date(Date.now() - 60_000).toISOString(),
+  }
+  setEntry('bee', {
+    version: '1.2.0',
+    last,
+    run: reportedRun({}, last, Date.now()),
+  })
+  mount(COMPACT_PLATFORM)
+  wait(3000)
+  expect(rows()).toEqual(['machine: bee1 · Update didn’t finish'])
 })
