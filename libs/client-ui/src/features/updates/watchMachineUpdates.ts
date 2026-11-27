@@ -17,6 +17,7 @@ import {
   readUpdateStatus,
 } from './machineUpdateFacts'
 import { changeUpdateRun, reconnectForUpdate, updateOp } from './machineUpdateRun'
+import { forgetFooterMachine } from './updatesFooterRows'
 import {
   observeConnection,
   observePause,
@@ -63,6 +64,16 @@ function applyConnection(id: string, host: HostConnectionView | undefined, now: 
     return run === entry.run && version === entry.version && ready === entry
       ? entry
       : { ...ready, run, version }
+  })
+}
+
+/** A machine gone from the account: nothing of its updates can be opened or cleared. */
+function forgetMachine(id: string) {
+  useMachineUpdatesStore.setState((state) => {
+    if (!(id in state.byMachine)) return state
+    const byMachine = { ...state.byMachine }
+    delete byMachine[id]
+    return { byMachine, footer: state.footer && forgetFooterMachine(state.footer, id) }
   })
 }
 
@@ -139,6 +150,7 @@ function pollMachine(
   const run = machineUpdateEntry(id).run
   if (!host && (!run || run.settled)) {
     watch.schedule.delete(id)
+    forgetMachine(id)
     return
   }
   const generation = machineReadGeneration(id)
@@ -202,7 +214,8 @@ export function watchMachineUpdates(owner: boolean): () => void {
   function poll(focus = false) {
     const now = Date.now()
     const hosts = useRemoteLanesStore.getState().hosts
-    for (const id of new Set([...Object.keys(hosts), ...watch.schedule.keys()]))
+    const known = Object.keys(useMachineUpdatesStore.getState().byMachine)
+    for (const id of new Set([...Object.keys(hosts), ...watch.schedule.keys(), ...known]))
       pollMachine(watch, id, hosts[id], now, focus)
   }
   // Observe even ready -> reconnecting -> ready in a single render, without rereading on lane traffic.

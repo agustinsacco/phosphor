@@ -72,7 +72,7 @@ export interface MachineUpdateEntry {
   offer?: { version: string; checkedAt?: string }
   /** The last `last` result this client has accounted for (`resultId`). */
   resultSeen?: string
-  /** When the machine became ready, or left ready; the shell's observer keeps them. */
+  /** When the machine became ready, and last left ready; the shell's observer keeps them. */
   readySince?: number
   downSince?: number
 }
@@ -87,8 +87,8 @@ export function trackReady(
   now: number,
 ): MachineUpdateEntry {
   const ready = host?.state === 'ready'
-  if (ready && entry.readySince === undefined)
-    return { ...entry, readySince: now, downSince: undefined }
+  // `downSince` stays: how long it was away decides whether its offer outlived the gap.
+  if (ready && entry.readySince === undefined) return { ...entry, readySince: now }
   if (!ready && entry.readySince !== undefined)
     return { ...entry, readySince: undefined, downSince: now }
   return entry

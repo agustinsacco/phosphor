@@ -204,7 +204,8 @@ timer would otherwise start a second one on top of it.
      failed apply the Host reports that no update tracked here accounts for (a
      reload mid-restart, or an update started elsewhere) shows once as **Update
      didn’t finish**, in this row and the Software row, within the result's 24
-     hours; each result counts once, by its version and finish time. A later,
+     hours; each result counts once, by its version and finish time, and an update
+     tracked here owns only a result from its own version to its target. A later,
      newer release is offered again once a finished update's result has been
      shown (**Updated to X** keeps its 8 seconds); Software keeps a failure's
      explanation above the offer.
@@ -216,12 +217,15 @@ timer would otherwise start a second one on top of it.
   shows its rows at once); "Update available" appears only after a successful
   read and 3 seconds of the machine being ready (each machine's readiness and
   the rows' timing live in `stores/machineUpdates.ts`, so a remount continues
-  them), survives a disconnection for up to 10 minutes, stays through a
+  them; expiry is worked out from the stored times, so a remount cannot revive
+  an expired row), survives a disconnection for up to 10 minutes, stays through a
   reconnect until a status read on the new connection answers, and leaves only
   when a status checked later than the offer (`checkedAt`) says current, or the
-  scope changes; each phase shows at least 600 ms, collapsing included; a scope
-  switch replaces the text in place and waits 150 ms before collapsing. A row
-  kept for its dwell shows its old text but runs the current action, or none. Each row is 28 px and its height
+  scope changes; each phase shows at least 600 ms, collapsing included, but only while its
+  action stays the same: a new action (another machine, or **Restart to
+  update** becoming **Download update**) shows its own label at once, so a
+  label always says what a click does; a scope switch waits 150 ms before
+  collapsing. A machine removed from the account leaves the rows. Each row is 28 px and its height
   animates in 200 ms (none under reduced motion), so the account row never moves.
 
 - Settings → About and This Mac's Settings → Advanced have **Check now** (one

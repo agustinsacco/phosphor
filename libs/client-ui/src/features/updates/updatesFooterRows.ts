@@ -149,9 +149,20 @@ export function footerMachineId(
 }
 
 /**
- * "Update available" appears only after a read and 3 seconds of ready, and,
- * once showing, survives a reconnect for up to 10 minutes. Returns whether it
- * shows, and when that answer can change.
+ * Whether an offer the footer showed is still news, from the stored times
+ * alone: not after 10 minutes away, while away or across the gap before it
+ * came back. A remount therefore cannot revive one that expired meanwhile.
+ */
+export function offerLasts(entry: MachineUpdateEntry, now: number): boolean {
+  const { readySince, downSince } = entry
+  if (downSince === undefined) return true
+  return (readySince ?? now) - downSince < STALE_MS
+}
+
+/**
+ * "Update available" appears only after a read and 3 seconds of ready; one
+ * already showing (`showing`, still news by `offerLasts`) survives a
+ * reconnect. Returns whether it shows, and when that answer can change.
  */
 export function availableShows(
   host: HostConnectionView | undefined,
@@ -164,8 +175,7 @@ export function availableShows(
     if (showing || (entry.status && now - readySince >= READY_DELAY_MS)) return { shows: true }
     return { shows: false, wakeAt: entry.status ? readySince + READY_DELAY_MS : undefined }
   }
-  if (showing && downSince !== undefined && now - downSince < STALE_MS)
-    return { shows: true, wakeAt: downSince + STALE_MS }
+  if (showing && downSince !== undefined) return { shows: true, wakeAt: downSince + STALE_MS }
   return { shows: false }
 }
 
@@ -205,14 +215,35 @@ export const EMPTY_FOOTER: FooterState = Object.freeze({
   targets: { app: null, machine: null },
 })
 
+/** The footer without one machine's rows: it was removed. */
+export function forgetFooterMachine(footer: FooterState, id: string): FooterState {
+  const ours = (row: UpdateRowView | null) => row?.machineId === id
+  const { slots, last, targets } = footer
+  if (!ours(slots.machine.row) && !ours(last.machine) && !ours(targets.machine)) return footer
+  return {
+    slots: { ...slots, machine: ours(slots.machine.row) ? NO_SLOT : slots.machine },
+    last: { ...last, machine: ours(last.machine) ? null : last.machine },
+    targets: { ...targets, machine: ours(targets.machine) ? null : targets.machine },
+  }
+}
+
 /** A click runs the current target's action: the app's only when it is one to act on. */
 export const actionable = (target: UpdateRowView | null): boolean =>
   !!target && (target.machineId !== undefined || target.tone === 'action')
 
+/** What a click on the row does: open a machine's Settings, the app's action, or nothing. */
+const actionOf = (row: UpdateRowView): string | undefined =>
+  row.machineId !== undefined
+    ? `open:${row.machineId}`
+    : row.tone === 'action'
+      ? row.text
+      : undefined
+
 /**
- * The no-flicker rules for one slot: a phase stays 600 ms, another machine
- * replaces it at once (a scope switch), and nothing replaces it only after
- * 150 ms and the 600 ms, so flipping back and forth does not bounce.
+ * The no-flicker rules for one slot: a text with the same action stays 600 ms;
+ * a different action (another machine, or another app step) replaces it at
+ * once, so a label always says what a click does; nothing replaces it only
+ * after 150 ms and the 600 ms, so flipping back and forth does not bounce.
  */
 export function settleSlot(
   slot: Slot,
@@ -225,7 +256,7 @@ export function settleSlot(
   const want = slot.want && sameRow(slot.want.row, target) ? slot.want : { row: target, since: now }
   const at = !target
     ? Math.max(want.since + COLLAPSE_MS, slot.since + DWELL_MS)
-    : target.machineId !== slot.row.machineId
+    : actionOf(target) !== actionOf(slot.row)
       ? now
       : slot.since + DWELL_MS
   return now >= at ? { slot: { row: target, since: now } } : { slot: { ...slot, want }, wakeAt: at }
