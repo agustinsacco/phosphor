@@ -173,12 +173,15 @@ it.each([
       })
       const request =
         principal === local
-          ? dispatcher.runFromCli(principal(), {
-              v: 1,
-              id: 'cli-slow',
-              argv: ['lane', 'list'],
-              deadlineMs: LANE_WAIT_DEADLINE_MS,
-            })
+          ? dispatcher.runFromCli(
+              { kind: 'local', clientId: 'cli1' },
+              {
+                v: 1,
+                id: 'cli-slow',
+                argv: ['lane', 'list'],
+                deadlineMs: LANE_WAIT_DEADLINE_MS,
+              },
+            )
           : dispatcher.run(principal(), { op: 'lane.list', args: {} })
       await vi.advanceTimersByTimeAsync(45_000)
       expect(await request).toMatchObject({ status: 'ok', text: 'finished' })
@@ -218,12 +221,15 @@ it.each(['routed', 'cli'] as const)('still stops a %s op at its catalog deadline
     })
     const request =
       kind === 'cli'
-        ? dispatcher.runFromCli(local(), {
-            v: 1,
-            id: 'cli-fast',
-            argv: ['lane', 'list'],
-            deadlineMs: LANE_WAIT_DEADLINE_MS,
-          })
+        ? dispatcher.runFromCli(
+            { kind: 'local', clientId: 'cli1' },
+            {
+              v: 1,
+              id: 'cli-fast',
+              argv: ['lane', 'list'],
+              deadlineMs: LANE_WAIT_DEADLINE_MS,
+            },
+          )
         : dispatcher.run(machine(), { op: 'lane.list', args: {} })
     await vi.advanceTimersByTimeAsync(250)
     await request
