@@ -38,6 +38,14 @@ const withoutKnownPublicUrls = (text: string) =>
   text
     .replaceAll(HOST_RELEASE_BASE_URL, '')
     .replaceAll('https://github.com/agustinsacco/pi-claude-cli', '')
+    .replaceAll(
+      'https://github.com/agustinsacco/Phosphor/blob/main/docs/local-service.md#installation-and-launch',
+      '',
+    )
+    .replaceAll(
+      'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md#running-as-a-service',
+      '',
+    )
 
 describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('keeps release bundles independent of TMPDIR and untracked machine files', () => {
