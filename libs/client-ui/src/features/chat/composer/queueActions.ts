@@ -4,7 +4,7 @@ import { useChatStore } from '@/stores/chat'
 import { piCallInline, piCallOk } from '@/lib/rpc'
 import { cancelHeldComposerPrompts } from '../sendComposerPrompt'
 
-/** The pi release that added `clear_queue`. Above `MIN_PI_VERSION`, on purpose. */
+/** The pi release that added `clear_queue`. Below `MIN_PI_VERSION`, so only an older, unsupported pi lacks it. */
 export const CLEAR_QUEUE_MIN_PI = '0.84.4'
 
 /**
@@ -98,11 +98,12 @@ export async function stopRun(sessionId: string, restore: (text: string) => void
 /**
  * Explain a failed drain in terms the reader can act on.
  *
- * `clear_queue` sits above `MIN_PI_VERSION`, so a perfectly supported install
- * can be running a pi that never heard of it — naming the requirement alone
- * left the user with no way to tell whether that was their case. The installed
- * version has to come from the main process; the chat store knows pi's
- * protocol, not its build. Health is TTL-cached there, so this is cheap.
+ * `clear_queue` predates `MIN_PI_VERSION`, but a session can still be running
+ * a pi older than the minimum, and pi can refuse for its own reasons — naming
+ * the requirement alone left the user with no way to tell whether that was
+ * their case. The installed version has to come from the main process; the
+ * chat store knows pi's protocol, not its build. Health is TTL-cached there,
+ * so this is cheap.
  *
  * Upgrading is not the whole instruction either: the session is already bound
  * to a subprocess of the old pi, which lives until the session is restarted.
