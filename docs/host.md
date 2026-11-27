@@ -1485,8 +1485,9 @@ command pipeline. The client's start composer always asks for a fresh worktree,
 branched from the lane's first message; it has no toggle to run in the
 repository's own checkout.
 
-Git worktree preparation shares a 95-second budget, with up to 90 seconds for
-`git worktree add` and a separate 10 seconds to clean up after failure. An add
+Git worktree preparation shares a 65-second budget, `git worktree add` included,
+and a separate 10 seconds to clean up after failure, so pi's start keeps at least
+45 seconds of `lane.create`'s 120-second answer window. An add
 killed by its timeout leaves a worktree registered and locked "initializing": the
 cleanup force-removes and prunes it, then deletes the branch it made. The folder
 was absent just before add ran, so a folder that existed before is never touched. Other

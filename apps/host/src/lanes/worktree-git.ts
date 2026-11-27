@@ -1,10 +1,13 @@
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { GIT_TIMEOUT_MS, git } from '@phosphor/session-runtime/git/git-exec'
 import { WORKTREE_GIT_TIMEOUT } from '@phosphor/shared/errors'
+import { LANE_CREATE_ANSWER_MS } from './commands/queue'
 
-const ADD_TIMEOUT_MS = 90_000
-const PREPARE_TIMEOUT_MS = 95_000
 export const FAILED_CLEANUP_MS = 10_000
+/** What `lane.create`'s answer window keeps for pi's start, however slow Git was. */
+const PI_START_FLOOR_MS = 45_000
+/** Preparation, `git worktree add` included, takes the rest: 120 − 45 − 10 = 65 s. */
+const PREPARE_TIMEOUT_MS = LANE_CREATE_ANSWER_MS - PI_START_FLOOR_MS - FAILED_CLEANUP_MS
 
 export class LaneFolderError extends Error {
   constructor(
@@ -56,7 +59,7 @@ export function worktreeGit(root: string, deadline?: number, log?: RuntimeLog) {
     if (timeoutError) throw timeoutError
     const add = args[0] === 'worktree' && args[1] === 'add'
     const left = deadline === undefined ? Infinity : Math.ceil(deadline - performance.now())
-    const timeout = Math.min(add ? ADD_TIMEOUT_MS : GIT_TIMEOUT_MS, left)
+    const timeout = Math.min(add ? PREPARE_TIMEOUT_MS : GIT_TIMEOUT_MS, left)
     try {
       if (timeout <= 0) throw new LaneFolderError(WORKTREE_GIT_TIMEOUT)
       return await git(root, args, {

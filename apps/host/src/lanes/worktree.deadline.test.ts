@@ -81,7 +81,7 @@ it('budgets preflight, gives add only the time left and reserves a separate clea
   )
   await expect(prepare()).rejects.toThrow(timeoutMessage)
   expect(git.mock.calls.find(([, args]) => args[1] === 'add')?.[2]?.timeout).toBe(
-    PREPARE_MS - 25_000,
+    PREPARE_MS - 50_000,
   )
   expect(git.mock.calls.findLast(([, args]) => args[1] === 'list')?.[2]?.timeout).toBe(10_000)
 })
