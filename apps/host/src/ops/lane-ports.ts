@@ -2,7 +2,10 @@ import type { LaneEvent, LaneSummary } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { answerPauseCall, type LanePauses } from '../lanes/pause'
 import type { HostRuntime } from '../session/runtime'
+import { newestRelease, startReleaseCheck } from '../update/check'
 import { hostUpdateProgram } from '../update/handoff'
+import { readUpdateResult } from '../update/health'
+import { HOST_VERSION } from '../version'
 import type { DeferredActions } from './binding'
 import type { DaemonHandlerDeps } from './handlers'
 import { laneReloadAction, type RunEndings } from './lane-reload'
@@ -21,9 +24,52 @@ export interface DaemonLanePortsInput {
   readonly pauses: () => LanePauses | null | undefined
   /** The updater environment's base: pi's environment. */
   readonly env: Record<string, string>
+  /** The daemon's own environment: the release check honours its `PHOSPHOR_HOST_RELEASE_URL`. */
+  readonly releaseEnv: NodeJS.ProcessEnv
   readonly home: string
   readonly platform: NodeJS.Platform
+  /** Where the updater keeps `update-result.json`. */
+  readonly stateDirectory: string
+  readonly uid: number | undefined
   readonly log: RuntimeLog
+}
+
+/**
+ * The updater's environment: pi's, with the release source the self-check
+ * reads, the daemon's own `PHOSPHOR_HOST_RELEASE_URL`, so an offer and its
+ * install use one mirror.
+ */
+export function updaterEnvironment(
+  pi: Readonly<Record<string, string>>,
+  program: Readonly<Record<string, string>>,
+  daemon: NodeJS.ProcessEnv,
+): Record<string, string> {
+  const env: Record<string, string> = { ...pi, ...program }
+  delete env.PHOSPHOR_HOST_RELEASE_URL
+  const url = daemon.PHOSPHOR_HOST_RELEASE_URL
+  return url === undefined ? env : { ...env, PHOSPHOR_HOST_RELEASE_URL: url }
+}
+
+/** `machine.status`'s update report: a source install never checks, a release checks itself. */
+export function machineUpdate(
+  input: DaemonLanePortsInput,
+  supported: boolean,
+): NonNullable<DaemonHandlerDeps['machineUpdate']> {
+  const check = supported
+    ? startReleaseCheck({
+        installed: HOST_VERSION,
+        latest: (signal) =>
+          newestRelease({ env: input.releaseEnv }, `${input.platform}-${process.arch}`, signal),
+        log: input.log,
+      })
+    : undefined
+  return {
+    report() {
+      const last = readUpdateResult(input.stateDirectory, input.uid, Date.now())
+      return { supported, ...check?.report(), ...(last ? { last } : {}) }
+    },
+    stop: () => check?.stop(),
+  }
 }
 
 /** What agent control's lane, machine and reload ops need from the started machine. */
@@ -32,6 +78,7 @@ export function daemonLanePorts(input: DaemonLanePortsInput): Pick<
   'laneRuntime' | 'serviceUpdate' | 'pauseState' | 'pauseControl'
 > & {
   readonly deferredActions: DeferredActions
+  readonly machineUpdate: NonNullable<DaemonHandlerDeps['machineUpdate']>
 } {
   const { live, runtime, pauses } = input
   const program = hostUpdateProgram(input.home, input.env, input.platform)
@@ -56,11 +103,15 @@ export function daemonLanePorts(input: DaemonLanePortsInput): Pick<
     ...(program
       ? {
           serviceUpdate: {
-            steps: updaterSteps({ ...program, env: { ...input.env, ...program.env } }),
+            steps: updaterSteps({
+              ...program,
+              env: updaterEnvironment(input.env, program.env, input.releaseEnv),
+            }),
             pauses: pausePorts,
           },
         }
       : {}),
+    machineUpdate: machineUpdate(input, program !== null),
     pauseState: () => pauses()?.state() ?? { kind: 'none' },
     pauseControl: (action) => {
       const current = pauses()

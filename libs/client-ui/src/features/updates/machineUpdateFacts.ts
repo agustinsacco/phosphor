@@ -1,6 +1,8 @@
 import { record } from '@shared/host-protocol/primitives'
 import type { OpsRunResult } from '@shared/host-protocol-ops'
-import type { UpdateStatus, UpdateRun } from './machineUpdateState'
+import type { LocalMachineStatus } from '@shared/ipc'
+import { parseMachineUpdateReport, type MachineUpdateReport } from '@shared/machine-update'
+import type { LastUpdate, MachineUpdateEntry, UpdateStatus, UpdateRun } from './machineUpdateState'
 import { reach } from './machineUpdateState'
 
 const count = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0
@@ -9,7 +11,11 @@ export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
   if (!record(value) || !record(value.pause)) return undefined
   const pause = value.pause
   const support = record(value.update) && value.update.pauseControl === true
-  const flags = support ? { pauseControl: true as const } : {}
+  const report = parseMachineUpdateReport(value.update)
+  const flags = {
+    ...(support ? { pauseControl: true as const } : {}),
+    ...(report ? { update: report } : {}),
+  }
   if (pause.kind === 'none') return { pause: { kind: 'none' }, ...flags }
   if (pause.purpose !== 'update' || typeof pause.since !== 'string') return undefined
   const base = { purpose: 'update' as const, since: pause.since }
@@ -26,6 +32,119 @@ export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
       waitingOn: { turns, subagents, routines },
     },
     ...flags,
+  }
+}
+
+/**
+ * The last update's result: the owner socket's on This Mac, else the Host's
+ * own report. A read without a report (an older Host) keeps what is known.
+ */
+export function lastUpdateOf(
+  entry: MachineUpdateEntry,
+  status: UpdateStatus | undefined,
+  local?: Pick<LocalMachineStatus, 'lastUpdate'>,
+): LastUpdate | undefined {
+  if (local?.lastUpdate === null) return undefined
+  if (local?.lastUpdate) return local.lastUpdate
+  return status?.update ? status.update.last : entry.last
+}
+
+/** A result's identity: the version it ended on and when it finished. */
+export const resultId = (last: LastUpdate): string => `${last.to}@${last.at}`
+
+const later = (a: string | undefined, b: string | undefined) =>
+  a !== undefined && (b === undefined || Date.parse(a) > Date.parse(b))
+
+/**
+ * The Host's offer across reads. A status checked later than the offer
+ * replaces or clears it; one without a newer `checkedAt` (a Host that restarted
+ * and has not checked yet) changes nothing. A Host with no report has none.
+ */
+export function nextOffer(
+  offer: MachineUpdateEntry['offer'],
+  report: MachineUpdateReport | undefined,
+): MachineUpdateEntry['offer'] {
+  if (!report?.supported) return undefined
+  if (report.available) {
+    if (offer?.version === report.available && !later(report.checkedAt, offer.checkedAt))
+      return offer
+    return {
+      version: report.available,
+      ...(report.checkedAt ? { checkedAt: report.checkedAt } : {}),
+    }
+  }
+  return later(report.checkedAt, offer?.checkedAt) ? undefined : offer
+}
+
+/**
+ * Accounts for the Host's `last` result once, by its identity. A run that is
+ * still going, or that restarted, owns a new result from its own version to its
+ * target (or, while still going, any target before it knows one); any other new rollback or failed
+ * apply becomes one reported run, whatever ran before.
+ */
+export function observeResult(entry: MachineUpdateEntry, now: number): MachineUpdateEntry {
+  const { last, run } = entry
+  if (!last || resultId(last) === entry.resultSeen) return entry
+  const resultSeen = resultId(last)
+  // Without a known target, only a run still going may claim a result from its version.
+  const own = run?.from === last.from && (run.to ? run.to === last.to : !run.settled)
+  if (run && own && !run.reported && !run.claimed && last.at !== run.before) {
+    if (!run.settled || run.restartAt !== undefined)
+      return { ...entry, resultSeen, run: { ...run, claimed: true } }
+  }
+  if (run && !run.settled) return entry
+  if (run && ownLateFailure(run, last))
+    return { ...entry, resultSeen, run: { ...run, claimed: true } }
+  const reported = reportedRun(entry, last, now)
+  return { ...entry, resultSeen, ...(reported ? { run: reported } : {}) }
+}
+
+/** How soon after a targetless run settles its own restart's result can still arrive. */
+const LATE_RESULT_MS = 2 * 60_000
+
+/**
+ * A run that restarted and settled as a failure before learning its target
+ * already told the user; the rollback its own restart wrote, arriving late,
+ * is the same news. A result written later is another attempt.
+ */
+function ownLateFailure(run: UpdateRun, last: LastUpdate): boolean {
+  if (run.to || run.reported || run.claimed || run.restartAt === undefined) return false
+  if (run.from !== last.from || last.at === run.before || last.outcome === 'updated') return false
+  if (run.finish === 'updated' || run.finish === 'current' || run.settledAt === undefined)
+    return false
+  const at = Date.parse(last.at)
+  return Number.isFinite(at) && at <= run.settledAt + LATE_RESULT_MS
+}
+
+/** How long the updater keeps `update-result.json`, and so how long a result is news. */
+const RESULT_TTL_MS = 24 * 60 * 60_000
+
+/**
+ * A rollback or failed apply the Host reports with no run here to explain it
+ * (a reload mid-restart, or an update started elsewhere): one settled run,
+ * shown once in the bottom-left row and the Software row.
+ */
+export function reportedRun(
+  entry: MachineUpdateEntry,
+  last: LastUpdate | undefined,
+  now: number,
+): UpdateRun | undefined {
+  if (!last || last.outcome === 'updated' || resultId(last) === entry.resultSeen) return undefined
+  const at = Date.parse(last.at)
+  if (!Number.isFinite(at) || now - at >= RESULT_TTL_MS) return undefined
+  return {
+    path: 'op',
+    started: now,
+    shownAt: now,
+    step: 'health',
+    reached: 'health',
+    from: last.from,
+    to: last.to,
+    before: last.at,
+    finish: last.outcome === 'failed' ? 'apply' : 'rolled-back',
+    settled: true,
+    settledAt: now,
+    reported: true,
   }
 }
 

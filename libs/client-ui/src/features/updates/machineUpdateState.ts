@@ -1,5 +1,6 @@
 import type { HostConnectionView, LocalMachineStatus } from '@shared/ipc'
 import type { ServicePauseState } from '@shared/host-protocol-owner'
+import type { MachineUpdateReport } from '@shared/machine-update'
 import { compareVersions } from '@shared/version'
 
 export type UpdateStep = 'downloading' | 'waiting' | 'paused' | 'restarting' | 'health'
@@ -28,6 +29,8 @@ export type Waiting = Extract<ServicePauseState, { kind: 'pausing' }>
 export interface UpdateStatus {
   pause: ServicePauseState
   pauseControl?: true
+  /** The Host's own report (tier 2); absent from an older Host. */
+  update?: MachineUpdateReport
 }
 export interface UpdateRun {
   path: UpdatePath
@@ -45,6 +48,13 @@ export interface UpdateRun {
   wentOffline?: true
   finish?: UpdateFinish
   settled?: true
+  settledAt?: number
+  /** Its Settings row was shown, so the bottom-left row lets a failure go. */
+  seen?: true
+  /** Not a run this client tracked: the Host's `last` result, shown once. */
+  reported?: true
+  /** This run owns the first new `last` result it saw. */
+  claimed?: true
   jobId?: string
   awaitingJob?: true
   taskExit?: { code: number; at: number }
@@ -56,6 +66,44 @@ export interface MachineUpdateEntry {
   status?: UpdateStatus
   last?: LastUpdate
   run?: UpdateRun
+  /** The connection the last status read was on: an offer stays until a read on a new one. */
+  readToken?: string
+  /** The Host's offer, kept until a status checked later says otherwise. */
+  offer?: { version: string; checkedAt?: string }
+  /** The last `last` result this client has accounted for (`resultId`). */
+  resultSeen?: string
+  /** When the machine became ready, and last left ready; the shell's observer keeps them. */
+  readySince?: number
+  downSince?: number
+  /** Away 10 minutes: the offer is no longer news until a fresh status read. */
+  offerExpired?: true
+}
+
+/** How long an offer outlives a disconnection. */
+export const OFFER_STALE_MS = 10 * 60_000
+
+/** "Updated to X" holds this long before anything else, a newer offer included. */
+export const UPDATED_RESULT_MS = 8000
+
+/** One machine's readiness, from its connection. */
+export function trackReady(
+  entry: MachineUpdateEntry,
+  host: HostConnectionView | undefined,
+  now: number,
+): MachineUpdateEntry {
+  const ready = host?.state === 'ready'
+  if (
+    !entry.offerExpired &&
+    entry.readySince === undefined &&
+    entry.downSince !== undefined &&
+    now - entry.downSince >= OFFER_STALE_MS
+  )
+    return trackReady({ ...entry, offerExpired: true }, host, now)
+  // `downSince` stays: how long it was away decides whether its offer outlived the gap.
+  if (ready && entry.readySince === undefined) return { ...entry, readySince: now }
+  if (!ready && entry.readySince !== undefined)
+    return { ...entry, readySince: undefined, downSince: now }
+  return entry
 }
 
 export function nextRun(run: UpdateRun, now: number): UpdateRun {
@@ -63,7 +111,7 @@ export function nextRun(run: UpdateRun, now: number): UpdateRun {
   const at = UPDATE_STEPS.indexOf(run.step)
   const reached = UPDATE_STEPS.indexOf(run.reached)
   if (run.finish && (at >= reached || (run.finish !== 'updated' && run.finish !== 'rolled-back')))
-    return { ...run, settled: true }
+    return { ...run, settled: true, settledAt: now }
   if (at >= reached) return run
   const next = UPDATE_STEPS[at + 1]!
   const step =
@@ -208,6 +256,41 @@ export function holdUpdatePage(run: UpdateRun | undefined): boolean {
   )
 }
 
+/** A newer offer replaces a settled run once its result has nothing left to say. */
+function offerOutranks(run: UpdateRun | undefined, available: string, now: number): boolean {
+  if (!run) return true
+  if (!run.settled) return false
+  if (run.finish === 'updated')
+    return (
+      now - (run.settledAt ?? -Infinity) >= UPDATED_RESULT_MS &&
+      (!run.to || compareVersions(available, run.to) > 0)
+    )
+  if (run.finish === 'current' || run.finish === 'cancelled') return true
+  return !!run.seen && run.finish !== 'not-back'
+}
+
+/** The Host's own report wins (tier 2); an older Host only learns of a newer version elsewhere. */
+function newerRelease(
+  installed: string | undefined,
+  entry: MachineUpdateEntry,
+  peers: Iterable<HostConnectionView>,
+): { available?: string; availableFrom?: 'host' | 'peer' } {
+  if (!installed) return {}
+  const report = entry.status?.update
+  if (report) {
+    const offered = entry.offer?.version ?? report.available
+    return offered && compareVersions(offered, installed) > 0
+      ? { available: offered, availableFrom: 'host' }
+      : {}
+  }
+  let available: string | undefined
+  for (const peer of peers) {
+    const version = peer.hostVersion
+    if (version && compareVersions(version, available ?? installed) > 0) available = version
+  }
+  return available ? { available, availableFrom: 'peer' } : {}
+}
+
 export function deriveMachineUpdate(input: {
   machineId: string
   label: string
@@ -217,17 +300,14 @@ export function deriveMachineUpdate(input: {
   configure: boolean
   terminal: boolean
   owner: boolean
+  now?: number
 }) {
   const { machineId, label, host, entry, peers, configure, terminal, owner } = input
+  const now = input.now ?? Date.now()
   const { run } = entry
   const ready = host?.state === 'ready'
   const installed = (ready ? host.hostVersion : undefined) ?? entry.version
-  let available: string | undefined
-  if (installed)
-    for (const peer of peers) {
-      const version = peer.hostVersion
-      if (version && compareVersions(version, available ?? installed) > 0) available = version
-    }
+  const { available, availableFrom } = newerRelease(installed, entry, peers)
   const path: UpdatePath | 'none' = host?.ops
     ? 'op'
     : host?.capabilities.includes('terminal') && terminal
@@ -250,12 +330,12 @@ export function deriveMachineUpdate(input: {
   const phase: MachineUpdatePhase =
     run && !run.settled
       ? run.step
-      : run?.finish === 'updated'
-        ? 'done'
-        : run?.finish && run.finish !== 'current' && run.finish !== 'cancelled'
-          ? 'failed'
-          : available && !run
-            ? 'available'
+      : available && offerOutranks(run, available, now)
+        ? 'available'
+        : run?.finish === 'updated'
+          ? 'done'
+          : run?.finish && run.finish !== 'current' && run.finish !== 'cancelled'
+            ? 'failed'
             : installed || ready
               ? 'current'
               : 'unknown'
@@ -267,7 +347,8 @@ export function deriveMachineUpdate(input: {
     path,
     installed,
     available,
-    availableFrom: available ? ('peer' as const) : undefined,
+    availableFrom,
+    checkedAt: entry.status?.update?.checkedAt,
     waitingOn: run?.waiting?.waitingOn,
     deadline: run?.waiting?.deadline,
     from: run?.from,

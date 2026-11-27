@@ -14,6 +14,8 @@ import { PageShell } from '@/components/PageShell'
 import { PageBody } from '@/components/PageBody'
 import '@/features/home/remoteStart.css'
 import { Button } from '@/components/form'
+import { UpdatesFooter } from '@/features/updates/UpdatesFooter'
+import { usePlatform } from '@/platform/Platform'
 import { MachineScopeChips } from './MachineScopeChips'
 
 /** The browser's lane list for one machine, or every machine's lists: Desktop's sidebar lists. */
@@ -21,10 +23,13 @@ export function CompactLanes({ machine }: { machine?: string }): React.JSX.Eleme
   const machines = useMachinesStore((s) => s.machines)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const selected = machines.filter((m) => !machine || m.id === machine)
+  // A phone has no sidebar footer: its machine update row sits under the machine scope.
+  const compact = usePlatform().formFactor === 'compact'
   return (
     <PageShell title="Lanes" dismissible={false}>
       <MachineScopeChips machine={machine} />
       <PageBody>
+        {compact && <UpdatesFooter />}
         <section className="space-y-4" aria-label="Lanes">
           <LaneListNotices empty={selected.length === 0} machine={machine} />
           {selected.map((machine) => (

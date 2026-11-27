@@ -9,13 +9,21 @@ import {
 } from '@/stores/machineUpdates'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { localServiceId } from '@/stores/localServiceScope'
-import { readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
+import {
+  lastUpdateOf,
+  nextOffer,
+  observeResult,
+  readUpdateJob,
+  readUpdateStatus,
+} from './machineUpdateFacts'
 import { changeUpdateRun, reconnectForUpdate, updateOp } from './machineUpdateRun'
+import { forgetFooterMachine } from './updatesFooterRows'
 import {
   observeConnection,
   observePause,
   startRun,
   tickRun,
+  trackReady,
   type UpdateStatus,
 } from './machineUpdateState'
 
@@ -30,17 +38,23 @@ function applyStatus(
       ...entry,
       status: status ?? entry.status,
       version: host.hostVersion ?? local?.serviceVersion ?? entry.version,
-      last: local?.lastUpdate === null ? undefined : (local?.lastUpdate ?? entry.last),
+      last: lastUpdateOf(entry, status, local),
+      // The owner socket's push is not a read of this connection's Host.
+      readToken: local ? entry.readToken : host.connectionToken,
+      offer: status ? nextOffer(entry.offer, status.update) : entry.offer,
+      // A fresh read of this Host makes its offer news again.
+      offerExpired: local ? entry.offerExpired : undefined,
     }
+    const now = Date.now()
     const pause = status?.pause
     const active = pause && pause.kind !== 'none'
     let run = entry.run
     if (active && (!run || (run.settled && entry.status?.pause.kind === 'none')))
-      run = startRun('op', entry, host, Date.now())
-    if (!run) return next
-    const now = Date.now()
+      run = startRun('op', entry, host, now)
+    if (!run) return observeResult(next, now)
     run = observePause(run, pause, now)
-    return { ...next, run: tickRun(observeConnection(run, next, host, now), now) }
+    run = tickRun(observeConnection(run, next, host, now), now)
+    return observeResult({ ...next, run }, now)
   })
 }
 
@@ -48,7 +62,20 @@ function applyConnection(id: string, host: HostConnectionView | undefined, now: 
   updateMachineEntry(id, (entry) => {
     const version = host?.state === 'ready' ? (host.hostVersion ?? entry.version) : entry.version
     const run = entry.run && tickRun(observeConnection(entry.run, entry, host, now), now)
-    return run === entry.run && version === entry.version ? entry : { ...entry, run, version }
+    const ready = trackReady(entry, host, now)
+    return run === entry.run && version === entry.version && ready === entry
+      ? entry
+      : { ...ready, run, version }
+  })
+}
+
+/** A machine gone from the account: nothing of its updates can be opened or cleared. */
+function forgetMachine(id: string) {
+  useMachineUpdatesStore.setState((state) => {
+    if (!(id in state.byMachine)) return state
+    const byMachine = { ...state.byMachine }
+    delete byMachine[id]
+    return { byMachine, footer: state.footer && forgetFooterMachine(state.footer, id) }
   })
 }
 
@@ -67,9 +94,11 @@ function applyLocalStatus(status: LocalMachineStatus) {
   if (!id || !host || status.mode !== 'daemon') return
   const entry = machineUpdateEntry(id)
   if (status.service === 'ready' && host.state === 'ready') {
+    // The owner socket says nothing about availability: keep the Host's own report.
     const facts = status.pause && {
       pause: status.pause,
       pauseControl: entry.status?.pauseControl,
+      update: entry.status?.update,
     }
     applyStatus(id, host, facts, status)
   }
@@ -123,6 +152,7 @@ function pollMachine(
   const run = machineUpdateEntry(id).run
   if (!host && (!run || run.settled)) {
     watch.schedule.delete(id)
+    forgetMachine(id)
     return
   }
   const generation = machineReadGeneration(id)
@@ -165,6 +195,7 @@ export function watchMachineUpdates(owner: boolean): () => void {
   if (!window.phosphor?.invoke) return () => {}
   let live = true
   let ownerTicket = 0
+  useMachineUpdatesStore.setState({ startedAt: Date.now() })
   const local = owner && typeof window.phosphor.onLocalMachineChanged === 'function'
   const offLocal = local
     ? window.phosphor.onLocalMachineChanged((status) => {
@@ -185,7 +216,8 @@ export function watchMachineUpdates(owner: boolean): () => void {
   function poll(focus = false) {
     const now = Date.now()
     const hosts = useRemoteLanesStore.getState().hosts
-    for (const id of new Set([...Object.keys(hosts), ...watch.schedule.keys()]))
+    const known = Object.keys(useMachineUpdatesStore.getState().byMachine)
+    for (const id of new Set([...Object.keys(hosts), ...watch.schedule.keys(), ...known]))
       pollMachine(watch, id, hosts[id], now, focus)
   }
   // Observe even ready -> reconnecting -> ready in a single render, without rereading on lane traffic.
@@ -202,7 +234,7 @@ export function watchMachineUpdates(owner: boolean): () => void {
     offLocal?.()
     window.clearInterval(timer)
     window.removeEventListener('focus', focus)
-    useMachineUpdatesStore.setState({ byMachine: {} })
+    useMachineUpdatesStore.setState({ byMachine: {}, startedAt: undefined, footer: undefined })
   }
 }
 

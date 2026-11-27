@@ -107,8 +107,10 @@ Browser presentation switches at 900px: a bottom tab bar below that width,
 a persistent sidebar above it. The sidebar holds the Phosphor brand, Desktop's sidebar top (`SidebarNavigation`: New, the global page links,
 then the **Lanes on** machine scope), the Host lane tree for
 that scope (`RemoteLanes`, the same component and density as Desktop's sidebar),
-Desktop's sidebar footer (`SidebarFooter`: the account menu and the Settings
-gear), **Install Phosphor** where `installableApp` allows it, and a short note.
+Desktop's sidebar footer (`SidebarFooter`: the machine update row, the account
+menu and the Settings gear; the browser has no app row, see
+[updates.md](updates.md#surfaces); a phone shows the machine update row at the
+top of its Lanes page and of Home), **Install Phosphor** where `installableApp` allows it, and a short note.
 There is no Lanes link: the tree is in the navigation, and `/lanes/:machine`
 (the lane header's Back, deep links) renders the same list as a page. The browser offers
 the same pages as Desktop and no others: `SidebarNavigation` takes no shell

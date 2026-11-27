@@ -13,8 +13,8 @@ export interface MachineUpdate {
 }
 
 /**
- * What the app's update row says. The update pill shows only something to act
- * on, so this row is how to ask whether the app is current.
+ * What the app's update row says. The bottom-left row shows only something to
+ * act on, so this row is how to ask whether the app is current.
  */
 function updateSummary(update: UpdateState): string {
   switch (update.phase) {
@@ -41,9 +41,8 @@ function updateSummary(update: UpdateState): string {
  */
 export function useAppUpdate(enabled = true): MachineUpdate {
   const update = useUpdatesStore((s) => s.update)
-  // The pill owns the subscription while it is mounted, but it unmounts
-  // whenever there is nothing to show — which is exactly when this row is most
-  // likely to be open.
+  // The bottom-left rows subscribe too; this row follows the events itself so
+  // it never depends on what else is mounted.
   useEffect(() => (enabled ? useUpdatesStore.getState().subscribe() : undefined), [enabled])
   const note = updateSummary(update)
   if (update.phase === 'downloaded' || update.phase === 'manual-download')

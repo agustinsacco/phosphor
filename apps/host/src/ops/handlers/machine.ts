@@ -40,7 +40,14 @@ export function machineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string
           working: live.filter((s) => s.activity === 'working').length,
         },
         pause: deps.pauseState?.() ?? { kind: 'none' },
-        ...(deps.pauseControl ? { update: { pauseControl: true } } : {}),
+        ...(deps.machineUpdate || deps.pauseControl
+          ? {
+              update: {
+                ...deps.machineUpdate?.report(),
+                ...(deps.pauseControl ? { pauseControl: true } : {}),
+              },
+            }
+          : {}),
       })
     }),
     'machine.doctor': op(async () => {

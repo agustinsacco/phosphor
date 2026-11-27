@@ -157,3 +157,37 @@ it('advertises service.pause and serves only a human action during a live pause'
     code: 'unavailable',
   })
 })
+
+it('reports the self-check and the last update in machine.status data.update', async () => {
+  const surface = { principal: { kind: 'surface' } } as never
+  const last = {
+    from: '1.2.0',
+    to: '1.3.0',
+    outcome: 'rolled-back',
+    at: '2026-11-26T11:00:00.000Z',
+  }
+  const report = vi.fn(() => ({
+    supported: true,
+    available: '1.3.0',
+    checkedAt: '2026-11-26T12:00:00.000Z',
+    last,
+  }))
+  const handlers = domainHandlers({
+    ...deps,
+    store: { listLanes: () => [] } as never,
+    pauseControl: () => true,
+    machineUpdate: { report, stop: () => {} },
+  } as unknown as DaemonHandlerDeps)
+  expect((await handlers['machine.status']!({}, surface)).data).toMatchObject({
+    update: {
+      supported: true,
+      available: '1.3.0',
+      checkedAt: '2026-11-26T12:00:00.000Z',
+      pauseControl: true,
+      last,
+    },
+  })
+  expect(report).toHaveBeenCalledTimes(1)
+  const plain = domainHandlers({ ...deps, store: { listLanes: () => [] } as never })
+  expect((await plain['machine.status']!({}, surface)).data).not.toHaveProperty('update')
+})

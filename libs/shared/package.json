@@ -160,6 +160,10 @@
       "types": "./src/host-release.ts",
       "default": "./src/host-release.ts"
     },
+    "./machine-update": {
+      "types": "./src/machine-update.ts",
+      "default": "./src/machine-update.ts"
+    },
     "./ipc-scope": {
       "types": "./src/ipc-scope.ts",
       "default": "./src/ipc-scope.ts"

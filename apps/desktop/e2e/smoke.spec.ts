@@ -5292,8 +5292,9 @@ test('the updater stays dormant in an unpackaged run', async () => {
       'unsupported',
     )
 
-    // And with nothing to install, the pill never renders.
-    await expect(page.getByTestId('update-pill')).toHaveCount(0)
+    // And with nothing to install, the footer is there but its app row never opens.
+    await expect(page.getByTestId('updates-footer')).toHaveCount(1)
+    await expect(page.locator('[data-update-row="app"] button')).toHaveCount(0)
   } finally {
     await shutdown(harness)
   }

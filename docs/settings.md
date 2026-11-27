@@ -955,8 +955,8 @@ no section here.
 
 ## About
 
-App version, an on-demand **Check now** for updates (the sidebar pill only
-appears once there is something to act on, so this, and This Mac's Advanced, is
+App version, an on-demand **Check now** for updates (the sidebar's app update row
+only appears once there is something to act on, so this, and This Mac's Advanced, is
 the way to ask "am I current?"), pi's version and path, platform/arch, Electron and Node versions,
 and the bundled font licenses. A pi newer than the line Phosphor is verified
 against gets a warning: newer minors usually work, but protocol additions may

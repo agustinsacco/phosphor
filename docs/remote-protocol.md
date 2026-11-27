@@ -557,8 +557,16 @@ or failed, under the same path lock as resume and deletion; a lane whose pi is
 stopping is refused `busy` until it exits. With no flag, clients keep
 the legacy running-only `set_session_name` path.
 
-`machine.status` may include `data.update: {pauseControl: true}` in its result.
-This advertises the catalog name `service.pause`, a write in the existing
+`machine.status` may include `data.update` in its result, an additive object
+inside the op's untyped data (`libs/shared/src/machine-update.ts` parses it):
+`supported` (false on a source install), `available?` (the newest signed release
+when newer than the installed one), `checkedAt?` (ISO time of the Host's last
+successful self-check), `last?` (`{from, to, outcome: 'updated' | 'rolled-back' |
+'failed', at}`, the updater's `update-result.json`, kept 24 hours) and
+`pauseControl?`. A Host before the self-check sends only `{pauseControl: true}`,
+which clients read as no report; they then infer availability from a newer
+version on another of your machines. The frozen 684cb3478 result parser accepts
+both. `pauseControl: true` advertises the catalog name `service.pause`, a write in the existing
 `ops.run` envelope with `args: {action: 'abort-now' | 'cancel'}`. It requires a
 human surface with configuration and session-control access and acts only on a
 waiting update. An older Host omits the bit; clients do not offer those controls.

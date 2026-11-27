@@ -46,13 +46,3 @@ export const useUpdatesStore = create<UpdatesStoreState>((set, get) => ({
     await window.phosphor.invoke('updates:check')
   },
 }))
-
-/** Whether the pill should render at all. */
-export function isUpdateVisible(update: UpdateState): boolean {
-  return (
-    update.phase === 'downloading' ||
-    update.phase === 'installing' ||
-    update.phase === 'downloaded' ||
-    update.phase === 'manual-download'
-  )
-}

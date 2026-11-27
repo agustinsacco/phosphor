@@ -183,9 +183,53 @@ timer would otherwise start a second one on top of it.
 
 ## Surfaces
 
-- `UpdatePill` (sidebar footer) renders only `downloading`, `installing`,
-  `downloaded`, `manual-download`. Only the last two are clickable, because only
-  those can do anything.
+- `UpdatesFooter` (`features/updates/UpdatesFooter.tsx`, the sidebar footer on
+  Desktop and the wide PWA; on a phone, the top of the Lanes page under the
+  machine scope and of Home under All machines) has at most two fixed rows above the account row, each
+  `name · text` with the full sentence in its tooltip. Desktop and each
+  machine's service update separately, each with its own action; there is no
+  combined action and no automatic update.
+  1. `app`, only where the platform has `appInfo`: **Desktop · Downloading 42%**,
+     **Installing…**, **Restart to update** (restarts) or **Download update**
+     (opens the release page). Idle, checking and unsupported show nothing.
+  2. `machine`: the machine in scope (This Mac's service in service mode, or the
+     Host in scope; nothing for in-app This Mac or All machines). **Update
+     available**, then the running pipeline's steps (**Downloading update…**,
+     **Waiting for 2 turns**, **Restarting…**), then **Updated to X** for 8
+     seconds or **Update didn’t finish**, which stays until that machine's
+     Software row has been shown. The row never starts an update: it opens that
+     machine's Settings → Advanced, where the one confirm lives. While an update
+     runs on any machine, that run holds the row until it ends, whatever the scope;
+     a running update comes before another machine's held result. A rollback or
+     failed apply the Host reports that no update tracked here accounts for (a
+     reload mid-restart, or an update started elsewhere) shows once as **Update
+     didn’t finish**, in this row and the Software row, within the result's 24
+     hours; each result counts once, by its version and finish time, and an update
+     tracked here owns only a result from its own version to its target (one
+     still running may own any target before it knows one). A later,
+     newer release is offered again once a finished update's result has been
+     shown (**Updated to X** keeps its 8 seconds); Software keeps a failure's
+     explanation above the offer.
+
+  Availability comes from the Host's own report (`machine.status` `data.update`,
+  [host.md](host.md#updating)); a Host without one falls back to a newer version
+  running on another of your machines. The rows never jump or flicker: nothing
+  shows for the first 3 seconds after the app starts (a sidebar reopened later
+  shows its rows at once); "Update available" appears only after a successful
+  read and 3 seconds of the machine being ready (each machine's readiness and
+  the rows' timing live in `stores/machineUpdates.ts`, so a remount continues
+  them; expiry is worked out from the stored times, and an offer that expired stays
+  expired, through a brief reconnect, another drop or a remount, until a fresh
+  status read), survives a disconnection for up to 10 minutes, stays through a
+  reconnect until a status read on the new connection answers, and leaves only
+  when a status checked later than the offer (`checkedAt`) says current, or the
+  scope changes; each phase shows at least 600 ms, collapsing included, but only while its
+  action stays the same: a new action (another machine, or **Restart to
+  update** becoming **Download update**) shows its own label at once, so a
+  label always says what a click does; a scope switch waits 150 ms before
+  collapsing. A machine removed from the account leaves the rows. Each row is 28 px and its height
+  animates in 200 ms (none under reduced motion), so the account row never moves.
+
 - Settings → About and This Mac's Settings → Advanced have **Check now** (one
-  shared row, `useAppUpdate`), the way to ask "am I current?" while the pill is
-  hidden.
+  shared row, `useAppUpdate`), the way to ask "am I current?" while the app row
+  is hidden.

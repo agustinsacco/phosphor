@@ -109,7 +109,7 @@ The sidebar's top rows and footer are shared with the browser's navigation
 (Artifacts, Skills, Routines, Machines, Brain) and the machine scope; New goes through
 `useNavigation()` with the Host in scope, which on Desktop opens that Host's
 composer, or home under This Mac and All machines. `SidebarFooter` renders the
-update notice (where `appInfo` allows native updates) and the account footer,
+update rows (`UpdatesFooter`, [updates.md](updates.md#surfaces)) and the account footer,
 whose Settings gear and menu entry call `navigate({ to: 'page', page: 'settings' })`;
 Desktop maps that to the Settings dialog. The shell supplies only what a page
 link does (Desktop toggles the page; Machines opens its list) and where a chosen
@@ -273,9 +273,11 @@ Signed-out windows have no machine switcher or remote groups.
   "Couldn't load sessions" with Retry. A group is the main repo plus every lane
   under `<repo>/.phosphor/worktrees/`, folded in. An expanded group scans all of
   them; the 8-workspace cold-boot cap governs collapsed ones.
-- Footer: the **update pill** above the account row. Silent unless there is something
-  to act on ([updates.md](updates.md)). Version and platform are in Settings →
-  About.
+- Footer: up to two **update rows** above the account row: the Desktop app, then
+  the machine in scope or the machine an update is running on. Silent unless
+  there is something to act on or in progress; a row appearing grows the footer
+  upward, so the account row never moves ([updates.md](updates.md#surfaces)).
+  Version and platform are in Settings → About.
 - **Account row**: a 28 px avatar, name and GitHub login when signed in, or
   a neutral avatar and Sign in when signed out. Its popover opens above the
   row. It always lists Machines with an online count: This Mac where the
@@ -582,7 +584,7 @@ close it; focus moves into the sheet and returns to the element on close.
   filtered out of the strip and parsed by the component that owns them, and
   the composer's widget slot filters its structured keys the same way
   ([extensions.md](extensions.md#the-status-channel-is-a-wire-contract)). Crash notices are not here; update availability is the sidebar's
-  pill.
+  update rows.
 - **Command palette** (Cmd/Ctrl+K): new session, go to file, toggle sidebar
   and each pane, open the Artifacts/Skills pages, rewind, expand/collapse tool
   output, settings and keybindings, theme, open a folder, switch workspace,
