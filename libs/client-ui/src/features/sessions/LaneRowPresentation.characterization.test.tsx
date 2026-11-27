@@ -132,7 +132,10 @@ const key = (k: string) =>
       .querySelector('input')!
       .dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }))
   })
-const dblclick = () => act(() => row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true })))
+const dblclick = () =>
+  act(() => {
+    row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+  })
 
 describe('This Mac saved row', () => {
   it('renders a stored lane', () => {
