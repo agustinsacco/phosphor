@@ -84,7 +84,7 @@ export function useRemoteLaneActions({
   const orderActions = useSessionOrderActions()
   const entry = useRemoteLaneSession(hostId, lane.laneId)
   const runner = useLaneActionRunner(onDone)
-  const [dialog, setDialog] = useState<LaneDialog>(null)
+  const { dialog, setDialog, openDialog } = useLaneDialog(onDone)
   const title = useRemoteLaneTitle(lane, hostId)
   const { state, prs, deletingInBulk, marker } = useLaneActionState(
     hostId,
@@ -108,21 +108,14 @@ export function useRemoteLaneActions({
     session,
     exportAs: { title, nativeFiles },
     onRename,
-    openDialog: (next) => {
-      setDialog(next)
-      onDone?.()
-    },
+    openDialog,
     onMarked: () => onDone?.(),
   })
 
-  const saveName = async (name: string): Promise<boolean> =>
-    canRename && name.trim()
-      ? runner.act(async () =>
-          state.caps.laneRename
-            ? renameSavedHostLane(hostId, lane.laneId, name.trim())
-            : renameLane(await session(), name.trim()),
-        )
-      : false
+  const saveName = laneNameSaver(canRename, state.caps.laneRename, runner.act, {
+    saved: (name) => renameSavedHostLane(hostId, lane.laneId, name),
+    running: async (name) => renameLane(await session(), name),
+  })
   const dialogs = (
     <RemoteLaneDialogs
       dialog={dialog}
@@ -147,6 +140,36 @@ export function useRemoteLaneActions({
     pickMarker: access.canMark && state.markers !== 'off' ? handlers.marker : undefined,
     marker,
     ...access,
+  }
+}
+
+/** The lane's open dialog; opening one also closes whatever surface asked for it. */
+function useLaneDialog(onDone: (() => void) | undefined) {
+  const [dialog, setDialog] = useState<LaneDialog>(null)
+  const openDialog = (next: LaneDialog): void => {
+    setDialog(next)
+    onDone?.()
+  }
+  return { dialog, setDialog, openDialog }
+}
+
+/**
+ * Saves a typed name: a Host that renames saved lanes takes every rename; an older one
+ * only a running lane's, through pi. Blank, or not renamable now, saves nothing.
+ */
+function laneNameSaver(
+  canRename: boolean,
+  hostRenames: boolean,
+  act: (action: () => Promise<unknown>) => Promise<boolean>,
+  rename: {
+    saved: (name: string) => Promise<unknown>
+    running: (name: string) => Promise<unknown>
+  },
+): (name: string) => Promise<boolean> {
+  return async (name) => {
+    const trimmed = name.trim()
+    if (!canRename || !trimmed) return false
+    return act(() => (hostRenames ? rename.saved(trimmed) : rename.running(trimmed)))
   }
 }
 

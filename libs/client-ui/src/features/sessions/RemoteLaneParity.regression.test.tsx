@@ -383,9 +383,9 @@ it.each(['desktop', 'browser'] as const)(
     render(name, name === 'browser' ? COMPACT_PLATFORM : DESKTOP_PLATFORM)
     rightClick()
     expect(menuRow('Rename')?.disabled).toBe(false)
-    act(() =>
-      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
-    )
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
     act(() => {
       row().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
       row().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }))

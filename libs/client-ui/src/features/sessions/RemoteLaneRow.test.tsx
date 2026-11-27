@@ -58,11 +58,11 @@ function render(ready = true): void {
   )
 }
 function menu(): void {
-  act(() =>
+  act(() => {
     container
       .querySelector('button')!
-      .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })),
-  )
+      .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+  })
 }
 function button(text: string): HTMLButtonElement {
   const found = [...document.querySelectorAll('button')].find((b) =>
@@ -142,11 +142,11 @@ it('a controller of a stopped lane can delete it, and rename says why it waits',
   expect(button('Archive').disabled).toBe(false)
   expect(button('Rename').disabled).toBe(true)
   expect(button('Rename').textContent).toContain('Update this Host to rename stopped lanes.')
-  act(() =>
+  act(() => {
     container
       .querySelector('[data-testid=remote-session-row]')!
-      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true })),
-  )
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+  })
   expect(container.querySelector('input')).toBeNull()
 })
 it('renames inline through the remote session and waits for success', async () => {

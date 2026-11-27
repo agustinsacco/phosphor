@@ -72,21 +72,6 @@ export function RemoteLanePresentation({
   const view = remoteLanePresentation(lane, ready)
   const inFlight = useHostLaneOpenInFlight(hostId ?? '', lane.laneId) && hostId !== undefined
   const activity = opening || inFlight ? 'opening' : view.activity
-  const stateLabel = {
-    streaming: '',
-    unseen: 'Unread activity. ',
-    live: 'Live session. ',
-    disk: 'Stored session. ',
-  }[view.indicator]
-  const details = view.segments
-    .map((segment) =>
-      segment.key === 'worktree'
-        ? 'worktree wt'
-        : segment.key === 'branch'
-          ? `branch ${segment.text}`
-          : segment.text,
-    )
-    .join(' · ')
   const rowProps = {
     'aria-label': title,
     'aria-describedby': description,
@@ -132,12 +117,33 @@ export function RemoteLanePresentation({
         </LaneRow>
       )}
       <span id={description} className="sr-only">
-        {pinned ? 'Pinned. ' : ''}
-        {stateLabel}
-        {activity === 'working' ? 'Working. ' : activity === 'opening' ? 'Opening. ' : ''}
-        {details}
-        {view.needsYou ? ' · needs you' : ''}
+        {laneDescription(view, activity, pinned)}
       </span>
     </>
   )
+}
+
+/** What a screen reader hears after the title: pin, state, activity, then the subtitle. */
+function laneDescription(
+  view: ReturnType<typeof remoteLanePresentation>,
+  activity: string | undefined,
+  pinned: boolean,
+): string {
+  const stateLabel = {
+    streaming: '',
+    unseen: 'Unread activity. ',
+    live: 'Live session. ',
+    disk: 'Stored session. ',
+  }[view.indicator]
+  const details = view.segments
+    .map((segment) =>
+      segment.key === 'worktree'
+        ? 'worktree wt'
+        : segment.key === 'branch'
+          ? `branch ${segment.text}`
+          : segment.text,
+    )
+    .join(' · ')
+  const doing = activity === 'working' ? 'Working. ' : activity === 'opening' ? 'Opening. ' : ''
+  return `${pinned ? 'Pinned. ' : ''}${stateLabel}${doing}${details}${view.needsYou ? ' · needs you' : ''}`
 }
