@@ -562,4 +562,19 @@ describe('overlapping saves of one draft', () => {
       .filter((channel) => channel === 'app:setDraft' || channel === 'app:clearDraft')
     expect(writes.at(-1)).toBe('app:clearDraft')
   })
+
+  it('keeps the last saved draft when a replacement image write fails', async () => {
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'kept')
+    await flush()
+    const before = setCalls().length
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'app:writeDraftBlob') throw new Error('disk full')
+      return undefined
+    })
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    // No partial save drops what was on disk: prefs keep the last good draft.
+    expect(setCalls()).toHaveLength(before)
+  })
 })
