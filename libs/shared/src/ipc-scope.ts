@@ -40,6 +40,7 @@ export const IPC_SCOPE = {
   'hosts:claude': 'machine',
   'hosts:claudeUsage': 'machine',
   'hosts:providers': 'machine',
+  'hosts:telemetry': 'machine',
   'hosts:repositoryFiles': 'machine',
   'hosts:repositoryFile': 'machine',
   'hosts:skills': 'machine',

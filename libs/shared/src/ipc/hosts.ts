@@ -14,6 +14,7 @@ import type {
 } from '../machine-settings'
 import type { ProviderLoginOp } from '../host-protocol-providers'
 import type { SubagentInspectRequest } from '../subagent-inspect'
+import type { MachineTelemetry } from '../host-protocol-telemetry'
 import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type { HostsSnapshot, TrafficPage, RemoteLaneCreate } from './views'
 
@@ -42,6 +43,12 @@ export interface HostsInvokeMap {
     result: ClaudeUsageSnapshotResult | null
   }
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
+  /** One machine-wide sample: CPU, memory, disk and the Host's own process census. */
+  'hosts:telemetry': {
+    args: [hostId: string]
+    /** null: Host unreachable, refusing, or older than `machine.telemetry`. */
+    result: MachineTelemetry | null
+  }
   'hosts:repositoryFiles': { args: [hostId: string, repositoryId: string]; result: string[] }
   'hosts:repositoryFile': {
     args: [hostId: string, repositoryId: string, path: string]

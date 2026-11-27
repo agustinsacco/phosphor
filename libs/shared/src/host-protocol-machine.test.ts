@@ -28,6 +28,8 @@ describe('host-protocol-machine', () => {
       expect(parseMachineParams('skills.read', value)).toBeNull()
     expect(parseMachineParams('unknown.method', {})).toBeNull()
     expect(parseMachineParams('machine.providers', {})).toEqual({})
+    expect(parseMachineParams('machine.telemetry', {})).toEqual({})
+    expect(parseMachineParams('machine.telemetry', { laneId: 'x' })).toBeNull()
     expect(parseMachineParams('machine.commands', {})).toEqual({})
     expect(parseMachineParams('machine.commands', { repositoryId: '0123456789abcdef' })).toEqual({
       repositoryId: '0123456789abcdef',

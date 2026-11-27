@@ -340,6 +340,10 @@
       "types": "./src/host-protocol-machine.ts",
       "default": "./src/host-protocol-machine.ts"
     },
+    "./host-protocol-telemetry": {
+      "types": "./src/host-protocol-telemetry.ts",
+      "default": "./src/host-protocol-telemetry.ts"
+    },
     "./host-protocol-artifacts": {
       "types": "./src/host-protocol-artifacts.ts",
       "default": "./src/host-protocol-artifacts.ts"

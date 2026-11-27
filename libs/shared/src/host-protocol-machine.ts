@@ -85,6 +85,7 @@ export function parseMachineParams(
       'machine.providers',
       'machine.claude',
       'machine.claudeUsage',
+      'machine.telemetry',
       'skills.list',
       'skills.read',
       'skills.export',

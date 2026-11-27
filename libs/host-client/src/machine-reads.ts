@@ -7,6 +7,7 @@ import {
   parseMachineParams,
   parseMachineProviders,
 } from '@phosphor/shared/host-protocol-machine'
+import { parseMachineTelemetry } from '@phosphor/shared/host-protocol-telemetry'
 import type { createHostConnection } from './connection'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
 import { readFeature, type ReadLane } from './read-features'
@@ -82,6 +83,9 @@ export function machineReads(connection: Connection) {
         { ...(laneId ? { laneId } : {}), ...(force ? { force: true } : {}) },
         parseMachineClaudeUsage,
       ),
+    /** One machine-wide resource sample. null: Host unreachable, refusing, or too old. */
+    telemetry: (hostId: string) =>
+      optional(connection, hostId, 'machine.telemetry', {}, parseMachineTelemetry),
     /** The catalogue and the Host pi's defaults; an older Host's answer has no defaults. */
     async models(hostId: string) {
       const data = await lane(hostId).call('skills.read', 'machine.models', { partial: true })

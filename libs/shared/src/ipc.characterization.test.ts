@@ -107,6 +107,7 @@ const baselineScope = {
   'hosts:claude': 'machine',
   'hosts:claudeUsage': 'machine',
   'hosts:providers': 'machine',
+  'hosts:telemetry': 'machine',
   'hosts:repositoryFiles': 'machine',
   'hosts:repositoryFile': 'machine',
   'hosts:skills': 'machine',

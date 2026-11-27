@@ -155,6 +155,7 @@ export function createSkillsFeature(
     'machine.providers',
     'machine.claude',
     'machine.claudeUsage',
+    'machine.telemetry',
     'skills.list',
     'skills.read',
     'skills.export',
@@ -179,6 +180,9 @@ export function createSkillsFeature(
       if (method === 'machine.commands')
         return { ok: true, data: await cache.commands(parsed.repositoryId) }
       if (method === 'machine.claudeUsage') return await machineCall(method, context, ports, parsed)
+      // A resource read a client polls every couple of seconds. It must not
+      // queue behind a doctor inspection that can hold the probe slot for 20s.
+      if (method === 'machine.telemetry') return await machineCall(method, context, ports, parsed)
       if (method.startsWith('machine.'))
         return await readiness(() => machineCall(method, context, ports, parsed))
       if (method === 'skills.list') {

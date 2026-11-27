@@ -27,6 +27,7 @@ export const LOCAL_ROUTE = {
   'hosts:claude': 'host',
   'hosts:claudeUsage': 'host',
   'hosts:providers': 'host',
+  'hosts:telemetry': 'host',
   'hosts:repositoryFiles': 'host',
   'hosts:repositoryFile': 'host',
   'hosts:skills': 'host',
