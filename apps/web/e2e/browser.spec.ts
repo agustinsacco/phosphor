@@ -140,7 +140,7 @@ async function directBrainFailures(page: Page): Promise<string[]> {
 
 async function openLane(page: Page, title = 'Synthetic acceptance lane') {
   await page.getByRole('button', { name: title, exact: true }).click()
-  await expect(page.getByText('No controller', { exact: true })).toBeVisible()
+  await expect(page.getByText('Nobody has control of this lane.', { exact: true })).toBeVisible()
 }
 
 test('production bootstrap: anonymous cookie boundary and anonymous service-worker shell', async ({

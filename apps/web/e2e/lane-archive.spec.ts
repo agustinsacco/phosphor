@@ -9,7 +9,7 @@ async function openLane(page: Page, origin: string) {
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
   await expect(page.getByTestId('compact-shell')).toBeVisible()
   await page.getByRole('button', { name: TITLE, exact: true }).click()
-  await expect(page.getByText('No controller', { exact: true })).toBeVisible()
+  await expect(page.getByText('Nobody has control of this lane.', { exact: true })).toBeVisible()
 }
 async function takeControl(page: Page) {
   await page.getByRole('button', { name: 'Take control', exact: true }).click()
@@ -120,5 +120,5 @@ test('a browser reader is refused lane archiving by the Host', async ({ page, st
   expect((await call(page, 'hosts:archiveLane', stack.hostId, stack.laneId)).error).toBeTruthy()
   expect(await laneIds(page, stack.hostId)).toContain(stack.laneId)
   expect(await archives(page, stack.hostId)).toEqual([])
-  await expect(page.getByText('No controller', { exact: true })).toBeVisible()
+  await expect(page.getByText('Nobody has control of this lane.', { exact: true })).toBeVisible()
 })

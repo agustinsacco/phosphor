@@ -69,6 +69,6 @@ it.each([true, false])(
     }
     await setState('ready')
     expect(!!el.querySelector('[data-testid="composer"]')).toBe(self)
-    expect(el.textContent?.includes('Read-only. Take control to send messages.')).toBe(!self)
+    expect(el.textContent?.includes('Phone has control · connected')).toBe(!self)
   },
 )

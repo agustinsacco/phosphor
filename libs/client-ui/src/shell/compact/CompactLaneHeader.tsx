@@ -108,7 +108,10 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
   )
 }
 
-/** "● Host · Controlled by you · Files". The control state is its own node. */
+/**
+ * "● Host · Controlled by you · Files". The control state is its own node. A reader
+ * sees the connection instead: who holds the lane is in its locked composer.
+ */
 function LaneStatus({
   id,
   hostId,
@@ -133,7 +136,9 @@ function LaneStatus({
       <span className="truncate">{machineLabel(hostId)}</span>
       <span aria-hidden>·</span>
       <span className="truncate">
-        {(ready || hostStarting(host)) && control ? control.status : connectionLabel(host?.state)}
+        {control && ((ready && control.controlling) || hostStarting(host))
+          ? control.status
+          : connectionLabel(host?.state)}
       </span>
       {pane && <span aria-hidden>·</span>}
       {pane && <span>{pane}</span>}

@@ -79,14 +79,16 @@ afterEach(() => {
   container.remove()
 })
 
-it('is one bar: Back and the lane title with its Host and controller', () => {
+it('is one bar: Back and the lane title with its Host and, for a reader, its connection', () => {
   render()
   const header = container.querySelector('header')!
   expect([...header.querySelectorAll(':scope > button')]).toHaveLength(3)
   expect(button('Search lanes and pages')).not.toBeNull()
   expect(header.querySelector('select')).toBeNull()
   expect(header.textContent).toContain('Remote demo lane')
-  expect(header.textContent).toContain(`${MOCK_HOST_ID}·Controlled by Another Desktop`)
+  // Who holds the lane is the locked composer's to say (LaneLock), at both widths.
+  expect(header.textContent).toContain(`${MOCK_HOST_ID}·Connected`)
+  expect(header.textContent).not.toContain('Controlled by')
   act(() => button('Back to lanes')!.click())
   expect(navigate).toHaveBeenCalledWith({ to: 'lanes', machine: MOCK_HOST_ID })
 })

@@ -42,7 +42,7 @@ for (const width of [400, 1100]) {
     await page.screenshot({ path: info.outputPath(`palette-${width}.png`), animations: 'disabled' })
     await result.click()
     await expect(page).toHaveURL(new RegExp(`/lanes/${stack.hostId}/${stack.laneId}/chat$`))
-    await expect(page.getByText('No controller', { exact: true })).toBeVisible()
+    await expect(page.getByText('Nobody has control of this lane.', { exact: true })).toBeVisible()
     // Find is a read operation: it works without taking lane control, including from Files.
     await laneMenu(page, compact)
     if (compact)

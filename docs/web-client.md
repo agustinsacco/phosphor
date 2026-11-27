@@ -156,7 +156,8 @@ plain text field on a phone, which Monaco does not support
 unavailable page and the fixed `brain:*` IPC refusal apply at both widths; no local memory service is invoked. Desktop retains
 its native sidebar and local workbench.
 Below 900px a lane has one header bar: Back to its Host's lanes, then the lane
-title with "Host · controller" under it (and the pane, when not Chat). The title
+title with "Host · Controlled by you" under it while this browser holds the lane,
+"Host · Connected" while it reads it (and the pane, when not Chat). The title
 opens the lane menu, a bottom sheet (`ActionSheet`) that switches Chat, Files,
 Changes, Artifacts, Subagents and Terminal, then the lane's Session options (the same
 list as Desktop's top bar, [chat](chat.md)), then its shared actions, the same
@@ -174,9 +175,9 @@ The [Slack thread links](lanes.md#slack-thread-links) follow the PR button in
 both headers once the lane's transcript mentions a thread.
 A confirmed action closes the sheet; a refusal stays to say why.
 There are no tabs, machine filter or pane tab strip inside a lane. A
-reader sees a Take control bar where the composer would be. Wider browsers keep
-the pane tabs, which end with the Session options button, and the control row
-above the transcript; their header reads Back, the machine chip, the lane's
+reader sees the locked composer at both widths, as on Desktop ([chat](chat.md#remote-lanes)).
+Wider browsers keep the pane tabs, which end with the Session options button, and the control row
+above the transcript (the machine chip only, for a reader); their header reads Back, the machine chip, the lane's
 read-only branch, the title and its PR links, as Desktop's top bar does
 ([UI shell](ui-shell.md#top-bar)). The branch menu is Desktop's, on This Mac's
 service lanes only.

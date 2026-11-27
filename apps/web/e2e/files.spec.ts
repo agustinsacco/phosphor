@@ -19,7 +19,7 @@ async function openFiles(page: Page, origin: string, control: boolean) {
     .getByTestId('home-board')
     .getByRole('button', { name: 'Synthetic acceptance lane', exact: true })
     .click()
-  await expect(page.getByText('No controller', { exact: true })).toBeVisible()
+  await expect(page.getByText('Nobody has control of this lane.', { exact: true })).toBeVisible()
   if (control) {
     await page.getByRole('button', { name: 'Take control', exact: true }).click()
     await expect(page.getByText('Controlled by you', { exact: true })).toBeVisible()
