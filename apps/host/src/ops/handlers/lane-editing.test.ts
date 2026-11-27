@@ -326,3 +326,28 @@ it('refuses a fenceless rename of a lane another client holds', async () => {
   })
   expect(fx.store.getLane(lane.laneId)?.title).toBe('Source')
 })
+
+it('renames a lane whose pi is starting through that pi, not the file', async () => {
+  const lane = fx.lane('rename-starting', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  fx.open.add(lane.sessionFile!)
+  const args = { ref: lane.laneId, name: 'While starting', controlFence: control.fence }
+  ok(await run(surface, 'lane.rename', args))
+  expect(command).toHaveBeenCalledWith('pi', { type: 'set_session_name', name: 'While starting' })
+})
+
+it('refuses a rename while the lane’s pi is stopping', async () => {
+  const lane = fx.lane('rename-stopping', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  fx.open.add(lane.sessionFile!)
+  fx.stopping.add(lane.sessionFile!)
+  const args = { ref: lane.laneId, name: 'While stopping', controlFence: control.fence }
+  expect(await run(surface, 'lane.rename', args)).toMatchObject({ code: 'busy' })
+  expect(command).not.toHaveBeenCalled()
+})
