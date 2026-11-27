@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { isIsoTime } from '@phosphor/shared/control-api'
 import {
   publishLinkLock,
@@ -90,7 +90,8 @@ export function parseHostBrainWriterRecord(text: string): HostBrainWriterRecord 
   }
 }
 
-function writerLinkLock(
+/** The writer lock as the shared link-lock core sees it, for this acquirer's `token`. */
+export function writerLinkLock(
   stateDirectory: string,
   token: string,
   options: HostBrainWriterLockOptions,
@@ -110,13 +111,8 @@ function writerLinkLock(
   return { lock, ports }
 }
 
-/** Takes the writer lock for this process, or throws `HostBrainWriterBusy`. */
-export async function acquireHostBrainWriterLock(
-  stateDirectory: string,
-  options: HostBrainWriterLockOptions = {},
-): Promise<HostBrainWriterLock> {
-  const token = randomBytes(32).toString('hex')
-  const { lock, ports } = writerLinkLock(stateDirectory, token, options)
+/** This process's writer record, as the lock file's text. */
+export async function writerRecordText(ports: OwnerLockPorts, token: string): Promise<string> {
   const processStart = await ports.processStart(ports.pid)
   const record: HostBrainWriterRecord = {
     version: 1,
@@ -127,7 +123,17 @@ export async function acquireHostBrainWriterLock(
     token,
     startedAt: new Date().toISOString(),
   }
-  await publishLinkLock(lock, `${lock.path}.${token}.tmp`, JSON.stringify(record) + '\n')
+  return JSON.stringify(record) + '\n'
+}
+
+/** Takes the writer lock for this process, or throws `HostBrainWriterBusy`. */
+export async function acquireHostBrainWriterLock(
+  stateDirectory: string,
+  options: HostBrainWriterLockOptions = {},
+): Promise<HostBrainWriterLock> {
+  const token = randomBytes(32).toString('hex')
+  const { lock, ports } = writerLinkLock(stateDirectory, token, options)
+  await publishLinkLock(lock, `${lock.path}.${token}.tmp`, await writerRecordText(ports, token))
   return { release: () => releaseLinkLock(lock) }
 }
 
@@ -141,24 +147,83 @@ export async function hostBrainWriterHeld(
   return current?.lock ? await lock.isLive(current.lock) : false
 }
 
+interface ProcessWriter {
+  holds: number
+  lock?: HostBrainWriterLock
+  /** The last take or release on this entry: they run one after another. */
+  settled: Promise<unknown>
+}
+
+/** This process's writer locks, by pid and state folder; tests inject other pids as processes. */
+const processWriters = new Map<string, ProcessWriter>()
+
+function processWriter(stateDirectory: string, options: HostBrainWriterLockOptions) {
+  const key = `${(options.ports ?? ownerLockPorts).pid}\0${resolve(stateDirectory)}`
+  let entry = processWriters.get(key)
+  if (!entry) processWriters.set(key, (entry = { holds: 0, settled: Promise.resolve() }))
+  return entry
+}
+
+function settle<T>(entry: ProcessWriter, step: () => Promise<T>): Promise<T> {
+  const next = entry.settled.then(step)
+  entry.settled = next.catch(() => undefined)
+  return next
+}
+
+/**
+ * A hold on this process's writer lock. The Brain's lifetime writer and the handover share one
+ * lock per process: the first hold takes it across processes (or throws `HostBrainWriterBusy`),
+ * further holds in this process never wait on it, and the last release gives it back. A release
+ * that fails keeps the lock as this process's, so the next hold reuses it and retries.
+ */
+export async function leaseHostBrainWriter(
+  stateDirectory: string,
+  options: HostBrainWriterLockOptions = {},
+): Promise<HostBrainWriterLock> {
+  const entry = processWriter(stateDirectory, options)
+  await settle(entry, async () => {
+    entry.lock ??= await acquireHostBrainWriterLock(stateDirectory, options)
+    entry.holds++
+  })
+  let released = false
+  return {
+    release() {
+      if (released) return Promise.resolve()
+      released = true
+      return settle(entry, async () => {
+        entry.holds--
+        if (entry.holds > 0 || !entry.lock) return
+        await entry.lock.release()
+        entry.lock = undefined
+      })
+    },
+  }
+}
+
+/** Whether this process holds the writer lock now. */
+function heldByThisProcess(stateDirectory: string, options: HostBrainWriterLockOptions): boolean {
+  return processWriter(stateDirectory, options).lock !== undefined
+}
+
 /**
  * One HostBrain's hold on the writer lock: taken before the store opens, released on dispose.
- * `busy()` stays true after a refusal until a background re-read finds no live holder, so a
- * synchronous state can report the refusal and still recover once the holder exits or dies.
+ * `busy()` stays true after a refusal until a background re-read finds no live holder in another
+ * process, so a synchronous state can report the refusal and still recover once the holder exits
+ * or dies.
  */
 export function hostBrainWriter(stateDirectory: string, options: HostBrainWriterLockOptions = {}) {
-  let lock: HostBrainWriterLock | undefined
+  let lease: HostBrainWriterLock | undefined
   let taking: Promise<void> | undefined
   let busy = false
   let rereading = false
   return {
-    held: () => lock !== undefined,
+    held: () => lease !== undefined,
     busy(): boolean {
       if (busy && !rereading && !taking) {
         rereading = true
         hostBrainWriterHeld(stateDirectory, options)
           .then(
-            (live) => (busy = live),
+            (live) => (busy = live && !heldByThisProcess(stateDirectory, options)),
             () => undefined,
           )
           .finally(() => (rereading = false))
@@ -168,10 +233,10 @@ export function hostBrainWriter(stateDirectory: string, options: HostBrainWriter
     },
     /** Takes the lock once; concurrent callers share one attempt. Throws `HostBrainWriterBusy`. */
     take(): Promise<void> {
-      if (lock) return Promise.resolve()
-      taking ??= acquireHostBrainWriterLock(stateDirectory, options).then(
+      if (lease) return Promise.resolve()
+      taking ??= leaseHostBrainWriter(stateDirectory, options).then(
         (taken) => {
-          lock = taken
+          lease = taken
           busy = false
           taking = undefined
         },
@@ -185,8 +250,8 @@ export function hostBrainWriter(stateDirectory: string, options: HostBrainWriter
     },
     async release(): Promise<void> {
       await taking?.catch(() => undefined)
-      const held = lock
-      lock = undefined
+      const held = lease
+      lease = undefined
       await held?.release()
     },
   }

@@ -5,6 +5,10 @@
  * marker, the move's durable record and its sealed manifest all agree. A verified move that never
  * published stays verified: only Desktop's `commit` publishes. A settled move's redundant private
  * copies go; Desktop's original never lives here and an unfinished move keeps everything.
+ * Recovery runs behind the writer fence (`writer-fence.ts`), so a Host process with another
+ * config on this state folder never rolls the same move forward at once: while another process
+ * holds the Brain's writer, this one leaves the move for that holder, Desktop's next `commit` or
+ * the next restart.
  */
 import { lstatSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -12,6 +16,7 @@ import { isUuid } from '@phosphor/shared/control-api'
 import { parseOwnerParams } from '@phosphor/shared/host-protocol-owner'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import { HostBrainWriterBusy } from '../brain/writer-lock'
 import type { BrainAgentTranscriptImporter } from './handlers'
 import {
   handoverPaths,
@@ -24,6 +29,7 @@ import {
 } from './layout'
 import type { BrainHandoverNativePorts } from './owner-seam'
 import { completePublished, dropPrivateCopies, sha256 } from './publish'
+import { withHandoverWriter, writerRefusalReason } from './writer-fence'
 
 export interface BrainHandoverRecoveryPorts {
   readonly stateDir: string
@@ -131,18 +137,29 @@ async function sweepSettled(ports: BrainHandoverRecoveryPorts): Promise<void> {
 
 /**
  * Failures are logged: the move stays as it was, fenced, for Desktop's next `commit` or the next
- * restart.
+ * restart. A writer held elsewhere logs `recovery-held` with `writer-busy`; an interrupted lock
+ * reclamation, whose gate is never removed here, logs `writer-repair`.
  */
 export async function recoverBrainHandover(ports: BrainHandoverRecoveryPorts): Promise<void> {
   try {
-    await rollForward(ports)
-  } catch {
-    ports.log?.('brain.handover.recovery-failed')
-  }
-  try {
-    await sweepSettled(ports)
-  } catch {
-    ports.log?.('brain.handover.sweep-failed')
+    await withHandoverWriter(ports.stateDir, async () => {
+      try {
+        await rollForward(ports)
+      } catch {
+        ports.log?.('brain.handover.recovery-failed')
+      }
+      try {
+        await sweepSettled(ports)
+      } catch {
+        ports.log?.('brain.handover.sweep-failed')
+      }
+    })
+  } catch (error) {
+    if (!(error instanceof HostBrainWriterBusy)) {
+      ports.log?.('brain.handover.recovery-failed')
+      return
+    }
+    ports.log?.('brain.handover.recovery-held', { reason: writerRefusalReason(error) })
   }
 }
 

@@ -509,7 +509,14 @@ first asks; No exits 0 and Escape exits 130, both leaving everything in place.
 entries, or foreign files in its logs folder. For Host Brain state it checks the known files
 and directories, validates the exact owner record when present, and refuses unknown
 entries, links, and claimed or unfinished moves. Finish or
-abort a move before purging. Purge removes only the selected Host's state and config, not
+abort a move before purging. Before deleting anything it checks `brain-writer.lock`, the lock
+every Host process holds while it writes the Brain or a move. A folder, an unreadable record or
+a live holder there refuses and stays. The purge reclaims a dead holder's valid record only under
+the recovery gate, and only while it is still the same file with the same token, so it never
+removes a replacement. It then holds the lock itself while it deletes, and releases only its
+own record. If a crash interrupted a reclamation, `brain-writer.lock-recovery` is left behind.
+The purge never removes it. It refuses and names that file, without a path, for you to remove
+once no Host is running. Purge removes only the selected Host's state and config, not
 Desktop's original Brain backup, pi's sessions, or provider credentials.
 
 Both flags are required, and logout must succeed before any files are removed.

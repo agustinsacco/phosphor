@@ -1,8 +1,10 @@
 /**
  * `owner.brainHandover.*` on the owner socket: This Mac's Desktop Brain moving once into the
  * Host's empty `<state>/brain` (docs/brain-handover.md). Owner-only: a `local` principal and
- * every grant connection never reach these. Calls run one at a time; every mutation is
- * idempotent by its migration id, and a lost answer is recovered with `status`.
+ * every grant connection never reach these. Mutations run one at a time behind the Brain's writer
+ * lock, shared with the startup recovery and other Host processes on this state folder
+ * (`writer-fence.ts`); every mutation is idempotent by its migration id, and a lost answer is
+ * recovered with `status`.
  */
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -11,6 +13,7 @@ import type {
   BrainReaderReadiness,
   OwnerCalls,
 } from '@phosphor/shared/host-protocol-owner'
+import { HostBrainWriterBusy } from '../brain/writer-lock'
 import { OwnerCallRefused } from '../owner/adapter'
 import {
   handoverPaths,
@@ -30,6 +33,7 @@ import {
 } from './publish'
 import { SealRefused, sealStaged, type PinnedEmbeddingModel } from './seal'
 import { verifySealed, VerifyRefused } from './verify'
+import { withHandoverWriter } from './writer-fence'
 
 /** Binds the moved Brain Agent conversation to the Host's reserved Brain lane. */
 export type BrainAgentTranscriptImporter = (input: {
@@ -70,8 +74,11 @@ export interface BrainHandoverPorts {
    */
   readonly probeModel?: (embeddingsDirectory: string) => Promise<boolean>
   readonly log?: (event: string, fields?: Record<string, unknown>) => void
+  /** Runs inside the writer fence before a mutation reads any record; throws to refuse it. */
+  readonly prepare?: (method: MutatingMethod) => void
 }
 
+type MutatingMethod = 'begin' | 'verify' | 'commit' | 'abort'
 type HandoverMethod =
   | 'owner.brainHandover.status'
   | 'owner.brainHandover.begin'
@@ -97,7 +104,8 @@ const supported = (ports: BrainHandoverPorts): boolean =>
 function asRefusal(error: unknown): unknown {
   if (error instanceof SealRefused || error instanceof VerifyRefused)
     return new OwnerCallRefused('bad-request', error.message)
-  if (error instanceof PublishRefused) return refused(error.message)
+  if (error instanceof PublishRefused || error instanceof HostBrainWriterBusy)
+    return refused(error.message)
   return error
 }
 
@@ -177,29 +185,50 @@ async function verify(
       throw new VerifyRefused('The Brain’s embedding model did not arrive from this Mac.')
     if (!(await probe(join(paths.sealed, 'brain', 'embeddings'))))
       throw new VerifyRefused('The moved embedding model did not run on this Phosphor service.')
+    stillStaged(ports, params.migrationId)
     writeRecord(paths.record, { ...record, state: 'verified', ...checked })
     ports.log?.('brain.handover.verified', { migrationId: params.migrationId })
     return { state: 'verified', report: checked.report }
   } catch (error) {
-    await rm(paths.sealed, { recursive: true, force: true })
+    // Only a move still staged owns its partial copies; anything else keeps them.
+    if (reconcile(ports.stateDir, params.migrationId, false)?.state === 'staged')
+      await rm(paths.sealed, { recursive: true, force: true })
     throw asRefusal(error)
   }
+}
+
+/** The durable record, read again after a long await: a move that changed meanwhile refuses. */
+function stillStaged(ports: BrainHandoverPorts, migrationId: string): void {
+  const current = reconcile(ports.stateDir, migrationId, false)
+  if (current?.state !== 'staged') throw refused(`This move is ${stateOf(current)}.`)
+}
+
+/** The move as `commit` may act on it: committed already, or verified or published. */
+function committable(ports: BrainHandoverPorts, migrationId: string): HandoverRecord | 'committed' {
+  const record = reconcile(ports.stateDir, migrationId)
+  if (record?.state === 'committed') return 'committed'
+  if (!record || (record.state !== 'verified' && record.state !== 'published'))
+    throw refused(`This move is ${stateOf(record)}.`)
+  return record
 }
 
 async function commit(
   ports: BrainHandoverPorts,
   params: OwnerCalls['owner.brainHandover.commit']['params'],
 ): Promise<OwnerCalls['owner.brainHandover.commit']['result']> {
-  let record = reconcile(ports.stateDir, params.migrationId)
-  if (record?.state === 'committed') return { state: 'committed' }
-  if (!record || (record.state !== 'verified' && record.state !== 'published'))
-    throw refused(`This move is ${stateOf(record)}.`)
+  let record = committable(ports, params.migrationId)
+  if (record === 'committed') return { state: 'committed' }
   const importer = ports.importAgentTranscripts
   if (!importer) throw refused(NOT_SUPPORTED)
   if (record.state === 'verified') {
     // The reader can go between verify and commit (an update, a removed bundle): check again.
     if ((await ports.readerReadiness().catch(() => 'unavailable')) !== 'qualified')
       throw refused(READER)
+    // Read the record again after the await: publish only what is still verified.
+    record = committable(ports, params.migrationId)
+    if (record === 'committed') return { state: 'committed' }
+  }
+  if (record.state === 'verified') {
     try {
       record = await publishSealed(ports.stateDir, record)
     } catch (error) {
@@ -248,20 +277,22 @@ async function status(
   }
 }
 
-/** The five handlers, serialized: one handover call at a time, in arrival order. */
+/** The five handlers; the four mutations run one at a time behind the writer fence. */
 export function createBrainHandoverHandlers(ports: BrainHandoverPorts): Handlers {
-  let queue: Promise<unknown> = Promise.resolve()
-  function serial<T>(fn: () => Promise<T>): Promise<T> {
-    const run = queue.then(fn, fn)
-    queue = run.catch(() => {})
-    return run
+  function fenced<T>(method: MutatingMethod, run: () => Promise<T>): Promise<T> {
+    return withHandoverWriter(ports.stateDir, async () => {
+      ports.prepare?.(method)
+      return await run()
+    }).catch((error: unknown) => {
+      throw asRefusal(error)
+    })
   }
   return {
     // Read-only and idempotent, so it answers while a long verify or commit runs.
     'owner.brainHandover.status': (params) => status(ports, params),
-    'owner.brainHandover.begin': (params) => serial(() => begin(ports, params)),
-    'owner.brainHandover.verify': (params) => serial(() => verify(ports, params)),
-    'owner.brainHandover.commit': (params) => serial(() => commit(ports, params)),
-    'owner.brainHandover.abort': (params) => serial(() => abort(ports, params)),
+    'owner.brainHandover.begin': (params) => fenced('begin', () => begin(ports, params)),
+    'owner.brainHandover.verify': (params) => fenced('verify', () => verify(ports, params)),
+    'owner.brainHandover.commit': (params) => fenced('commit', () => commit(ports, params)),
+    'owner.brainHandover.abort': (params) => fenced('abort', () => abort(ports, params)),
   }
 }
