@@ -138,13 +138,10 @@ export const resources = [
     ...byName,
     applies: 'now',
   }),
-  read(
-    'package.list',
-    'List installed packages.',
-    'read',
-    object({ project: optional(path) }),
-    { ...packageDeadline, ...paged },
-  ),
+  read('package.list', 'List installed packages.', 'read', object({ project: optional(path) }), {
+    ...packageDeadline,
+    ...paged,
+  }),
   read(
     'package.checkUpdates',
     'Check for package updates.',
