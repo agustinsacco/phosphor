@@ -1325,8 +1325,18 @@ in place. Choose **Rename…** or double-click the row when you have control.
 A current Host can also rename a stopped or failed lane without resuming it.
 
 Remote lanes use the same transcript renderer as local lanes. The header names
-the machine; the control strip names the controller. Viewers have a read-only
-composer and an explicit Take control action. There is no automatic takeover.
+the machine. The controller's control row names it and offers Release control and
+Stop or Resume; a reader's row is only the machine chip. There is no automatic takeover.
+
+A reader gets the locked composer (`LaneLock`) in the composer's place, the same at
+every width on Desktop and in the browser. It names the holder and offers the one
+action that unlocks typing, with friction that follows the risk (`laneLockCopy`):
+Take control in one step when nobody holds the lane or its holder is disconnected;
+Take over… when the holder is connected, which asks "<holder> becomes read-only." inline
+first (Escape cancels). A client that loses the lane while it is open is told who
+took it and that its draft is kept, and is offered Take back. Once the Host confirms
+a take, focus moves to the composer that replaces the lock. A client without
+`sessions.control` sees why instead of an action.
 Controllers can prompt, steer, queue, abort, compact, change model and thinking,
 answer dialogs, stop and resume. The machine's capabilities and current control
 are checked in main and again by the Host. A prompt to a stopped lane resumes it

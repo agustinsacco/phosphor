@@ -71,7 +71,7 @@ test('Background attention and sign-out preserve machine boundaries', async () =
     await expect(h.page.locator('main').getByText('PHX-background', { exact: true })).toHaveCount(0)
     // Signing out returns to local home, whose composer is intentionally still usable.
     await expect(h.page.getByRole('button', { name: 'Take control', exact: true })).toHaveCount(0)
-    await expect(h.page.getByText('Controlled by Second client', { exact: true })).toHaveCount(0)
+    await expect(h.page.getByTestId('lane-lock')).toHaveCount(0)
     await h.page.getByTestId('session-row').filter({ hasText: 'LOCAL_ONLY' }).click()
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toBeVisible()
     await h.signIn()

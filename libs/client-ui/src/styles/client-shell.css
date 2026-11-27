@@ -369,27 +369,9 @@ html[data-form-factor='compact'] {
     min-height: 44px;
   }
 }
-/* Stands in for the composer when this device is only reading the lane. */
-.compact-observer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin: 4px 12px 8px;
-  padding: 10px 12px;
-  border: 1px solid var(--px-border);
-  border-radius: var(--px-radius-lg);
-  background: var(--px-bg-secondary);
-  color: var(--px-text-secondary);
-  font-size: 13px;
-}
-.compact-observer > [role='status'] {
-  flex: 1;
-  min-width: 10rem;
-}
-.compact-observer > [role='alert'] {
-  flex-basis: 100%;
-  color: var(--px-danger);
+/* A reader's locked composer (LaneLock): on a phone its action spans the row, under the thumb. */
+[data-form-factor='compact'] .lane-lock button {
+  flex: 1 1 auto;
 }
 .compact-list {
   display: flex;

@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { RemoteLanes } from './RemoteLanes'
-import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
+import { LaneLock } from '@/features/machines/LaneLock'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -106,10 +106,17 @@ it('keeps offline lanes visible and disabled', () => {
 })
 
 it('requires explicit takeover and sends the Host identity', async () => {
-  act(() => root.render(<RemoteLaneControls sessionId={mockRemoteInfo.sessionId} />))
-  expect(container.textContent).toContain('Controlled by Another Desktop')
+  act(() => root.render(<LaneLock sessionId={mockRemoteInfo.sessionId} takenBy={null} />))
+  expect(container.textContent).toContain('Another Desktop has control · connected')
   expect(invoke).not.toHaveBeenCalled()
-  await act(async () => container.querySelector<HTMLButtonElement>('button')?.click())
+  // A connected holder is asked about first: the first press only asks.
+  act(() => container.querySelector<HTMLButtonElement>('button')?.click())
+  expect(invoke).not.toHaveBeenCalled()
+  expect(container.textContent).toContain('Another Desktop becomes read-only.')
+  const confirm = [...container.querySelectorAll('button')].find(
+    (b) => b.textContent === 'Take over',
+  )
+  await act(async () => confirm?.click())
   expect(invoke).toHaveBeenCalledWith('hosts:takeControl', MOCK_HOST_ID, mockRemoteInfo.laneId)
 })
 
@@ -249,8 +256,8 @@ it.each([false, true])(
     host.local = true
     host.lanes[0]!.control.controller!.self = self
     useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
-    act(() => root.render(<RemoteLaneControls sessionId={mockRemoteInfo.sessionId} />))
-    expect(container.textContent?.includes('Take control')).toBe(!self)
+    act(() => root.render(<LaneLock sessionId={mockRemoteInfo.sessionId} takenBy={null} />))
+    expect(container.querySelector('button') !== null).toBe(!self)
     expect(container.textContent).not.toContain('Release control')
   },
 )

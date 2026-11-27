@@ -31,6 +31,8 @@ export interface LaneControl {
   connection: string
   /** "Controlled by you", "No controller", "Starting <machine>…" or the not-connected notice. */
   status: string
+  /** Who holds the lane; undefined until the Host lists it. */
+  controller: HostLaneView['control']['controller'] | undefined
   /** The Host is ready and offers control at all. */
   enabled: boolean
   /** This device is the lane's controller. */
@@ -104,6 +106,7 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
         : controller
           ? `Controlled by ${controller.self ? 'you' : controller.label}${controller.connected ? '' : ' (disconnected)'}`
           : 'No controller',
+    controller,
     enabled,
     controlling,
     transfer: laneControlPolicy(host?.local, lane).transfer,

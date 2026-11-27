@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { LOCAL_MACHINE_LABEL } from './fixtures/local-machine'
 import { randomUUID } from 'node:crypto'
 import { remoteHostFixture } from './fixtures/remote-host'
-import { file } from './fixtures/remote-ui'
+import { file, takeControl } from './fixtures/remote-ui'
 
 test('Desktop streams a real Host lane, reads Files and becomes a viewer on control takeover', async () => {
   const h = await remoteHostFixture()
@@ -16,8 +16,7 @@ test('Desktop streams a real Host lane, reads Files and becomes a viewer on cont
     const lane = sidebar.getByRole('button', { name: /Remote test lane/ })
     await expect(sidebar).toHaveAttribute('aria-label', 'bee1')
     await lane.click()
-    await h.page.getByRole('button', { name: 'Take control', exact: true }).click()
-    await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
+    await takeControl(h)
     const composer = h.page.getByRole('textbox', { name: 'Chat message', exact: true })
     await composer.fill('stream remote response')
     await composer.press('Enter')
@@ -37,13 +36,12 @@ test('Desktop streams a real Host lane, reads Files and becomes a viewer on cont
         ),
       )
       .toBe(true)
-    await expect(h.page.getByText('Controlled by Second client', { exact: true })).toBeVisible()
     // Host folders' lane lists carry their own (empty) reorder announcer, as This Mac's do.
     await expect(
-      h.page.getByRole('status').filter({ hasText: 'Read-only. Take control to send messages.' }),
+      h.page.getByRole('status').filter({ hasText: 'Second client took control from you.' }),
     ).toBeVisible()
     await expect(composer).toHaveCount(0)
-    await expect(h.page.getByRole('button', { name: 'Take control', exact: true })).toBeVisible()
+    await expect(h.page.getByRole('button', { name: /^Take back…?$/ })).toBeVisible()
     await h.page.getByRole('button', { name: /^Files pane/ }).click()
     await file(h, 'remote.txt')
     await expect(h.page.locator('.monaco-editor')).toContainText('REMOTE_FILE_FROM_REAL_HOST')

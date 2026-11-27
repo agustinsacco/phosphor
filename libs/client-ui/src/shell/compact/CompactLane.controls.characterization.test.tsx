@@ -30,49 +30,48 @@ afterEach(() => {
   useSessionsStore.setState({ live: {} })
 })
 
-/* Where a reader's lane controls sit is the shell's layout. The wide browser keeps
- * Desktop's control row above the transcript; a phone keeps them in its lane header
- * and puts Take control where the composer goes. */
+/* A reader gets the same locked composer at both widths, naming the holder and offering
+ * the take where it types. The wide browser keeps Desktop's control row (only the machine
+ * chip, for a reader) above the transcript; a phone keeps that in its lane header. */
 it.each([
   ['phone', COMPACT_PLATFORM, true],
   ['wide browser', WIDE_BROWSER_PLATFORM, false],
-] as const)(
-  'a %s reader gets the lane controls where its shell places them',
-  async (_name, platform, phone) => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
-    host.lanes[0]!.control.controller = { label: 'Desk', connected: true, self: false }
-    useMachinesStore.setState({ machines: [{ id: MOCK_HOST_ID, label: 'Studio' }] as never })
-    useRemoteLanesStore.setState({
-      hosts: { [MOCK_HOST_ID]: host },
-      snapshotStatus: 'ready',
-      filter: MOCK_HOST_ID,
-    })
-    useSessionsStore.setState({
-      live: {
-        [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
-      } as never,
-    })
-    const el = document.createElement('div')
-    document.body.append(el)
-    root = createRoot(el)
-    await act(async () =>
-      root!.render(
-        <PlatformProvider value={platform}>
-          <CompactLane
-            location={{
-              to: 'lane',
-              lane: { hostId: MOCK_HOST_ID, laneId: mockRemoteInfo.laneId! },
-              pane: 'chat',
-            }}
-            navigate={() => {}}
-          />
-        </PlatformProvider>,
-      ),
-    )
-    expect(el.textContent).toContain('Read-only. Take control to send messages.')
-    expect(el.querySelector('[data-testid="composer"]')).toBeNull()
-    expect(el.querySelector('.compact-observer') !== null).toBe(phone)
-    expect(el.textContent?.includes('Studio · Connected')).toBe(!phone)
-  },
-)
+] as const)('a %s reader gets the same locked composer', async (_name, platform, phone) => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.lanes[0]!.control.controller = { label: 'Desk', connected: true, self: false }
+  useMachinesStore.setState({ machines: [{ id: MOCK_HOST_ID, label: 'Studio' }] as never })
+  useRemoteLanesStore.setState({
+    hosts: { [MOCK_HOST_ID]: host },
+    snapshotStatus: 'ready',
+    filter: MOCK_HOST_ID,
+  })
+  useSessionsStore.setState({
+    live: {
+      [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
+    } as never,
+  })
+  const el = document.createElement('div')
+  document.body.append(el)
+  root = createRoot(el)
+  await act(async () =>
+    root!.render(
+      <PlatformProvider value={platform}>
+        <CompactLane
+          location={{
+            to: 'lane',
+            lane: { hostId: MOCK_HOST_ID, laneId: mockRemoteInfo.laneId! },
+            pane: 'chat',
+          }}
+          navigate={() => {}}
+        />
+      </PlatformProvider>,
+    ),
+  )
+  const lock = el.querySelector('[data-testid="lane-lock"]')
+  expect(lock?.textContent).toContain('Desk has control · connected')
+  expect(lock?.querySelector('button')?.textContent).toBe('Take over…')
+  expect(el.querySelector('[data-testid="composer"]')).toBeNull()
+  expect(el.textContent).not.toContain('Controlled by')
+  expect(el.textContent?.includes('Studio · Connected')).toBe(!phone)
+})

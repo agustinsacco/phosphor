@@ -6,7 +6,7 @@ async function openLane(page: Page, origin: string) {
   await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
   await expect(page.getByTestId('compact-shell')).toBeVisible()
   await page.getByRole('button', { name: 'Synthetic acceptance lane', exact: true }).click()
-  await expect(page.getByText('No controller', { exact: true })).toBeVisible()
+  await expect(page.getByText('Nobody has control of this lane.', { exact: true })).toBeVisible()
 }
 /** The browser adapter's real `hosts:deleteLane`, as the shared lane actions call it. */
 function deleteLane(page: Page, hostId: string, laneId: string) {
@@ -47,5 +47,5 @@ test('a browser reader is refused lane deletion by the Host', async ({ page, sta
     error: 'The remote change was not confirmed.',
   })
   expect(await laneIds(page, stack.hostId)).toContain(stack.laneId)
-  await expect(page.getByText('No controller', { exact: true })).toBeVisible()
+  await expect(page.getByText('Nobody has control of this lane.', { exact: true })).toBeVisible()
 })

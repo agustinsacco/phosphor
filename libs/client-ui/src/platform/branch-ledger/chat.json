@@ -1,8 +1,4 @@
 {
-  "features/chat/ChatView.tsx": {
-    "protocol": 1,
-    "same-machine": 0
-  },
   "features/chat/Composer.tsx": {
     "protocol": 2,
     "same-machine": 0
