@@ -14,9 +14,15 @@ export function restartedFor(run: UpdateRun, now: number, ms: number): boolean {
   return run.restartAt !== undefined && now - run.restartAt >= ms
 }
 
-/** The Host's own cap on the wait (`deadline` − `since`, both its clock), from when this client saw it. */
+/**
+ * The Host's own cap on the wait (`deadline` − `since`, both its clock), from when this
+ * client saw it. Only provisional: it settles a run as still working only once the latest
+ * status read shows no pause and no job is going or applying. Otherwise the Host may be
+ * applying, and the job, a new version or a restart still decides how the run ends.
+ */
 export function waitEnded(run: UpdateRun, now: number): boolean {
   if (run.reached !== 'waiting' || !run.waiting || run.waitingSince === undefined) return false
+  if (!run.pauseNone || run.jobId || run.awaitingJob || run.restartAt !== undefined) return false
   const cap = Date.parse(run.waiting.deadline) - Date.parse(run.waiting.since)
   return now - run.waitingSince >= (Number.isFinite(cap) && cap > 0 ? cap : WAIT_FALLBACK_MS)
 }

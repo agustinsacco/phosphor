@@ -3,7 +3,7 @@ import { ipcErrorText } from '@shared/errors'
 import type { ComposerDraftRecord, DraftAttachment } from '@shared/models'
 import { hostResourceKey, type HostTarget } from '@shared/remote-host'
 import type { PendingAttachment } from '@/features/chat/attachments'
-import { writeDraftInOrder } from './draftWrites'
+import { writeDraftBlobOnce, writeDraftInOrder } from './draftWrites'
 import { useExtensionUiStore } from './extensionUi'
 
 /**
@@ -196,7 +196,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       delete drafts[key]
       return { drafts, revisions: { ...s.revisions, [key]: (s.revisions[key] ?? 0) + 1 } }
     })
-    void writeDraftInOrder(key, () => clearDraftOnDisk(key))
+    void writeDraftInOrder(key, (latest) => clearDraftOnDisk(key, latest))
   },
 
   rekey: (from, to) => {
@@ -209,7 +209,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       drafts[to] = draft
       return { drafts }
     })
-    void writeDraftInOrder(from, () => clearDraftOnDisk(from))
+    void writeDraftInOrder(from, (latest) => clearDraftOnDisk(from, latest))
     schedulePersist(to, draft)
   },
 }))
@@ -221,8 +221,9 @@ export function isEmptyDraft(draft: Draft): boolean {
 
 // ---------- persistence ----------
 
-async function clearDraftOnDisk(key: DraftKey): Promise<void> {
+async function clearDraftOnDisk(key: DraftKey, latest: () => boolean = () => true): Promise<void> {
   const generation = memoryGeneration
+  if (!latest()) return
   try {
     await window.phosphor.invoke('app:clearDraft', key)
   } catch (error) {
@@ -253,21 +254,23 @@ function schedulePersist(key: DraftKey, draft: Draft): void {
     key,
     setTimeout(() => {
       timers.delete(key)
-      void writeDraftInOrder(key, () => persist(key, draft))
+      void writeDraftInOrder(key, (latest) => persist(key, draft, latest))
     }, PERSIST_DEBOUNCE_MS),
   )
 }
 
-async function persist(key: DraftKey, scheduled: Draft): Promise<void> {
+async function persist(key: DraftKey, scheduled: Draft, latest: () => boolean): Promise<void> {
   const generation = memoryGeneration
   // An earlier save may have given its images blob ids since this one was scheduled.
   const draft = useDraftsStore.getState().drafts[key] ?? scheduled
   try {
     if (isEmptyDraft(draft)) {
-      await clearDraftOnDisk(key)
+      await clearDraftOnDisk(key, latest)
       return
     }
-    const saved = await Promise.all(draft.attachments.map((a) => saveAttachment(a, generation)))
+    const saved = await Promise.all(
+      draft.attachments.map((a) => saveAttachment(key, a, generation)),
+    )
     if (generation !== memoryGeneration) return
     // Remember which blob each image landed in, so re-saving the same draft is
     // one write rather than one per keystroke. Kept ON THE ATTACHMENT rather
@@ -281,7 +284,8 @@ async function persist(key: DraftKey, scheduled: Draft): Promise<void> {
       if (!current || current.attachments !== draft.attachments) return s
       return { drafts: { ...s.drafts, [key]: { ...current, attachments: withIds } } }
     })
-    if (generation !== memoryGeneration) return
+    // A newer save or clear of this draft began: it alone reaches prefs.
+    if (generation !== memoryGeneration || !latest()) return
     await window.phosphor.invoke('app:setDraft', {
       key,
       text: draft.text,
@@ -309,6 +313,7 @@ async function persist(key: DraftKey, scheduled: Draft): Promise<void> {
  * just will not survive a restart.
  */
 async function saveAttachment(
+  key: DraftKey,
   attachment: PendingAttachment,
   generation: number,
 ): Promise<{ record: DraftAttachment | null; attachment: PendingAttachment | null }> {
@@ -323,9 +328,13 @@ async function saveAttachment(
   let blobId = attachment.blobId
   let updated: PendingAttachment | null = null
   if (!blobId) {
-    blobId = newBlobId()
-    const ok = await window.phosphor.invoke('app:writeDraftBlob', blobId, attachment.data)
-    if (generation !== memoryGeneration || !ok) return { record: null, attachment: null }
+    const { data } = attachment
+    blobId =
+      (await writeDraftBlobOnce(key, attachment, async () => {
+        const id = newBlobId()
+        return (await window.phosphor.invoke('app:writeDraftBlob', id, data)) ? id : null
+      })) ?? undefined
+    if (generation !== memoryGeneration || !blobId) return { record: null, attachment: null }
     updated = { ...attachment, blobId }
   }
   return {

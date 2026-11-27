@@ -53,6 +53,8 @@ export interface UpdateRun {
   waiting?: Waiting
   /** When this client first saw the wait for working lanes. */
   waitingSince?: number
+  /** The latest status read showed no pause: a wait past its cap may then settle. */
+  pauseNone?: true
   interruptedLink?: 'offline' | 'returned'
   restartAt?: number
   /** Restarting past `RESTART_SLOW_MS`: a failed update may be rolling back. */
@@ -167,6 +169,8 @@ export function observePause(
   now: number,
 ): UpdateRun {
   if (run.finish || run.path !== 'op') return run
+  if (pause)
+    run = pause.kind === 'none' ? { ...run, pauseNone: true } : { ...run, pauseNone: undefined }
   if (pause?.kind === 'pausing' && !run.restartAt && run.reached !== 'paused')
     return { ...reach(run, 'waiting', now), waiting: pause, waitingSince: run.waitingSince ?? now }
   if (pause?.kind === 'paused') return reach(run, 'paused', now)
