@@ -34,6 +34,11 @@ export function brainHandoverOwnerHandlers(
 ): (seam: OwnerSeam) => OwnerHandlers {
   return ({ store }) => {
     const stateDir = hostStateDirectory(context.env, context.home)
+    const pin = () => {
+      if (!native())
+        throw new OwnerCallRefused('unsupported', 'This Host does not support Brain handover.')
+      pinBrainCompatibility({ home: context.home, uid: context.uid })
+    }
     const handlers = createBrainHandoverHandlers({
       stateDir,
       uid: context.uid,
@@ -51,12 +56,20 @@ export function brainHandoverOwnerHandlers(
         return native()?.probeModel
       },
       log: (event, fields = {}) => context.log?.('host', event, fields),
+      // Inside the writer fence, so no other handover call or Host process interleaves.
+      prepare(method) {
+        // Even older Desktop versions must not observe a verified move on an unpinned install.
+        if (method === 'verify' || method === 'commit') pin()
+        // Reserve against a fresh native grant before begin awaits reader preflight. Older
+        // Desktop builds know the move protocol but do not make this selection themselves.
+        if (
+          method === 'begin' &&
+          ((readLocalBrainSelection(stateDir) === 'unset' && targetOccupied(stateDir)) ||
+            !selectLocalBrainOwner(stateDir, 'desktop'))
+        )
+          throw new OwnerCallRefused('forbidden', 'This Mac cannot move a Brain to this service.')
+      },
     })
-    const pin = () => {
-      if (!native())
-        throw new OwnerCallRefused('unsupported', 'This Host does not support Brain handover.')
-      pinBrainCompatibility({ home: context.home, uid: context.uid })
-    }
     return {
       ...handlers,
       'owner.brainHandover.pin': async () => {
@@ -66,25 +79,6 @@ export function brainHandoverOwnerHandlers(
       'owner.brainHandover.status': async (params) => {
         const result = await handlers['owner.brainHandover.status'](params)
         return { ...result, support: { ...result.support, ownerSelection: 1 } }
-      },
-      // Even older Desktop versions must not observe a verified move on an unpinned install.
-      'owner.brainHandover.verify': async (params) => {
-        pin()
-        return handlers['owner.brainHandover.verify'](params)
-      },
-      'owner.brainHandover.commit': async (params) => {
-        pin()
-        return handlers['owner.brainHandover.commit'](params)
-      },
-      'owner.brainHandover.begin': async (params) => {
-        // Reserve against a fresh native grant before begin awaits reader preflight. Older
-        // Desktop builds know the move protocol but do not make this selection themselves.
-        if (
-          (readLocalBrainSelection(stateDir) === 'unset' && targetOccupied(stateDir)) ||
-          !selectLocalBrainOwner(stateDir, 'desktop')
-        )
-          throw new OwnerCallRefused('forbidden', 'This Mac cannot move a Brain to this service.')
-        return handlers['owner.brainHandover.begin'](params)
       },
     }
   }

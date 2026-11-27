@@ -184,6 +184,17 @@ before it opens, recovers or creates the store, and reads the admission again on
 - the holder releases it on shutdown or when its open fails;
 - it sits beside `<state>/brain`, never inside, so a move still finds its target empty.
 
+The handover shares that lock (`apps/host/src/brain-handover/writer-fence.ts`). Every mutating
+call (`begin` with its owner selection, `verify` and `commit` with their install pin, and
+`abort`) and the startup recovery run one at a time, and only while this process holds it.
+Within a process, one hold is shared with the open Brain, so a handover beside it never waits on
+itself. While another Host process holds the lock, a mutating call is refused with
+`Brain is open elsewhere on this Host.` and is not queued. `status` stays read-only and takes no
+lock. Inside the fence, every call reads its durable record again after each long wait. `commit`
+publishes only a move that is still verified after its reader check. `verify` records `verified`
+only for a move that is still staged, and deletes its partial sealed copies only if the move is
+still staged.
+
 ## Recovery
 
 **First owner, before any Brain exists.** Desktop writes `<userData>/brain-handover/first-owner.json`
@@ -218,7 +229,14 @@ The service rolls a move forward from its marker if it crashed between the renam
 record. It never infers ownership from an empty folder.
 
 **Service restart** (`apps/host/src/brain-handover/recover.ts`, before the owner socket gets the
-handover ports, so Desktop's `commit` never races it):
+handover ports, so Desktop's `commit` never races it). Recovery runs behind the writer lock, so
+two Host processes with different configs that start on one state folder never roll the same
+move forward together. While another process holds the lock, recovery changes nothing and logs
+`brain.handover.recovery-held` with `writer-busy`. That holder, Desktop's next `commit` or the
+next restart finishes the move. A killed holder's lock is reclaimed first. If a crash interrupted
+a reclamation, its `brain-writer.lock-recovery` gate is never removed automatically: recovery
+logs `writer-repair`, and a mutating call is refused with a message that names the file, without
+a path, to remove once no Host is running:
 
 - **Published, not committed:** the service finishes the commit itself (binds Brain Agent's
   conversation, records `committed`, drops the private copies) with no Desktop call. Desktop

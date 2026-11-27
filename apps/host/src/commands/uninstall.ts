@@ -15,6 +15,12 @@ import {
 } from '@phosphor/session-runtime/host-install/layout'
 import { checkBrainPurge } from '../update/purge-brain'
 import { HOST_BRAIN_WRITER_LOCK } from '../brain/writer-lock'
+import {
+  checkPurgeWriterLock,
+  HOST_BRAIN_WRITER_GATE,
+  holdPurgeWriterLock,
+  WRITER_REPAIR,
+} from '../update/purge-writer-lock'
 import { installLifetime, signalTurn } from '../update/lifetime'
 import { removeHostPathBlocks } from '../machine/shell-path'
 import { runLogout } from './logout'
@@ -65,6 +71,8 @@ function requirePrivateFolder(path: string, uid: number | undefined) {
 function checkedEntries(state: string, uid: number | undefined) {
   requirePrivateFolder(state, uid)
   const entries = readdirSync(state)
+  // An interrupted writer-lock reclamation: its gate is kept and the owner is told how to repair.
+  if (entries.includes(HOST_BRAIN_WRITER_GATE)) throw new Error(WRITER_REPAIR)
   if (entries.some((name) => !stateEntries.has(name)))
     throw new Error('State contains unknown entries; nothing in this folder will be purged.')
   if (entries.some((name) => lstatSync(join(state, name)).isSymbolicLink()))
@@ -82,13 +90,26 @@ function checkedEntries(state: string, uid: number | undefined) {
   checkBrainPurge(state, uid, entries)
   return entries
 }
-function purgeState(state: string, uid: number | undefined) {
-  for (const name of checkedEntries(state, uid)) {
-    const path = join(state, name)
-    if (name === 'logs') {
-      for (const file of SERVICE_LOG_NAMES) rmSync(join(path, file), { force: true })
-      rmdirSync(path)
-    } else rmSync(path, { recursive: true })
+/** Every check, the writer lock's included; changes nothing. */
+async function checkedState(state: string, uid: number | undefined): Promise<void> {
+  checkedEntries(state, uid)
+  await checkPurgeWriterLock(state, uid)
+}
+/** Purges while holding the Brain's writer lock, so no Host process writes the Brain meanwhile. */
+async function purgeState(state: string, uid: number | undefined) {
+  const writer = await holdPurgeWriterLock(state, uid)
+  try {
+    for (const name of checkedEntries(state, uid)) {
+      const path = join(state, name)
+      // The lock is the purge's own now; only its release removes it, by token.
+      if (name === HOST_BRAIN_WRITER_LOCK) continue
+      if (name === 'logs') {
+        for (const file of SERVICE_LOG_NAMES) rmSync(join(path, file), { force: true })
+        rmdirSync(path)
+      } else rmSync(path, { recursive: true })
+    }
+  } finally {
+    await writer.release()
   }
   // Never recursively remove the root: a foreign entry may have appeared since the check.
   rmdirSync(state)
@@ -129,7 +150,7 @@ export async function runUninstall(
           context.print('Purge requires the default config path.')
           return 64
         }
-        if (hasState) checkedEntries(state, context.uid)
+        if (hasState) await checkedState(state, context.uid)
         const result = await runLogout({ ...context, signal })
         if (result.exitCode !== 0) {
           context.print('Logout failed; nothing was uninstalled.')
@@ -143,7 +164,7 @@ export async function runUninstall(
       )
         return 75
       signal.throwIfAborted()
-      if (purge && safe(state)) checkedEntries(state, context.uid)
+      if (purge && safe(state)) await checkedState(state, context.uid)
       if (layout) removeRelease(context, layout)
       else
         context.print(
@@ -151,7 +172,7 @@ export async function runUninstall(
         )
       removeHostPathBlocks(context.home, context.uid)
       if (purge) {
-        if (safe(state)) purgeState(state, context.uid)
+        if (safe(state)) await purgeState(state, context.uid)
         if (safe(config)) rmSync(config, { recursive: true })
       } else context.print(`Kept config and identity: ${config}; state: ${state}`)
       if (layout) {
@@ -168,7 +189,7 @@ export async function runUninstall(
       if (signal.aborted) return typeof signal.reason === 'number' ? signal.reason : 70
       context.print(
         error instanceof Error &&
-          /^(Install lock:|Install changed;|State contains (?:unknown entries|unsafe links);|State is not a private folder;|Brain (?:state|move) )/.test(
+          /^(Install lock:|Install changed;|State contains (?:unknown entries|unsafe links);|State is not a private folder;|Brain (?:state|move|writer lock) )/.test(
             error.message,
           )
           ? error.message

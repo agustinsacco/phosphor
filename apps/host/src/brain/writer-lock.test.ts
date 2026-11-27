@@ -11,6 +11,7 @@ import {
   hostBrainWriter,
   hostBrainWriterHeld,
   HostBrainWriterBusy,
+  leaseHostBrainWriter,
   parseHostBrainWriterRecord,
 } from './writer-lock'
 
@@ -80,4 +81,20 @@ it('reports busy after a refusal and clears it once a re-read finds no live hold
   expect(writer.held()).toBe(true)
   await writer.release()
   expect(existsSync(join(state, HOST_BRAIN_WRITER_LOCK))).toBe(false)
+})
+
+it('shares one lock per process: holds in this process never wait, the last release frees it', async () => {
+  const live = new Set([10, 20])
+  const brain = hostBrainWriter(state, { ports: ports(10, live) })
+  await brain.take()
+  const handover = await leaseHostBrainWriter(state, { ports: ports(10, live) })
+  await expect(leaseHostBrainWriter(state, { ports: ports(20, live) })).rejects.toBeInstanceOf(
+    HostBrainWriterBusy,
+  )
+  await brain.release()
+  expect(existsSync(join(state, HOST_BRAIN_WRITER_LOCK))).toBe(true)
+  await handover.release()
+  await handover.release()
+  expect(existsSync(join(state, HOST_BRAIN_WRITER_LOCK))).toBe(false)
+  await (await leaseHostBrainWriter(state, { ports: ports(20, live) })).release()
 })

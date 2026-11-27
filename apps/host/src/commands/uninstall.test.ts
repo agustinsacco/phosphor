@@ -14,6 +14,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { fixture } from '../update/__fixtures__/release'
 import { selectLocalBrainOwner } from '@phosphor/session-runtime/brain/local-owner'
 import { acquireInstallLock } from '@phosphor/session-runtime/host-install/lock'
+import { ownerLockPorts } from '@phosphor/session-runtime/owner-lock/owner-lock'
 import { HOST_PATH_BLOCK } from '../machine/shell-path'
 import { runUninstall } from './uninstall'
 const logout = vi.hoisted(() => ({ run: vi.fn(async () => ({ exitCode: 0, message: 'ok' })) }))
@@ -335,9 +336,64 @@ it('purges privately named native Brain resources, a killed writer lock and an a
   file(join(move, 'state.json'), JSON.stringify({ ...record, state: 'aborted' }))
   mkdirSync(join(brain, 'Brain'), { mode: 0o700 })
   file(join(brain, 'Brain/AGENTS.md'), 'Fixture rules')
-  file(join(state, 'brain-writer.lock'), '{"version":1,"pid":2147483647}\n')
+  file(join(state, 'brain-writer.lock'), await writerRecord(2147483647))
   expect(await runUninstall(f.context, true, true)).toBe(0)
   expect(existsSync(state)).toBe(false)
+})
+
+/** A valid Brain writer record; 2^31-1 is a killed holder, this test process a live one. */
+async function writerRecord(pid: number, token = 'b'.repeat(64)): Promise<string> {
+  const processStart = await ownerLockPorts.processStart(pid)
+  const record = { version: 1, pid, processStart, token, startedAt: '2026-11-01T00:00:00.000Z' }
+  return JSON.stringify(record) + '\n'
+}
+
+it.each(['invalid record', 'live holder', 'foreign directory', 'interrupted reclamation'])(
+  'refuses purge before logout and keeps the Brain writer lock for a %s',
+  async (reason) => {
+    const { f, state, brain, file } = movedBrain()
+    rmSync(f.lib, { recursive: true })
+    const lock = join(state, 'brain-writer.lock')
+    const gate = `${lock}-recovery`
+    if (reason === 'invalid record') file(lock, '{"version":1,"pid":2147483647}\n')
+    if (reason === 'live holder') file(lock, await writerRecord(process.pid))
+    if (reason === 'foreign directory') {
+      mkdirSync(lock, { mode: 0o700 })
+      file(join(lock, 'Ledger'), 'keep')
+    }
+    if (reason === 'interrupted reclamation') {
+      file(lock, await writerRecord(2147483647))
+      mkdirSync(gate, { mode: 0o700 })
+    }
+    expect(await runUninstall(f.context, true, true)).toBe(75)
+    expect(logout.run).not.toHaveBeenCalled()
+    expect(existsSync(join(brain, 'brain.sqlite'))).toBe(true)
+    expect(existsSync(lock)).toBe(true)
+    if (reason === 'foreign directory')
+      expect(readFileSync(join(lock, 'Ledger'), 'utf8')).toBe('keep')
+    if (reason === 'interrupted reclamation') {
+      expect(existsSync(gate)).toBe(true)
+      const message = f.messages.join('\n')
+      expect(message).toContain('brain-writer.lock-recovery')
+      expect(message).not.toContain(state)
+    }
+  },
+)
+
+it('keeps a writer lock replaced by a live holder after the purge check, and its Brain', async () => {
+  const { f, state, brain } = movedBrain()
+  rmSync(f.lib, { recursive: true })
+  const lock = join(state, 'brain-writer.lock')
+  writeFileSync(lock, await writerRecord(2147483647), { mode: 0o600 })
+  const live = await writerRecord(process.pid, 'c'.repeat(64))
+  logout.run.mockImplementationOnce(async () => {
+    rmSync(lock)
+    writeFileSync(lock, live, { mode: 0o600 })
+    return { exitCode: 0, message: 'ok' }
+  })
+  expect(await runUninstall(f.context, true, true)).toBe(75)
+  expect(readFileSync(lock, 'utf8')).toBe(live)
+  expect(existsSync(join(brain, 'brain.sqlite'))).toBe(true)
 })
 
 it.each([false, true])(
