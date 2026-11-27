@@ -7,6 +7,7 @@ import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { checkedPath, FileFailure, laneRoot } from '../../features/files'
 import { checkedOutBranch } from '../../lanes/runtime-host/branch'
 import { WorkspaceLeased } from '../../owner/lease'
+import { laneIdInRef } from '../lane-ref'
 import type { DaemonHandlerDeps } from './index'
 import {
   commitAll,
@@ -100,6 +101,7 @@ function lockedCheckout<T>(
   work: (checkout: Checkout) => Promise<T>,
 ) {
   const { laneId } = targetLane(ctx)
+  const caller = ctx.principal?.kind === 'agent' ? laneIdInRef(ctx.principal.laneRef) : undefined
   const runtime = requireRuntime(deps.laneRuntime)
   const lane = deps.store.getLane(laneId)
   if (!lane || lane.removedAt !== null) throw refusal('unknown-lane')
@@ -127,11 +129,15 @@ function lockedCheckout<T>(
           const siblings = deps.store
             .listLanes()
             .filter((row) => row.repositoryId === lane.repositoryId && resolve(row.cwd) === cwd)
-          const summaries = [
-            runtime.summaryFor(laneId),
-            ...siblings.map((row) => runtime.summaryFor(row.laneId)),
-          ]
-          if (summaries.some((s) => s?.activity === 'working' || s?.activity === 'needs-input'))
+          const checkoutLanes = new Set([laneId, ...siblings.map((row) => row.laneId)])
+          // The asking agent is working by definition until its tool call returns.
+          if (caller) checkoutLanes.delete(caller)
+          if (
+            [...checkoutLanes].some((id) => {
+              const activity = runtime.summaryFor(id)?.activity
+              return activity === 'working' || activity === 'needs-input'
+            })
+          )
             throw new OpRefusal(
               'busy',
               'Wait for the lane using this checkout to finish working or answer its prompt.',

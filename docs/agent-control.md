@@ -70,7 +70,7 @@ Host workspace ops use `--target <lane-ref>` for the checkout. A Git revision or
 
 `files.search <query> --target <lane-ref>` is a literal search inside that lane's root under the file guards. It returns paged, untrusted `path | line | snippet` rows.
 
-The Host confines Git writes to the selected checkout and refuses when a lane using it is working or needs input. `git fetch` updates remote-tracking refs; `git pull` only fast-forwards to the already-fetched upstream. Merges can leave Git's normal conflict state and report the affected paths; inspect the result before another write. No catalog Git op pushes. See [managed worktree operations](worktrees.md#host-catalog) for path, restore and prune rules.
+The Host confines Git writes to the selected checkout and refuses when another lane using it is working or needs input. The lane asking through its in-lane tool does not block its own request. `git fetch` updates remote-tracking refs; `git pull` only fast-forwards to the already-fetched upstream. Merges can leave Git's normal conflict state and report the affected paths; inspect the result before another write. No catalog Git op pushes. See [managed worktree operations](worktrees.md#host-catalog) for path, restore and prune rules.
 
 ## The op channel
 
