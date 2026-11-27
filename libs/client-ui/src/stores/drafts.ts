@@ -3,7 +3,7 @@ import { ipcErrorText } from '@shared/errors'
 import type { ComposerDraftRecord, DraftAttachment } from '@shared/models'
 import { hostResourceKey, type HostTarget } from '@shared/remote-host'
 import type { PendingAttachment } from '@/features/chat/attachments'
-import { writeDraftBlobOnce, writeDraftInOrder } from './draftWrites'
+import { reclaimDraftUploads, saveDraftAttachment, writeDraftInOrder } from './draftWrites'
 import { useExtensionUiStore } from './extensionUi'
 
 /**
@@ -263,14 +263,14 @@ async function persist(key: DraftKey, scheduled: Draft, latest: () => boolean): 
   const generation = memoryGeneration
   // An earlier save may have given its images blob ids since this one was scheduled.
   const draft = useDraftsStore.getState().drafts[key] ?? scheduled
+  const live = () => generation === memoryGeneration
+  let saved: Awaited<ReturnType<typeof saveDraftAttachment>>[] = []
   try {
     if (isEmptyDraft(draft)) {
       await clearDraftOnDisk(key, latest)
       return
     }
-    const saved = await Promise.all(
-      draft.attachments.map((a) => saveAttachment(key, a, generation)),
-    )
+    saved = await Promise.all(draft.attachments.map((a) => saveDraftAttachment(key, a, live)))
     if (generation !== memoryGeneration) return
     // Remember which blob each image landed in, so re-saving the same draft is
     // one write rather than one per keystroke. Kept ON THE ATTACHMENT rather
@@ -285,7 +285,12 @@ async function persist(key: DraftKey, scheduled: Draft, latest: () => boolean): 
       return { drafts: { ...s.drafts, [key]: { ...current, attachments: withIds } } }
     })
     // A newer save or clear of this draft began: it alone reaches prefs.
-    if (generation !== memoryGeneration || !latest()) return
+    if (generation !== memoryGeneration) return
+    if (!latest())
+      return reclaimDraftUploads(
+        saved.map((entry) => entry.upload),
+        blobReferenced,
+      )
     await window.phosphor.invoke('app:setDraft', {
       key,
       text: draft.text,
@@ -301,53 +306,15 @@ async function persist(key: DraftKey, scheduled: Draft, latest: () => boolean): 
     })
   } catch (error) {
     if (generation === memoryGeneration) throw error
+  } finally {
+    for (const entry of saved) entry.upload?.release()
   }
 }
 
-/**
- * Write an image's bytes if they are not on disk yet.
- *
- * `attachment` comes back non-null when it gained a blobId and the caller
- * should keep the new object; `record` is what goes into prefs, and is null
- * when the write was refused for the size cap — the chip stays in memory, it
- * just will not survive a restart.
- */
-async function saveAttachment(
-  key: DraftKey,
-  attachment: PendingAttachment,
-  generation: number,
-): Promise<{ record: DraftAttachment | null; attachment: PendingAttachment | null }> {
-  if (generation !== memoryGeneration) return { record: null, attachment: null }
-  if (attachment.kind === 'file') {
-    if (attachment.data !== undefined) return { record: null, attachment: null }
-    return {
-      record: { kind: 'file', name: attachment.name, size: attachment.size, path: attachment.path },
-      attachment: null,
-    }
-  }
-  let blobId = attachment.blobId
-  let updated: PendingAttachment | null = null
-  if (!blobId) {
-    const { data } = attachment
-    blobId =
-      (await writeDraftBlobOnce(key, attachment, async () => {
-        const id = newBlobId()
-        return (await window.phosphor.invoke('app:writeDraftBlob', id, data)) ? id : null
-      })) ?? undefined
-    if (generation !== memoryGeneration || !blobId) return { record: null, attachment: null }
-    updated = { ...attachment, blobId }
-  }
-  return {
-    record: {
-      kind: 'image',
-      name: attachment.name,
-      size: attachment.data.length,
-      blobId,
-      mimeType: attachment.mimeType,
-    },
-    attachment: updated,
-  }
-}
+const blobReferenced = (blobId: string): boolean =>
+  Object.values(useDraftsStore.getState().drafts).some((d) =>
+    d.attachments.some((a) => a.kind === 'image' && a.blobId === blobId),
+  )
 
 async function toDraft(record: ComposerDraftRecord, generation: number): Promise<Draft> {
   const attachments = await Promise.all(
@@ -380,11 +347,6 @@ async function toDraft(record: ComposerDraftRecord, generation: number): Promise
     ...(record.workspacePath ? { workspacePath: record.workspacePath } : {}),
     ...(record.preferWorktree !== undefined ? { preferWorktree: record.preferWorktree } : {}),
   }
-}
-
-/** crypto.randomUUID is available in the renderer under the strict CSP. */
-function newBlobId(): string {
-  return crypto.randomUUID()
 }
 
 /** Browser sign-out clears memory and pending writes without touching native saved drafts. */

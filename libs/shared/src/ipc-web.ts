@@ -171,6 +171,7 @@ export const IPC_WEB = {
   'app:clearDraft': browser,
   'app:writeDraftBlob': browser,
   'app:readDraftBlob': browser,
+  'app:deleteDraftBlob': browser,
   'app:sweepDrafts': browser,
   'app:userInfo': unsupported(
     'Native settings, local paths and persistent session data are unavailable in the browser.',

@@ -320,6 +320,7 @@ export function createBrowserHandlers(ports: BrowserHandlerPorts): BrowserHandle
     'app:clearDraft': drafts.clear,
     'app:writeDraftBlob': drafts.writeBlob,
     'app:readDraftBlob': drafts.readBlob,
+    'app:deleteDraftBlob': drafts.deleteBlob,
     'app:sweepDrafts': drafts.sweep,
     ...preferenceHandlers(prefs),
     'app:notify': createBrowserNotifications().notify,

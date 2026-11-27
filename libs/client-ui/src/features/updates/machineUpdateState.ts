@@ -7,6 +7,8 @@ import {
   RESTART_SLOW_MS,
   restartedFor,
   waitEnded,
+  waitLost,
+  watchAgain,
 } from './machineUpdateTimers'
 
 export type UpdateStep = 'downloading' | 'waiting' | 'paused' | 'restarting' | 'health'
@@ -230,13 +232,15 @@ export function observeConnection(
   now: number,
 ): UpdateRun {
   if (run.finish && run.finish !== 'not-back') return run
-  if (host?.state === 'ready')
-    return returned(
+  if (host?.state === 'ready') {
+    const back = returned(
       run.interruptedLink === 'offline' ? { ...run, interruptedLink: 'returned' } : run,
       entry,
       host,
       now,
     )
+    return watchAgain(back)
+  }
   if (run.path === 'task' || run.restartAt !== undefined)
     return run.wentOffline ? run : { ...reach(run, 'restarting', now), wentOffline: true }
   // A fast update can drop the link before either poll sees the handoff, but so can a blip.
@@ -257,6 +261,7 @@ export function tickRun(run: UpdateRun, now: number): UpdateRun {
       return nextRun({ ...run, finish: 'download' }, now)
     if (restartedFor(run, now, RESTART_DEADLINE_MS))
       return nextRun({ ...run, finish: 'not-back' }, now)
+    if (waitLost(run, now)) return nextRun({ ...run, finish: 'not-back' }, now)
     if (waitEnded(run, now)) return nextRun({ ...run, finish: 'still-working' }, now)
     if (!run.slowRestart && restartedFor(run, now, RESTART_SLOW_MS))
       return nextRun({ ...run, slowRestart: true }, now)

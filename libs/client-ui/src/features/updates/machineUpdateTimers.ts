@@ -21,8 +21,29 @@ export function restartedFor(run: UpdateRun, now: number, ms: number): boolean {
  * applying, and the job, a new version or a restart still decides how the run ends.
  */
 export function waitEnded(run: UpdateRun, now: number): boolean {
-  if (run.reached !== 'waiting' || !run.waiting || run.waitingSince === undefined) return false
   if (!run.pauseNone || run.jobId || run.awaitingJob || run.restartAt !== undefined) return false
+  return pastCap(run, now, 0)
+}
+
+/**
+ * A Host that stays unreachable past the wait's cap gets the restart deadline more,
+ * measured from the cap, then reads as not back. Its return still reconciles the run.
+ */
+export function waitLost(run: UpdateRun, now: number): boolean {
+  if (run.interruptedLink !== 'offline' || run.restartAt !== undefined) return false
+  return pastCap(run, now, RESTART_DEADLINE_MS)
+}
+
+function pastCap(run: UpdateRun, now: number, grace: number): boolean {
+  if (run.reached !== 'waiting' || !run.waiting || run.waitingSince === undefined) return false
   const cap = Date.parse(run.waiting.deadline) - Date.parse(run.waiting.since)
-  return now - run.waitingSince >= (Number.isFinite(cap) && cap > 0 ? cap : WAIT_FALLBACK_MS)
+  const limit = Number.isFinite(cap) && cap > 0 ? cap : WAIT_FALLBACK_MS
+  return now - run.waitingSince >= limit + grace
+}
+
+/** A wait that lost its Host (`waitLost`) and nothing settled on its return: watch again. */
+export function watchAgain(run: UpdateRun): UpdateRun {
+  return run.finish === 'not-back' && run.restartAt === undefined
+    ? { ...run, finish: undefined, settled: undefined, settledAt: undefined }
+    : run
 }

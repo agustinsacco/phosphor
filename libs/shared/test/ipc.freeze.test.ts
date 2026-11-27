@@ -13,6 +13,7 @@ const expectedEntries = [
   ['app:clearRetiredDirectives', 'app'],
   ['app:createSandbox', 'machine'],
   ['app:debugLogPath', 'app'],
+  ['app:deleteDraftBlob', 'app'],
   ['app:deleteSandbox', 'machine'],
   ['app:getPrefs', 'app'],
   ['app:listSandboxes', 'machine'],

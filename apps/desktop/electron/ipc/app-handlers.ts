@@ -25,6 +25,7 @@ import {
   saveComposerDraft,
   clearComposerDraft,
   writeComposerDraftBlob,
+  deleteComposerDraftBlob,
   sweepComposerDrafts,
 } from '../app/draft-service'
 import { resolveResumeTarget } from '../app/resume-target'
@@ -257,6 +258,7 @@ function registerDraftHandlers(): void {
     writeComposerDraftBlob(deps(), blobId, base64),
   )
   handle('app:readDraftBlob', (_event, blobId) => readDraftBlob(blobId))
+  handle('app:deleteDraftBlob', (_event, blobId) => deleteComposerDraftBlob(deps(), blobId))
   handle('app:sweepDrafts', () => sweepComposerDrafts(deps()))
 }
 
