@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { HostConnectionView } from '@shared/ipc'
-import { observeResult, readUpdateStatus } from './machineUpdateFacts'
+import { observeResult, readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
 import { softwareUpdateLines } from './softwareUpdateText'
 import {
   deriveMachineUpdate,
@@ -65,31 +65,68 @@ describe('a wait for working lanes', () => {
   it.each([
     ['the pause cap', 10 * MIN],
     ['30 minutes without a usable cap', null],
-  ])('ends at %s as still working, even while the Host is away', (_name, capMs) => {
-    const pause = waitingFor(capMs)
-    const limit = capMs ?? 30 * MIN
+  ])(
+    'ends at %s as still working once the Host says nothing is pausing or applying',
+    (_name, capMs) => {
+      const pause = waitingFor(capMs)
+      const limit = capMs ?? 30 * MIN
+      let run = observePause(startRun('op', {}, host, 0), pause, 1000)
+      expect(tickRun(run, 1000 + limit - 1).finish).toBeUndefined()
+      run = observePause(run, { kind: 'none' }, 1000 + limit)
+      const ended = settle(run, 1000 + limit)
+      expect(ended).toMatchObject({ finish: 'still-working', settled: true })
+      expect(holdUpdatePage(ended)).toBe(false)
+      // A visible result, and Update… again to retry (Stop turns forces it while waiting).
+      const entry = { run: ended }
+      expect(lines(entry, 1000 + limit)).toContain('Lanes were still working. Nothing changed.')
+      expect(
+        deriveMachineUpdate({
+          machineId: 'm',
+          label: 'Studio',
+          host,
+          entry,
+          peers: [],
+          configure: true,
+          terminal: true,
+          owner: true,
+        }).can.start,
+      ).toBe(true)
+    },
+  )
+
+  it('keeps watching past the cap while the Host is away or its job is still going', () => {
+    const pause = waitingFor(10 * MIN)
     let run = observePause({ ...startRun('op', {}, host, 0), jobId: 'job' }, pause, 1000)
-    run = observeConnection(run, { status: { pause } }, undefined, 2000)
-    expect(holdUpdatePage(run)).toBe(true)
-    expect(tickRun(run, 1000 + limit - 1).finish).toBeUndefined()
-    const ended = tickRun(run, 1000 + limit)
-    expect(ended).toMatchObject({ finish: 'still-working', settled: true })
-    expect(holdUpdatePage(ended)).toBe(false)
-    // A visible result, and Update… again to retry (Stop turns forces it while waiting).
-    const entry = { run: ended }
-    expect(lines(entry, 1000 + limit)).toContain('Lanes were still working. Nothing changed.')
-    expect(
-      deriveMachineUpdate({
-        machineId: 'm',
-        label: 'Studio',
-        host,
-        entry,
-        peers: [],
-        configure: true,
-        terminal: true,
-        owner: true,
-      }).can.start,
-    ).toBe(true)
+    const away = observeConnection(run, { status: { pause } }, undefined, 2000)
+    expect(tickRun(away, 1000 + 60 * MIN).finish).toBeUndefined()
+    expect(holdUpdatePage(tickRun(away, 1000 + 60 * MIN))).toBe(true)
+    // Back, and nothing pauses any more, but the job has not said how it ended.
+    run = observePause(run, { kind: 'none' }, 1000 + 10 * MIN)
+    run = tickRun(run, 1000 + 11 * MIN)
+    expect(run.finish).toBeUndefined()
+  })
+
+  it('still finishes as updated when the Host applied right at the cap', () => {
+    const pause = waitingFor(10 * MIN)
+    let run = observePause({ ...startRun('op', {}, host, 0), jobId: 'job' }, pause, 1000)
+    run = tickRun(observePause(run, { kind: 'none' }, 1000 + 10 * MIN), 1000 + 10 * MIN)
+    expect(run.finish).toBeUndefined()
+    run = readUpdateJob(
+      run,
+      {
+        status: 'ok',
+        data: {
+          op: 'service.update',
+          state: 'done',
+          result: { text: 'Applying', data: { outcome: 'applying', version: '1.3.0' } },
+        },
+      } as never,
+      1000 + 10 * MIN + 1,
+    )
+    expect(run).toMatchObject({ reached: 'restarting' })
+    expect(run.finish).toBeUndefined()
+    run = observeConnection(run, {}, { ...host, hostVersion: '1.3.0' }, 1000 + 11 * MIN)
+    expect(run).toMatchObject({ finish: 'updated', to: '1.3.0' })
   })
 })
 

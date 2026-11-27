@@ -507,6 +507,22 @@ describe('overlapping saves of one draft', () => {
     expect(invoke.mock.calls.filter((c) => c[0] === 'app:writeDraftBlob')).toHaveLength(1)
   })
 
+  it('saves newer text at once, not behind an obsolete image save, which then does nothing', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'old')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().setAttachments('home:/a', [])
+    useDraftsStore.getState().setText('home:/a', 'new')
+    await flush()
+    // The window may close now: the newer text is already on its way to prefs.
+    expect(setCalls().map((c) => (c[1] as { text: string }).text)).toEqual(['new'])
+    release()
+    await flush()
+    expect(setCalls().map((c) => (c[1] as { text: string }).text)).toEqual(['new'])
+  })
+
   it('never brings a sent draft back from a save still in flight', async () => {
     const release = slowFirstBlob()
     const { useDraftsStore } = await import('./drafts')
