@@ -122,3 +122,17 @@ it('keeps the synchronous signal-shutdown path', async () => {
   const [exit] = await exited
   expect(exit.expected).toBe(true)
 })
+
+it('reports a session as stopping from Stop until its pi has exited', async () => {
+  const { registry } = owner()
+  const session = registry.create(cwd, options)
+  expect(registry.isStopping(session.sessionId)).toBe(false)
+  const stopped = registry.dispose(session.sessionId)
+  // SIGTERM is out, so the client no longer reads alive, but pi may still be writing.
+  await Promise.resolve()
+  await Promise.resolve()
+  expect(session.client.alive).toBe(false)
+  expect(registry.isStopping(session.sessionId)).toBe(true)
+  await stopped
+  expect(registry.isStopping(session.sessionId)).toBe(false)
+})

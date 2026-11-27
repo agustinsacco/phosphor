@@ -16,3 +16,10 @@ it('does not count a pi that exited: a crashed lane is not starting or stopping'
 it('ignores other transcripts', () => {
   expect(sessionOwnerOf([session('s1', '/x/b.jsonl')], '/x/a.jsonl', alive)).toBeUndefined()
 })
+
+it('keeps a stopping pi as the owner until it exits', () => {
+  const stopping = (sessionId: string) => sessionId === 's2'
+  expect(
+    sessionOwnerOf([session('s2', '/x/a.jsonl')], '/x/a.jsonl', (id) => alive(id) || stopping(id)),
+  ).toBe('s2')
+})
