@@ -97,6 +97,30 @@ describe('CommandMenu', () => {
     expect(search.querySelectorAll('[role="presentation"]')).toHaveLength(0)
   })
 
+  it('numbers options past the headers and sets the first header apart from the rest', () => {
+    const rows = filterCommandEntries('', ENTRIES)
+    const el = render(
+      <CommandMenu
+        query=""
+        entries={rows}
+        activeIndex={0}
+        listboxId="menu"
+        onHover={noop}
+        onPick={noop}
+        onClose={noop}
+      />,
+    )
+    const ids = [...el.querySelectorAll('[role="option"]')].map((o) => o.id)
+    expect(ids).toEqual(rows.map((_, i) => `menu-option-${i}`))
+    const headers = [...el.querySelectorAll('[role="presentation"]')].map((h) => h.className)
+    expect(headers[0]).toContain('pt-0.5')
+    expect(headers[0]).not.toContain('border-t')
+    for (const later of headers.slice(1)) expect(later).toContain('border-t pt-1.5')
+    // Each header sits directly before the first row of its section.
+    const first = el.querySelector('[role="presentation"]')!.nextElementSibling
+    expect(first?.id).toBe('menu-option-0')
+  })
+
   it('is a listbox whose active option is the highlighted row', () => {
     const rows = filterCommandEntries('', ENTRIES)
     const el = render(
