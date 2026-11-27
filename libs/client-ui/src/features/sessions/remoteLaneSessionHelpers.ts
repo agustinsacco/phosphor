@@ -3,6 +3,7 @@ import { ensureServiceLaneControl, ServiceLaneControlRefused } from '@/platform/
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import type { HostLaneView } from '@shared/ipc'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
+import { markersChosenByOthers } from '@/lib/laneMarker'
 import { piCall } from '@/lib/rpc'
 import { applySessionRename } from './sessionActions'
 import { useChatStore } from '@/stores/chat'
@@ -15,8 +16,9 @@ import { makeRoutine } from '@/stores/routines'
  * as on This Mac: derived markers collide by design.
  */
 export function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<string> {
-  return new Set(
-    lanes.flatMap((other) => (other.laneId !== lane.laneId && other.marker ? [other.marker] : [])),
+  return markersChosenByOthers(
+    lanes.map((other) => [other.laneId, other.marker] as const),
+    lane.laneId,
   )
 }
 
