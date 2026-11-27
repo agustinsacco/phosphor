@@ -747,6 +747,10 @@
     "./ops/lane-controls": {
       "types": "./src/ops/lane-controls.ts",
       "default": "./src/ops/lane-controls.ts"
+    },
+    "./ops/lane-waits": {
+      "types": "./src/ops/lane-waits.ts",
+      "default": "./src/ops/lane-waits.ts"
     }
   },
   "nx": {
