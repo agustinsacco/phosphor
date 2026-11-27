@@ -312,3 +312,40 @@ describe('reach pool', () => {
     pool.close()
   })
 })
+
+it('reserves dedicated wait sockets without starving normal ops and closes them on result or abort', async () => {
+  const waits = held()
+  const host = sibling('bee2', (request) =>
+    request.op === 'lane.wait' ? waits.handler() : LANE_LIST_OK,
+  )
+  const { pool } = setup([host], { open: 5 })
+  const wait = { op: 'lane.wait', args: { ref: 'peer' } }
+  const controllers = Array.from({ length: 4 }, () => new AbortController())
+  const pending = controllers.map(({ signal }) => pool.run(host, wait, { write: false, signal }))
+  try {
+    await vi.waitFor(() => expect(waits.waiting).toHaveLength(4))
+    await expect(pool.run(host, wait, { write: false })).resolves.toMatchObject({
+      ok: false,
+      code: 'busy',
+    })
+    expect(host.sockets).toHaveLength(4)
+    await expect(pool.run(host, read, { write: false })).resolves.toMatchObject({ ok: true })
+    expect(host.sockets).toHaveLength(5)
+    controllers[0]!.abort()
+    await expect(pending[0]).resolves.toMatchObject({ ok: false, code: 'timeout' })
+    expect(host.sockets[0]!.client.isOpen()).toBe(false)
+    waits.waiting.slice(1).forEach((resolve) => resolve(LANE_LIST_OK))
+    await Promise.all(pending)
+    expect(host.sockets.map((socket) => socket.client.isOpen())).toEqual([
+      false,
+      false,
+      false,
+      false,
+      true,
+    ])
+  } finally {
+    controllers.forEach((c) => c.abort())
+    pool.close()
+    await Promise.all(pending)
+  }
+})

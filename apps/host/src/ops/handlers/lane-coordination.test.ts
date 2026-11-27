@@ -2,9 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
-import type { LaneActivity } from '@phosphor/shared/host-protocol'
+import type { FrameSocket, HostFrame, LaneActivity } from '@phosphor/shared/host-protocol'
 import { remoteLaneKey } from '@phosphor/shared/remote-host'
 import { loadSqlite } from '../../lanes/sqlite'
+import type { OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
+import { createOpsAdapter } from '../adapter'
 import { recordCreator } from '../binding'
 import { opPrincipalFor } from '../../api/principal'
 import {
@@ -360,4 +362,82 @@ it('routes both command spellings and applies the receiving owner’s creator an
   } finally {
     sender.close()
   }
+})
+
+it('lets sibling remote lanes send while a wait is pending; disconnect frees the slot and listener', async () => {
+  const sender = remote(remoteLaneKey(origin, 'sibling'))
+  await creator(sender)
+  const createLink = createOpsAdapter({ dispatcher: service.dispatcher })
+  const connect = () => {
+    const id = randomUUID()
+    const frames: HostFrame[] = []
+    const caps = ['sessions.read', 'sessions.control'] as const
+    const link = createLink({
+      connectionId: id,
+      client: { id, label: 'Origin' },
+      caps,
+      principal: { kind: 'grant-machine', machineId: origin, clientId: id },
+      socket: {
+        isOpen: () => true,
+        send: (wire: string) => frames.push(JSON.parse(wire) as HostFrame),
+      } as FrameSocket,
+    })!
+    const call = (id: string, params: OpsRunRequest) =>
+      link.handle({ type: 'call', id, method: 'ops.run', params }, caps)
+    return { call, link, frames }
+  }
+  const first = connect()
+  const second = connect()
+  const wait = { op: 'lane.wait', args: { ref: target }, actor }
+  f.command.mockImplementation(async () => {
+    activity = 'idle'
+    topic.delta([summary()])
+    return f.success
+  })
+  first.call('first', wait)
+  await listening.promise
+  first.call('message', {
+    ...message(),
+    actor: { kind: 'agent', lane: remoteLaneKey(origin, 'sibling') },
+  })
+  await vi.waitFor(() =>
+    expect(first.frames).toContainEqual(
+      expect.objectContaining({ id: 'first', data: expect.objectContaining({ status: 'ok' }) }),
+    ),
+  )
+  activity = 'working'
+  listening = deferred<void>()
+  const listen = topic.listen
+  const removed = vi.fn()
+  vi.spyOn(topic, 'listen').mockImplementationOnce((fn) => {
+    const off = listen(fn)
+    return () => {
+      off()
+      removed()
+    }
+  })
+  first.call('abandoned', wait)
+  await listening.promise
+  second.call('duplicate', wait)
+  await vi.waitFor(() =>
+    expect(second.frames).toContainEqual(
+      expect.objectContaining({
+        id: 'duplicate',
+        data: expect.objectContaining({ status: 'denied', code: 'busy' }),
+      }),
+    ),
+  )
+  first.link.close?.()
+  expect(removed).toHaveBeenCalledOnce()
+  activity = 'idle'
+  second.call('replacement', wait)
+  await vi.waitFor(() =>
+    expect(second.frames).toContainEqual(
+      expect.objectContaining({
+        id: 'replacement',
+        data: expect.objectContaining({ status: 'ok' }),
+      }),
+    ),
+  )
+  second.link.close?.()
 })
