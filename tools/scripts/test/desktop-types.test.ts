@@ -135,12 +135,16 @@ describe('Desktop TypeScript projects', () => {
   it('load only the imported .mjs helpers as JavaScript, unchecked', { timeout: 60_000 }, () => {
     expect(loadedJs('e2e')).toEqual([
       'apps/desktop/e2e/fixtures/host-native.mjs',
+      'apps/host/scripts/brain-package-files.mjs',
+      'apps/host/scripts/build-brain.mjs',
+      'apps/host/scripts/build-bundle.mjs',
       'tools/host-release/archive.mjs',
       'tools/host-release/build-bundle.mjs',
       'tools/host-release/build-native.mjs',
       'tools/host-release/common.mjs',
       'tools/host-release/installer.mjs',
       'tools/host-release/native-stage.mjs',
+      'tools/host-release/verify-archive.mjs',
       'tools/scripts/desktop-electron-launch.mjs',
     ])
     expect(loadedJs('tests')).toEqual(['apps/desktop/scripts/adhoc-sign-mac.mjs'])
