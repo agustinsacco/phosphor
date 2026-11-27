@@ -144,7 +144,7 @@ it('reads the v2 manifest for this machine’s target and falls back to v1', asy
   }
 })
 
-it('offers only what this Host’s updater can install: no offer for a v2-only target', async () => {
+it('offers what this Host’s updater installs: an Intel Mac reads its v2 artifact', async () => {
   vi.useRealTimers()
   const root = mkdtempSync(join(tmpdir(), 'release-check-'))
   try {
@@ -152,15 +152,14 @@ it('offers only what this Host’s updater can install: no offer for a v2-only t
     const source = { env: mirror.env, keys: mirror.keys }
     const signal = new AbortController().signal
     mirror.publish({ version: '1.3.0', targets: ['darwin-arm64', 'darwin-x64', 'linux-x64'] })
-    // The updater reads the v1 manifest, which has no darwin-x64: an offer there could never install.
-    expect(await newestRelease(source, 'darwin-x64', signal)).toBeUndefined()
+    expect(await newestRelease(source, 'darwin-x64', signal)).toBe('1.3.0')
     expect(await newestRelease(source, 'darwin-arm64', signal)).toBe('1.3.0')
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 })
 
-it('reads only the signed v1 manifest the updater reads: its artifacts decide the offer', async () => {
+it('reads the manifests the updater reads: a v1-only mirror’s artifacts decide the offer', async () => {
   vi.useRealTimers()
   const root = mkdtempSync(join(tmpdir(), 'release-check-'))
   try {
@@ -171,9 +170,9 @@ it('reads only the signed v1 manifest the updater reads: its artifacts decide th
     mirror.publish({ version: '1.4.0', v2: 'absent', targets: ['linux-x64'] })
     expect(await newestRelease(source, 'darwin-arm64', signal)).toBeUndefined()
     expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.4.0')
-    // A broken v2 beside a good v1 does not matter: the updater never reads v2.
+    // A broken v2 fails the check, as the updater refuses it; the last good answer stays.
     mirror.publish({ version: '1.5.0', v2: 'invalid', targets: ['linux-x64'] })
-    expect(await newestRelease(source, 'linux-x64', signal)).toBe('1.5.0')
+    await expect(newestRelease(source, 'linux-x64', signal)).rejects.toThrow()
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
