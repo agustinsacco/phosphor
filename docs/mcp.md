@@ -167,6 +167,10 @@ retargeting. Agents never handle credentials or sign in. Command-based (stdio)
 `mcp.add` and `mcp.update` use the destructive tier and require user confirmation
 for agents, including routed machine callers. An op override cannot waive that
 approval. HTTP add/update use the persistence tier, subject to owner policy.
+`mcp.expose` changes only exposure and keeps the server's other fields. It
+follows the same split: `--transport stdio` asks, and HTTPS is persistence
+tier. The owner checks the stored entry under the settings lock and refuses a
+mismatched transport before writing.
 
 `mcp.lane` with `inspect` is a read, including under read-only policy. With
 `reconnect` it is a lane change: an agent can reconnect only its own lane. The

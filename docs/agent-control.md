@@ -29,7 +29,11 @@ The tool labels replies with the owner's canonical `op`. Its display is bounded;
 
 `machine.doctor` reads cached pi and Control readiness, service pause state, and shell environment status and age; headless Hosts can report `not-used` for the shell environment. The separate configure-tier `machine.refreshEnvironment` refreshes the login-shell environment for new lanes. This is distinct from terminal `phosphor doctor`, which checks the installation. `machine.models --provider <id>` filters the model catalog. `machine.commands --project <path>` selects a registered repository; without it the Host uses the asking lane's repository or its home context. Busy, timed-out and unavailable catalog probes are reported as refusals, not empty inventories.
 
-See [provider inspection](cli-providers.md#catalog-inspection-on-the-host) for `machine.usage` and `claude.accounts`, and [Connector catalog access](mcp.md#catalog-access) for cached `mcp.check` and lane inspection/reconnect. Config writes expose reviewed behavior fields, not trust or credentials.
+`maintenance.scan` pages cleanup candidates with sizes, identities and skip counts by reason. On the Host it offers only empty sandboxes the Host registered; archives, completed checkouts and stale Git registrations stay with the app. `maintenance.run <plan>` is destructive and asks with the exact targets. It holds leases, rechecks every identity, and refuses the whole plan if any target changed. It never deletes recursively.
+
+See [provider inspection](cli-providers.md#catalog-inspection-on-the-host) for `machine.usage` and `claude.accounts`, and [Connector catalog access](mcp.md#catalog-access) for cached `mcp.check` and lane inspection/reconnect. Config writes expose reviewed behavior fields, not trust or credentials. `mcp.expose` changes only a server's exposure and keeps its other fields. Pass `--transport stdio` for a command-based server: that asks, while HTTPS is persistence tier. The owner checks the stored entry and refuses a mismatch before writing. `routine.check` is a side-effect-free preflight. `routine.fromLane <runId>` promotes a settled run with a valid transcript to a stopped lane. A background `package.checkUpdates` keeps its page cursor in `job.status`.
+
+The Host service doesn't serve `brain.find`, `brain.status` or `brain.queue`. Brain is owned by Desktop's main-process bridge, and serving it from the Host needs a scoped credential that hasn't been designed yet.
 
 ## Policy and confirmations
 
@@ -63,6 +67,8 @@ Waits don't block the control queue. The owner accepts one active wait per askin
 ## Git and worktrees
 
 Host workspace ops use `--target <lane-ref>` for the checkout. A Git revision or a pull-request `ref` is not a lane selector. For example, `git show HEAD README.md --target <lane-ref>` reads a file at a revision; `git diff --target <lane-ref> --path README.md` reads a paged working-tree diff for one file. `git.branches` and `git.worktrees` also page; use `git.status` to inspect changes before a write.
+
+`files.search <query> --target <lane-ref>` is a literal search inside that lane's root under the file guards. It returns paged, untrusted `path | line | snippet` rows.
 
 The Host confines Git writes to the selected checkout and refuses when a lane using it is working or needs input. `git fetch` updates remote-tracking refs; `git pull` only fast-forwards to the already-fetched upstream. Merges can leave Git's normal conflict state and report the affected paths; inspect the result before another write. No catalog Git op pushes. See [managed worktree operations](worktrees.md#host-catalog) for path, restore and prune rules.
 
