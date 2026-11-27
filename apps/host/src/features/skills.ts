@@ -161,6 +161,12 @@ const METHODS = [
   'skills.export',
 ]
 
+/**
+ * Reads that skip the probe queue. Telemetry is polled every couple of seconds
+ * and must not wait behind a doctor inspection holding the probe slot for 20 s.
+ */
+const UNQUEUED = new Set(['machine.claudeUsage', 'machine.telemetry'])
+
 export function createSkillsFeature(
   context: FeatureContext,
   ports: MachinePorts = {},
@@ -206,10 +212,7 @@ export function createSkillsFeature(
         return { ok: true, data: await cache.models(parsed.partial === true) }
       if (method === 'machine.commands')
         return { ok: true, data: await cache.commands(parsed.repositoryId, deadline, signal) }
-      if (method === 'machine.claudeUsage') return await machineCall(method, context, ports, parsed)
-      // A resource read a client polls every couple of seconds. It must not
-      // queue behind a doctor inspection that can hold the probe slot for 20s.
-      if (method === 'machine.telemetry') return await machineCall(method, context, ports, parsed)
+      if (UNQUEUED.has(method)) return await machineCall(method, context, ports, parsed)
       if (method.startsWith('machine.'))
         return await readiness(
           () =>
