@@ -1,5 +1,6 @@
 import type { AuditLog } from '@phosphor/session-runtime/ops/audit'
 import type { ConfirmStore } from '@phosphor/session-runtime/ops/confirm'
+import { explainJobs } from '@phosphor/session-runtime/ops/job-explain'
 import { jobHandlers, type JobStore } from '@phosphor/session-runtime/ops/jobs'
 import { metaHandlers, settingsHandlers } from '@phosphor/session-runtime/ops/meta-handlers'
 import type {
@@ -37,6 +38,6 @@ export function daemonMetaHandlers(ports: DaemonMetaPorts): Readonly<Record<stri
       shownPrincipal,
     }),
     ...settingsHandlers(ports.policy, ports.notify, ports.undo),
-    ...jobHandlers(ports.jobs),
+    ...explainJobs(jobHandlers(ports.jobs)),
   }
 }

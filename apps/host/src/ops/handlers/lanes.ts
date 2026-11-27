@@ -10,6 +10,7 @@ import { archiveCommand } from './archives'
 import { laneChange } from './lane-undo'
 import { laneId, laneCall, commandClient, laneCommand } from './lane-ports'
 import { afterLaneSettles } from '../binding'
+import { folderFilter, MODEL_HINT, requireFolder } from './lane-folder'
 
 const jobs = new Set([
   'lane.create',
@@ -67,9 +68,9 @@ type Create = {
   prompt?: string
 }
 async function create(deps: DaemonHandlerDeps, a: Create, c: OpHandlerContext) {
-  const repo = deps.store.listRepositories().find((r) => r.id === a.folder || r.path === a.folder)
-  if (!repo || (a.fresh && !a.worktree))
-    throw new OpRefusal('bad-request', 'Select a registered folder; --fresh requires a worktree.')
+  if (a.fresh && !a.worktree)
+    throw new OpRefusal('bad-request', '--fresh needs --worktree <branch>.')
+  const repo = requireFolder(deps.store.listRepositories(), a.folder)
   const slash = a.model?.indexOf('/') ?? -1
   const client = commandClient(c)
   const receipt = await laneCommand(deps, client, {
@@ -80,6 +81,11 @@ async function create(deps: DaemonHandlerDeps, a: Create, c: OpHandlerContext) {
     model: slash < 0 ? a.model : a.model?.slice(slash + 1),
     provider: slash < 0 ? undefined : a.model?.slice(0, slash),
     thinkingLevel: a.thinking,
+  }).catch((error: unknown) => {
+    // pi resolves a bare ID only sometimes, and the Host keeps start failures generic.
+    if (error instanceof OpRefusal && a.model && slash < 0)
+      throw new OpRefusal(error.code, `${error.message} ${MODEL_HINT}`)
+    throw error
   })
   const id = receipt.laneId
   if (!id || !receipt.fence) throw new OpRefusal('unavailable', 'Creation returned no lane.')
@@ -161,9 +167,10 @@ async function lifecycle(
   return change()
 }
 export function laneHandlers(deps: DaemonHandlerDeps) {
+  const repos = () => deps.store.listRepositories()
   return {
-    'lane.list': op<Filter>((a, c) => listLanes(deps, a, c)),
-    'lane.search': op<Filter>((a, c) => listLanes(deps, a, c)),
+    'lane.list': op<Filter>((a, c) => listLanes(deps, folderFilter(repos(), a), c)),
+    'lane.search': op<Filter>((a, c) => listLanes(deps, folderFilter(repos(), a), c)),
     'lane.read': op<{ part?: string; messages?: number }>((a, c) => readLane(deps, a, c)),
     'lane.export': op(async (_, c) => {
       const result = (await laneCall(deps, 'lane.exportHtml', { laneId: laneId(deps, c) }, c)) as {
