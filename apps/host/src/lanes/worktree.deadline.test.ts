@@ -106,3 +106,61 @@ it('logs non-timeouts with an exit code and a bounded, redacted stderr tail', as
     stderrTail: '[unrecognized stderr omitted]\nfatal: cannot create directory: Permission denied',
   })
 })
+
+const killedAdd = () => {
+  now = 95_000
+  throw Object.assign(new Error(), { code: null, killed: true, signal: 'SIGTERM' })
+}
+const removedHalfMade = (git: ReturnType<typeof fakeGit>) =>
+  git.mock.calls
+    .filter(([, args]) => args[0] === 'worktree' && (args[1] === 'remove' || args[1] === 'prune'))
+    .map(([, args, options]) => [args.slice(1, 4).join(' '), options?.timeout])
+
+it.each([
+  ['an existing branch', undefined],
+  ['a fresh branch', true as const],
+])(
+  'removes and prunes the worktree a killed add left for %s, inside the cleanup reserve',
+  async (_name, fresh) => {
+    const git = fakeGit(killedAdd)
+    await expect(
+      prepareLaneFolder({
+        root,
+        worktree: { branch: 'private-ref', ...(fresh ? { fresh } : {}) },
+        log,
+      }),
+    ).rejects.toThrow(timeoutMessage)
+    expect(removedHalfMade(git)).toEqual([
+      ['remove --force --force', 10_000],
+      ['prune', 10_000],
+    ])
+    const remove = git.mock.calls.find(([, args]) => args[1] === 'remove')?.[1]
+    expect(remove?.at(-1)).toBe(join(root, '.phosphor', 'worktrees', 'private-ref'))
+    // The branch it made goes after the worktree that held it.
+    const order = git.mock.calls.map(([, args]) => args.join(' '))
+    expect(order.findIndex((c) => c.startsWith('update-ref -d'))).toBeGreaterThan(
+      order.findIndex((c) => c.startsWith('worktree prune')),
+    )
+  },
+)
+
+it('never removes a worktree folder when add failed on its own or never started', async () => {
+  const failed = fakeGit(() => {
+    throw Object.assign(exit(128), { stderr: 'fatal: destination already exists\n' })
+  })
+  await expect(prepare()).rejects.toThrow('The worktree could not be created.')
+  expect(removedHalfMade(failed)).toEqual([])
+  vi.restoreAllMocks()
+  vi.spyOn(performance, 'now').mockImplementation(() => now)
+  now = 0
+  const late = fakeGit(
+    () => {
+      throw new Error('must not start')
+    },
+    (args) => {
+      if (args[0] === 'update-ref' && args[1] !== '-d') now = 95_000
+    },
+  )
+  await expect(prepare()).rejects.toThrow(timeoutMessage)
+  expect(removedHalfMade(late)).toEqual([])
+})
