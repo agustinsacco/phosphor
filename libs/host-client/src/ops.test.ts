@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { LANE_WAIT_DEADLINE_MS } from '@phosphor/shared/ops'
 import type { CommandResult } from './connection'
 import { OPS_HOST_TOO_OLD, OPS_UNCONFIRMED, OPS_UNREADABLE, opsRun } from './ops'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
@@ -25,6 +26,13 @@ describe('opsRun', () => {
     expect(c.send).not.toHaveBeenCalled()
     await expect(opsRun(c, request, { write: true })).resolves.toEqual(ok)
     expect(c.send).toHaveBeenCalledExactlyOnceWith({ type: 'ops.run', ...request })
+  })
+
+  it('allows the remote lane wait to finish before the query transport expires', async () => {
+    const c = connection({})
+    const wait = { op: 'lane.wait', args: { ref: 'lane', timeout: 1800 } }
+    await expect(opsRun(c, wait, { write: false })).resolves.toEqual(ok)
+    expect(c.call).toHaveBeenCalledExactlyOnceWith('ops.run', wait, LANE_WAIT_DEADLINE_MS + 2000)
   })
 
   it('reads in-band denials and confirmations as they are', async () => {

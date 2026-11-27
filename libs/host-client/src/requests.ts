@@ -27,6 +27,10 @@ function commandWait(frame: Command): number {
     : COMMAND_WAIT_MS
 }
 
+function queryFailure(id: string, message: string): Result {
+  return { type: 'result', id, ok: false, error: { code: 'internal', message } }
+}
+
 /** Receipts outlive a transport; read calls do not. Only replay-safe commands retry. */
 export function createRequests(ports: {
   now: () => number
@@ -73,12 +77,7 @@ export function createRequests(ports: {
     replay.length = 0
     for (const [id, call] of calls) {
       clearTimeout(call.timer)
-      call.resolve({
-        type: 'result',
-        id,
-        ok: false,
-        error: { code: 'internal', message: 'Connection closed.' },
-      })
+      call.resolve(queryFailure(id, 'Connection closed.'))
     }
     calls.clear()
     if (code === 4400 || code === 1009) for (const p of pending.values()) p.statusOnly = true
@@ -137,21 +136,11 @@ export function createRequests(ports: {
       timeoutMs = HOST_CALL_TIMEOUT_MS,
     ): Promise<Result> {
       if (calls.size >= HOST_LIMITS.pendingCommandsPerConnection || !ready)
-        return Promise.resolve({
-          type: 'result',
-          id,
-          ok: false,
-          error: { code: 'internal', message: 'Connection unavailable.' },
-        })
+        return Promise.resolve(queryFailure(id, 'Connection unavailable.'))
       return new Promise((resolve) => {
         const timer = setTimeout(() => {
           calls.delete(id)
-          resolve({
-            type: 'result',
-            id,
-            ok: false,
-            error: { code: 'internal', message: 'Query timed out.' },
-          })
+          resolve(queryFailure(id, 'Query timed out.'))
         }, timeoutMs)
         calls.set(id, { resolve, timer })
         if (!ports.write({ type: 'call', id, method, params, trace })) ports.transportFailed()

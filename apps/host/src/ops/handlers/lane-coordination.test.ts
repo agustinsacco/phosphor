@@ -132,13 +132,13 @@ afterEach(() => {
 })
 
 async function creator(
-  principal = {
+  principal: OpPrincipal = {
     kind: 'agent',
     laneRef: remoteLaneKey(dest, f.lane.laneId),
     lineage: 0,
     sessionId: 'pi-live',
     unattended: false,
-  } as OpPrincipal,
+  },
 ) {
   const { DatabaseSync } = await loadSqlite()
   const db = new DatabaseSync(join(f.root, 'state', 'state.sqlite'))
