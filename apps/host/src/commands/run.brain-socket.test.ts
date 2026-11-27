@@ -267,7 +267,7 @@ async function start(cli: CliContext, configPath: string, path: string) {
 function call(cli: CliContext, args: string[]) {
   const stdout = vi.fn<(text: string) => void>()
   const stderr = vi.fn<(text: string) => void>()
-  const exit = runCli(['brain', ...args, '--host', 'local', '--json'], { stdout, stderr }, cli)
+  const exit = runCli(['brain', ...args, '--json'], { stdout, stderr }, cli)
   return { stdout, stderr, exit }
 }
 
@@ -374,7 +374,6 @@ async function json<K extends HostBrainMethod>(
   return JSON.parse(result.lines[0]![0]) as HostBrainMap[K]['result']
 }
 
-const args = (...values: unknown[]) => ['--args', JSON.stringify(values)]
 const stamp = ({ generation, revision }: { generation: string; revision: number }) => [
   '--expected',
   `${generation}:${revision}`,
@@ -476,11 +475,11 @@ it.skipIf(process.platform === 'win32')(
     ).rejects.toMatchObject({ code: 'ENOENT' })
     const enabled = await json(owner, host, 'brain:setPrefs', [
       'set-prefs',
+      JSON.stringify({ ...DEFAULT_BRAIN_PREFS, enabled: true, agentAuto: false }),
       ...stamp(off),
-      ...args({ ...DEFAULT_BRAIN_PREFS, enabled: true, agentAuto: false }),
     ])
     expect(enabled.prefs.enabled).toBe(true)
-    await json(owner, host, 'brain:queue', ['queue', ...stamp(enabled), ...args(lane.laneId)])
+    await json(owner, host, 'brain:queue', ['queue', lane.laneId, ...stamp(enabled)])
     const saved = await vi.waitFor(
       async () => {
         const state = await owner.invoke({ method: 'brain:laneState', args: [lane.laneId] })
@@ -490,14 +489,11 @@ it.skipIf(process.platform === 'win32')(
       { timeout: 5000 },
     )
     expect(reader).toHaveBeenCalled()
-    const recall = await json(owner, host, 'brain:ask', [
-      'ask',
-      ...args('Rina Okafor owns Harbor billing'),
-    ])
+    const recall = await json(owner, host, 'brain:ask', ['ask', 'Rina Okafor owns Harbor billing'])
     expect(recall.hits[0]?.memory.summary).toBe('Rina Okafor owns Harbor billing.')
     const person = recall.entities.find((entry) => entry.label === 'Rina Okafor')!
     const project = recall.entities.find((entry) => entry.label === 'Harbor')!
-    const pathArgs = ['path', ...args(person.id, project.id)]
+    const pathArgs = ['path', person.id, project.id]
     const relation = await json(owner, host, 'brain:path', pathArgs)
     expect(relation.routes[0]).toEqual([
       expect.objectContaining({
@@ -505,9 +501,9 @@ it.skipIf(process.platform === 'win32')(
         link: expect.objectContaining({ predicate: 'owns' }),
       }),
     ])
-    const change = (
-      await json(owner, host, 'brain:tidyChanges', ['changes', ...args(10)])
-    ).items.find((item) => item.kind === 'read' && item.jobId === saved.jobId)
+    const change = (await json(owner, host, 'brain:tidyChanges', ['changes', '10'])).items.find(
+      (item) => item.kind === 'read' && item.jobId === saved.jobId,
+    )
     expect(change).toMatchObject({ undoable: true })
     const calls = reader.mock.calls.length
     const epoch = owner.conn.incarnation().runtimeEpoch
@@ -520,7 +516,8 @@ it.skipIf(process.platform === 'win32')(
     const before = await json(restarted, host, 'brain:status', ['status'])
     expect(before).toMatchObject({ generation: enabled.generation, counts: { memories: 1 } })
     expect(reader).toHaveBeenCalledTimes(calls)
-    const undo = ['undo', ...stamp(before), ...args(change!.id, before.revision)]
+    // The undo's revision operand comes from the stamp.
+    const undo = ['undo', change!.id, ...stamp(before)]
     expect(await json(restarted, host, 'brain:tidyUndo', undo)).toMatchObject({
       counts: { memories: 0 },
     })
@@ -570,7 +567,7 @@ it.skipIf(process.platform === 'win32')(
     await expect(
       owner.invoke({ method: 'brain:laneSend', args: ['PHX-Northwind', page.fence] }),
     ).rejects.toMatchObject({ code: 'unavailable' })
-    const send = await approvedCli(owner, host, ['lane', 'send', ...args('PHX-Ledger', page.fence)])
+    const send = await approvedCli(owner, host, ['lane', 'send', 'PHX-Ledger', String(page.fence)])
     expect(send).toMatchObject({ code: 1, lines: [] })
     expect(send.errors).toContain('Brain is temporarily unavailable on this Host.')
     expect(await json(owner, host, 'brain:laneWatch', ['lane', 'watch'])).toEqual(page)

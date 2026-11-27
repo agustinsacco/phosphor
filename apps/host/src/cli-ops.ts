@@ -1,4 +1,3 @@
-import { runCliBrain } from './cli-brain'
 import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { errorText } from '@phosphor/shared/errors'
@@ -13,6 +12,8 @@ import {
   unknownOperation,
 } from '@phosphor/shared/ops-cli'
 import { EXIT } from './checks'
+import { runCliBrain } from './cli-brain'
+import { brainCommandName } from './cli-brain-commands'
 import type { CliContext, CliIo } from './cli-handlers'
 import { openLocalClient } from './local-client'
 
@@ -107,13 +108,28 @@ function exitFor(result: OpsRunResult): number {
   return result.status === 'ok' ? EXIT.ok : result.code === 'confirm-expired' ? EXIT.tempfail : 1
 }
 
+/**
+ * The private Brain CLI's argv, or undefined for the catalog. Lane recall (`brain search`,
+ * `brain flag`) stays a catalog op; every other `brain` word, and its help, is the private CLI.
+ */
+export function brainCliArgv(argv: readonly string[]): readonly string[] | undefined {
+  const [first = '', second, ...rest] = argv
+  if (first === 'brain') return second === 'search' || second === 'flag' ? undefined : argv.slice(1)
+  if (first.startsWith('brain.') && brainCommandName([first])) return argv
+  if (first !== 'help' || second === undefined) return undefined
+  if (second === 'brain')
+    return rest[0] === 'search' || rest[0] === 'flag' ? undefined : ['help', ...rest]
+  return brainCommandName([second]) && second.startsWith('brain.') ? argv : undefined
+}
+
 /** Catalog args execute on the installed owner; this binary only routes help and command names. */
 export async function runCliOps(
   argv: readonly string[],
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
-  if (argv[0] === 'brain') return runCliBrain(argv.slice(1), io, context)
+  const brain = brainCliArgv(argv)
+  if (brain) return runCliBrain(brain, io, context)
   const normalized = helpArgv(argv, OP_CATALOG)
   const op = catalogOp(normalized)
   if (!op) {
