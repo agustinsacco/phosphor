@@ -43,6 +43,15 @@ describe('Host config v1', () => {
       })
     expect(validateHostConfig(minimal).ok).toBe(true)
   })
+  it('accepts only a boolean lowPriorityLanes setting, absent means off', () => {
+    for (const lowPriorityLanes of [true, false])
+      expect(validateHostConfig({ ...minimal, lowPriorityLanes }).ok).toBe(true)
+    for (const lowPriorityLanes of [null, 1, 'true', {}])
+      expect(errorsOf({ ...minimal, lowPriorityLanes })).toContainEqual({
+        pointer: '/lowPriorityLanes',
+        message: 'must be a boolean',
+      })
+  })
   it('accepts exactly the two context file switches', () => {
     const prefs = { claude: true, agents: false }
     expect(validateHostConfig({ ...minimal, contextFiles: prefs }).ok).toBe(true)

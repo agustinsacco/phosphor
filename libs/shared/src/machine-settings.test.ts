@@ -256,6 +256,19 @@ describe('machine settings boundaries', () => {
     expect(read({ namingLive: 'yes' })).not.toHaveProperty('namingLive')
     expect(read({})).not.toHaveProperty('namingLive')
   })
+  it('carries lane priority as a machine-wide boolean, absent from older Hosts', () => {
+    const agent = { contextBudget: '200k', autoNameLanes: true }
+    const read = (extra: object) =>
+      parseMachineSettings({ section: 'agent', revision, agent: { ...agent, ...extra } })?.agent
+    expect(read({ lowPriorityLanes: true })?.lowPriorityLanes).toBe(true)
+    expect(read({ lowPriorityLanes: false })?.lowPriorityLanes).toBe(false)
+    expect(read({ lowPriorityLanes: 'yes' })).not.toHaveProperty('lowPriorityLanes')
+    expect(read({})).not.toHaveProperty('lowPriorityLanes')
+    const change = (value: unknown) => ({ type: 'agent.patch', patch: { lowPriorityLanes: value } })
+    for (const value of [true, false, null]) expect(patch(change(value), 'agent')).toBeTruthy()
+    for (const value of [1, 'true', {}]) expect(patch(change(value), 'agent')).toBeNull()
+    expect(patch(change(true), 'agent', { repositoryId })).toBeNull()
+  })
 })
 
 describe('agent.patch null clears (agentClearSupported)', () => {

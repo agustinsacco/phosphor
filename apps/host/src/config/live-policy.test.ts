@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { DEFAULT_AGENT_DIRECTIVES } from '@phosphor/shared/models'
-import { hostAutoNameLanes, hostContextBudget, hostDirectives } from './live-policy'
+import { hostAutoNameLanes, hostContextBudget, hostDirectives, hostLivePolicy } from './live-policy'
 
 let dir: string
 let configPath: string
@@ -72,4 +72,17 @@ it('reads automatic naming at each call, so the next lane sees a saved change', 
   expect(read()).toBe(false)
   await writeFile(configPath, config({ autoNameLanes: true }))
   expect(read()).toBe(true)
+})
+
+it('reads lane priority at each lane start, off when absent or never valid', async () => {
+  await writeFile(configPath, config(), { mode: 0o600 })
+  const started = JSON.parse(config()) as Parameters<typeof hostLivePolicy>[1]
+  const policy = hostLivePolicy(configPath, started)
+  expect(policy.lowPriorityLanes()).toBe(false)
+  await writeFile(configPath, config({ lowPriorityLanes: true }))
+  expect(policy.lowPriorityLanes()).toBe(true)
+  await writeFile(configPath, '{"version":')
+  expect(policy.lowPriorityLanes()).toBe(true)
+  await writeFile(configPath, config({ lowPriorityLanes: false }))
+  expect(policy.lowPriorityLanes()).toBe(false)
 })

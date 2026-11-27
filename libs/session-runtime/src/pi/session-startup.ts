@@ -14,6 +14,7 @@ import {
 } from './session-policy'
 import type { LiveSession, SessionRegistry } from './session-registry'
 import type { LaneReload } from './lane-reload'
+import { applyLanePriority } from './lane-priority'
 import {
   applySpawnContributions,
   attachSpawnContributions,
@@ -111,7 +112,7 @@ async function spawnSession(
     if (healed) runtime.log('pi', 'repointed session cwd', { path: options.sessionPath })
   }
   const launch = await runtime.launch()
-  const { spawnOptions, accountId, refreshDirectives } = await prepareSessionPolicy(
+  const { spawnOptions, accountId, refreshDirectives, lowPriority } = await prepareSessionPolicy(
     options,
     execution,
     launch,
@@ -132,6 +133,7 @@ async function spawnSession(
       ? await runtime.laneReload.capture(options.workspacePath)
       : null
   const session = runtime.registry.create(options.workspacePath, spawnOptions)
+  applyLanePriority(session.client.pid, lowPriority, runtime.log)
   session.refreshDirectives = refreshDirectives
   const spawned = performance.now()
   const stopOnAbort = (): void => {

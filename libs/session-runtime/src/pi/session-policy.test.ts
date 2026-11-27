@@ -186,6 +186,17 @@ describe('portable session policy', () => {
     expect(lane.spawnOptions.appendSystemPrompt).not.toContain('<phosphor_brain_lane>')
   })
 
+  it('reads the owner’s lane priority at each start, off when the owner has no setting', async () => {
+    const start = (runtime: SessionPolicyRuntime) =>
+      prepareSessionPolicy({ workspacePath: '/repo' }, {}, launch, runtime)
+    expect((await start(ports())).lowPriority).toBe(false)
+    let low = true
+    const runtime = { ...ports(), lowPriority: () => low }
+    expect((await start(runtime)).lowPriority).toBe(true)
+    low = false
+    expect((await start(runtime)).lowPriority).toBe(false)
+  })
+
   it('omits only the lane charter for report execution', async () => {
     const { spawnOptions } = await prepareSessionPolicy(
       { workspacePath: '/repo/lane' },

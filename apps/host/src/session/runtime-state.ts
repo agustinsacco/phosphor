@@ -72,6 +72,8 @@ export interface RuntimeOptions {
   /** The context budget for the next lane and each settled turn; the machine's when absent. */
   contextBudget?: () => string
   contextFiles?: () => ContextFilePrefs | undefined
+  /** Whether the next lane starts at a lower CPU priority; off when absent. */
+  lowPriorityLanes?: () => boolean
   /** Agent control for the lanes (op channel and `phosphor` tool); absent spawns as before. */
   ops?: HostOpsLanePorts
 }

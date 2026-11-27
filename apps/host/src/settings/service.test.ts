@@ -545,4 +545,19 @@ describe('Host global instructions and directive toggles', () => {
     )
     expect(mixed).toMatchObject({ ok: false, error: { code: 'bad-request' } })
   })
+
+  it('keeps lane priority in the Host config, off until set and cleared back to off', async () => {
+    const f = await fixture()
+    const before = await f.read('agent')
+    expect(before.agent?.lowPriorityLanes).toBe(false)
+    const on = { type: 'agent.patch' as const, patch: { lowPriorityLanes: true } }
+    expect((await f.patch('agent', on, before.revision)).ok).toBe(true)
+    expect(JSON.parse(await readFile(f.configPath, 'utf8')).lowPriorityLanes).toBe(true)
+    const next = await f.read('agent')
+    expect(next.agent?.lowPriorityLanes).toBe(true)
+    const clear = { type: 'agent.patch' as const, patch: { lowPriorityLanes: null } }
+    expect((await f.patch('agent', clear, next.revision)).ok).toBe(true)
+    expect(JSON.parse(await readFile(f.configPath, 'utf8'))).not.toHaveProperty('lowPriorityLanes')
+    expect((await f.read('agent')).agent?.lowPriorityLanes).toBe(false)
+  })
 })

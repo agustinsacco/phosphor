@@ -237,6 +237,7 @@ function parseAgent(value: Record<string, unknown>, base: MachineSettings): Mach
       contextBudget: a.contextBudget,
       autoNameLanes: a.autoNameLanes,
       ...(a.namingLive === true ? { namingLive: true } : {}),
+      ...(typeof a.lowPriorityLanes === 'boolean' ? { lowPriorityLanes: a.lowPriorityLanes } : {}),
       ...(machineRecord(a.agentDirectives)
         ? { agentDirectives: normalizeAgentDirectives(a.agentDirectives) }
         : {}),

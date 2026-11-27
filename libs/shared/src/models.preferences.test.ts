@@ -20,6 +20,7 @@ const expectedDefaults = {
     autoName: true,
     branchSlugMaxLength: 40,
     prStatus: true,
+    lowPriority: false,
   },
   fonts: {
     uiScale: 1,
@@ -126,8 +127,15 @@ describe('models public preferences', () => {
       autoName: true,
       branchSlugMaxLength: 80,
       prStatus: true,
+      lowPriority: false,
     })
     expect(models.normalizeLanePrefs({ branchSlugMaxLength: 0 }).branchSlugMaxLength).toBe(12)
+  })
+
+  it('lowers lane priority only for a stored true', () => {
+    expect(models.normalizeLanePrefs({ lowPriority: true }).lowPriority).toBe(true)
+    const junk = { lowPriority: 'yes' } as unknown as Partial<models.LanePrefs>
+    expect(models.normalizeLanePrefs(junk).lowPriority).toBe(false)
   })
 
   it('falls back on a nonnumeric branch slug length', () => {

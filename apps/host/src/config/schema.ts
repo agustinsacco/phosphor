@@ -29,6 +29,8 @@ export interface HostConfigV1 {
   /** Desktop's grammar. '' or absent is the 200k default. */
   allowRepositoryChanges?: boolean
   autoNameLanes?: boolean
+  /** New lanes start at a lower CPU priority. Absent is off. Read at each lane start. */
+  lowPriorityLanes?: boolean
   contextBudget?: string
   contextFiles?: ContextFilePrefs
   /** The generated blocks lanes get at start; an absent key is on. Read at each lane start. */
@@ -70,6 +72,7 @@ const KEYS = {
     'contextBudget',
     'contextFiles',
     'autoNameLanes',
+    'lowPriorityLanes',
     'agentDirectives',
     'agentDirectivesByProject',
     'allowRepositoryChanges',
@@ -118,6 +121,8 @@ function policyErrors(config: Record<string, unknown>): ConfigError[] {
     config.autoNameLanes !== undefined && typeof config.autoNameLanes !== 'boolean'
       ? [{ pointer: '/autoNameLanes', message: 'must be a boolean' }]
       : []
+  if (config.lowPriorityLanes !== undefined && typeof config.lowPriorityLanes !== 'boolean')
+    errors.push({ pointer: '/lowPriorityLanes', message: 'must be a boolean' })
   if (config.contextFiles !== undefined && !isContextFilePrefs(config.contextFiles))
     errors.push({
       pointer: '/contextFiles',

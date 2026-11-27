@@ -19,6 +19,7 @@ const group = (id: keyof typeof AGENT_GROUPS): [string, string] => [
 /** Machine-wide policy rows: no folder renders them, on any machine. */
 const POLICY = new Set([
   AGENT_ROW_TEXT.autoName.title,
+  AGENT_ROW_TEXT.lowPriority.title,
   AGENT_ROW_TEXT.budget.title,
   AGENT_ROW_TEXT.instructions.title,
 ])
@@ -44,6 +45,7 @@ export const AGENT_ROWS: SettingEntry[] = [
     row(AGENT_ROW_TEXT.modelId),
     ...fields(['defaultThinkingLevel']),
     row(AGENT_ROW_TEXT.autoName),
+    row(AGENT_ROW_TEXT.lowPriority),
   ]),
   ...section('agent', group('behaviour'), fields(AGENT_GROUP_FIELDS.behaviour)),
   ...section('agent', group('compaction'), [

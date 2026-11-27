@@ -127,6 +127,27 @@ it('names new lanes from the Agent section on This Mac', async () => {
   })
 })
 
+it('lowers lane priority from the Agent section on This Mac', async () => {
+  await showHostSettings(root, 'local', 'agent')
+  await act(async () => row('Run lanes at lower priority').querySelector('button')!.click())
+  expect(invoke).toHaveBeenCalledWith('app:setLanePrefs', {
+    ...DEFAULT_LANE_PREFS,
+    lowPriority: true,
+  })
+})
+
+it('saves lane priority to a Host, and hides it on a Host that predates it', async () => {
+  await showHostSettings(root, HOST.id, 'agent')
+  await act(async () => row('Run lanes at lower priority').querySelector('button')!.click())
+  await settle()
+  expect(hostPatches().at(-1)).toEqual({ lowPriorityLanes: true })
+  edit = (read) => delete read.agent?.lowPriorityLanes
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await showHostSettings(root, HOST.id, 'agent')
+  expect(container.textContent).not.toContain('Run lanes at lower priority')
+})
+
 it('clears a Host value with null, and offers Reset only on a Host that supports it', async () => {
   edit = (read) => delete read.agentClearSupported
   await showHostSettings(root, HOST.id, 'agent')

@@ -44,6 +44,12 @@ export interface MachineAgentDefaults extends MachineAgentBehavior {
   namingLive?: true
   /** The generated blocks the Host appends at lane start. Absent from Hosts that predate them. */
   agentDirectives?: AgentDirectivePrefs
+  /**
+   * New lanes run at a lower CPU priority (nice 10), and everything they start
+   * inherits it, so a busy lane cannot starve the desktop. Read at each lane
+   * start. Absent from Hosts that predate it.
+   */
+  lowPriorityLanes?: boolean
 }
 /** Each key may be `null`: the Host deletes it, so it inherits again. */
 type Clearable<T> = { [K in keyof T]?: T[K] | null }

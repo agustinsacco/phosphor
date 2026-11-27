@@ -107,6 +107,7 @@ vi.mock('../store', () => ({
     contextBudget: '400k',
     agentDirectivesByProject: {},
     agentDirectives: { worktreeGuard: false, laneCharter: false, subagentPolicy: true },
+    lanes: { lowPriority: false },
   }),
   recordWorkspace: vi.fn(),
   // Identity: these fixtures use plain paths with no symlink to resolve, and

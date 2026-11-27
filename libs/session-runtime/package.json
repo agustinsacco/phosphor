@@ -332,6 +332,10 @@
       "types": "./src/pi/lane-pr-signals.ts",
       "default": "./src/pi/lane-pr-signals.ts"
     },
+    "./pi/lane-priority": {
+      "types": "./src/pi/lane-priority.ts",
+      "default": "./src/pi/lane-priority.ts"
+    },
     "./pi/lane-pr-runs": {
       "types": "./src/pi/lane-pr-runs.ts",
       "default": "./src/pi/lane-pr-runs.ts"

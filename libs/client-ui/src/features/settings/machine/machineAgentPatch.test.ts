@@ -89,3 +89,18 @@ it('saves directive switches as Host policy that needs no restart, and adopts th
   const sent = { ...base, directives }
   expect(rebaseAgentFields(sent, sent, sent, patch!).directives).toEqual(directives)
 })
+
+it('sends lane priority only to a Host that reads it, and adopts what it saved', () => {
+  expect(nextAgentPatch({ ...base, lowPriority: true }, { ...base, lowPriority: false })).toEqual({
+    lowPriorityLanes: true,
+  })
+  // A Host that predates the switch never gets the key, even from a stale draft.
+  expect(
+    nextAgentPatch({ ...base, lowPriority: undefined }, { ...base, lowPriority: true }),
+  ).toBeNull()
+  const sent = { ...base, lowPriority: true }
+  expect(
+    rebaseAgentFields(sent, sent, { ...base, lowPriority: true }, { lowPriorityLanes: true })
+      .lowPriority,
+  ).toBe(true)
+})
