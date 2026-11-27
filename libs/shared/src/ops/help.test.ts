@@ -27,7 +27,7 @@ it('generates usage, confirmation notes, aliases and supported global options', 
 Remove a folder from the machine’s list. Asks the user first.
 Options: --host H|a,b|all, --reason <text>, --json, --help`)
   expect(renderHelp(OP_CATALOG, 'lanes')).toContain(
-    'Usage: phosphor lane list [--folder <folder>] [--state <state>]',
+    'Usage: phosphor lane list [--folder <folder>] [--state stopped|idle|working|needs-input|failed|live]',
   )
   expect(renderHelp(OP_CATALOG, 'lane.stop')).toContain('Asks the user first for another lane.')
   expect(renderHelp(OP_CATALOG, 'folder.remove', { tierNotes: false })).not.toContain('Asks')
@@ -53,4 +53,12 @@ it('labels a non-paged limit as a catalog argument, not a paging option', () => 
   const [usage, , options] = renderHelp(OP_CATALOG, 'brain.search').split('\n')
   expect(usage).toContain('[--limit <1–20>]')
   expect(options).not.toMatch(/--limit|--page/)
+})
+
+it('shows both paging options on each paged catalog operation', () => {
+  for (const spec of OP_CATALOG.filter((op) => op.paged)) {
+    const help = renderHelp(OP_CATALOG, spec.name)
+    expect(help, spec.name).toContain('--page <cursor>')
+    expect(help, spec.name).toContain('--limit <1–100> (default 20)')
+  }
 })

@@ -12,7 +12,9 @@ import type { LaneArchiveEntry } from '@phosphor/shared/lane-archive'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import type { AgentOpRow } from '@phosphor/shared/ops'
 import type { OpsRunResult } from '@phosphor/shared/host-protocol-ops'
-import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
+import type { OpPrincipal, OpsBinding } from '@phosphor/session-runtime/ops/types'
+import { OP_MARKER_ENV, OP_MARKER_VALUE, parseOpChannelRequest } from '@phosphor/shared/ops'
+import phosphor from '@phosphor/pi-extensions/phosphor'
 
 let f: CommandsFixture
 let service: OpsService
@@ -25,6 +27,8 @@ const owner = {
   caps: ['sessions.read', 'sessions.control', 'workspaces.write', 'machine.configure'],
 } as const
 let entries: LaneArchiveEntry[]
+const hosts = ['bee1', 'bee2']
+const remoteRun = vi.fn<NonNullable<OpsBinding['remote']>['run']>()
 const archive = vi.fn(async () => ({ ok: true as const }))
 const read = vi.fn<LaneService['calls']['call']>()
 beforeEach(async () => {
@@ -43,6 +47,18 @@ beforeEach(async () => {
     uid: process.getuid?.(),
     enrolledId: () => null,
     selfIds: () => [],
+    directory: async () => ({
+      available: true,
+      self: { id: 'local', label: 'Local' },
+      machines: hosts.map((id) => ({
+        id,
+        label: id,
+        online: true,
+        ready: true,
+        hostVersion: null,
+      })),
+    }),
+    remote: { run: remoteRun },
     store: f.store,
     editing: {} as never,
     lanes: {
@@ -83,6 +99,8 @@ afterEach(() => {
   vi.restoreAllMocks()
   archive.mockClear()
   read.mockReset()
+  remoteRun.mockReset()
+  vi.unstubAllEnvs()
 })
 async function rows() {
   const r = await service.dispatcher.run(owner, { op: 'audit.list', args: {} })
@@ -226,14 +244,99 @@ it('advertises the activity enum and rejects unknown lane state filters', async 
     expect(OP_CATALOG.find((spec) => spec.name === op)?.args.properties.state).toMatchObject({
       enum: ['stopped', 'idle', 'working', 'needs-input', 'failed', 'live'],
     })
-    const result = await service.dispatcher.run(cli, {
-      op,
-      args: { state: 'busy', ...(op === 'lane.search' ? { q: 'test' } : {}) },
+    const result = await service.dispatcher.runFromTool('pi-live', {
+      v: 1,
+      id: 'test',
+      argv: [...op.split('.'), ...(op === 'lane.search' ? ['test'] : []), '--state', 'busy'],
+      deadlineMs: 1000,
     })
     expect(result).toMatchObject({
       status: 'denied',
       code: 'bad-request',
-      text: expect.stringMatching(/state/),
+      text: expect.stringContaining(
+        'state: expected one of stopped|idle|working|needs-input|failed|live.',
+      ),
     })
   }
+})
+
+function connectAgentTool() {
+  vi.stubEnv(OP_MARKER_ENV, OP_MARKER_VALUE)
+  type Tool = Parameters<Parameters<typeof phosphor>[0]['registerTool']>[0]
+  let tool!: Tool
+  phosphor({
+    appendEntry: vi.fn(),
+    registerTool: (registered) => {
+      tool = registered
+    },
+  })
+  const dispatch = vi.fn(async (prefill: string) => {
+    const request = parseOpChannelRequest(prefill)
+    if (!request) throw new Error('Expected an encoded tool request')
+    return service.dispatcher.runFromTool('pi-live', request)
+  })
+  const run = (args: string[]) =>
+    tool.execute('call', { args }, undefined, undefined, {
+      isIdle: () => true,
+      modelRegistry: { find: () => undefined },
+      sessionManager: { getSessionId: () => 'pi-live', getBranch: () => [] },
+      ui: {
+        setStatus: vi.fn(),
+        notify: vi.fn(),
+        confirm: vi.fn(async () => false),
+        editor: async (_title: string, prefill: string) => JSON.stringify(await dispatch(prefill)),
+      },
+    })
+  return { run, dispatch }
+}
+
+it('threads an agent page limit through the dispatcher and renders local and per-host continuations', async () => {
+  for (const title of ['Second lane', 'Third lane']) {
+    f.store.ensureLane({
+      repositoryId: f.lane.repositoryId,
+      cwd: f.lane.cwd,
+      sessionFile: join(f.root, `${title}.jsonl`),
+      title,
+    })
+  }
+  const { run, dispatch } = connectAgentTool()
+  const args = ['lane', 'list', '--limit', '2']
+  const first = await run(args)
+  expect(await dispatch.mock.results[0]!.value).toMatchObject({
+    status: 'ok',
+    op: 'lane.list',
+    read: true,
+    next: '2',
+    data: { lanes: [expect.any(Object), expect.any(Object)] },
+  })
+  const firstText = first.content[0]!.text
+  expect(firstText).toMatch(
+    /^<phosphor-data [^\n]+>\nref \| title \| state \| branch \| updated\nhost:local\/lane:[^\n]+\nhost:local\/lane:[^\n]+\n<\/phosphor-data>\nMore: phosphor lane list --limit 2 --page 2$/,
+  )
+
+  remoteRun.mockImplementation(async (host) => ({
+    status: 'ok',
+    applies: 'now',
+    text: `Rows from ${host}`,
+    next: `cursor_${host}`,
+  }))
+  const batch = await run([...args, '--host', 'all'])
+  const reply = await dispatch.mock.results[1]!.value
+  expect(reply).toMatchObject({
+    status: 'ok',
+    read: true,
+    data: {
+      summary: { total: 2, ok: 2, failed: 0 },
+      hosts: hosts.map((hostId) => ({ hostId, next: `cursor_${hostId}` })),
+    },
+  })
+  expect(reply).not.toHaveProperty('next')
+  expect(
+    remoteRun.mock.calls.map(([hostId, request]) => [hostId, request.op, request.limit]),
+  ).toEqual(hosts.map((hostId) => [hostId, 'lane.list', 2]))
+  const batchText = batch.content[0]!.text
+  for (const host of hosts) {
+    expect(batchText).toContain(`Continue: --host "${host}" --page "cursor_${host}"`)
+  }
+  expect(batchText).not.toContain('More:')
 })
