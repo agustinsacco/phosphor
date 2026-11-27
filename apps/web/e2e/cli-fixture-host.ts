@@ -63,8 +63,16 @@ async function reservePort() {
   return hostPort
 }
 
-async function launchCli(
-  { root, hostId, label, key, origin, controlOrigin, cleanups, agentOps }: Options,
+async function prepareCliFixture(
+  {
+    root,
+    hostId,
+    label,
+    key,
+    origin,
+    controlOrigin,
+    agentOps,
+  }: Pick<Options, 'root' | 'hostId' | 'label' | 'key' | 'origin' | 'controlOrigin' | 'agentOps'>,
   hostPort: number,
 ) {
   const repo = join(root, 'repository'),
@@ -132,6 +140,12 @@ async function launchCli(
     }),
     { mode: 0o600 }, // not the umask's: the Host refuses a group-writable config
   )
+  return { repo, agent, configPath }
+}
+
+async function launchCli(options: Options, hostPort: number) {
+  const { root, cleanups } = options
+  const { repo, agent, configPath } = await prepareCliFixture(options, hostPort)
   const child = spawn(
     process.execPath,
     [resolve(project, 'apps/host/dist/phosphor.mjs'), 'run', '--config', configPath],

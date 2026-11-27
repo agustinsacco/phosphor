@@ -1,33 +1,20 @@
-import { createWorkspaceLeases } from '../owner/lease'
-import { isRoutineSession } from '@phosphor/session-runtime/routines/ownership'
 import type { DaemonHeadroom } from '../session/headroom'
-import { join } from 'node:path'
-import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
-import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
-import { hostLivePolicy } from '../config/live-policy'
 import { createRepositories } from '../features/repositories'
 import { createLaneCalls } from '../lanes/calls'
 import { createLaneCommands } from '../lanes/commands'
-import { ownerTrash } from '../lanes/delete-target'
-import { transcriptTrash } from '../lanes/delete'
-import { createHostLiveLanes } from '../lanes/live-host'
-import { createLaneNamer, hostLaneNaming } from '../lanes/naming'
 import { hostLanePausePorts } from '../lanes/pause'
 import { createRuntimeLanes } from '../lanes/runtime-host'
 import type { LaneService } from '../lanes/service'
-import { hostStateDirectory } from '@phosphor/shared/host-local'
 import type { HostStore } from '../lanes/store'
 import { createHostLog, hostLogDirectory } from '../machine/log'
 import type { HostClaudeAccounts } from '../providers/accounts'
-import { createHostRoutines, routineOwnership } from '../routines/service'
-import { createHostRuntime, type HostMachine } from '../session/runtime'
+import type { HostMachine } from '../session/runtime'
 import type { AppServices } from '../session/app-services'
 import { serviceRunner } from '../machine/systemd'
 import { retireUpdateJobAtStart } from '../update/launchd-job'
 import { inspectHost, type HostInspection } from './doctor'
 import type { RunContext } from './run'
 import {
-  createRunAccounts,
   createRunAdministration,
   createRunControllerPresence,
   createRunTerminals,
@@ -39,11 +26,10 @@ import { createRunServices } from './run-services'
 import type { OpsAdapterPorts } from '../ops/adapter'
 import type { Reach } from '@phosphor/session-runtime/ops/reach'
 import type { OpsBinding } from '@phosphor/session-runtime/ops/types'
-import { createRunEndings } from '../ops/lane-reload'
-import type { HostOpsLanePorts } from '../session/contributions/ops'
 import type { EnrolledControl } from './run-control'
 import { bindRunOps, laneManagement } from './run-machine-ops'
-import { qualifiedRunBrain, type HostBrainCollaborators } from '../brain/run'
+import type { HostBrainCollaborators } from '../brain/run'
+import { startRuntime, type StartedRuntime } from './run-machine-runtime'
 import { settleBrainHandover } from '../brain-handover/recover'
 import type { BrainSurfaceBinding } from '../api/brain-adapter'
 
@@ -70,156 +56,6 @@ export interface RunMachinePorts {
 }
 
 export type HostLog = ReturnType<typeof createHostLog>
-
-/** P5: local mode leases a workspace to Desktop only while no live lane or routine holds it. */
-function runLeases(context: RunContext, parts: RunParts) {
-  return createWorkspaceLeases(
-    () =>
-      (parts.runtime?.list() ?? []).map(({ workspacePath, sessionId }) => ({
-        workspacePath,
-        reason: isRoutineSession(sessionId) ? 'routine' : 'live-lane',
-      })),
-    context.now,
-  )
-}
-
-function startRoutines(
-  context: RunContext,
-  parts: RunParts,
-  { store, machine }: { store: HostStore; machine: Omit<HostMachine, 'log'> },
-  runtime: ReturnType<typeof createHostRuntime>,
-  live: ReturnType<typeof createHostLiveLanes>['live'],
-) {
-  return createHostRoutines({
-    directory: hostStateDirectory(context.env, context.home),
-    uid: context.uid,
-    store,
-    runtime,
-    checkPi() {
-      if (!machine.pi) throw new Error('pi is unavailable.')
-    },
-    promotion: {
-      sessionsRoot: piSessionsRoot(context.env, context.home),
-      adopt: (input) => store.ensureLane(input),
-      publish: (id) => {
-        const summary = live.summaryFor(id)
-        if (summary) live.lanesTopic.delta([summary])
-      },
-    },
-    changed: live.lanesTopic.routinesChanged,
-    resourceChanged: live.lanesTopic.resourceChanged,
-    now: context.now,
-    paused: () => (parts.services?.pauses?.state().kind ?? 'none') !== 'none',
-  })
-}
-
-/**
- * The runtime's machine, with the Host's Brain for its lanes' recall. Only a qualified bundle
- * has a Brain, and a fresh Host's stays off and creates nothing.
- */
-function runtimeMachine(
-  context: RunContext,
-  parts: RunParts,
-  ports: RunMachinePorts,
-  machine: HostMachine,
-  accounts: HostClaudeAccounts,
-): HostMachine {
-  parts.brain = qualifiedRunBrain(machine.resourceRoot, {
-    ...ports.brain,
-    stateDirectory: ports.stateDirectory,
-    pi: machine.pi,
-    env: machine.env,
-    accounts,
-    store: ports.store,
-    sessionsRoot: piSessionsRoot(context.env, context.home),
-    busy: (path) => parts.runtime?.sessionFileBusy(path),
-    runtime: () => parts.runtime,
-    local: ports.local,
-    install: context,
-    log: (message, data) => machine.log.write('brain', message, data),
-  })
-  return {
-    ...machine,
-    appServices: ports.appServices,
-    ...(parts.brain ? { brainRecall: parts.brain.recall, brainCurator: parts.brain.curator } : {}),
-    headroom: ports.headroom,
-  }
-}
-
-/** The runtime and what owns its lanes: live lanes, routines and the lane namer. */
-async function startRuntime(
-  context: RunContext,
-  parts: RunParts,
-  ports: RunMachinePorts,
-  machine: Omit<HostMachine, 'log'>,
-  log: HostLog,
-) {
-  const { config, store } = ports
-  const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
-  await trash.sweep().catch(() => {})
-  const accounts = createRunAccounts(context, ports.stateDirectory, machine.env, log.write)
-  const leases = runLeases(context, parts)
-  const opsLanes = {
-    service: () => parts.ops ?? null,
-    resourceRoot: () => machine.resourceRoot,
-    unattended: new Set<string>(),
-    endings: createRunEndings(),
-    liveness: (sessionId: string, subagents: number) =>
-      parts.services?.pauses?.liveness(sessionId, subagents),
-  } satisfies HostOpsLanePorts
-  const policy = hostLivePolicy(config.path, config.config)
-  const runtime = createHostRuntime(
-    runtimeMachine(context, parts, ports, { ...machine, log }, accounts),
-    {
-      leases,
-      claudeAccounts: accounts,
-      ...policy,
-      dialogs: 'forward',
-      ...(ports.ops ? { ops: opsLanes } : {}),
-      trashTranscript: trash.move,
-      ownerTrashTranscript: ownerTrash(ports.local === true, context.platform, context.trashRunner),
-      routines: routineOwnership(async (id) => {
-        if (!parts.routines) throw new Error('routine service unavailable')
-        await parts.routines.cancelSession(id)
-      }),
-    },
-  )
-  parts.runtime = runtime
-  runtime.life.to('validating')
-  seedArtifactSkill(
-    machine.resourceRoot,
-    context.env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent'),
-  )
-  runtime.life.to('ready')
-  const hosted = createHostLiveLanes({
-    epoch: ports.epoch,
-    store,
-    runtime,
-    now: context.now ?? Date.now,
-    log: log.write,
-    sessionsRoot: piSessionsRoot(context.env, context.home),
-    composerWindows: store.composerWindows,
-    contextBudget: policy.contextBudget,
-    pauseFor: (laneId) => parts.services?.pauses?.pauseFor(laneId),
-  })
-  const live = hosted.live
-  parts.live = live
-  const routines = startRoutines(context, parts, { store, machine }, runtime, live)
-  parts.routines = routines
-  const nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, accounts))
-  parts.nameLane = nameLane
-  return {
-    ...hosted,
-    leases,
-    accounts,
-    runtime,
-    routines,
-    nameLane,
-    opsLanes,
-  }
-}
-
-export type StartedRuntime = Awaited<ReturnType<typeof startRuntime>>
 
 /** The folder service; every writer of the folder records shares its queue. */
 function runRepositories(
@@ -373,6 +209,7 @@ export async function startRunMachine(
       (event, fields) => log.write('host', event, fields),
     )
   const started = await startRuntime(context, parts, ports, machine, log)
+  // Recover with the runtime's Brain importer before publishing the native handover ports.
   await settleBrainHandover(ports.stateDirectory, parts.brain?.handover, context.handover, log)
   const { live, runtime } = started
   parts.services = startServices(context, ports, machine, log, started)

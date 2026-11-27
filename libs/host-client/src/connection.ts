@@ -2,6 +2,7 @@ import { omitPrivateTraffic } from './private-traffic'
 import type { TerminalFrame } from '@phosphor/shared/host-protocol-terminals'
 import { browserCrypto, type IdentityCrypto } from './crypto'
 import { createHandshake } from './handshake'
+import { createLaneDirectory } from './lane-directory'
 import { acceptLaneFrame, connectionView, type LaneWatch } from './lane-watch'
 import { readyView } from './ready-view'
 import { createRetry, WAKE_PROBE_MS } from './retry'
@@ -105,7 +106,18 @@ export function createHostConnection(ports: {
     if (!write({ type: 'subscribe', topic: 'terminal', id, terminalId }))
       socket?.close(1000, 'Transport failed')
   }
-  const attention: Extract<HostFrame, { type: 'attention' }>[] = []
+  const directory = createLaneDirectory({
+    view: () => view,
+    update,
+    setCursor: (cursor) => {
+      view = { ...view, cursor }
+    },
+    resubscribe: () => subscribe('lanes'),
+    laneLimit: () => socket?.close(4400, 'Lane limit'),
+    onResourceChanged: (change) => ports.onResourceChanged?.(change),
+    onRoutinesChanged: () => ports.onRoutinesChanged?.(),
+    onAttention: (event) => ports.onAttention?.(event),
+  })
   function later(fn: () => void, ms: number) {
     const timer = setTimeout(() => {
       timers.delete(timer)
@@ -320,55 +332,14 @@ export function createHostConnection(ports: {
         ...(view.brain ? { brainAccess: [...(f.brainAccess ?? [])] } : {}),
       })
       renew(f.grantExpiresAt)
-    } else if (f.type === 'pong') lastPong = now()
-    else if (f.type === 'lanes' && f.id === 'lanes') {
-      if (view.cursor?.epoch !== f.cursor.epoch) attention.length = 0
-      update({
-        repositories: [...f.repositories],
-        lanes: [...f.lanes],
-        cursor: {
-          epoch: f.cursor.epoch,
-          seq:
-            view.cursor?.epoch === f.cursor.epoch
-              ? Math.max(view.cursor.seq, f.cursor.seq)
-              : f.cursor.seq,
-        },
-      })
-    } else if (f.type === 'resource-changed' && f.id === 'lanes') {
-      ports.onResourceChanged?.(f.change)
-    } else if (f.type === 'routines-changed' && f.id === 'lanes') {
-      if (!view.cursor || view.cursor.epoch !== f.cursor.epoch || f.cursor.seq <= view.cursor.seq)
-        return
-      if (f.cursor.seq !== view.cursor.seq + 1) subscribe('lanes')
-      // Only the routines surface changed; do not invalidate every Host query.
-      view = { ...view, cursor: f.cursor }
-      ports.onRoutinesChanged?.()
-    } else if ((f.type === 'lanes-delta' || f.type === 'attention') && f.id === 'lanes') {
-      if (!view.cursor || view.cursor.epoch !== f.cursor.epoch) return
-      if (f.type === 'attention') {
-        if (!attention.some((a) => a.event.id === f.event.id)) {
-          attention.push(f)
-          ports.onAttention?.(f.event)
-        }
-        attention.sort((a, b) => a.cursor.seq - b.cursor.seq)
-        if (attention.length > 50) attention.shift()
-        update({ cursor: { epoch: f.cursor.epoch, seq: Math.max(view.cursor.seq, f.cursor.seq) } })
-      } else {
-        if (f.cursor.seq <= view.cursor.seq) return
-        if (f.cursor.seq !== view.cursor.seq + 1) {
-          subscribe('lanes')
-          return
-        }
-        const lanes = new Map(view.lanes.map((l) => [l.laneId, l]))
-        for (const id of f.remove) lanes.delete(id)
-        for (const l of f.upsert) lanes.set(l.laneId, l)
-        if (lanes.size > HOST_LIMITS.lanesPerHost) {
-          socket?.close(4400, 'Lane limit')
-          return
-        }
-        update({ lanes: [...lanes.values()], cursor: f.cursor })
-      }
-    } else if (f.type === 'terminal.ack') {
+      return
+    }
+    if (f.type === 'pong') {
+      lastPong = now()
+      return
+    }
+    if (directory.receive(f)) return
+    if (f.type === 'terminal.ack') {
       const input = inputs.get(f.terminalId)
       if (input?.seq === f.seq) {
         inputs.delete(f.terminalId)
@@ -501,7 +472,7 @@ export function createHostConnection(ports: {
         }
       })
     },
-    attention: () => structuredClone(attention),
+    attention: directory.attention,
     /** The page is back: retry now, or prove that a socket which slept still answers. */
     wake() {
       if (stopped) return
@@ -511,7 +482,7 @@ export function createHostConnection(ports: {
       else later(() => lastPong < sent && socket?.close(1000, 'Wake timeout'), WAKE_PROBE_MS)
     },
     close() {
-      attention.length = 0
+      directory.clearAttention()
       challenge = ''
       key = ''
       update({
