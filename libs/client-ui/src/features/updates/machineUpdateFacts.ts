@@ -79,14 +79,15 @@ export function nextOffer(
 /**
  * Accounts for the Host's `last` result once, by its identity. A run that is
  * still going, or that restarted, owns a new result from its own version to its
- * target (or any target, before it knows one); any other new rollback or failed
+ * target (or, while still going, any target before it knows one); any other new rollback or failed
  * apply becomes one reported run, whatever ran before.
  */
 export function observeResult(entry: MachineUpdateEntry, now: number): MachineUpdateEntry {
   const { last, run } = entry
   if (!last || resultId(last) === entry.resultSeen) return entry
   const resultSeen = resultId(last)
-  const own = run?.from === last.from && (run.to ?? last.to) === last.to
+  // Without a known target, only a run still going may claim a result from its version.
+  const own = run?.from === last.from && (run.to ? run.to === last.to : !run.settled)
   if (run && own && !run.reported && !run.claimed && last.at !== run.before) {
     if (!run.settled || run.restartAt !== undefined)
       return { ...entry, resultSeen, run: { ...run, claimed: true } }

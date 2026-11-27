@@ -205,7 +205,8 @@ timer would otherwise start a second one on top of it.
      reload mid-restart, or an update started elsewhere) shows once as **Update
      didn’t finish**, in this row and the Software row, within the result's 24
      hours; each result counts once, by its version and finish time, and an update
-     tracked here owns only a result from its own version to its target. A later,
+     tracked here owns only a result from its own version to its target (one
+     still running may own any target before it knows one). A later,
      newer release is offered again once a finished update's result has been
      shown (**Updated to X** keeps its 8 seconds); Software keeps a failure's
      explanation above the offer.
@@ -217,8 +218,9 @@ timer would otherwise start a second one on top of it.
   shows its rows at once); "Update available" appears only after a successful
   read and 3 seconds of the machine being ready (each machine's readiness and
   the rows' timing live in `stores/machineUpdates.ts`, so a remount continues
-  them; expiry is worked out from the stored times, so a remount cannot revive
-  an expired row), survives a disconnection for up to 10 minutes, stays through a
+  them; expiry is worked out from the stored times, and an offer that expired stays
+  expired, through a brief reconnect, another drop or a remount, until a fresh
+  status read), survives a disconnection for up to 10 minutes, stays through a
   reconnect until a status read on the new connection answers, and leaves only
   when a status checked later than the offer (`checkedAt`) says current, or the
   scope changes; each phase shows at least 600 ms, collapsing included, but only while its

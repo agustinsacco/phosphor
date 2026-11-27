@@ -42,6 +42,8 @@ function applyStatus(
       // The owner socket's push is not a read of this connection's Host.
       readToken: local ? entry.readToken : host.connectionToken,
       offer: status ? nextOffer(entry.offer, status.update) : entry.offer,
+      // A fresh read of this Host makes its offer news again.
+      offerExpired: local ? entry.offerExpired : undefined,
     }
     const now = Date.now()
     const pause = status?.pause

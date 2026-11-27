@@ -2,6 +2,7 @@ import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import type { UpdateState } from '@shared/models'
 import { serviceScope } from '@/stores/localServiceScope'
 import {
+  OFFER_STALE_MS,
   UPDATED_RESULT_MS,
   type MachineUpdateEntry,
   type MachineUpdateState,
@@ -25,7 +26,7 @@ export const START_DELAY_MS = 3000
 /** "Update available" waits for the machine to be ready this long after a read. */
 export const READY_DELAY_MS = 3000
 /** A stale "Update available" survives this much disconnection. */
-export const STALE_MS = 10 * 60_000
+export const STALE_MS = OFFER_STALE_MS
 /** "Updated to X" stays this long. */
 export const DONE_MS = UPDATED_RESULT_MS
 /** A phase shows at least this long. */

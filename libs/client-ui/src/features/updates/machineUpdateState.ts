@@ -75,7 +75,12 @@ export interface MachineUpdateEntry {
   /** When the machine became ready, and last left ready; the shell's observer keeps them. */
   readySince?: number
   downSince?: number
+  /** Away 10 minutes: the offer is no longer news until a fresh status read. */
+  offerExpired?: true
 }
+
+/** How long an offer outlives a disconnection. */
+export const OFFER_STALE_MS = 10 * 60_000
 
 /** "Updated to X" holds this long before anything else, a newer offer included. */
 export const UPDATED_RESULT_MS = 8000
@@ -87,6 +92,13 @@ export function trackReady(
   now: number,
 ): MachineUpdateEntry {
   const ready = host?.state === 'ready'
+  if (
+    !entry.offerExpired &&
+    entry.readySince === undefined &&
+    entry.downSince !== undefined &&
+    now - entry.downSince >= OFFER_STALE_MS
+  )
+    return trackReady({ ...entry, offerExpired: true }, host, now)
   // `downSince` stays: how long it was away decides whether its offer outlived the gap.
   if (ready && entry.readySince === undefined) return { ...entry, readySince: now }
   if (!ready && entry.readySince !== undefined)

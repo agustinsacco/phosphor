@@ -62,6 +62,7 @@ function machineTarget(
   const offered = previous?.machineId === id && previous.tone === 'action' && offerLasts(entry, now)
   if (!row && offered && host?.ops && entry.readToken !== host.connectionToken) return previous
   if (state.phase !== 'available') return row
+  if (entry.offerExpired) return null
   const gate = availableShows(host, entry, offered, now)
   wake.push(gate.wakeAt)
   return gate.shows ? row : null
