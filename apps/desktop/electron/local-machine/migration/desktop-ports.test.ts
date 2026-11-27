@@ -1,9 +1,10 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { DEFAULT_APP_PREFS, type ClaudeAccountPrefs } from '@shared/models'
 import type * as Store from '../../store'
+import type * as DesktopPorts from './desktop-ports'
 
 const userData = mkdtempSync(join(tmpdir(), 'desktop-ports-'))
 afterAll(() => rmSync(userData, { recursive: true, force: true }))
@@ -34,8 +35,13 @@ vi.mock('../../store', async (original) => ({
 const scan = vi.hoisted(() => vi.fn(async () => ({})))
 vi.mock('./scan', () => ({ scanPlanFacts: scan }))
 
+// Loading the gate's module graph alone can approach the default per-test timeout.
+let desktopGatePorts: typeof DesktopPorts.desktopGatePorts
+beforeAll(async () => {
+  ;({ desktopGatePorts } = await import('./desktop-ports'))
+}, 30_000)
+
 it('plans and verifies Claude accounts from the account prefs, not the app prefs', async () => {
-  const { desktopGatePorts } = await import('./desktop-ports')
   const { runner } = desktopGatePorts({})
   await runner.scan({ migrationId: 'm', machineId: 'h', backupDir: userData, routinesCopy: null })
   expect(scan).toHaveBeenCalledWith(
