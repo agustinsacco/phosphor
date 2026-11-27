@@ -3,7 +3,6 @@ import {
   claudeProjectDirName,
   claudeSessionPath,
   formatSessionDebugInfo,
-  piSessionDirName,
   type SessionDebugSource,
 } from './sessionDebugInfo'
 
@@ -16,31 +15,21 @@ const source: SessionDebugSource = {
 }
 
 describe('directory mangling', () => {
-  it('wraps pi session dirs in double dashes', () => {
-    expect(piSessionDirName('/home/dev/proj')).toBe('--home-dev-proj--')
-  })
-
   it('leaves the Claude project dir unwrapped', () => {
-    // The two harnesses mangle differently; conflating them sends the reader
-    // to a path that does not exist.
+    // pi wraps its session dirs in double dashes; the CLI does not, and
+    // conflating them sends the reader to a path that does not exist.
     expect(claudeProjectDirName('/home/dev/proj')).toBe('-home-dev-proj')
-    expect(claudeProjectDirName('/home/dev/proj')).not.toBe(piSessionDirName('/home/dev/proj'))
   })
 
-  it('dashes dots for the CLI but keeps them for pi', () => {
+  it('dashes dots for the CLI', () => {
     // Worktrees live under `.claude/`, so this is the common shape, not an
-    // edge case — the CLI turns the dot into a dash and pi does not.
+    // edge case — the CLI turns the dot into a dash.
     expect(claudeProjectDirName('/home/dev/proj/.claude/worktrees/wt')).toBe(
       '-home-dev-proj--claude-worktrees-wt',
-    )
-    expect(piSessionDirName('/home/dev/proj/.claude/worktrees/wt')).toBe(
-      '--home-dev-proj-.claude-worktrees-wt--',
     )
   })
 
   it('handles windows separators', () => {
-    // pi dashes the drive colon too: `C:` → `C-`, then the separator → `C--`.
-    expect(piSessionDirName('C:\\Users\\dev\\proj')).toBe('--C--Users-dev-proj--')
     expect(claudeProjectDirName('C:\\Users\\dev\\proj')).toBe('C--Users-dev-proj')
   })
 })

@@ -32,13 +32,6 @@ const BAR: Record<StageState, string> = {
 
 type AnyPr = GhPullRequest | GhPrSummary
 
-/** "Opened: done, Checks: blocked, …": the rail in words, for a tooltip. */
-export function stagesText(pr: AnyPr): string {
-  return prStages(pr)
-    .map((stage) => `${stage.label}: ${stage.detail}`)
-    .join(', ')
-}
-
 export function PrRail({ pr }: { pr: AnyPr }): React.JSX.Element {
   return (
     <span className="flex shrink-0 gap-0.5" aria-hidden="true" data-testid="pr-rail">

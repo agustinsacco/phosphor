@@ -46,12 +46,6 @@ export interface LanePrs {
   home?: Omit<GhPrRef, 'number'>
 }
 
-export const NO_LANE_PRS: LanePrs = Object.freeze({
-  owned: [],
-  reviewing: [],
-  mentioned: [],
-}) as unknown as LanePrs
-
 const refOf = (pr: GhPullRequest | undefined): GhPrRef | null => (pr ? parsePrUrl(pr.url) : null)
 
 /**

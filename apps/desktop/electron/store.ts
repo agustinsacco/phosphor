@@ -301,10 +301,6 @@ export function setLanePrefs(lanes: LanePrefs): void {
   prefs().set('lanes', normalizeLanePrefs(lanes))
 }
 
-export function getLanePrefs(): LanePrefs {
-  return normalizeLanePrefs(prefs().get('lanes'))
-}
-
 export function setModelPicks(picks: AppPrefs['modelPicks']): void {
   prefs().set('modelPicks', picks)
 }
