@@ -226,3 +226,17 @@ it('keeps an explicit Knowledge choice after reconnect without retaining the old
     restore()
   }
 })
+
+it('keeps keyboard focus on the Host picker when the selection changes', async () => {
+  const { render, node, restore } = createFixture()
+  try {
+    await render('harbor')
+    const picker = node.querySelector<HTMLSelectElement>('[aria-label="Brain Host"]')!
+    picker.focus()
+    await render('ledger')
+    expect(document.activeElement).toBe(picker)
+    expect(picker.value).toBe('ledger')
+  } finally {
+    restore()
+  }
+})
