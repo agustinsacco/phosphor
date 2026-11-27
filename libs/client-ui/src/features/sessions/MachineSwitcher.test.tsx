@@ -476,3 +476,26 @@ it('the service home switches Host folders, not in-app workspaces', async () => 
   expect(document.body.textContent).toContain(`Add folder on ${localMachineLabel()}`)
   expect(document.body.textContent).not.toContain('Open Folder…')
 })
+
+it('opening the scope menu asks for the machine directory once and shows it loading', async () => {
+  let answer: (value: unknown) => void = () => {}
+  invoke.mockImplementation((channel: string) =>
+    channel === 'control:machines'
+      ? new Promise((resolve) => (answer = resolve))
+      : Promise.reject(new Error('unavailable')),
+  )
+  useMachinesStore.setState({ directoryLoaded: false, loading: false })
+  act(() => root.render(<MachineSwitcher />))
+  expect(invoke).not.toHaveBeenCalledWith('control:machines')
+  click('Machine filter')
+  expect(invoke).toHaveBeenCalledWith('control:machines')
+  expect(document.body.textContent).toContain('Loading…')
+  await act(async () => {
+    answer({ ok: true, machines: [], serverTime: new Date().toISOString() })
+    await Promise.resolve()
+  })
+  expect(document.body.textContent).not.toContain('Loading…')
+  click('Machine filter')
+  click('Machine filter')
+  expect(invoke.mock.calls.filter(([channel]) => channel === 'control:machines')).toHaveLength(1)
+})

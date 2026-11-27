@@ -10,6 +10,9 @@ const state = vi.hoisted(() => ({
   off: vi.fn(),
   close: vi.fn(),
   realtime: vi.fn<typeof createRealtime>(),
+  keyOpened: false,
+  keyListeners: [] as (() => void)[],
+  broadcast: vi.fn(),
   client: {
     machines: vi.fn(),
     lookupEnrollment: vi.fn(),
@@ -60,7 +63,13 @@ vi.mock('../control/realtime', async (original) => ({
   ...(await original<typeof Realtime>()),
   createRealtime: state.realtime,
 }))
-vi.mock('../broadcast', () => ({ broadcast: vi.fn() }))
+vi.mock('../broadcast', () => ({ broadcast: state.broadcast }))
+vi.mock('../local-machine/owner-key-access', () => ({
+  ownerKeyAccess: {
+    opened: () => state.keyOpened,
+    onChange: (listener: () => void) => state.keyListeners.push(listener),
+  },
+}))
 vi.mock('../hosts/traffic-tap', () => ({ tappedLog: vi.fn() }))
 
 beforeEach(() => {
@@ -70,6 +79,8 @@ beforeEach(() => {
   state.handlers.clear()
   state.quit.length = 0
   state.accountListeners.clear()
+  state.keyOpened = false
+  state.keyListeners.length = 0
   for (const method of Object.values(state.client)) method.mockReset()
   state.realtime.mockImplementation(() => ({ stop: state.close }))
 })
@@ -117,6 +128,28 @@ it('keeps a remembered account idle until Machines is requested, then stops live
   expect(state.off).toHaveBeenCalledOnce()
   expect(state.accountListeners.size).toBe(0)
   state.quit.length = 0
+})
+
+it('starts discovery without a Machines visit once protected storage is open, and tells windows', async () => {
+  const { registerControlHandlers } = await import('./control-handlers')
+  registerControlHandlers()
+  expect(state.realtime).not.toHaveBeenCalled()
+  state.keyOpened = true
+  for (const listener of state.keyListeners) listener()
+  expect(state.realtime).toHaveBeenCalledOnce()
+  expect(state.broadcast).toHaveBeenCalledWith(
+    'account:changed',
+    expect.objectContaining({ remoteDiscoveryActive: true }),
+  )
+  for (const listener of state.keyListeners) listener()
+  expect(state.realtime).toHaveBeenCalledOnce()
+})
+
+it('starts discovery at registration when protected storage opened first', async () => {
+  state.keyOpened = true
+  const { registerControlHandlers } = await import('./control-handlers')
+  registerControlHandlers()
+  expect(state.realtime).toHaveBeenCalledOnce()
 })
 
 it('stops a still-active live subscription at will-quit', async () => {
