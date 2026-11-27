@@ -3,6 +3,7 @@ import { ipcErrorText } from '@shared/errors'
 import type { ComposerDraftRecord, DraftAttachment } from '@shared/models'
 import { hostResourceKey, type HostTarget } from '@shared/remote-host'
 import type { PendingAttachment } from '@/features/chat/attachments'
+import { writeDraftInOrder } from './draftWrites'
 import { useExtensionUiStore } from './extensionUi'
 
 /**
@@ -195,7 +196,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       delete drafts[key]
       return { drafts, revisions: { ...s.revisions, [key]: (s.revisions[key] ?? 0) + 1 } }
     })
-    void clearDraftOnDisk(key)
+    void writeDraftInOrder(key, () => clearDraftOnDisk(key))
   },
 
   rekey: (from, to) => {
@@ -208,7 +209,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       drafts[to] = draft
       return { drafts }
     })
-    void clearDraftOnDisk(from)
+    void writeDraftInOrder(from, () => clearDraftOnDisk(from))
     schedulePersist(to, draft)
   },
 }))
@@ -252,13 +253,15 @@ function schedulePersist(key: DraftKey, draft: Draft): void {
     key,
     setTimeout(() => {
       timers.delete(key)
-      void persist(key, draft)
+      void writeDraftInOrder(key, () => persist(key, draft))
     }, PERSIST_DEBOUNCE_MS),
   )
 }
 
-async function persist(key: DraftKey, draft: Draft): Promise<void> {
+async function persist(key: DraftKey, scheduled: Draft): Promise<void> {
   const generation = memoryGeneration
+  // An earlier save may have given its images blob ids since this one was scheduled.
+  const draft = useDraftsStore.getState().drafts[key] ?? scheduled
   try {
     if (isEmptyDraft(draft)) {
       await clearDraftOnDisk(key)
