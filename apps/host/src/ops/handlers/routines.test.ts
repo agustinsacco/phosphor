@@ -206,3 +206,28 @@ it('walks all 51 runs at delivered offsets and requires a routine for history', 
     expect(seen).toEqual(runs)
   }
 })
+
+it('delegates preflight and promotion separately, and returns only the promoted lane reference', async () => {
+  const f = fixture(false)
+  const check = vi.fn(async () => ({ summary: 'checked', warning: null }))
+  const promote = vi.fn(async () => 'lane-1')
+  const handlers = routineHandlers({
+    ...f.deps,
+    selfIds: () => ['here'],
+    routines: { ...f.deps.routines, check, promote } as never,
+  })
+  const c = {
+    principal: { kind: 'local', clientId: 'test' },
+    signal: new AbortController().signal,
+    log: () => {},
+  } as const
+  expect(await handlers['routine.check']!({ definition }, c)).toMatchObject({
+    data: { summary: 'checked' },
+  })
+  expect(promote).not.toHaveBeenCalled()
+  expect(await handlers['routine.fromLane']!({ runId: id }, c)).toMatchObject({
+    data: { ref: 'host:here/lane:lane-1' },
+  })
+  expect(promote).toHaveBeenCalledOnce()
+  expect(f.execute).not.toHaveBeenCalled()
+})
