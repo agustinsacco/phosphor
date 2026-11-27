@@ -2862,12 +2862,10 @@ test('worktree flow: create from the branch chip, session stays under the projec
     await expect(page.locator('.name-pending')).toHaveCount(0, { timeout: 15_000 })
     await expect(page.getByTestId('branch-chip')).not.toHaveAttribute('data-tooltip', /provisional/)
 
-    // Still one sidebar group for the project (not a header per branch); the
-    // worktree is surfaced on the session row itself instead.
+    // Still one sidebar group for the project (not a header per branch). The
+    // row does not repeat the worktree; the top bar's branch control owns it.
     await expect(page.getByTestId('workspace-group')).toHaveCount(1, { timeout: 15_000 })
-    await expect(page.locator('[data-tooltip="Runs in a git worktree"]')).toBeVisible({
-      timeout: 15_000,
-    })
+    await expect(page.locator('[data-tooltip="Runs in a git worktree"]')).toHaveCount(0)
 
     // The top bar's branch control marks the worktree.
     await expect(page.locator('[data-tooltip*="Worktree of"]')).toBeVisible({ timeout: 10_000 })
