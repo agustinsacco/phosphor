@@ -8,8 +8,7 @@
     "src/routes/stack.test.ts::%3Canonymous%3E[1]/it[1]": 277,
     "src/static.ts::serveStatic[1]": 141,
     "src/app.ts::createApp[1]": 84,
-    "src/web/auth.ts::browserAuth[1]": 150,
-    "src/web/auth.ts::browserAuth[1]/routes[1]": 100
+    "src/web/auth.ts::browserAuth[1]": 150
   },
   "exemptions": [],
   "renames": {}
