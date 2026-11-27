@@ -59,6 +59,12 @@ describe('composeDirectives', () => {
     expect(compose({ laneCharter: true })).toContain('<phosphor_lane>')
   })
 
+  it('asks a lane for one atomic pull request, never a stack', () => {
+    const charter = compose({ laneCharter: true })
+    expect(charter).toContain('One lane, one pull request')
+    expect(charter).not.toMatch(/stack of smaller PRs|400 changed lines/)
+  })
+
   it('keeps the documented order: workspace, machine, lane, sub-agents', () => {
     const out =
       composeDirectives({

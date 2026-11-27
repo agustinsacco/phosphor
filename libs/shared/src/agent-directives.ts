@@ -113,8 +113,8 @@ export function laneCharterBlock(charter: LaneCharter): string {
   lines.push(
     '- Commit your work on this branch as you go. Do not commit to the base branch.',
     '- Open a pull request when the work is done. That is how this lane closes.',
-    '- Keep the change reviewable: aim under 400 changed lines and 20 files. If the',
-    '  work is genuinely larger, land it as a stack of smaller PRs rather than one.',
+    '- One lane, one pull request: the whole task lands in it, updated as the work',
+    '  grows. Do not split it by size, stack PRs or open a second PR from this lane.',
     "- Run the project's own typecheck, tests and lint before you claim the work is",
     '  done. Saying it is done is not evidence; an exit code is.',
     '</phosphor_lane>',
