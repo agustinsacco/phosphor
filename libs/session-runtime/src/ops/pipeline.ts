@@ -273,8 +273,11 @@ async function perform(
         run: (s) => handler(j.args, ctx(s)),
         completed: (out) => completed(env, j, auditId, out),
       })
-      const summary = j.spec.summary.replace(/\.$/, '')
-      const text = `Started: ${summary}. Check it with: phosphor job status ${job.jobId}`
+      // The first sentence names the op; later ones are usage notes for help.
+      const summary = j.spec.summary.split('. ')[0]!.replace(/\.$/, '')
+      // A routed job lives on this machine, so the caller must repeat its --host.
+      const where = j.principal.kind === 'machine' ? ' (with the same --host)' : ''
+      const text = `Started: ${summary}. Check it with: phosphor job status ${job.jobId}${where}`
       return await finish(env, j, decision, { text, data: job, undo: false }, { auditId })
     }
     const out = await handler(j.args, ctx(signal))

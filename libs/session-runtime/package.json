@@ -668,6 +668,10 @@
       "types": "./src/ops/jobs.ts",
       "default": "./src/ops/jobs.ts"
     },
+    "./ops/job-explain": {
+      "types": "./src/ops/job-explain.ts",
+      "default": "./src/ops/job-explain.ts"
+    },
     "./host-local/transport": {
       "types": "./src/host-local/transport.ts",
       "default": "./src/host-local/transport.ts"

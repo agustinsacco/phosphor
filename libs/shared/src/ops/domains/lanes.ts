@@ -63,7 +63,7 @@ export const lanes = [
   }),
   lane(
     'lane.create',
-    'Start a lane, optionally with an initial prompt.',
+    'Start a lane, optionally with an initial prompt. --folder takes a registered folder name, path or ID; --model takes provider/id, for example pi-claude-cli/claude-opus-5-5. Without --prompt the lane starts idle.',
     'create',
     object({
       folder: ref,
