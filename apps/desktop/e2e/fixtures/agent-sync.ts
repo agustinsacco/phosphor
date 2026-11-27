@@ -68,3 +68,14 @@ export async function findCreated(page: Page, hostId: string) {
   await expect.poll(read).toBeDefined()
   return (await read())!.laneId
 }
+
+export async function openControlled(page: Page, hostId: string, laneId: string) {
+  return page.evaluate(
+    async ({ hostId, laneId }) => {
+      const { sessionId } = await window.phosphor.invoke('hosts:openLane', hostId, laneId)
+      await window.phosphor.invoke('hosts:takeControl', hostId, laneId)
+      return sessionId
+    },
+    { hostId, laneId },
+  )
+}

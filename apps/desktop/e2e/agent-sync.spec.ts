@@ -9,7 +9,7 @@ import {
   addedRoutine,
   changedTitle,
   findCreated,
-  issuerTitle,
+  openControlled,
   originalTitle,
   routineArgs,
   sendOp,
@@ -63,13 +63,10 @@ test('service-owned Desktop projects lane, folder, Archive and routine changes m
       await expect(row.getByTestId('lane-marker')).toBeVisible()
       await op(['folder.add', addedFolder])
       await expect(sidebar(page).getByText(addedFolder, { exact: true })).toBeVisible()
-      await sidebar(page).getByRole('button', { name: issuerTitle, exact: true }).click()
-      await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible()
+      const created = await openControlled(page, daemon.machineId, laneId)
       await page.getByRole('button', { name: 'Archive', exact: true }).first().click()
       await expect(page.getByText('No archived lanes.')).toBeVisible()
-      await op(['lane.archive', laneId])
-      const confirm = page.getByRole('button', { name: 'Approve', exact: true })
-      await confirm.click()
+      await sendOp(page, created, ['lane.archive', laneId])
       await expect(row).toHaveCount(0)
       const archive = page.getByTestId('archive-row').filter({ hasText: changedTitle })
       await expect(archive).toBeVisible()

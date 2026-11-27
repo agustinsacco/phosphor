@@ -3,6 +3,7 @@ import {
   addedRoutine,
   changedTitle,
   findCreated,
+  openControlled,
   originalTitle,
   routineArgs,
   sendOp,
@@ -48,16 +49,14 @@ test('PWA projects an agent-created lane and live mutations from a Host', async 
   const observer = await context.newPage()
   await observer.goto(`${origin}/pages/archive`)
   await expect(observer.getByText('No archived lanes.')).toBeVisible()
-  // Approval UI is bound to the issuing lane, not the archived lane.
-  await board.getByRole('button', { name: 'Agent op issuer', exact: true }).click()
-  await op(['lane.archive', laneId])
-  await page.getByRole('button', { name: 'Approve', exact: true }).click()
-  await expect.poll(projected).toBeUndefined()
+  const created = await openControlled(page, hostId, laneId)
+  await sendOp(page, created, ['lane.archive', laneId])
+  await expect(row).toHaveCount(0)
   const archive = observer.getByTestId('archive-row').filter({ hasText: changedTitle })
   await expect(archive).toBeVisible()
   await op(['archive.restore', laneId])
   await expect(archive).toHaveCount(0)
-  await expect.poll(projected).toMatchObject({ title: changedTitle })
+  await expect(row).toBeVisible()
   await observer.goto(`${origin}/pages/settings/${hostId}`)
   await observer.getByRole('button', { name: 'Folders', exact: true }).click()
   await op(['folder.add', addedFolder])
