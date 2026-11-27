@@ -35,7 +35,7 @@ export function openHostLane(
   const key = remoteLaneKey(target.hostId, target.laneId)
   const existing = running.get(key)
   if (existing) return existing
-  const open = adopt(target, refreshSnapshot).finally(() => {
+  const open = adoptHostLane(target, refreshSnapshot).finally(() => {
     running.delete(key)
     useHostLaneOpensStore.setState((s) => {
       const { [key]: _done, ...inFlight } = s.inFlight
@@ -47,7 +47,12 @@ export function openHostLane(
   return open
 }
 
-async function adopt(
+/**
+ * Opens a Host lane and adopts its handle in place: no navigation, no opening
+ * state, no once-per-lane flight. `openHostLane` wraps it for navigation; a
+ * lane menu action that needs the lane's session calls it directly.
+ */
+export async function adoptHostLane(
   { hostId, laneId }: { hostId: string; laneId: string },
   refreshSnapshot: boolean,
 ): Promise<string> {

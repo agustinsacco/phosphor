@@ -9,6 +9,7 @@ import { remoteLaneMarker } from './remoteLaneView'
 import { useNavigation, type Navigation } from '@/navigation/Navigation'
 import { usePlatform } from '@/platform/Platform'
 import { useChatStore } from '@/stores/chat'
+import { adoptHostLane } from '@/stores/hostLaneOpen'
 import { useMachineCaps } from '@/stores/machineCaps'
 import { setRemoteLaneMarks } from '@/stores/remoteLaneMarks'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
@@ -97,7 +98,8 @@ export function useRemoteLaneActions({
   const access = remoteLaneAccess(state)
   const context = hostLaneContext(state)
   const canRename = !context.busy && !context.refusals.rename
-  const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
+  const session = async (): Promise<string> =>
+    entry?.phosphorId ?? adoptHostLane({ hostId, laneId: lane.laneId }, false)
   const handlers = laneHandlers({
     hostId,
     lane,
@@ -236,14 +238,6 @@ function useLaneActionRunner(onDone: (() => void) | undefined) {
     }
   }
   return { busy, error, act }
-}
-
-async function openLaneSession(hostId: string, lane: HostLaneView): Promise<string> {
-  const info = await window.phosphor.invoke('hosts:openLane', hostId, lane.laneId)
-  await useSessionsStore
-    .getState()
-    .adoptSession(info.sessionId, info.workspacePath, undefined, info)
-  return info.sessionId
 }
 
 function laneHandlers({
