@@ -214,8 +214,28 @@ export async function prepareLaneFolder(input: {
       throw new Error('folder')
     return { cwd, branch, undo }
   } catch (error) {
-    await undo(worktreeGit(root, performance.now() + FAILED_CLEANUP_MS)).catch(() => {})
+    await undo(await failedAddCleanup(run, root, path, logUndoFailure)).catch(() => {})
     if (error instanceof LaneFolderError) throw error
     throw new LaneFolderError('The worktree could not be created.')
   }
+}
+
+/**
+ * The runner for a failed preparation's cleanup, inside its reserve. A killed
+ * `git worktree add` leaves its worktree registered and locked "initializing", so
+ * plain `remove` and `prune` skip it: this removes and prunes it first. The leaf was
+ * absent just before add ran (`checkLeafAbsent`), so only add can have made it,
+ * never a folder that existed before.
+ */
+async function failedAddCleanup(
+  run: ReturnType<typeof worktreeGit>,
+  root: string,
+  path: string,
+  failed: (error: unknown) => void,
+): Promise<ReturnType<typeof worktreeGit>> {
+  const cleanup = worktreeGit(root, performance.now() + FAILED_CLEANUP_MS)
+  if (!run.addKilled()) return cleanup
+  await cleanup(['worktree', 'remove', '--force', '--force', path]).catch(failed)
+  await cleanup(['worktree', 'prune']).catch(failed)
+  return cleanup
 }

@@ -1486,7 +1486,10 @@ branched from the lane's first message; it has no toggle to run in the
 repository's own checkout.
 
 Git worktree preparation shares a 95-second budget, with up to 90 seconds for
-`git worktree add` and a separate 10 seconds to clean up after failure. Other
+`git worktree add` and a separate 10 seconds to clean up after failure. An add
+killed by its timeout leaves a worktree registered and locked "initializing": the
+cleanup force-removes and prunes it, then deletes the branch it made. The folder
+was absent just before add ran, so a folder that existed before is never touched. Other
 Git calls keep their 30-second cap. If Git times out, Desktop and the PWA say
 “Git took too long to create the worktree” and keep the draft. For diagnosis,
 `lane.worktree_git_failed` records the Git subcommand, exit code or timeout and

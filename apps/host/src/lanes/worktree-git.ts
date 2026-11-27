@@ -51,7 +51,8 @@ export function worktreeGit(root: string, deadline?: number, log?: RuntimeLog) {
   // `resolveDefaultBranch` may ignore optional symbolic-ref errors. A timeout
   // still ends preparation; the next attempt rethrows it before running Git.
   let timeoutError: LaneFolderError | undefined
-  return async (args: string[], expectedExit?: number): Promise<string> => {
+  let addKilled = false
+  const run = async (args: string[], expectedExit?: number): Promise<string> => {
     if (timeoutError) throw timeoutError
     const add = args[0] === 'worktree' && args[1] === 'add'
     const left = deadline === undefined ? Infinity : Math.ceil(deadline - performance.now())
@@ -74,6 +75,7 @@ export function worktreeGit(root: string, deadline?: number, log?: RuntimeLog) {
       const timedOut =
         timeout <= 0 || (code === null && failure?.killed === true && failure.signal === 'SIGTERM')
       if (timedOut) timeoutError = new LaneFolderError(WORKTREE_GIT_TIMEOUT)
+      if (timedOut && add && timeout > 0) addKilled = true
       if (timedOut || expectedExit === undefined || code !== expectedExit) {
         // All call sites supply literal subcommands; never log refs, paths, or the Error itself.
         const command = args[0] === 'worktree' ? `git worktree ${args[1]}` : `git ${args[0]}`
@@ -97,4 +99,6 @@ export function worktreeGit(root: string, deadline?: number, log?: RuntimeLog) {
       throw timeoutError ?? error
     }
   }
+  /** A timeout killed `git worktree add` after it started: it may have left a half-made worktree. */
+  return Object.assign(run, { addKilled: () => addKilled })
 }
