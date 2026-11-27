@@ -2,7 +2,8 @@ import { laneControlPolicy, ensureServiceLaneControl } from '@/platform/serviceL
 import { archiveRemoteLane } from './archiveRemoteLane'
 import type { HostLaneView } from '@shared/ipc'
 import { remoteLaneResourceKey } from '@shared/remote-host'
-import { forgetRemoteSession, useSessionsStore, type LaneDeleteResult } from '@/stores/sessions'
+import { runLaneRemoval } from '@/stores/laneRemovalRun'
+import { forgetRemoteSession, useSessionsStore } from '@/stores/sessions'
 import { machineCaps } from '@/stores/machineCaps'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 
@@ -52,7 +53,7 @@ async function removeLane(
   for (const entry of entries) await forgetRemoteSession(entry.phosphorId)
   return result.branchKept ? "Branch kept: it isn't merged yet." : undefined
 }
-/** Uses the existing global progress/cancel surface; never takes control or retries an uncertain command. */
+/** Uses the shared bulk progress/cancel runner; never takes control or retries an uncertain command. */
 export async function deleteRemoteLanes(
   hostId: string,
   lanes: HostLaneView[],
@@ -62,55 +63,24 @@ export async function deleteRemoteLanes(
     archive?: boolean
   },
 ): Promise<void> {
-  if (useSessionsStore.getState().bulkDelete?.running) return
-  const targets = lanes.map((lane) => ({
-    path: remoteLaneResourceKey(hostId, lane.laneId),
-    title: lane.title || 'Untitled lane',
-  }))
-  useSessionsStore.setState({
-    bulkDelete: {
-      archiving: options.archive,
-      lanes: targets,
-      total: targets.length,
-      done: 0,
-      current: '',
-      currentPath: '',
-      results: [],
-      running: true,
-      cancelled: false,
-    },
-  })
   const completed = new Set<string>()
-  try {
-    for (const [index, lane] of lanes.entries()) {
-      if (useSessionsStore.getState().bulkDelete?.cancelled) break
-      const target = targets[index]!
-      update({ current: target.title, currentPath: target.path })
-      let result: LaneDeleteResult
-      try {
-        const error = await removeLane(hostId, lane.laneId, completed, options)
-        result = { ...target, ok: true, ...(error ? { error } : {}) }
-      } catch (error) {
-        result = {
-          ...target,
-          ok: false,
-          error:
-            options.archive && error instanceof Error
-              ? error.message
-              : 'The Host could not confirm deletion. Check this lane before retrying.',
-        }
-      }
-      const progress = useSessionsStore.getState().bulkDelete!
-      update({ results: [...progress.results, result], done: progress.done + 1 })
-    }
-  } finally {
-    update({ running: false, current: '', currentPath: '' })
-  }
-}
-function update(
-  patch: Partial<NonNullable<ReturnType<typeof useSessionsStore.getState>['bulkDelete']>>,
-): void {
-  useSessionsStore.setState((s) =>
-    s.bulkDelete ? { bulkDelete: { ...s.bulkDelete, ...patch } } : s,
+  await runLaneRemoval(
+    {
+      read: () => useSessionsStore.getState().bulkDelete,
+      write: (bulkDelete) => useSessionsStore.setState({ bulkDelete }),
+    },
+    {
+      archiving: options.archive,
+      lanes: lanes.map((lane) => ({
+        laneId: lane.laneId,
+        path: remoteLaneResourceKey(hostId, lane.laneId),
+        title: lane.title || 'Untitled lane',
+      })),
+      prepare: async () => (lane) => removeLane(hostId, lane.laneId, completed, options),
+      failureText: (error) =>
+        options.archive && error instanceof Error
+          ? error.message
+          : 'The Host could not confirm deletion. Check this lane before retrying.',
+    },
   )
 }

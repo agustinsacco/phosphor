@@ -1073,6 +1073,7 @@ export function installMockPhosphor(): void {
         // that.
         case 'app:setDraft':
         case 'app:clearDraft':
+        case 'app:deleteDraftBlob':
           return Promise.resolve(undefined)
         case 'app:writeDraftBlob':
           return Promise.resolve(true)

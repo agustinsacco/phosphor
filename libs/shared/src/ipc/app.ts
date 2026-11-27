@@ -135,6 +135,11 @@ export interface AppInvokeMap {
   'app:clearDraft': { args: [key: string]; result: void }
   /** False when the write was refused for pushing past the total blob cap. */
   'app:writeDraftBlob': { args: [blobId: string, base64: string]; result: boolean }
+  /**
+   * Unlink one blob a draft save uploaded but never recorded, unless a saved draft
+   * refers to it (checked again right before deleting). A no-op otherwise.
+   */
+  'app:deleteDraftBlob': { args: [blobId: string]; result: void }
   /** Null when the file is gone; the caller drops the chip. */
   'app:readDraftBlob': { args: [blobId: string]; result: string | null }
   /**

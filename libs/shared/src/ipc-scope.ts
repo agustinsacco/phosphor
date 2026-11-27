@@ -144,6 +144,7 @@ export const IPC_SCOPE = {
   'app:clearDraft': 'app',
   'app:writeDraftBlob': 'app',
   'app:readDraftBlob': 'app',
+  'app:deleteDraftBlob': 'app',
   'app:sweepDrafts': 'app',
   'app:userInfo': 'machine',
   'app:about': 'app',

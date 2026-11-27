@@ -1,6 +1,8 @@
 import { refreshArtifactsAfter } from '@/features/artifacts/remoteArtifactRefresh'
 import { hostResourceKey } from '@shared/remote-host'
 import { archivesChanged } from './archiveChanges'
+import { runLaneRemoval } from './laneRemovalRun'
+import { openFlights } from './openFlight'
 import { loadWorktreeRemover, removeLaneWorktree } from './removeLaneWorktree'
 import {
   laneIsBeingDeleted,
@@ -330,17 +332,8 @@ export {
   type LaneDeleteResult,
   type BulkDeleteProgress,
 } from './laneRemovalState'
-/**
- * Cancellation flag for the in-flight bulk delete.
- *
- * Module scope rather than store state: the loop reads it between lanes, and
- * routing that through a zustand read per iteration would make cancellation
- * depend on render timing.
- */
-let bulkDeleteCancelled = false
-
 const unsubscribers = new Map<string, () => void>()
-const pendingOpens = new Map<string, Promise<string>>()
+const diskOpens = openFlights<string>()
 const closingSessions = new Set<string>()
 const pendingDeletes = new Map<string, Promise<void>>()
 
@@ -1144,14 +1137,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // A repeat click on a lane whose open is already running must still land:
     // the running `createSession` captured an older claim and will decline to
     // activate, so the decision is re-made here against the current one.
-    const inFlight = pendingOpens.get(meta.path)
-    const operation =
-      inFlight ?? get().createSession(workspacePath, { sessionPath: meta.path, nav })
-    if (!inFlight) pendingOpens.set(meta.path, operation)
+    const joined = diskOpens.has(meta.path)
     try {
-      const phosphorId = await operation
-      if (get().opening?.nav === nav) get().activate(phosphorId)
-      return phosphorId
+      return await diskOpens.run(
+        meta.path,
+        () => get().createSession(workspacePath, { sessionPath: meta.path, nav }),
+        (phosphorId) => {
+          if (get().opening?.nav === nav) get().activate(phosphorId)
+          return phosphorId
+        },
+      )
     } catch (error) {
       // Say something. Most callers fire this without awaiting, so an open
       // that fails used to clear the overlay and leave the user exactly where
@@ -1159,7 +1154,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       // so they click again, and every retry spawns another pi that dies the
       // same way. Only the call that STARTED the open reports it, so those
       // retries produce one toast between them rather than one each.
-      if (!inFlight)
+      if (!joined)
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore
             .getState()
@@ -1167,7 +1162,6 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         )
       throw error
     } finally {
-      if (!inFlight) pendingOpens.delete(meta.path)
       // A failed open must not leave the overlay up forever.
       if (get().opening?.nav === nav) set({ opening: null })
     }
@@ -1332,12 +1326,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
+  cancelBulkDelete: () =>
+    set((s) => (s.bulkDelete ? { bulkDelete: { ...s.bulkDelete, cancelled: true } } : s)),
+
+  dismissBulkDelete: () => set({ bulkDelete: null }),
+
   /**
    * Delete several lanes, sequentially, reporting per lane.
    *
    * Three things here are deliberate:
    *
-   * 1. **Sequential, not `Promise.all`.** Each lane disposes a subprocess and
+   * 1. **Sequential, not `Promise.all`** (`runLaneRemoval`). Each lane disposes a subprocess and
    *    runs git; N of those at once is how you get a worktree removed while
    *    its own pi is still writing.
    * 2. **Worktree BEFORE session file.** `git worktree remove` is the step
@@ -1349,58 +1348,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
    * 3. **A failure is reported, never swallowed.** A row that silently stays
    *    put reads as the delete having worked and the UI being stale.
    */
-  cancelBulkDelete: () => {
-    bulkDeleteCancelled = true
-    set((s) => (s.bulkDelete ? { bulkDelete: { ...s.bulkDelete, cancelled: true } } : s))
-  },
-
-  dismissBulkDelete: () => set({ bulkDelete: null }),
-
   deleteManySessions: async (workspacePath, lanes, options) => {
-    if (get().bulkDelete?.running) throw new Error('Another delete is running.')
-    const results: LaneDeleteResult[] = []
-    bulkDeleteCancelled = false
-    set({
-      bulkDelete: {
-        archiving: options.archive,
-        total: lanes.length,
-        done: 0,
-        current: lanes[0]?.title ?? '',
-        currentPath: lanes[0]?.path ?? '',
-        lanes: lanes.map((lane) => ({ path: lane.path, title: lane.title })),
-        results: [],
-        running: true,
-        cancelled: false,
-      },
-    })
-
-    const publish = (current: { path: string; title: string }): void =>
-      set((s) =>
-        s.bulkDelete
-          ? {
-              bulkDelete: {
-                ...s.bulkDelete,
-                done: results.length,
-                current: current.title,
-                currentPath: current.path,
-                results: [...results],
-              },
-            }
-          : s,
-      )
-
-    // Every settlement unlocks, including a failure outside the per-lane
-    // catch (the lazy store read, the final refresh): a run left `running`
-    // keeps its lanes inert and refuses every later delete.
-    try {
-      const removeWorktree = await loadWorktreeRemover()
-      for (const lane of lanes) {
-        // Checked between lanes, never mid-lane: stopping halfway through a
-        // worktree removal is how you get a half-deleted lane.
-        if (bulkDeleteCancelled) break
-        publish(lane)
-
-        try {
+    const slot = {
+      read: () => get().bulkDelete,
+      write: (bulkDelete: BulkDeleteProgress) => set({ bulkDelete }),
+    }
+    const results = await runLaneRemoval(slot, {
+      archiving: options.archive,
+      lanes,
+      prepare: async () => {
+        const removeWorktree = await loadWorktreeRemover()
+        return async (lane) => {
           const branchError = await removeLaneWorktree(lane, options, removeWorktree)
           const cwd =
             Object.entries(get().disk).find(([, metas]) =>
@@ -1410,54 +1368,28 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
             path: lane.path,
             ...(options.archive ? { archive: true } : {}),
           })
-          results.push({
-            path: lane.path,
-            title: lane.title,
-            ok: true,
-            ...(branchError ? { error: branchError } : {}),
-          })
-        } catch (error) {
-          results.push({
-            path: lane.path,
-            title: lane.title,
-            ok: false,
-            error: ipcErrorText(error),
+          return branchError
+        }
+      },
+      failureText: ipcErrorText,
+      finish: async (done) => {
+        // Forget markers for lanes that are actually gone, so the prefs map does
+        // not accumulate entries for paths that no longer exist.
+        const gone = new Set(done.filter((r) => r.ok).map((r) => r.path))
+        if (gone.size > 0) {
+          edited('laneMarkers')
+          set((s) => {
+            const laneMarkers = { ...s.laneMarkers }
+            for (const path of gone) delete laneMarkers[path]
+            void window.phosphor.invoke('app:setLaneMarkers', laneMarkers)
+            return { laneMarkers }
           })
         }
-        publish(lane)
-      }
-
-      // Forget markers for lanes that are actually gone, so the prefs map does
-      // not accumulate entries for paths that no longer exist.
-      const gone = new Set(results.filter((r) => r.ok).map((r) => r.path))
-      if (gone.size > 0) {
-        edited('laneMarkers')
-        set((s) => {
-          const laneMarkers = { ...s.laneMarkers }
-          for (const path of gone) delete laneMarkers[path]
-          void window.phosphor.invoke('app:setLaneMarkers', laneMarkers)
-          return { laneMarkers }
-        })
-      }
-
-      await get().refreshDisk(workspacePath)
-    } finally {
-      set((s) =>
-        s.bulkDelete
-          ? {
-              bulkDelete: {
-                ...s.bulkDelete,
-                done: results.length,
-                current: '',
-                currentPath: '',
-                results,
-                running: false,
-              },
-            }
-          : s,
-      )
-    }
-    return results
+        await get().refreshDisk(workspacePath)
+      },
+    })
+    // A second start while a run is going is ignored.
+    return results ?? []
   },
 
   setLaneMarker: (path, marker) => {

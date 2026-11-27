@@ -224,3 +224,18 @@ it('collects only unshared images on replacement, clear and draft eviction', () 
     memory.set({ ...draft(`session:new-${i}`), updatedAt: i + 2 })
   expect(memory.readBlob(blob)).toBeNull()
 })
+
+it('deletes one unreferenced image, never one a draft refers to', () => {
+  const drafts = createBrowserDrafts(() => true)
+  const shared = '44444444-4444-4444-8444-444444444444'
+  expect(drafts.writeBlob(blob, 'AAAA')).toBe(true)
+  expect(drafts.writeBlob(shared, 'AAAA')).toBe(true)
+  drafts.set({
+    ...draft(),
+    attachments: [{ kind: 'image', name: 'a.png', size: 3, blobId: shared, mimeType: 'image/png' }],
+  })
+  drafts.deleteBlob(shared)
+  drafts.deleteBlob(blob)
+  expect(drafts.readBlob(shared)).toBe('AAAA')
+  expect(drafts.readBlob(blob)).toBeNull()
+})

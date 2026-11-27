@@ -478,3 +478,109 @@ it('reports a rejected draft clear IPC visibly', async () => {
     message: 'Could not clear draft: Disk full',
   })
 })
+
+describe('overlapping saves of one draft', () => {
+  /** The first image write hangs until released; every later call answers at once. */
+  function slowFirstBlob(): () => void {
+    let release!: () => void
+    const first = new Promise<boolean>((resolve) => (release = () => resolve(true)))
+    let blobs = 0
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'app:writeDraftBlob') return ++blobs === 1 ? first : true
+      return undefined
+    })
+    return release
+  }
+
+  it('lands the newest text last, writing the image once', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'old')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().setText('home:/a', 'new')
+    await flush()
+    release()
+    await flush()
+    const texts = setCalls().map((c) => (c[1] as { text: string }).text)
+    expect(texts.at(-1)).toBe('new')
+    expect(invoke.mock.calls.filter((c) => c[0] === 'app:writeDraftBlob')).toHaveLength(1)
+  })
+
+  it('saves newer text at once, not behind an obsolete image save, which then does nothing', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'old')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().setAttachments('home:/a', [])
+    useDraftsStore.getState().setText('home:/a', 'new')
+    await flush()
+    // The window may close now: the newer text is already on its way to prefs.
+    expect(setCalls().map((c) => (c[1] as { text: string }).text)).toEqual(['new'])
+    release()
+    await flush()
+    expect(setCalls().map((c) => (c[1] as { text: string }).text)).toEqual(['new'])
+  })
+
+  it('deletes the image a stale save uploaded after a send, leaving no orphan blob', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'sent')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().clear('home:/a')
+    release()
+    await flush()
+    expect(invoke).toHaveBeenCalledWith('app:deleteDraftBlob', 'blob-id')
+  })
+
+  it('keeps an image a newer save of the same draft still uses', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'old')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().setText('home:/a', 'new')
+    await flush()
+    release()
+    await flush()
+    expect(invoke).not.toHaveBeenCalledWith('app:deleteDraftBlob', expect.anything())
+  })
+
+  it('never brings a sent draft back from a save still in flight', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'sent')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().clear('home:/a')
+    release()
+    await flush()
+    const writes = invoke.mock.calls
+      .map((c) => c[0] as string)
+      .filter((channel) => channel === 'app:setDraft' || channel === 'app:clearDraft')
+    expect(writes.at(-1)).toBe('app:clearDraft')
+  })
+
+  it('keeps the last saved draft when a replacement image write fails', async () => {
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'kept')
+    await flush()
+    const before = setCalls().length
+    invoke.mockImplementation(async (channel: string) => {
+      if (channel === 'app:writeDraftBlob') throw new Error('disk full')
+      return undefined
+    })
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    // No partial save drops what was on disk: prefs keep the last good draft.
+    expect(setCalls()).toHaveLength(before)
+    // The next save tries the image again rather than reusing the failure.
+    invoke.mockImplementation(async () => true)
+    useDraftsStore.getState().setText('home:/a', 'kept again')
+    await flush()
+    expect(setCalls()).toHaveLength(before + 1)
+    expect(invoke.mock.calls.filter((c) => c[0] === 'app:writeDraftBlob')).toHaveLength(2)
+  })
+})

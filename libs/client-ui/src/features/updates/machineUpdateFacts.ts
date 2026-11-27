@@ -16,7 +16,12 @@ export function readUpdateStatus(value: unknown): UpdateStatus | undefined {
     ...(support ? { pauseControl: true as const } : {}),
     ...(report ? { update: report } : {}),
   }
-  if (pause.kind === 'none') return { pause: { kind: 'none' }, ...flags }
+  if (pause.kind === 'none') {
+    // An unknown or malformed `ended` reads as absent, as from an older Host.
+    const ended =
+      pause.ended === 'cancelled' || pause.ended === 'deadline' ? pause.ended : undefined
+    return { pause: { kind: 'none', ...(ended ? { ended } : {}) }, ...flags }
+  }
   if (pause.purpose !== 'update' || typeof pause.since !== 'string') return undefined
   const base = { purpose: 'update' as const, since: pause.since }
   if (pause.kind === 'paused') return { pause: { kind: 'paused', ...base }, ...flags }
@@ -90,13 +95,18 @@ export function observeResult(entry: MachineUpdateEntry, now: number): MachineUp
   const own = run?.from === last.from && (run.to ? run.to === last.to : !run.settled)
   if (run && own && !run.reported && !run.claimed && last.at !== run.before) {
     if (!run.settled || run.restartAt !== undefined)
-      return { ...entry, resultSeen, run: { ...run, claimed: true } }
+      return { ...entry, resultSeen, run: claim(run, last) }
   }
   if (run && !run.settled) return entry
-  if (run && ownLateFailure(run, last))
-    return { ...entry, resultSeen, run: { ...run, claimed: true } }
+  if (run && ownLateFailure(run, last)) return { ...entry, resultSeen, run: claim(run, last) }
   const reported = reportedRun(entry, last, now)
   return { ...entry, resultSeen, ...(reported ? { run: reported } : {}) }
+}
+
+/** A run that only saw its machine restart learns from its own result what happened. */
+function claim(run: UpdateRun, last: LastUpdate): UpdateRun {
+  if (run.finish !== 'restarted' || last.outcome === 'updated') return { ...run, claimed: true }
+  return { ...run, claimed: true, finish: last.outcome === 'failed' ? 'apply' : 'rolled-back' }
 }
 
 /** How soon after a targetless run settles its own restart's result can still arrive. */

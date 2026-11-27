@@ -42,6 +42,60 @@ const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength
 
+/** A draft record from the composer, checked field by field; its images must be in `blobs`. */
+function parseBrowserDraft(raw: unknown, blobs: ReadonlyMap<string, unknown>): ComposerDraftRecord {
+  if (
+    !record(raw) ||
+    !key(raw.key) ||
+    !text(raw.text, BROWSER_DRAFT_LIMITS.recordBytes) ||
+    !Array.isArray(raw.attachments) ||
+    raw.attachments.length > BROWSER_DRAFT_LIMITS.attachments ||
+    typeof raw.updatedAt !== 'number' ||
+    !Number.isSafeInteger(raw.updatedAt) ||
+    raw.updatedAt < 0
+  )
+    throw new Error('Invalid browser draft.')
+  const attachments: DraftAttachment[] = raw.attachments.map((a) => {
+    if (
+      !record(a) ||
+      a.kind !== 'image' ||
+      !text(a.name, 256) ||
+      !blobId(a.blobId) ||
+      !blobs.has(a.blobId) ||
+      typeof a.size !== 'number' ||
+      !Number.isSafeInteger(a.size) ||
+      a.size < 0 ||
+      a.size > Math.ceil(BROWSER_DRAFT_LIMITS.blobBytes / 3) * 4 ||
+      typeof a.mimeType !== 'string' ||
+      !['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'].includes(a.mimeType)
+    )
+      throw new Error('Only available in-memory image attachments can be saved.')
+    return { kind: 'image', name: a.name, size: a.size, blobId: a.blobId, mimeType: a.mimeType }
+  })
+  if (
+    (raw.model !== undefined &&
+      (!record(raw.model) || !text(raw.model.provider, 200) || !text(raw.model.id, 200))) ||
+    (raw.thinking !== undefined && !text(raw.thinking, 100)) ||
+    (raw.workspacePath !== undefined && !text(raw.workspacePath, 4096)) ||
+    (raw.swarm !== undefined && typeof raw.swarm !== 'boolean') ||
+    (raw.preferWorktree !== undefined && typeof raw.preferWorktree !== 'boolean')
+  )
+    throw new Error('Invalid browser draft metadata.')
+  return {
+    key: raw.key,
+    text: raw.text,
+    attachments,
+    updatedAt: raw.updatedAt,
+    ...(record(raw.model)
+      ? { model: { provider: raw.model.provider as string, id: raw.model.id as string } }
+      : {}),
+    ...(typeof raw.thinking === 'string' ? { thinking: raw.thinking } : {}),
+    ...(typeof raw.workspacePath === 'string' ? { workspacePath: raw.workspacePath } : {}),
+    ...(typeof raw.swarm === 'boolean' ? { swarm: raw.swarm } : {}),
+    ...(typeof raw.preferWorktree === 'boolean' ? { preferWorktree: raw.preferWorktree } : {}),
+  }
+}
+
 /** Owner-local scratch memory only. Keys are labels, never paths to read or create. */
 export function createBrowserDrafts(signedIn: () => boolean) {
   const drafts = new Map<string, ComposerDraftRecord>()
@@ -62,64 +116,12 @@ export function createBrowserDrafts(signedIn: () => boolean) {
     const kept = referenced()
     for (const id of candidates) if (!kept.has(id)) removeBlob(id)
   }
-  function parse(raw: unknown): ComposerDraftRecord {
-    if (
-      !record(raw) ||
-      !key(raw.key) ||
-      !text(raw.text, BROWSER_DRAFT_LIMITS.recordBytes) ||
-      !Array.isArray(raw.attachments) ||
-      raw.attachments.length > BROWSER_DRAFT_LIMITS.attachments ||
-      typeof raw.updatedAt !== 'number' ||
-      !Number.isSafeInteger(raw.updatedAt) ||
-      raw.updatedAt < 0
-    )
-      throw new Error('Invalid browser draft.')
-    const attachments: DraftAttachment[] = raw.attachments.map((a) => {
-      if (
-        !record(a) ||
-        a.kind !== 'image' ||
-        !text(a.name, 256) ||
-        !blobId(a.blobId) ||
-        !blobs.has(a.blobId) ||
-        typeof a.size !== 'number' ||
-        !Number.isSafeInteger(a.size) ||
-        a.size < 0 ||
-        a.size > Math.ceil(BROWSER_DRAFT_LIMITS.blobBytes / 3) * 4 ||
-        typeof a.mimeType !== 'string' ||
-        !['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'].includes(a.mimeType)
-      )
-        throw new Error('Only available in-memory image attachments can be saved.')
-      return { kind: 'image', name: a.name, size: a.size, blobId: a.blobId, mimeType: a.mimeType }
-    })
-    if (
-      (raw.model !== undefined &&
-        (!record(raw.model) || !text(raw.model.provider, 200) || !text(raw.model.id, 200))) ||
-      (raw.thinking !== undefined && !text(raw.thinking, 100)) ||
-      (raw.workspacePath !== undefined && !text(raw.workspacePath, 4096)) ||
-      (raw.swarm !== undefined && typeof raw.swarm !== 'boolean') ||
-      (raw.preferWorktree !== undefined && typeof raw.preferWorktree !== 'boolean')
-    )
-      throw new Error('Invalid browser draft metadata.')
-    return {
-      key: raw.key,
-      text: raw.text,
-      attachments,
-      updatedAt: raw.updatedAt,
-      ...(record(raw.model)
-        ? { model: { provider: raw.model.provider as string, id: raw.model.id as string } }
-        : {}),
-      ...(typeof raw.thinking === 'string' ? { thinking: raw.thinking } : {}),
-      ...(typeof raw.workspacePath === 'string' ? { workspacePath: raw.workspacePath } : {}),
-      ...(typeof raw.swarm === 'boolean' ? { swarm: raw.swarm } : {}),
-      ...(typeof raw.preferWorktree === 'boolean' ? { preferWorktree: raw.preferWorktree } : {}),
-    }
-  }
   const snapshot = () => structuredClone(Object.fromEntries(drafts))
   return {
     snapshot,
     set(raw: ComposerDraftRecord) {
       if (!signedIn()) throw new Error('Sign in before saving a draft.')
-      const draft = parse(raw)
+      const draft = parseBrowserDraft(raw, blobs)
       if (bytes(draft) > BROWSER_DRAFT_LIMITS.recordBytes)
         throw new Error('Browser draft is too large.')
       const next = new Map(drafts)
@@ -162,6 +164,8 @@ export function createBrowserDrafts(signedIn: () => boolean) {
       return true
     },
     readBlob: (id: string) => blobs.get(id)?.base64 ?? null,
+    /** One image a save uploaded but never recorded; kept while any draft refers to it. */
+    deleteBlob: (id: string) => collect([id]),
     sweep() {
       collect(blobs.keys())
       return snapshot()
@@ -179,5 +183,6 @@ export const OWNER_DRAFT_CHANNELS = new Set<string>([
   'app:clearDraft',
   'app:writeDraftBlob',
   'app:readDraftBlob',
+  'app:deleteDraftBlob',
   'app:sweepDrafts',
 ])

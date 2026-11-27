@@ -79,7 +79,11 @@ changes config, identity, state or provider installs. An already selected versio
 version folder untouched and makes sure the launcher is in place. Any other
 existing version folder is refused, with an instruction to run
 `phosphor update --rollback` or remove that folder before trying again.
-Use `phosphor update` to select another signed release. A normal update also
+Use `phosphor update` to select another signed release. It reads the signed
+release the way the installer does: the v2 manifest for this machine's target
+(the only one that lists Intel Macs), and v1 only when the tag publishes no
+v2. A v2 that fails its signature, its parser or the cross-check against the
+v1 beside it is refused, with no v1 fallback. A normal update also
 runs `pi update npm:@saccolabs/pi-claude-cli` when that package is installed,
 including when the Host is already current. Its output passes through; failure
 prints a warning without failing the Host update. Check-only and rollback do
@@ -396,11 +400,10 @@ replacement itself, with renames and deletions that fail.
 `update --stage` verifies, downloads and probes a release without selecting it. `update --apply X.Y.Z` selects a staged release and health-checks the restart, rolling back if unhealthy; it does not update pi packages. For local mode health requires a fresh `local.json` from the selected version, plus a new heartbeat if the previous service had a recent one. The service reports `update-result.json` for 24 hours. Plain CLI update does not wait for a coordinated pause; use [Settings → Advanced → Software](settings.md) to stage and pause first.
 
 A running release install also checks for itself (`update/check.ts`): it
-fetches and verifies the signed v1 `host-latest` manifest the updater reads,
-downloading nothing else, and offers its version only when it lists an artifact
-for this machine and a protocol at least this Host's: what `update` would
-accept. So it offers nothing for a v2-only target such as `darwin-x64`
-([known-issues.md](known-issues.md) HL5). A release older than the running one,
+fetches and verifies the signed `host-latest` manifests the updater reads (v2,
+or v1 when no v2 is published), downloading nothing else, and offers its
+version only when it lists an artifact for this machine and a protocol at least
+this Host's: what `update` would accept, `darwin-x64` included. A release older than the running one,
 or one the updater would refuse, counts as a successful check with nothing
 available; the updater's downgrade guard is unchanged. It checks first 2 to 5
 minutes after start, then every 6 hours give or take 30
@@ -474,7 +477,7 @@ prints `Installed: X; available: Y` and where to follow it
 the Host restarts. If `systemd-run` fails, nothing changes and the update
 exits 75. `--check` restarts nothing and stays in the terminal.
 
-**Update…** in Settings → Advanced → Software (also reached through **Update Host…** in Machine actions) uses `service.update` on an ops-enabled Host. The Host stages the signed release, waits up to ten minutes for working turns, sub-agents and routines, pauses lanes, then restarts. If the Host advertises pause controls, a person can stop working turns and update now, or cancel without applying. Otherwise the waiting step shows when the Host gives up. The inline pipeline stays visible across reconnects; raw output stays in **Show details**.
+**Update…** in Settings → Advanced → Software (also reached through **Update Host…** in Machine actions) uses `service.update` on an ops-enabled Host. The Host stages the signed release, waits up to ten minutes for working turns, sub-agents and routines, pauses lanes, then restarts. If the Host advertises pause controls, a person can stop working turns and update now, or cancel without applying. Otherwise the waiting step shows when the Host gives up. Every window, not only the one that started the update, reads how the wait ended (cancelled, or lanes still working at the cap); past the same cap (30 minutes when the pause names none) a window reads "Lanes were still working" only once the Host's status shows no pause and no update job is going or applying; while its job has not ended it keeps watching, so a late apply still ends as updated. A Host that stays unreachable six minutes past the cap reads as not back, with **Reconnect**; when it returns, a new version reads as updated, its result as rolled back, and an unchanged Host goes back to watching. **Update…** tries again. The inline pipeline stays visible across reconnects; raw output stays in **Show details**.
 
 A Host that does not advertise `ops` uses the existing fixed-purpose `machine.task` `host.update`. The confirmation explains that the legacy path cannot wait: the restart saves and stops working turns, and lanes continue on their next message. It captures PTY output without opening a terminal. Source installs refuse self-update. On macOS an update inside the service hands off to a one-shot launchd job outside the restarting service.
 
@@ -1485,8 +1488,12 @@ command pipeline. The client's start composer always asks for a fresh worktree,
 branched from the lane's first message; it has no toggle to run in the
 repository's own checkout.
 
-Git worktree preparation shares a 95-second budget, with up to 90 seconds for
-`git worktree add` and a separate 10 seconds to clean up after failure. Other
+Git worktree preparation shares a 65-second budget, `git worktree add` included,
+and a separate 10 seconds to clean up after failure, so pi's start keeps at least
+45 seconds of `lane.create`'s 120-second answer window. An add
+killed by its timeout leaves a worktree registered and locked "initializing": the
+cleanup force-removes and prunes it, then deletes the branch it made. The folder
+was absent just before add ran, so a folder that existed before is never touched. Other
 Git calls keep their 30-second cap. If Git times out, Desktop and the PWA say
 “Git took too long to create the worktree” and keep the draft. For diagnosis,
 `lane.worktree_git_failed` records the Git subcommand, exit code or timeout and

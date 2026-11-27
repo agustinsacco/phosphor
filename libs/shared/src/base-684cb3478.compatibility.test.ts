@@ -222,6 +222,24 @@ describe('frozen 684cb3478 parsers accept the agent-control additions and drop t
     expect(parseResultFrame(result)).toStrictEqual(result)
   })
 
+  it('reads how a pause ended inside opaque machine.status data', () => {
+    // host-receipts.ts (including parseResultFrame) is unchanged since 684cb3478.
+    for (const ended of ['cancelled', 'deadline']) {
+      const result = {
+        type: 'result',
+        id: UUID(10),
+        ok: true,
+        data: {
+          status: 'ok',
+          text: 'Machine status',
+          applies: 'now',
+          data: { pause: { kind: 'none', ended }, update: { pauseControl: true } },
+        },
+      }
+      expect(parseResultFrame(result)).toStrictEqual(result)
+    }
+  })
+
   it('negotiates partial catalogue reads without changing the legacy call', () => {
     const ready = HOST_FRAMES.ready.ready
     for (const partialModels of [true, false]) {

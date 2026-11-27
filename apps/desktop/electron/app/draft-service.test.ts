@@ -121,3 +121,12 @@ it('keeps Host start and lane drafts and their referenced images without a files
   expect(deps.pathExists).not.toHaveBeenCalled()
   expect(deps.deleteBlobs).toHaveBeenCalledWith([])
 })
+
+it('deletes one unreferenced blob, and never one a saved draft refers to', async () => {
+  const { deleteComposerDraftBlob } = await import('./draft-service')
+  deps.getDrafts.mockReturnValue({ 'home:/a': draft('home:/a', 'kept') })
+  await deleteComposerDraftBlob(deps, 'kept')
+  expect(deps.deleteBlobs).not.toHaveBeenCalled()
+  await deleteComposerDraftBlob(deps, 'stale')
+  expect(deps.deleteBlobs).toHaveBeenCalledWith(['stale'])
+})

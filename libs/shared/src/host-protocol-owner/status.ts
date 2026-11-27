@@ -5,7 +5,15 @@
 import type { HostReleaseFeature } from '../host-release'
 
 export type ServicePauseState =
-  | { readonly kind: 'none' }
+  | {
+      readonly kind: 'none'
+      /**
+       * How the last wait for working lanes ended, kept until the next pause begins:
+       * every window can tell a person's cancel from the cap. Optional and additive;
+       * an older Host sends none, and a reader treats an unknown value as absent.
+       */
+      readonly ended?: 'cancelled' | 'deadline'
+    }
   | {
       readonly kind: 'pausing'
       readonly purpose: 'update'

@@ -13,7 +13,7 @@ Everything here is **hard-gated on `app.isPackaged`**. Dev runs, the browser
 harness and the Playwright suite never reach the network for an update check,
 and `electron-updater` is imported lazily so an unpackaged run does not load it.
 
-Desktop and This Mac’s lane service update independently. Desktop and the PWA show the same step-by-step Software pipeline for a lane service or Host in Settings → Advanced. It reports a changed version as success, a rollback as the version running now, and a slow restart with **Reconnect**. The Desktop app’s own updater stays separate. [This Mac’s service](local-service.md) owns release gating, staged service updates and migration recovery.
+Desktop and This Mac’s lane service update independently. Desktop and the PWA show the same step-by-step Software pipeline for a lane service or Host in Settings → Advanced. It reports a changed version as success, and a rollback as the version running now only when the updater's result says rolled back; a machine that comes back as a new instance on its old version without that result reads "restarted; the update didn’t finish", corrected to rolled back if the result arrives. A restart away for four minutes says it is still restarting and that a failed update rolls back on its own; at six minutes (the 180 s health wait, the rollback restart and a slow old start) it reads as not back, with **Reconnect**. The Desktop app’s own updater stays separate. [This Mac’s service](local-service.md) owns release gating, staged service updates and migration recovery.
 
 After restarting a service, the Host updater gives the new version up to 180 seconds to become healthy before rolling back.
 
@@ -212,7 +212,8 @@ timer would otherwise start a second one on top of it.
      explanation above the offer.
 
   Availability comes from the Host's own report (`machine.status` `data.update`,
-  [host.md](host.md#updating)); a Host without one falls back to a newer version
+  [host.md](host.md#updating)), which offers exactly what that Host's updater
+  installs, Intel Mac Hosts included; a Host without one falls back to a newer version
   running on another of your machines. The rows never jump or flicker: nothing
   shows for the first 3 seconds after the app starts (a sidebar reopened later
   shows its rows at once); "Update available" appears only after a successful

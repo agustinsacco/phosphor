@@ -11,6 +11,7 @@ import { useLayoutStore } from './layout'
 import { useExtensionUiStore } from './extensionUi'
 import { useLaneRevealStore } from '@/features/sessions/laneReveal'
 import { navigateToLane, openRemoteLane, useRemoteLanesStore } from './remoteLanes'
+import { openHostLane, useHostLaneOpensStore } from './hostLaneOpen'
 
 vi.mock('@/lib/monaco', () => ({}))
 
@@ -109,6 +110,37 @@ it('clicking back to a lane whose open is in flight shows it opening and reuses 
   expect(await first).toBe(false)
   expect(openCalls()).toHaveLength(1)
   expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
+})
+
+it('a repeat open while the first is still activating joins it instead of opening again', async () => {
+  const target = { hostId: MOCK_HOST_ID, laneId: LANE }
+  const key = remoteLaneKey(MOCK_HOST_ID, LANE)
+  let activate!: () => void
+  const activated = new Promise<void>((resolve) => (activate = resolve))
+  const first = openHostLane(target, false, async (id) => {
+    await activated
+    return id
+  })
+  await vi.waitFor(() => expect(opens).toHaveLength(1))
+  opens[0]!.resolve(mockRemoteInfo)
+  await vi.waitFor(() =>
+    expect(useSessionsStore.getState().live[mockRemoteInfo.sessionId]).toBeDefined(),
+  )
+  const repeat = openHostLane(target, false, (id) => id)
+  repeat.catch(() => {})
+  try {
+    expect(openCalls()).toHaveLength(1)
+    expect(useHostLaneOpensStore.getState().inFlight[key]).toBe(true)
+    activate()
+    await expect(first).resolves.toBe(mockRemoteInfo.sessionId)
+    await expect(repeat).resolves.toBe(mockRemoteInfo.sessionId)
+    expect(useHostLaneOpensStore.getState().inFlight[key]).toBeUndefined()
+  } finally {
+    // A second open must not outlive this test.
+    for (const open of opens.slice(1)) open.reject(new Error('unexpected second open'))
+    activate()
+    await Promise.allSettled([first, repeat])
+  }
 })
 
 it('a failed open stays in its lane view with the reason, and Retry opens it again', async () => {

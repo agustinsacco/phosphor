@@ -197,30 +197,35 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
   try {
     const problem = unavailable()
     if (problem) throw new Error(problem)
-    let sessionId = 'sessionId' in destination ? destination.sessionId : undefined
+    /** Activates the opened lane, inside its open flight; undefined when a newer navigation won. */
+    const land = (sessionId: string | undefined): string | undefined => {
+      if (!current()) return undefined
+      const problemAfterOpen = unavailable()
+      if (problemAfterOpen) throw new Error(problemAfterOpen)
+      const entry = sessionId ? useSessionsStore.getState().live[sessionId] : undefined
+      if (!sessionId || !entry) throw new Error(removedHostLaneNotice())
+      stopWatching()
+      alignLaneMachineFilter(remote?.hostId ?? 'local')
+      useSessionsStore.getState().activate(sessionId)
+      const lane = sessionHostLane(sessionId)?.lane
+      requestReveal(
+        remote && lane
+          ? remoteLaneGroupKey(remote.hostId, lane.repositoryId)
+          : localLaneGroupKey(localRevealGroup(entry.workspacePath)),
+      )
+      useRemoteLanesStore.setState({ error: null })
+      return sessionId
+    }
+    let sessionId: string | undefined
     if (remote) {
       const host = hostView(remote.hostId)
       alignLaneMachineFilter(remote.hostId)
       const view = host?.lanes.find((lane) => lane.laneId === remote.laneId)
       nav = beginHostLaneOpening(remote, remoteLaneTitle(undefined, view?.title))
       stopWatching = watchSupersede(nav)
-      sessionId = await openHostLane(remote, !!(host?.local || host?.warmOnOpen))
-    }
-    if (!current()) return false
-    const problemAfterOpen = unavailable()
-    if (problemAfterOpen) throw new Error(problemAfterOpen)
-    const entry = sessionId ? useSessionsStore.getState().live[sessionId] : undefined
-    if (!sessionId || !entry) throw new Error(removedHostLaneNotice())
-    stopWatching()
-    alignLaneMachineFilter(remote?.hostId ?? 'local')
-    useSessionsStore.getState().activate(sessionId)
-    const lane = sessionHostLane(sessionId)?.lane
-    requestReveal(
-      remote && lane
-        ? remoteLaneGroupKey(remote.hostId, lane.repositoryId)
-        : localLaneGroupKey(localRevealGroup(entry.workspacePath)),
-    )
-    useRemoteLanesStore.setState({ error: null })
+      sessionId = await openHostLane(remote, !!(host?.local || host?.warmOnOpen), land)
+    } else sessionId = land('sessionId' in destination ? destination.sessionId : undefined)
+    if (!sessionId) return false
     if (remote) await prepareOpenedLane(sessionId)
     return isActiveLane(sessionId)
   } catch {

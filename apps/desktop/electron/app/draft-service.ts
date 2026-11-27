@@ -27,6 +27,15 @@ export async function clearComposerDraft(deps: DraftServiceDeps, key: string): P
   await deps.deleteBlobs(deps.clearDraft(key))
 }
 
+/** One blob a save uploaded but never recorded: kept while any saved draft refers to it. */
+export async function deleteComposerDraftBlob(
+  deps: DraftServiceDeps,
+  blobId: string,
+): Promise<void> {
+  const referenced = orphanBlobIds(deps.getDrafts(), [blobId]).length === 0
+  if (!referenced) await deps.deleteBlobs([blobId])
+}
+
 export async function writeComposerDraftBlob(
   deps: DraftServiceDeps,
   blobId: string,

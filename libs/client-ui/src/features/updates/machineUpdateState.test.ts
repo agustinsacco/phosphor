@@ -78,13 +78,14 @@ it('recognizes a replacement runtime when its cursor arrives after the ready sna
   const ready = observeConnection(offline, {}, { ...host, connectionToken: '2' }, 2)
   expect(holdUpdatePage(ready)).toBe(false)
   const replaced = observeConnection(ready, {}, { ...host, cursor: { epoch: 'next', seq: 0 } }, 3)
-  expect(replaced).toMatchObject({ reached: 'health', finish: 'rolled-back', restartAt: 3 })
+  // A new instance alone proves a restart, not a rollback: only update-result says rolled back.
+  expect(replaced).toMatchObject({ reached: 'health', finish: 'restarted', restartAt: 3 })
 })
 
 it('soft-times out and recovers on a new runtime running the original version', () => {
   const started = startRun('task', {}, host, 0)
   const offline = observeConnection(started, {}, undefined, 1)
-  const timedOut = tickRun(offline, 240001)
+  const timedOut = tickRun(offline, 360001)
   expect(timedOut).toMatchObject({ finish: 'not-back', settled: true })
   expect(observeConnection(timedOut, {}, host, 250000)).toBe(timedOut)
   const back = observeConnection(
@@ -93,7 +94,7 @@ it('soft-times out and recovers on a new runtime running the original version', 
     { ...host, cursor: { epoch: 'next', seq: 0 } },
     250000,
   )
-  expect(back).toMatchObject({ finish: 'rolled-back', reached: 'health' })
+  expect(back).toMatchObject({ finish: 'restarted', reached: 'health' })
   expect(nextRun(back, 250000).step).toBe('paused') // skips waiting on a legacy Host
 })
 

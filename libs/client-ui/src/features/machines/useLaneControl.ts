@@ -9,13 +9,13 @@ import { useChatStore } from '@/stores/chat'
 import { remoteControlHint } from '@/features/sessions/remoteLaneActions'
 import {
   canControlSession,
-  connectionLabel,
   machineLabel,
   REMOTE_NOT_READY,
   useSessionHostLane,
 } from '@/stores/remoteLanes'
 import type { SessionHostLane } from '@/stores/hostLaneOf'
-import { hostReady, hostStarting, startingMachine } from '@/stores/hostReadiness'
+import { hostPhaseLabel, hostReady, startingMachine } from '@/stores/hostReadiness'
+import { useHostPhase } from '@/stores/machineStartLimit'
 
 /** pi writes nothing to resume until a first message; the Host refuses Stop before then. */
 export const STOP_NEEDS_PROMPT = 'Send a first message before stopping this lane.'
@@ -27,7 +27,7 @@ export interface LaneControl {
   hostId: string
   /** The Host is connected and has started its lanes (`hostReady`). */
   ready: boolean
-  /** "Connected", "Reconnecting" or "Down". */
+  /** The header word for its phase (`hostPhaseLabel`): "Connected", "Starting", "Reconnecting" or "Down". */
   connection: string
   /** "Controlled by you", "No controller", "Starting <machine>…" or the not-connected notice. */
   status: string
@@ -75,6 +75,7 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
       ? (s.sessions[sessionId]?.items.some((item) => item.kind === 'user') ?? false)
       : false,
   )
+  const phase = useHostPhase(remote?.hostId)
   if (!sessionId || !remote?.laneId) return null
   const { hostId, laneId, host, lane } = remote
   const controller = lane?.control.controller
@@ -98,14 +99,15 @@ export function useLaneControl(sessionId: string | undefined): LaneControl | nul
   return {
     hostId,
     ready,
-    connection: connectionLabel(host?.state),
-    status: hostStarting(host)
-      ? startingMachine(machineLabel(hostId))
-      : !ready
-        ? REMOTE_NOT_READY
-        : controller
-          ? `Controlled by ${controller.self ? 'you' : controller.label}${controller.connected ? '' : ' (disconnected)'}`
-          : 'No controller',
+    connection: hostPhaseLabel(phase, host?.state),
+    status:
+      phase === 'starting'
+        ? startingMachine(machineLabel(hostId))
+        : !ready
+          ? REMOTE_NOT_READY
+          : controller
+            ? `Controlled by ${controller.self ? 'you' : controller.label}${controller.connected ? '' : ' (disconnected)'}`
+            : 'No controller',
     controller,
     enabled,
     controlling,

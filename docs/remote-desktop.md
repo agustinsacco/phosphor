@@ -232,8 +232,10 @@ placeholder's URL is replaced, not pushed over, when it becomes its lane.
 
 An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 
-Remote header and pane chips report Connected, Connecting (first attempt),
-Reconnecting or Down from the connection snapshot. Directory-down Hosts retain
+Remote header and pane chips report Connected, Starting, Connecting (first
+attempt), Reconnecting or Down. They and the composer's note read one phase
+(`hostPhase` in `libs/client-ui/src/stores/hostReadiness.ts`), so a header never
+says Connected over a composer that says the machine is not connected. Directory-down Hosts retain
 greyed, disabled lanes labelled "last known". While a Host connects or
 reconnects, the composer is locked with its draft under a spinner note naming
 the machine, and the header holds its control buttons. A ready connection that
@@ -242,7 +244,9 @@ grants no capabilities is never usable (`hostReady` in
 control and warm-on-open). On This Mac's local socket that is the service's boot
 window (`hostStarting`): the composer is locked under "Starting <machine>…" with
 the Phosphor loader, the lane is not read-only and offers no control, and nothing
-is sent. An enrolled Host serves TCP only after its lanes start, so one that
+is sent. The window lasts at most the client's lane.resume deadline
+(`MACHINE_START_LIMIT_MS`, 180 s): past it the machine reads as not connected, and
+the composer's note offers Retry, which reconnects and starts a fresh window. An enrolled Host serves TCP only after its lanes start, so one that
 grants nothing reads as not connected. The PWA reaches This Mac over TCP, which
 the service opens only after its lanes start: during the same boot it shows the
 reconnecting note, or "Machine not connected" once the directory marks the

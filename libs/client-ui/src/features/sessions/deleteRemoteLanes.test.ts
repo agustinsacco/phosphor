@@ -6,6 +6,7 @@ import {
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { remoteLaneResourceKey } from '@shared/remote-host'
 import { deleteRemoteLanes } from './deleteRemoteLanes'
 
 const remove = vi.fn(async () => ({ branchKept: false }))
@@ -84,4 +85,16 @@ it('rechecks control and capabilities between lanes without taking over', async 
   await deleteRemoteLanes(MOCK_HOST_ID, lanes(), options)
   expect(remove).toHaveBeenCalledTimes(1)
   expect(useSessionsStore.getState().bulkDelete?.results.map((r) => r.ok)).toEqual([true, false])
+})
+it('shows the first lane as current from the first progress frame', async () => {
+  const frames: Array<{ current: string; currentPath: string }> = []
+  const stop = useSessionsStore.subscribe((s) => {
+    if (s.bulkDelete?.running) frames.push({ ...s.bulkDelete })
+  })
+  await deleteRemoteLanes(MOCK_HOST_ID, lanes(), options)
+  stop()
+  expect(frames[0]).toMatchObject({
+    current: lanes()[0]!.title,
+    currentPath: remoteLaneResourceKey(MOCK_HOST_ID, lanes()[0]!.laneId),
+  })
 })
