@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as exec from '@phosphor/session-runtime/git/git-exec'
+import { LANE_CREATE_ANSWER_MS } from './commands/queue'
 import { prepareLaneFolder } from './worktree'
 
 const timeoutMessage = 'Git took too long to create the worktree'
@@ -35,9 +36,19 @@ function fakeGit(add: () => never, advance = (_args: string[]) => {}) {
   })
 }
 
-it('caps just add at 90s and logs the actual timeout without revealing argv or stderr secrets', async () => {
+// pi's start gets at least 45 s of lane.create's 120 s answer window, after preparation
+// and its 10 s failure cleanup: preparation has 120 - 45 - 10 = 65 s.
+const PI_START_FLOOR_MS = 45_000
+const PREPARE_MS = LANE_CREATE_ANSWER_MS - PI_START_FLOOR_MS - 10_000
+
+it('leaves pi at least 45 s of the 120 s window after a slow preparation', () => {
+  expect(LANE_CREATE_ANSWER_MS).toBe(120_000)
+  expect(PREPARE_MS).toBe(65_000)
+})
+
+it('caps just add at the preparation budget and logs the actual timeout without revealing argv or stderr secrets', async () => {
   const git = fakeGit(() => {
-    now = 90_000
+    now = PREPARE_MS
     throw Object.assign(new Error('private argv'), {
       code: null,
       killed: true,
@@ -49,7 +60,7 @@ it('caps just add at 90s and logs the actual timeout without revealing argv or s
   expect(git.mock.calls.find(([, args]) => args[0] === 'check-ref-format')?.[2]?.timeout).toBe(
     30_000,
   )
-  expect(git.mock.calls.find(([, args]) => args[1] === 'add')?.[2]?.timeout).toBe(90_000)
+  expect(git.mock.calls.find(([, args]) => args[1] === 'add')?.[2]?.timeout).toBe(PREPARE_MS)
   expect(log).toHaveBeenCalledWith('host', 'lane.worktree_git_failed', {
     command: 'git worktree add',
     timeout: true,
@@ -69,7 +80,9 @@ it('budgets preflight, gives add only the time left and reserves a separate clea
     },
   )
   await expect(prepare()).rejects.toThrow(timeoutMessage)
-  expect(git.mock.calls.find(([, args]) => args[1] === 'add')?.[2]?.timeout).toBe(45_000)
+  expect(git.mock.calls.find(([, args]) => args[1] === 'add')?.[2]?.timeout).toBe(
+    PREPARE_MS - 25_000,
+  )
   expect(git.mock.calls.findLast(([, args]) => args[1] === 'list')?.[2]?.timeout).toBe(10_000)
 })
 
