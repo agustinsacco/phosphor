@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { isBrainOwnLane } from '@phosphor/brain-runtime/agent/own-lane'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,12 +11,13 @@ import { createHostLog } from '../../machine/log'
 import { createHostRuntime, type HostRuntime } from '../../session/runtime'
 import type { HostBrainAgentLane } from './lane'
 import { createProductionBrainAgent } from './production'
+import type * as launchProfile from './profile'
 
 // Only the synthetic tests supply qualification. Use production's composition for
 // the reservation, curator contribution, binding, conversation and Defrag.
 const qualification = vi.hoisted(() => ({ provider: 'fake', id: 'fake-model' }))
 vi.mock('./profile', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./profile')>()
+  const original = await importOriginal<typeof launchProfile>()
   return {
     ...original,
     createBrainAgentLaunchProfile: (guard: string | null) =>
@@ -130,6 +131,14 @@ async function until<T>(find: () => Promise<T | undefined | false>, what: string
     await sleep(10)
   }
   throw new Error(`timed out waiting for ${what}`)
+}
+
+function deferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((release) => {
+    resolve = release
+  })
+  return { promise, resolve }
 }
 
 const binding = () =>
@@ -336,16 +345,18 @@ describe('the Host’s Brain Agent lane', { timeout: 30_000 }, () => {
   )
 
   it('does not bind or prompt on a different transcript reported when reopening from Defrag', async () => {
-    let reported: string | undefined
+    const reportedFile = vi.fn<() => string | undefined>()
     const beforePrompt = vi.fn(async () => {})
-    const { agent } = boot({ reportedFile: () => reported, beforePrompt })
+    const { agent } = boot({ reportedFile, beforePrompt })
     const defrag = await agent.host.turn('PHX-defrag', new AbortController().signal, {
       opened: () => {},
       sending: () => {},
     })
     expect(defrag.outcome).toBe('finished')
     const before = binding()
-    reported = join(dir, 'unrelated.jsonl')
+    const other = join(dirname(before.sessionFile), 'unrelated.jsonl')
+    writeFileSync(other, '')
+    reportedFile.mockReturnValue(other)
     beforePrompt.mockClear()
     const rina = client('Rina Okafor')
     expect(await agent.surface.tell('PHX-refused', rina)).toBe('unavailable')
@@ -358,8 +369,8 @@ describe('the Host’s Brain Agent lane', { timeout: 30_000 }, () => {
   })
 
   it('rechecks the controller fence when preflight finally dispatches the prompt', async () => {
-    const { promise: entered, resolve: enter } = Promise.withResolvers<void>()
-    const { promise: pending, resolve: release } = Promise.withResolvers<void>()
+    const { promise: entered, resolve: enter } = deferred()
+    const { promise: pending, resolve: release } = deferred()
     const { agent } = boot({
       beforePrompt: async () => {
         enter()

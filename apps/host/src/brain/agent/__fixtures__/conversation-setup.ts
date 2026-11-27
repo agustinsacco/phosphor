@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, vi } from 'vitest'
+import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import type { BrainSurfaceAuthority } from '../../../api/brain-adapter'
 import { createBrainAgentBinding } from '../binding'
 import { createBrainAgentConversation } from '../conversation'
@@ -29,13 +30,18 @@ export function setupConversation(dir: string, options: ConversationSetupOptions
   const guard = options.guard === undefined ? join(at, 'brain-agent-guard.mjs') : options.guard
   const qualified = options.qualified === undefined ? SYNTHETIC_QUALIFIED_LAUNCH : options.qualified
   const profile = createBrainAgentLaunchProfile(guard, qualified)
-  const lane = fakeReservedLane(profile, { loadsGuard: options.loadsGuard ?? true })
+  const folder = join(at, 'Brain')
+  const sessionsRoot = join(at, 'sessions')
+  const lane = fakeReservedLane(profile, {
+    loadsGuard: options.loadsGuard ?? true,
+    directory: sessionDirForCwd(folder, sessionsRoot),
+  })
   const bindingFile = join(at, 'agent-lane.json')
   const conversation = createBrainAgentConversation({
     reserved: lane.reserved,
     binding: createBrainAgentBinding(bindingFile),
-    folder: join(at, 'Brain'),
-    sessionsRoot: join(at, 'sessions'),
+    folder,
+    sessionsRoot,
     profile,
     log: () => {},
   })

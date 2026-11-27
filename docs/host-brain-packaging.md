@@ -51,6 +51,35 @@ installed resources, including the interactive Brain Agent guard, platform,
 pinned Node version and model revision match the qualification marker. It does not load inference, look up user model files, or
 make any network requests.
 
+## Brain Agent execution is not qualified
+
+The worker marker qualifies search and embeddings, not an interactive Agent launch. The
+Host's normal session wiring takes pi and its Node from machine configuration/discovery
+(`resolvePi` in `apps/host/src/machine/executables.ts`). The release bundles the Brain guard,
+not a closed pi and provider executable chain. A guard command in RPC, a package version,
+and `--no-tools` do not prove which code ran or what it can do.
+
+Enabling Send and Tell requires an upstream release-owned launch contract that provides:
+
+- A pinned, verifiable pi/Node/provider execution chain, including code loaded by the
+  harness and provider subprocesses; no fallback to locally discovered executables or
+  mutable extension packages. The restricted mode must exclude ambient executable
+  discovery and reloads (extensions, hooks, MCP, skills, commands and provider helpers)
+  and enforce that only the Host's scoped curator tools can execute. Provider-native tools
+  must be disabled by that mode or mediated by the same enforceable boundary.
+- The ordinary model and account selection without executing anything outside that chain:
+  the selected saved branch on resume, the trusted machine's pi settings on first launch,
+  and a refusal rather than a provider/model fallback. Native providers keep pi's existing
+  auth/refresh ownership. The CLI-backed Claude provider needs that same closed mode
+  through the official CLI while still using the Host-selected credential slot; bare mode
+  or extracting its subscription token is not equivalent. See [CLI providers](cli-providers.md).
+- Persistent RPC on the reserved lane's exact pi transcript, including first-write and
+  resume semantics, rather than `-p`, `--no-session`, or a second conversation store.
+
+No such contract ships today. The [conversation surface](host-brain-api.md#brain-agents-turns)
+therefore stays read-only for messages on every provider. Synthetic agreement between the
+Host and a fixture is not release qualification.
+
 ## Updates, rollback and repair
 
 Before opening or creating a standalone Host Brain, the running Host checks that

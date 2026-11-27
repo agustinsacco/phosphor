@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { SessionPush } from '@phosphor/shared/models'
 import type {
   ExtensionUIRequest,
@@ -15,6 +17,7 @@ interface FakeProcess {
   id: string
   profile: BrainAgentLaunchProfile['next']
   guard: string | null
+  sessionFile: string
   alive: boolean
   streaming: boolean
   model: Partial<Model> | null
@@ -48,6 +51,7 @@ function answer(process: FakeProcess, command: RpcCommand): RpcResponse<never> {
     case 'get_state':
       return ok(command, {
         sessionId: process.id,
+        sessionFile: process.sessionFile,
         model: process.model,
         isStreaming: process.streaming,
         isCompacting: false,
@@ -92,7 +96,7 @@ function answer(process: FakeProcess, command: RpcCommand): RpcResponse<never> {
  */
 export function fakeReservedLane(
   profile: BrainAgentLaunchProfile,
-  { loadsGuard = true }: { loadsGuard?: boolean } = {},
+  { loadsGuard = true, directory }: { loadsGuard?: boolean; directory: string },
 ) {
   const processes: FakeProcess[] = []
   const commands: { id: string; command: RpcCommand }[] = []
@@ -104,10 +108,17 @@ export function fakeReservedLane(
     return found
   }
   const reserved = {
-    async open(_request: ReservedOpen, deliver: Deliver) {
+    async open(request: ReservedOpen, deliver: Deliver) {
       if (live()) throw new Error('a second process on the reserved lane')
+      const id = randomUUID()
+      const sessionFile = request.sessionPath ?? join(directory, `${id}.jsonl`)
+      if (!request.sessionPath) {
+        mkdirSync(directory, { recursive: true })
+        writeFileSync(sessionFile, `${JSON.stringify({ type: 'session', id })}\n`)
+      }
       const spawned: FakeProcess = {
-        id: randomUUID(),
+        id,
+        sessionFile,
         profile: profile.next,
         guard: profile.next === 'interactive' && loadsGuard ? profile.guard : null,
         alive: true,

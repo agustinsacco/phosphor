@@ -1,9 +1,9 @@
 /**
  * Which launch the reserved Brain Agent process gets. A person's message runs only in the
  * interactive profile, and only from a launch the Host has qualified: the process loads
- * `brain-agent-guard.mjs`, which lets only Brain Agent's own tools run, the conversation proves
- * from pi's own command list that this process loaded it, and the exact live process matches the
- * qualified launch before every prompt. Defrag runs in the broad profile, with every tool the
+ * `brain-agent-guard.mjs`, which blocks non-curator tool calls that reach its hook. The
+ * conversation checks that pi reports the guard and the expected state before every prompt;
+ * neither check establishes closure. Defrag runs in the broad profile, with every tool the
  * Host's Brain Agent has always had. One process at a time: switching profiles restarts the lane
  * on the same transcript.
  */

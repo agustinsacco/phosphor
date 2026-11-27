@@ -51,11 +51,7 @@ export function createHostBrainAgentLane(ports: HostBrainAgentPorts): HostBrainA
   const turns = createBrainAgentLane({
     folder,
     resume: conversation.lane.resume,
-    bind: conversation.lane.bind,
-    create: (options) =>
-      conversation.lane.open(
-        options.sessionPath ? { sessionPath: options.sessionPath } : { name: options.name },
-      ),
+    create: ({ name }) => conversation.lane.open({ name }),
     client: (sessionId) => reserved.client(sessionId),
     command: conversation.lane.command,
     changed: () => {},

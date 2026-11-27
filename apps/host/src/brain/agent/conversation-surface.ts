@@ -39,28 +39,38 @@ async function prompt(
   control: ConversationControl,
   message: string,
   caller: BrainSurfaceAuthority,
-  at: number | null,
+  at: number,
 ): Promise<AgentResult> {
   const text = message.trim()
   if (!sendable(process, text)) return 'unavailable'
-  let id: string
+  let opened: Awaited<ReturnType<typeof openInteractive>>
   try {
-    const opened = await openInteractive(process)
-    id = opened.id
-    const inspected = await inspectInteractive(process, id)
+    opened = await openInteractive(process)
+    const inspected = await inspectInteractive(process, opened.id)
     if (inspected !== 'ready') return inspected === 'busy' ? 'busy' : 'unavailable'
-    // Nothing awaits from here to the prompt: it goes to the process just inspected.
-    if (!sameInteractive(process, id, opened.generation)) return 'unavailable'
+    if (!sameInteractive(process, opened.id, opened.generation)) return 'unavailable'
   } catch (error) {
     return error instanceof LaneBusy ? 'busy' : 'unavailable'
   }
+  const { id, generation } = opened
   if (!control.current(caller, at)) return 'not-controller'
   const identity = controllerTurn(caller)
   if (!process.turns.claim(identity)) return 'busy'
   const { reserved } = process.ports
-  const response = await reserved.command(id, { type: 'prompt', message: text }).catch(() => null)
+  // The service can wait on compaction and provider preflight before writing to stdin.
+  const response = await reserved
+    .command(
+      id,
+      { type: 'prompt', message: text },
+      () =>
+        sameInteractive(process, id, generation) &&
+        process.turns.mayDispatch(identity) &&
+        control.current(caller, at),
+    )
+    .catch(() => null)
   if (response?.success) return 'ok'
   process.turns.release(identity)
+  if (!control.current(caller, at)) return 'not-controller'
   // pi refuses a plain prompt once a turn has started first.
   return response && (await process.history.busy(id).catch(() => false)) ? 'busy' : 'unavailable'
 }
@@ -159,9 +169,10 @@ export function conversationSurface(
     show,
     watch: show,
     async tell(message, caller) {
-      if (!messagingQualified(process.ports.profile)) return 'unavailable'
+      if (!sendable(process, message.trim()) || !caller.admit()) return 'unavailable'
+      const at = await control.fence()
       if (control.heldByOther(caller)) return 'not-controller'
-      return prompt(process, control, message, caller, null)
+      return prompt(process, control, message, caller, at)
     },
     async send(message, expected, caller) {
       // A message that cannot go never takes control.

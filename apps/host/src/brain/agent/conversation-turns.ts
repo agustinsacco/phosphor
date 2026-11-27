@@ -66,6 +66,8 @@ export function createTurnIdentities(abort: (identity: TurnIdentity) => void) {
       }
       return true
     },
+    /** The named turn was not cancelled during preflight. */
+    mayDispatch: (identity: TurnIdentity) => current === identity && !cancelled && !running,
     /** pi refused the prompt: the name goes unless its turn already started. */
     release(identity: TurnIdentity): void {
       if (current === identity && !running) clear()

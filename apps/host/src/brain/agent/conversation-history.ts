@@ -1,25 +1,64 @@
-import { access } from 'node:fs/promises'
+import { lstat } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
+import { errnoIs } from '@phosphor/session-runtime/fs-safety'
+import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import type { AgentMessage } from '@phosphor/shared/rpc'
 import { piMessages, piState } from '../../lanes/pi-results'
 import { createTranscriptCache } from '../../lanes/transcript/cache'
 import { readTranscript } from '../../lanes/transcript/read'
 import type { BrainAgentConversationPorts } from './conversation'
 
+const wrongFile = () => new Error('Brain Agent did not open its own transcript.')
+const statIfPresent = (path: string) =>
+  lstat(path).catch((error: unknown) => {
+    if (errnoIs(error, 'ENOENT')) return null
+    throw error
+  })
+
+/** Check the lane directory and leaf, but allow pi's lazy first write. */
+async function transcriptExists(file: string): Promise<boolean> {
+  const parent = await statIfPresent(dirname(file))
+  if (!parent) return false
+  if (!parent.isDirectory()) throw wrongFile()
+  const stat = await statIfPresent(file)
+  if (!stat) return false
+  if (!stat.isFile() || stat.nlink !== 1) throw wrongFile()
+  return true
+}
+
 /** What Brain Agent's lane holds: its bound transcript, pi's busy state and its messages. */
 export function createConversationHistory(
-  ports: Pick<BrainAgentConversationPorts, 'reserved' | 'binding' | 'sessionsRoot' | 'log'>,
+  ports: Pick<
+    BrainAgentConversationPorts,
+    'reserved' | 'binding' | 'folder' | 'sessionsRoot' | 'log'
+  >,
 ) {
   const { reserved, binding } = ports
   const cache = createTranscriptCache()
 
-  /** The bound transcript while it exists; a missing one starts the lane afresh. */
+  const directory = resolve(sessionDirForCwd(ports.folder, ports.sessionsRoot))
+  function ownFile(file: unknown): string {
+    if (
+      typeof file !== 'string' ||
+      file !== resolve(file) ||
+      dirname(file) !== directory ||
+      !file.endsWith('.jsonl')
+    )
+      throw wrongFile()
+    return file
+  }
+  /** pi may report a new file before writing it; a resume must report the exact saved file. */
+  async function acceptFile(reported: unknown, resuming: string | null): Promise<string> {
+    const file = ownFile(reported)
+    if (resuming && file !== resuming) throw wrongFile()
+    if (!(await transcriptExists(file)) && resuming) throw wrongFile()
+    return file
+  }
+
+  /** With no saved file yet (pi's lazy persistence), the lane still needs a first transcript. */
   async function resume(): Promise<string | null> {
     const { sessionFile } = await binding.read()
-    if (!sessionFile) return null
-    return access(sessionFile).then(
-      () => sessionFile,
-      () => null,
-    )
+    return sessionFile && (await transcriptExists(ownFile(sessionFile))) ? sessionFile : null
   }
 
   async function busy(id: string): Promise<boolean> {
@@ -41,7 +80,7 @@ export function createConversationHistory(
       return found
     }
     const { ref, sessionFile } = await binding.read()
-    if (!sessionFile) return []
+    if (!sessionFile || !(await transcriptExists(ownFile(sessionFile)))) return []
     const read = readTranscript({
       sessionFile,
       sessionsRoot: ports.sessionsRoot,
@@ -54,5 +93,5 @@ export function createConversationHistory(
     throw new Error('Brain Agent’s transcript cannot be read.')
   }
 
-  return { resume, busy, messages }
+  return { acceptFile, resume, busy, messages }
 }

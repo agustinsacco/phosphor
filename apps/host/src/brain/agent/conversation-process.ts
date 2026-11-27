@@ -7,6 +7,7 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import { BRAIN_AGENT_NAME } from '@phosphor/shared/brain-agent'
 import type { LiveSessionInfo, SessionPush } from '@phosphor/shared/models'
+import type { RpcSessionState } from '@phosphor/shared/rpc'
 import { ensureBrainLane } from '@phosphor/brain-runtime/agent/rules'
 import { piState } from '../../lanes/pi-results'
 import type { ReservedOpen } from '../../session/reserved-lanes'
@@ -26,6 +27,7 @@ interface ProcessState {
   live: string | null
   /** The live process's profile. */
   profile: BrainAgentProfileKind | null
+  sessionFile: string | null
   /** Ignores pushes from a process this conversation already replaced. */
   generation: number
   /** Defrag turns holding the lane: a person's message does not restart it under them. */
@@ -58,6 +60,7 @@ export function createConversationProcess(ports: BrainAgentConversationPorts) {
     state: {
       live: null,
       profile: null,
+      sessionFile: null,
       generation: 0,
       defrag: 0,
       defragSignal: null,
@@ -119,6 +122,7 @@ function deliverer(process: ConversationProcess, generation: number) {
     else if (push.kind === 'exit') {
       state.live = null
       state.profile = null
+      state.sessionFile = null
       forget(process)
     }
   }
@@ -131,7 +135,8 @@ function exclusive<T>(process: ConversationProcess, work: () => Promise<T>): Pro
 }
 
 async function idle(process: ConversationProcess, id: string, signal: AbortSignal | null) {
-  while (liveId(process) === id && (await process.history.busy(id))) {
+  while (liveId(process) === id) {
+    if (!(await process.history.busy(id)) && !process.turns.named()) break
     signal?.throwIfAborted()
     await sleep(IDLE_POLL_MS)
   }
@@ -145,8 +150,8 @@ async function idle(process: ConversationProcess, id: string, signal: AbortSigna
  */
 export function openProcess(
   process: ConversationProcess,
-  request: ReservedOpen,
   kind: BrainAgentProfileKind,
+  name = BRAIN_AGENT_NAME,
 ): Promise<LiveSessionInfo & { generation: number }> {
   const { state, ports } = process
   return exclusive(process, async () => {
@@ -155,36 +160,43 @@ export function openProcess(
       return { sessionId: id, workspacePath: ports.folder, generation: state.generation }
     if (id) {
       if (kind === 'defrag') await idle(process, id, state.defragSignal)
-      else if (state.defrag > 0 || (await process.history.busy(id))) throw new LaneBusy()
+      else if ((await process.history.busy(id)) || state.defrag > 0 || process.turns.named())
+        throw new LaneBusy()
       await ports.reserved.stop(id)
     }
     const generation = ++state.generation
     state.live = null
     state.profile = null
+    state.sessionFile = null
     forget(process)
+    // Resolve the binding after waiting for the other profile to finish and save.
+    const sessionPath = await process.history.resume()
+    const request: ReservedOpen = sessionPath ? { sessionPath } : { name }
     ports.profile.next = kind
     const info = await ports.reserved.open(request, deliverer(process, generation))
-    state.live = info.sessionId
-    state.profile = kind
-    return { ...info, generation }
+    try {
+      const live = await readLaunchState(ports, info.sessionId, kind)
+      if (!live || live.isStreaming || live.isCompacting)
+        throw new Error('Brain Agent’s launch did not match.')
+      const file = await process.history.acceptFile(live.sessionFile, sessionPath)
+      await ports.binding.bind(file)
+      if (!ports.reserved.client(info.sessionId)?.alive)
+        throw new Error('Brain Agent’s lane closed during startup.')
+      state.live = info.sessionId
+      state.profile = kind
+      state.sessionFile = file
+      return { ...info, generation }
+    } catch (error) {
+      // Never expose a process that reports another conversation to page or prompt callers.
+      if (ports.reserved.client(info.sessionId)?.alive) await ports.reserved.stop(info.sessionId)
+      throw error
+    }
   })
 }
 
-/** Opens the lane in the interactive profile, and binds the transcript pi reports. */
-export async function openInteractive(
-  process: ConversationProcess,
-): Promise<{ id: string; generation: number }> {
-  const { ports } = process
-  await ensureBrainLane(ports.folder)
-  const sessionPath = await process.history.resume()
-  const { sessionId, generation } = await openProcess(
-    process,
-    sessionPath ? { sessionPath } : { name: BRAIN_AGENT_NAME },
-    'interactive',
-  )
-  const reported = await ports.reserved.command(sessionId, { type: 'get_state' })
-  const file = reported.success ? piState(reported.data)?.sessionFile : undefined
-  await ports.binding.bind(file ?? sessionPath)
+export async function openInteractive(process: ConversationProcess) {
+  await ensureBrainLane(process.ports.folder)
+  const { sessionId, generation } = await openProcess(process, 'interactive')
   return { id: sessionId, generation }
 }
 
@@ -199,17 +211,25 @@ export const sameInteractive = (process: ConversationProcess, id: string, genera
  * the qualified launch and runs no turn.
  */
 export async function inspectInteractive(
-  { ports }: ConversationProcess,
+  { ports, state }: ConversationProcess,
   id: string,
 ): Promise<'ready' | 'busy' | 'unqualified'> {
-  const { guard, qualified } = ports.profile
-  if (!guard || !qualified) return 'unqualified'
-  const [commands, reported] = await Promise.all([
-    ports.reserved.command(id, { type: 'get_commands' }),
-    ports.reserved.command(id, { type: 'get_state' }),
-  ])
-  const live = reported.success ? piState(reported.data) : null
-  if (!commands.success || !guardLoaded(commands.data, guard) || !live || !qualified.matches(live))
-    return 'unqualified'
+  const live = await readLaunchState(ports, id, 'interactive')
+  if (!live || live.sessionFile !== state.sessionFile) return 'unqualified'
   return live.isStreaming || live.isCompacting ? 'busy' : 'ready'
+}
+
+/** Process consistency only: a response from pi cannot prove execution closure. */
+async function readLaunchState(
+  { reserved, profile }: BrainAgentConversationPorts,
+  id: string,
+  kind: BrainAgentProfileKind,
+): Promise<RpcSessionState | null> {
+  const reported = await reserved.command(id, { type: 'get_state' })
+  const live = reported.success ? piState(reported.data) : null
+  if (!live || kind === 'defrag') return live
+  const { guard, qualified } = profile
+  if (!guard || !qualified?.matches(live)) return null
+  const commands = await reserved.command(id, { type: 'get_commands' })
+  return commands.success && guardLoaded(commands.data, guard) ? live : null
 }

@@ -75,12 +75,11 @@ async function defragCommand(
 
 /** For Defrag's turns: the broad profile, on the same transcript and binding as the owner's. */
 function defragLane(process: ConversationProcess) {
-  const { state, ports } = process
+  const { state } = process
   return {
-    open: (request: ReservedOpen) => openProcess(process, request, 'defrag'),
+    open: ({ name }: Pick<ReservedOpen, 'name'>) => openProcess(process, 'defrag', name),
     command: (id: string, command: RpcCommand) => defragCommand(process, id, command),
     resume: process.history.resume,
-    bind: (file: string | null) => ports.binding.bind(file).then(() => {}),
     /** Holds the lane for one Defrag turn, so a person's message does not restart it under it. */
     async hold<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
       state.defrag++
