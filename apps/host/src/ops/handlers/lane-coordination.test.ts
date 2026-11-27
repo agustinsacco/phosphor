@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
-import type { FrameSocket, HostFrame, LaneActivity } from '@phosphor/shared/host-protocol'
+import type { HostFrame, LaneActivity } from '@phosphor/shared/host-protocol'
+import { createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
 import { remoteLaneKey } from '@phosphor/shared/remote-host'
 import { loadSqlite } from '../../lanes/sqlite'
 import type { OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
@@ -378,9 +379,11 @@ it('lets sibling remote lanes send while a wait is pending; disconnect frees the
       caps,
       principal: { kind: 'grant-machine', machineId: origin, clientId: id },
       socket: {
-        isOpen: () => true,
-        send: (wire: string) => frames.push(JSON.parse(wire) as HostFrame),
-      } as FrameSocket,
+        ...createLoopbackPair().server,
+        send(wire) {
+          frames.push(JSON.parse(wire) as HostFrame)
+        },
+      },
     })!
     const call = (id: string, params: OpsRunRequest) =>
       link.handle({ type: 'call', id, method: 'ops.run', params }, caps)
