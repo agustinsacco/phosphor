@@ -80,10 +80,11 @@ which follows the lane folder after every run. The wide browser's lane header
 reads the same way after its Back button: machine chip, branch, title, PR
 links.
 
-Everything right of the sidebar toggle is **session-only**, except the Files
-button on Host home. On This Mac's home screen the bar keeps its height and
-renders nothing else, because that screen puts the same folder and branch
-controls above its composer, where choosing them is the
+Everything between the toggle and the **right end** is **session-only**, the
+Files button on Host home excepted. The right end — the machine button and the
+bell — belongs to the window, so it is there on the home screen too, where the
+bar otherwise keeps its height and renders nothing else: that screen puts the
+same folder and branch controls above its composer, where choosing them is the
 point. Two folder chips on one screen is two answers to one question.
 
 ### Machine telemetry
