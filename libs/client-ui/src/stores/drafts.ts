@@ -270,7 +270,13 @@ async function persist(key: DraftKey, scheduled: Draft, latest: () => boolean): 
       await clearDraftOnDisk(key, latest)
       return
     }
-    saved = await Promise.all(draft.attachments.map((a) => saveDraftAttachment(key, a, live)))
+    const settled = await Promise.allSettled(
+      draft.attachments.map((a) => saveDraftAttachment(key, a, live)),
+    )
+    // Every finished save is kept, so `finally` releases its hold even when another failed.
+    saved = settled.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+    const failed = settled.find((r): r is PromiseRejectedResult => r.status === 'rejected')
+    if (failed) throw failed.reason
     if (generation !== memoryGeneration) return
     // Remember which blob each image landed in, so re-saving the same draft is
     // one write rather than one per keystroke. Kept ON THE ATTACHMENT rather
