@@ -34,6 +34,12 @@ settles; each drops its state and asks Control again, so a later sign-in reaches
 them. A failed sign-in returns to `/?signin-error=<code>`: the sign-in screen shows
 a short message for the code and the parameter is removed from the address.
 
+The Host bridge opts in to [resource invalidations](remote-protocol.md#resource-invalidations)
+with its lane subscription. Open views coalesce changes by machine and resource
+kind, then reread from the Host under the same grant. Changes made by a governed
+agent can therefore appear without a reload. Hints do not grant access or carry
+inventory contents, and ordinary reconnect reads still recover current state.
+
 ### Configuration access and lane deletion
 
 A Host's machine settings (**Settings → Configure → \<Host\>**, or **Machines → a Host →
