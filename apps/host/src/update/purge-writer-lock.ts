@@ -10,8 +10,9 @@
  * Refusals name only the lock's file names, never a path or a holder.
  */
 import { randomBytes } from 'node:crypto'
-import { link, open, unlink } from 'node:fs/promises'
+import { open, unlink } from 'node:fs/promises'
 import {
+  linkUnderRecoveryGate,
   reclaimLinkLock,
   releaseLinkLock,
   snapshotLinkLock,
@@ -80,9 +81,9 @@ export async function holdPurgeWriterLock(
     } finally {
       await file.close()
     }
-    await link(temp, lock.path).catch((error: unknown) => {
+    await linkUnderRecoveryGate(lock, temp).catch((error: unknown) => {
       // Something is at the lock path again: never replace or remove it.
-      throw errnoIs(error, 'EEXIST') ? new Error(WRITER_CHANGED) : error
+      throw errnoIs(error, 'EEXIST') ? new Error(WRITER_CHANGED) : purgeRefusal(error)
     })
   } finally {
     await unlink(temp)
