@@ -164,10 +164,13 @@ it('interoperates both ways with the real generated installer and reclaims its d
   expect(result.stderr).toContain('Install lock:')
   release()
   // A live actual installer process pauses immediately after writing its own pid.
-  const text = readFileSync(script, 'utf8').replace(
+  const installer = readFileSync(script, 'utf8')
+  const text = installer.replace(
     'end_critical\n[ ! -e "$root/current" ]',
     'end_critical\nprintf "ready\\n" > "$HOME/ready"\nwhile [ ! -f "$HOME/continue" ]; do sleep 0.05; done\n[ ! -e "$root/current" ]',
   )
+  // Without the pause the child below waits for `ready` until its timeout.
+  expect(text, 'installer pause anchor').not.toBe(installer)
   writeFileSync(script, text)
   // Run in a child; no system service or real HOME is used.
   const childScript = `const {spawn}=require('node:child_process'),fs=require('node:fs');const c=spawn('sh',${JSON.stringify([script, '1.2.3'])},{env:${JSON.stringify({ HOME: f.home, PATH: process.env.PATH, TMPDIR: f.home, PHOSPHOR_HOST_RELEASE_URL: f.context.env.PHOSPHOR_HOST_RELEASE_URL })},stdio:'ignore'});const t=setInterval(()=>{if(fs.existsSync(${JSON.stringify(join(f.home, 'ready'))})){process.stdout.write(String(c.pid));clearInterval(t);c.unref()}},10);`
