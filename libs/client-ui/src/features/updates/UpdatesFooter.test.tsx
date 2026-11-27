@@ -510,3 +510,26 @@ it('shows the 8 second result before a newer offer', () => {
   wait(7000)
   expect(rows()).toEqual(['machine: bee1 · Update available'])
 })
+
+it('keeps an expired offer expired when the Host comes back on the offered version', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  setEntry('bee', available)
+  mount(DESKTOP_PLATFORM)
+  wait(3000)
+  act(() => root.unmount())
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ state: 'reconnecting' }) } }))
+  wait(11 * 60_000)
+  const onOffered = (connectionToken: string) =>
+    act(() =>
+      useRemoteLanesStore.setState({
+        hosts: { bee: host({ connectionToken, hostVersion: '1.3.0' }) },
+      }),
+    )
+  onOffered('2')
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ state: 'reconnecting' }) } }))
+  onOffered('3')
+  root = createRoot(container)
+  mount(DESKTOP_PLATFORM)
+  wait(1000)
+  expect(rows()).toEqual([])
+})

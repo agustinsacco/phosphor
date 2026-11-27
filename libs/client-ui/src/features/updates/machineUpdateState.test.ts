@@ -498,3 +498,33 @@ it('never lets a settled run without a target claim a result', () => {
   const active = { ...startRun('op', {}, host, 0), restartAt: 5 }
   expect(observeResult({ run: active, last }, now).run).toMatchObject({ claimed: true })
 })
+
+it('lets a settled run with no target keep the result its own restart wrote, but no later one', () => {
+  const settledAt = Date.parse('2026-11-26T11:00:00.000Z')
+  const now = settledAt + 60 * 60_000
+  const failed = {
+    ...startRun('op', {}, host, 0),
+    restartAt: 5,
+    finish: 'not-back' as const,
+    settled: true as const,
+    settledAt,
+    seen: true as const,
+  }
+  const late = {
+    from: '1.2.3',
+    to: '1.3.0',
+    outcome: 'rolled-back',
+    at: new Date(settledAt + 30_000).toISOString(),
+  } as const
+  // Written by the restart this run already reported: no second warning, the run stays.
+  const kept = observeResult({ run: failed, last: late }, now)
+  expect(kept.run).toMatchObject({ claimed: true, finish: 'not-back' })
+  expect(kept.run?.reported).toBeUndefined()
+  expect(kept.resultSeen).toBe(resultId(late))
+  // A later attempt from the same version is reported on its own.
+  const later = { ...late, at: new Date(settledAt + 30 * 60_000).toISOString() }
+  expect(observeResult({ run: failed, last: later }, now).run).toMatchObject({
+    reported: true,
+    finish: 'rolled-back',
+  })
+})
