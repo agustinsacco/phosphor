@@ -50,6 +50,11 @@ export function laneRename(deps: DaemonHandlerDeps) {
       checkControl(ctx, lane, args.controlFence)
       return lane
     }
+    const named = () => {
+      current()
+      deps.store.updateLane(laneId, { title: name })
+      requireRuntime(deps.laneRuntime).publishSummary(laneId)
+    }
     const rename = async (owner?: () => SessionOwner | undefined) => {
       const lane = current()
       // Resume spawns pi, then attaches it after the path lock: a starting pi owns the
@@ -64,6 +69,9 @@ export function laneRename(deps: DaemonHandlerDeps) {
         })
         if (!result.success)
           throw new OpRefusal('unavailable', result.error ?? 'pi refused this command.')
+        // An attached lane records the name from pi's answer. A starting one is not yet
+        // bound to the lane, so store and publish it here, as the stopped path does.
+        if (holder) named()
       } else {
         if (!file) throw new OpRefusal('unavailable', 'This lane has no saved conversation yet.')
         try {
@@ -72,8 +80,7 @@ export function laneRename(deps: DaemonHandlerDeps) {
           if (error instanceof LaneEditRefused) throw new OpRefusal('unavailable', error.message)
           throw error
         }
-        deps.store.updateLane(laneId, { title: name })
-        requireRuntime(deps.laneRuntime).publishSummary(laneId)
+        named()
       }
       return {
         text: `Renamed lane to ${name}.`,
