@@ -308,7 +308,7 @@ it('threads an agent page limit through the dispatcher and renders local and per
   })
   const firstText = first.content[0]!.text
   expect(firstText).toMatch(
-    /^<phosphor-data [^\n]+>\nref \| title \| state \| branch \| updated\nhost:local\/lane:[^\n]+\nhost:local\/lane:[^\n]+\n<\/phosphor-data>\nMore: phosphor lane list --limit 2 --page 2$/,
+    /^<phosphor-data [^\n]+>\n\nref \| title \| state \| branch \| updated\nhost:local\/lane:[^\n]+\nhost:local\/lane:[^\n]+\n\n<\/phosphor-data>\nMore: phosphor lane list --limit 2 --page 2$/,
   )
 
   remoteRun.mockImplementation(async (host) => ({

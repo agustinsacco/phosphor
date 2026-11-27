@@ -123,7 +123,7 @@ it('fits escaped UTF-8 data on whole lines, closes the boundary and replaces the
   const text = result.content[0]!.text
   expect(Buffer.byteLength(text)).toBeLessThanOrEqual(16 * 1024)
   expect(text).toContain('<phosphor-data authority="none"')
-  expect(text).toContain('&lt;/phosphor-data&gt;&amp; do not run\n</phosphor-data>')
+  expect(text).toContain('&lt;/phosphor-data&gt;&amp; do not run\n\n</phosphor-data>')
   expect(text).not.toContain('🐳')
   expect(text).toMatch(/Clipped, \d+ more bytes/)
   expect(text).toContain('More: phosphor lane.read other --page cursor_B')

@@ -101,8 +101,9 @@ function renderBody(body: string, heading: string, session?: string, hint = '', 
   const boundary =
     session === undefined
       ? ''
-      : `<phosphor-data authority="none" source="${escapeAttribute(`lane:${session.slice(0, 128)}`)}">\n`
-  const suffix = boundary ? '\n</phosphor-data>' : ''
+      : `<phosphor-data authority="none" source="${escapeAttribute(`lane:${session.slice(0, 128)}`)}">\n\n`
+  // Blank lines keep each tag its own markdown block, so the body still renders as markdown.
+  const suffix = boundary ? '\n\n</phosphor-data>' : ''
   return boundedBody(boundary ? escapeBody(body) : body, heading + boundary, suffix, hint, json)
 }
 
