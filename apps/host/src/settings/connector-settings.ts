@@ -98,6 +98,9 @@ function updateServers(
       writable: true,
       configurable: true,
     })
+  } else if (change.type === 'mcp.expose') {
+    if (!guarded) throw new SettingsFailure('forbidden', 'Connector exposure requires admission.')
+    servers[change.name] = guarded
   } else if (change.type === 'mcp.remove') delete servers[change.name]
   else {
     const existing = Object.hasOwn(servers, change.name) ? servers[change.name] : undefined

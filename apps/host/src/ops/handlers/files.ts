@@ -1,8 +1,9 @@
 import type { FileRead } from '@phosphor/shared/host-protocol-files'
 import type { FileWriteOp } from '@phosphor/shared/host-protocol-writes'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op, pageInventory } from '@phosphor/session-runtime/ops/results'
+import { dataResult, fields, op, pageInventory } from '@phosphor/session-runtime/ops/results'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
+import type { SearchRows } from '../../features/files/search'
 import type { WriteOutcome } from '../../features/writes'
 import type { DaemonHandlerDeps } from './index'
 import { laneCall, refusal, targetLane } from './lane-target'
@@ -45,6 +46,19 @@ export function fileHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, O
         { path: (p) => p },
         { surface: { limit: 200, shrink: true } },
       )
+    }),
+    'files.search': op<{ query: string }>(async ({ query }, ctx) => {
+      const { laneId } = targetLane(ctx)
+      const result = (await laneCall(
+        deps.lanes,
+        'files.search',
+        { laneId, query },
+        ctx.signal,
+      )) as SearchRows
+      const page = pageInventory(result.rows, ctx, fields('path', 'line', 'snippet'))
+      return result.capped
+        ? { ...page, text: page.text + '\nSearch capped at 2,000 matches.' }
+        : page
     }),
     'files.read': op<Path>(async ({ path }, ctx) => {
       const { laneId } = targetLane(ctx)

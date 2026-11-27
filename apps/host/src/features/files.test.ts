@@ -248,11 +248,7 @@ describe('files feature', () => {
     })
     expect(JSON.stringify(vi.mocked(f.context.log).mock.calls)).not.toContain(f.root)
   })
-})
-
-it('searches literal text without following file or directory links', async () => {
-  const f = await fixture()
-  try {
+  it('searches literal text without following file or directory links', async () => {
     await writeFile(join(f.root, 'tracked'), 'first\na+b literal\naab')
     await symlink(join(f.root, 'tracked'), join(f.root, 'alias'))
     const feature = createFilesFeature(f.context)
@@ -260,7 +256,5 @@ it('searches literal text without following file or directory links', async () =
       ok: true,
       data: { rows: [{ path: 'tracked', line: 2, snippet: 'a+b literal' }] },
     })
-  } finally {
-    await rm(f.base, { recursive: true, force: true })
-  }
+  })
 })

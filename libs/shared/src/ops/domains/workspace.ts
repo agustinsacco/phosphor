@@ -41,6 +41,8 @@ export const workspace = [
   }),
   read('files.read', 'Read a workspace file.', 'read', file, { ...positionalPath, ...paged }),
   read('files.search', 'Search workspace files.', 'read', object({ target, query: text(2000) }), {
+    ...paged,
+    deadlineMs: 20_000,
     positional: ['query'],
   }),
   write(

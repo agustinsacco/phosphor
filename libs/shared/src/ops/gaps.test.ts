@@ -3,8 +3,8 @@ import { OP_CATALOG, OP_GAPS } from './index'
 
 it('keeps only the reviewed Phosphor service gaps', () => {
   const expected =
-    `lane.move skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane
- files.search maintenance.scan maintenance.run`
+    `lane.move skill.share brain.find brain.queue brain.status routine.check routine.fromLane
+ maintenance.scan maintenance.run`
       .trim()
       .split(/\s+/)
   expect(Object.keys(OP_GAPS.daemon).sort()).toEqual(expected.sort())

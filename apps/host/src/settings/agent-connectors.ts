@@ -40,6 +40,18 @@ export function guardedEntry(
   }
   if (!existing || !machineRecord(existing))
     throw new SettingsFailure('bad-request', 'No connector in this scope.')
+  if (change.type === 'mcp.expose') {
+    if (!validMcpConfig(existing)) throw new SettingsFailure('bad-request', 'Invalid MCP entry.')
+    const transport = existing.command ? 'stdio' : 'https'
+    if (transport !== change.transport)
+      throw new SettingsFailure(
+        'bad-request',
+        transport === 'stdio'
+          ? 'This server is stdio; pass --transport stdio (asks the user).'
+          : 'This server uses HTTPS; omit --transport stdio.',
+      )
+    return { ...existing, exposure: change.exposure }
+  }
   const oauth = validMcpConfig(existing) ? mcpUsesOAuth(existing) : true
   if (change.type === 'mcp.remove') {
     if (oauth) throw signOutFirst()

@@ -110,10 +110,12 @@ it('pages literal workspace search through the lane file owner', async () => {
   const h = harness()
   h.call.mockResolvedValueOnce({
     ok: true,
-    data: [
-      { path: 'a.ts', line: 1, snippet: 'a+b' },
-      { path: 'b.ts', line: 2, snippet: 'a+b' },
-    ],
+    data: {
+      rows: [
+        { path: 'a.ts', line: 1, snippet: 'a+b' },
+        { path: 'b.ts', line: 2, snippet: 'a+b' },
+      ],
+    },
   } as never)
   const page = await h.files['files.search']!({ query: 'a+b' }, ctx({ limit: 1 }))
   expect(page).toMatchObject({

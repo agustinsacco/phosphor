@@ -130,9 +130,13 @@ export const resources = [
   change(
     'mcp.expose',
     'Change how server tools are exposed.',
-    'persistence',
-    object({ ...connector, exposure: choice(...MCP_EXPOSURES) }),
-    { ...byName, inverse: previous('mcp.expose') },
+    ({ transport }) => (transport === 'stdio' ? 'destructive' : 'persistence'),
+    object({
+      ...connector,
+      exposure: choice(...MCP_EXPOSURES),
+      transport: optional(choice('https', 'stdio')),
+    }),
+    byName,
   ),
   change('mcp.remove', 'Delete an MCP server configuration.', 'destructive', object(connector), {
     ...byName,

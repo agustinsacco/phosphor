@@ -67,7 +67,7 @@ artifact.read read machine/other-lane now - - - - paged fc11259bef08d96301f6712e
 artifact.remove destructive machine/other-lane now - - - - - fcabaa179a7bc4bad6441da3da78b18e9fa650a43fca2588f2e0a93599f5c4d2
 files.list read self/other-lane now - - - - paged 53638fd33de8cdd6c08d40857d0acc1a9225a086537faf16d404215c15d8ac81
 files.read read self/other-lane now - - - - paged 53638fd33de8cdd6c08d40857d0acc1a9225a086537faf16d404215c15d8ac81
-files.search read self/other-lane now - - - - - f5da4685520cde3a4f280daa8c2d7ae7e8b5d9fa21ebd7a9ec68fb41d65b8229
+files.search read self/other-lane now - - - - paged f5da4685520cde3a4f280daa8c2d7ae7e8b5d9fa21ebd7a9ec68fb41d65b8229
 files.write lane self/other-lane now - - - - - 0f4a8a5448ce21729b39a015bdb415a675663f9941e82983bc62d75b32a0439e
 files.create lane self/other-lane now - - - - - 8c70bde7249a3546274f2848008b66344271d367b045776c4edaa1289ecc7135
 files.mkdir lane self/other-lane now - - - - - 53638fd33de8cdd6c08d40857d0acc1a9225a086537faf16d404215c15d8ac81
@@ -134,7 +134,7 @@ mcp.add persistence/destructive machine reload - - - - - efe9ad47ce87434a4f72682
 mcp.update persistence/destructive machine reload - - - - - efe9ad47ce87434a4f7268262380f9c690610aaf6b01f7aea3ba8306dbd92d30
 mcp.enable persistence machine reload - - - - - af625573641fa2ccdce40c019f4abd038812a87bd0a2291afe1c4118b10186ff
 mcp.disable persistence machine reload - - - - - af625573641fa2ccdce40c019f4abd038812a87bd0a2291afe1c4118b10186ff
-mcp.expose persistence machine reload - - - - - a36358f1137d419a45a601383cf6811144b952527a081b8f9551dde93bf1d040
+mcp.expose persistence machine reload - - - - - 6855d26eb91f643e89f5ad09e497bcb9719dfa0b10f6b21e176e6a0ec1b50376
 mcp.remove destructive machine now - - - - - af625573641fa2ccdce40c019f4abd038812a87bd0a2291afe1c4118b10186ff
 package.list read machine now - - - - paged c57e5987bdbbc8d6bf059cc32f8702b76da3f75ff2e38e6a4d7e9bfebb8d2f48
 package.checkUpdates read machine now - - - - paged c57e5987bdbbc8d6bf059cc32f8702b76da3f75ff2e38e6a4d7e9bfebb8d2f48
@@ -272,6 +272,7 @@ it('freezes lane tool deadline overrides', () => {
     'worktree.recreate': 100_000,
     'worktree.remove': 100_000,
     'worktree.restore': 100_000,
+    'files.search': 20_000,
     'service.update': 600_000,
     'package.list': 600_000,
     'package.checkUpdates': 600_000,

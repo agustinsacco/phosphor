@@ -14,8 +14,8 @@ const served = {
 }
 
 /** Reconcile-v1 B8 minus N7 (`mcp.lane`, `artifact.remove`), plus reconcile-v2 #6's additions. */
-const ALLOWED_GAPS = `lane.move files.search maintenance.scan maintenance.run
- skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane`
+const ALLOWED_GAPS = `lane.move maintenance.scan maintenance.run
+ skill.share brain.find brain.queue brain.status routine.check routine.fromLane`
   .trim()
   .split(/\s+/)
 
@@ -223,5 +223,8 @@ it.each([
 ])('serves %s through the Host domain binding at the %s tier', (name, tier) => {
   expect(OP_GAPS.daemon[name]).toBeUndefined()
   expect(served[name]).toBeTypeOf('function')
-  expect(OP_CATALOG.find((op) => op.name === name)?.tier).toBe(tier)
+  const policy = OP_CATALOG.find((op) => op.name === name)?.tier
+  expect(typeof policy === 'function' ? policy({}, { self: false }) : policy).toBe(tier)
+  if (name === 'mcp.expose' && typeof policy === 'function')
+    expect(policy({ transport: 'stdio' }, { self: false })).toBe('destructive')
 })

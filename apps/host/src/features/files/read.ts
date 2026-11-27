@@ -54,6 +54,15 @@ async function readInto(handle: FileHandle, bytes: Buffer, position: number): Pr
   return count
 }
 
+export function guardedSearchRead(root: string, path: string, ports: ReadPorts) {
+  return withGuardedFile(root, path, ports, async (handle, size) => {
+    if (size > FILE_LIMITS.textBytes) return null
+    const bytes = Buffer.alloc(size)
+    const count = await readInto(handle, bytes, 0)
+    return bytes.subarray(0, count)
+  })
+}
+
 export function guardedRead(
   root: string,
   path: string,

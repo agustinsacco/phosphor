@@ -21,7 +21,7 @@ export interface AgentJob {
   readonly op: string
   readonly state: AgentJobState
   /** The handler's answer when done, or why it failed. */
-  readonly result: { readonly text: string; readonly data?: unknown } | null
+  readonly result: { readonly text: string; readonly data?: unknown; readonly next?: string } | null
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -98,6 +98,7 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
               finish(jobId, 'done', {
                 text: out.text,
                 ...(out.data !== undefined ? { data: out.data } : {}),
+                ...(out.next !== undefined ? { next: out.next } : {}),
               })
               db.exec('COMMIT')
             } catch (error) {
@@ -147,7 +148,12 @@ export function jobHandlers(jobs: Pick<JobStore, 'get' | 'list'>) {
       const job = jobs.get(jobId, principalKey(ctx.principal))
       if (!job) throw new OpRefusal('forbidden', `No job ${jobId} that you started.`)
       const done = job.state === 'done' && job.result ? `\n${job.result.text}` : ''
-      return { ...dataResult(job), text: `Job ${jobId}: ${job.state}.${done}` }
+      const next = job.state === 'done' ? job.result?.next : undefined
+      return {
+        ...dataResult(job),
+        text: `Job ${jobId}: ${job.state}.${done}`,
+        ...(next ? { next } : {}),
+      }
     }),
     'job.list': jobInventory(jobs),
   }

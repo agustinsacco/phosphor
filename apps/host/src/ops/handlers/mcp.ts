@@ -5,7 +5,7 @@ import { projectId, readSection, scopedProject, settingsOps } from './settings-a
 import type { DaemonHandlerDeps } from './index'
 
 export function mcpHandlers(deps: DaemonHandlerDeps) {
-  const mutate = (action: 'add' | 'update' | 'enable' | 'disable' | 'remove') =>
+  const mutate = (action: 'add' | 'update' | 'enable' | 'disable' | 'remove' | 'expose') =>
     op(async (a, c) => {
       const id = projectId(deps, scopedProject(a.scope, a.project), c)
       const before = await readSection(deps, 'connectors', id, c.signal)
@@ -15,7 +15,14 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
           ? { type: 'mcp.upsert', name, config: a.config }
           : action === 'remove'
             ? { type: 'mcp.remove', name }
-            : { type: 'mcp.enabled', name, enabled: action === 'enable' }
+            : action === 'expose'
+              ? {
+                  type: 'mcp.expose',
+                  name,
+                  exposure: a.exposure,
+                  transport: a.transport ?? 'https',
+                }
+              : { type: 'mcp.enabled', name, enabled: action === 'enable' }
       try {
         await settingsOps(deps).settings.changeAgentConnector(
           before,
@@ -67,6 +74,7 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
     'mcp.update': mutate('update'),
     'mcp.enable': mutate('enable'),
     'mcp.disable': mutate('disable'),
+    'mcp.expose': mutate('expose'),
     'mcp.remove': mutate('remove'),
   }
 }

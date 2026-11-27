@@ -1,6 +1,6 @@
 import { isContextFilePrefs } from './context-files'
 import { machineRecord } from './host-protocol-machine'
-import { MCP_SERVER_NAME } from './mcp'
+import { isMcpExposure, MCP_SERVER_NAME } from './mcp'
 import { isValidContextBudgetValue } from './context-budget'
 import { text, keys, isMachineAccountId } from './machine-settings-fields'
 import { validMcpConfig } from './machine-settings-mcp'
@@ -138,6 +138,16 @@ export function validConnectorChange(
         MCP_SERVER_NAME.test(c.name) &&
         c.name.length <= 64
       break
+    case 'mcp.expose':
+      return (
+        source === 'admitted-op' &&
+        read.section === 'connectors' &&
+        keys(c, ['type', 'name', 'exposure', 'transport']) &&
+        text(c.name, 64) &&
+        MCP_SERVER_NAME.test(c.name) &&
+        isMcpExposure(c.exposure) &&
+        (c.transport === 'https' || c.transport === 'stdio')
+      )
     case 'mcp.enabled':
       valid =
         read.section === 'connectors' &&
