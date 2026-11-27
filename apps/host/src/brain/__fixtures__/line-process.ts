@@ -3,6 +3,8 @@
  * command per stdin line and answers one JSON line each. Children are killed on `stopAll`.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { build } from 'esbuild'
 
@@ -44,11 +46,18 @@ export function stopAll(): void {
 }
 
 export function startLineProcess(bundle: string, args: readonly string[]): LineProcess {
-  const child = spawn(
-    process.execPath,
-    ['--no-warnings', '--input-type=module', '-e', bundle, ...args],
-    { stdio: 'pipe', cwd: HOST },
-  )
+  const directory = mkdtempSync(join(tmpdir(), 'host-line-process-'))
+  const entry = join(directory, 'fixture.mjs')
+  const cleanup = () => rmSync(directory, { recursive: true, force: true })
+  let child: ChildProcessWithoutNullStreams
+  try {
+    writeFileSync(entry, bundle, { mode: 0o600 })
+    child = spawn(process.execPath, ['--no-warnings', entry, ...args], { stdio: 'pipe', cwd: HOST })
+  } catch (error) {
+    cleanup()
+    throw error
+  }
+  child.once('close', cleanup)
   children.push(child)
   const waiting: ((line: string) => void)[] = []
   const lines: string[] = []
