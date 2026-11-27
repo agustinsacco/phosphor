@@ -71,6 +71,23 @@ async function currentLeafId(path: string): Promise<string | null> {
   return leafIdIn(await readFile(path, 'utf8'), false)
 }
 
+/** Name the session without changing which conversation branch pi resumes. */
+export async function appendSessionName(
+  path: string,
+  name: string,
+  allowed: () => void,
+): Promise<void> {
+  const entry = {
+    type: 'session_info',
+    id: newEntryId(),
+    parentId: await currentLeafId(path),
+    timestamp: new Date().toISOString(),
+    name,
+  }
+  allowed()
+  await appendFile(path, JSON.stringify(entry) + '\n', 'utf8')
+}
+
 /** Append a label entry (bookmark) targeting `targetId`. */
 export async function appendLabel(
   path: string,

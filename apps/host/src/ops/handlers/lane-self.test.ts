@@ -10,13 +10,21 @@ const lane = {
   cwd: '/work',
   busy: false,
   controller: null,
+  controlFence: 1,
 }
 const agent = { kind: 'agent', laneRef: lane.ref, sessionId: 's1', unattended: false, lineage: 0 }
 const surface = { kind: 'surface', clientId: 'ui', label: 'Phosphor', via: 'owner', caps: [] }
 const ctx = (principal: object, over: Partial<OpHandlerContext> = {}) =>
-  ({ principal, reason: 'tidy', lane, log: () => {}, ...over }) as unknown as OpHandlerContext
+  ({
+    principal,
+    reason: 'tidy',
+    lane,
+    signal: new AbortController().signal,
+    log: () => {},
+    ...over,
+  }) as unknown as OpHandlerContext
 
-function harness() {
+function harness(sessionId: string | null = 's1') {
   const marks = {
     pinned: undefined as boolean | undefined,
     marker: undefined as string | undefined,
@@ -28,12 +36,22 @@ function harness() {
     publishSummary: vi.fn(),
   }
   const store = {
-    getLane: vi.fn(() => ({ ...marks })),
+    getLane: vi.fn(() => ({
+      ...marks,
+      removedAt: null,
+      sessionFile: null,
+      title: lane.title,
+      control: { fence: lane.controlFence, controller: null },
+    })),
     setLaneMarks: vi.fn((_id: string, change: { pinned?: boolean; marker?: string }) =>
       Object.assign(marks, change),
     ),
   }
-  const deps = { store, laneRuntime: runtime } as unknown as DaemonHandlerDeps
+  const deps = {
+    store,
+    laneRuntime: runtime,
+    daemonLanes: { sessionFor: () => sessionId },
+  } as unknown as DaemonHandlerDeps
   return { handlers: laneSelfHandlers(deps), runtime, store, marks }
 }
 
@@ -53,16 +71,22 @@ it('pins and marks the lane in the Host store, keeps the marker as given, and re
   expect(h.runtime.publishSummary).toHaveBeenCalledTimes(3)
 })
 
-it('renames a live lane through pi and refuses a stopped one', async () => {
+it('renames a live lane through pi and refuses an unsaved stopped one', async () => {
   const h = harness()
   expect(await h.handlers['lane.rename']!({ name: 'Next' }, ctx(agent))).toEqual({
     text: 'Renamed lane to Next.',
-    before: { ref: lane.ref, name: 'Mine' },
+    before: { ref: lane.ref, name: 'Mine', controlFence: lane.controlFence },
   })
   expect(h.runtime.command).toHaveBeenCalledWith('s1', { type: 'set_session_name', name: 'Next' })
   await expect(
-    h.handlers['lane.rename']!({ name: 'x' }, ctx(agent, { lane: { ...lane, sessionId: null } })),
-  ).rejects.toMatchObject({ code: 'unavailable', message: 'Resume the lane to rename it.' })
+    harness(null).handlers['lane.rename']!(
+      { name: 'x' },
+      ctx(agent, { lane: { ...lane, sessionId: null } }),
+    ),
+  ).rejects.toMatchObject({
+    code: 'unavailable',
+    message: 'This lane has no saved conversation yet.',
+  })
 })
 
 it('answers the asking lane’s own context files as an effect, a surface’s through the lane', async () => {

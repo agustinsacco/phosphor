@@ -266,7 +266,8 @@ it('refuses stale fences, viewers and invalid names without changing the lane', 
   })
   expect(await run(surface, 'lane.rename', args)).toMatchObject({ code: 'not-controller' })
   const request = { ...args, controlFence: current.fence }
-  expect(await run({ ...surface, caps: ['sessions.read'] }, 'lane.rename', request)).toMatchObject({
+  const viewer = { ...surface, caps: ['sessions.read'] }
+  expect(await run(viewer, 'lane.rename', request)).toMatchObject({
     code: 'forbidden',
   })
   for (const name of [' ', 'x'.repeat(81), 'x\ny', 'x\n'])

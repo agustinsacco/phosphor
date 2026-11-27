@@ -881,10 +881,13 @@ info and Copy spend, then Archive), and `useRemoteLaneActions` runs it; the
 phone's lane sheet lists the same items without Open. Absent data hides an
 item; a refusal disables it and names itself. The row's menu opens on right-click, the ContextMenu key or
 Shift+F10, and a touch long-press; on a phone it is a bottom sheet. The row
-renames inline, the sheet through a prompt. Opening a row navigates to the lane
+renames in place without hiding the status, marker or branch: double-click the
+row or choose Rename… to select its title. Enter or leaving the field saves;
+Escape, a blank name or an unchanged name cancels. The phone lane action sheet
+renames through a prompt. Opening a row navigates to the lane
 without naming a pane, so Desktop restores that lane's pane and the browser opens
-Chat. The title prefers the live session name, the Host summary, then the first
-prompt. The Host, not Desktop, generates remote titles.
+Chat. The title prefers the live session name while running, then the Host summary
+and the first prompt. The Host, not Desktop, generates remote titles.
 
 Pins and markers belong to the Host: a Host that announces `laneMarks` keeps
 them, so every client shows the same ones
@@ -909,8 +912,9 @@ denied, show the text to copy by hand, on either machine. Export HTML… opens t
 Local-only tree, fork and clone actions are omitted.
 Remote Archive needs control and workspace-write capability, in Desktop and the
 browser alike. A disabled action's hint names its obstacle: “Take control
-first.” for a viewer, “Only while running.” for rename and spend on a stopped
-lane, “Send a first message before stopping this lane.” for Stop on an open lane
+first.” for a viewer, “Only while running.” for spend on a stopped lane, and
+“Update this Host to rename stopped lanes.” if the Host only renames running lanes.
+An updated Host renames saved stopped or failed lanes without starting pi. Other hints include “Send a first message before stopping this lane.” for Stop on an open lane
 with no first message (the Host refuses it), and “This Host does not offer lane
 control to this device.” (or file editing, for Archive; routines, for Make
 routine…) when a ready Host does not grant the capability, and “Update this

@@ -73,7 +73,8 @@ function execute(env: Record<string, string>, owner?: (event: OpChannelRequestEv
   const runtime = {
     withAuthorization: <T>(_allowed: () => boolean, work: () => Promise<T>) => work(),
     mutateStoppedSession: <T>(_path: string, change: () => Promise<T>) => change(),
-    withSessionFile: <T>(_path: string, read: () => Promise<T>) => read(),
+    withSessionFile: <T>(_path: string, read: (owner: () => undefined) => Promise<T>) =>
+      read(() => undefined),
     replaceRoots: vi.fn<HostRuntime['replaceRoots']>(),
     life: createLifecycle(vi.fn()),
     drain: vi.fn<HostRuntime['drain']>(),

@@ -59,7 +59,8 @@ export async function editingFixture(storePorts: StorePorts = {}): Promise<Editi
           if (open.has(path)) throw new Error('Stop the lane before changing its saved files.')
           return change()
         }),
-      withSessionFile: (path, read) => paths.withSessionPath(path, read),
+      withSessionFile: (path, read) =>
+        paths.withSessionPath(path, () => read(() => (open.has(path) ? 'pi' : undefined))),
     },
   }
   return {

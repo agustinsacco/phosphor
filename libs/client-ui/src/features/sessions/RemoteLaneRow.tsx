@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { useMenuTriggers } from '@/components/ContextMenu'
-import { TextInput } from '@/components/form'
+import { RenameInput } from './RenameInput'
+import { committedRename } from './inlineRename'
 import { useNavigation } from '@/navigation/Navigation'
 import { RemoteLanePresentation } from './RemoteLanePresentation'
 import { LaneMarker } from './LaneMarker'
@@ -35,65 +36,55 @@ export function RemoteLaneRow({
   select?: Omit<LaneSelect, 'title'>
 }): React.JSX.Element {
   const { navigate } = useNavigation()
-  const [renaming, setRenaming] = useState(false)
-  const [draft, setDraft] = useState('')
+  const [draft, setDraft] = useState<string | null>(null)
   const actions = useRemoteLaneActions({ hostId, lane, ready, onRename: rename })
-  const { title, busy } = actions
+  const { title, canRename } = actions
   const menu = useMenuTriggers(actions.items, { title, disabled: !ready, revision: lane.activity })
   function rename(): void {
-    setDraft(title === 'Untitled lane' ? '' : title)
-    setRenaming(true)
+    setDraft(title)
   }
-  async function save(): Promise<void> {
-    if (await actions.saveName(draft)) setRenaming(false)
+  function save(): void {
+    setDraft(null)
+    const name = draft === null ? undefined : committedRename(draft, title)
+    if (name) void actions.saveName(name)
   }
   return (
     <>
       {actions.dialogs}
-      {renaming ? (
-        <div className="px-3 py-2">
-          <TextInput
-            autoFocus
-            aria-label="Lane name"
-            maxLength={80}
-            value={draft}
-            disabled={busy}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => {
-              if (!draft.trim()) setRenaming(false)
-              else void save()
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') setRenaming(false)
-              if (e.key === 'Enter') void save()
-            }}
-          />
-        </div>
-      ) : (
-        <RemoteLanePresentation
-          hostId={hostId}
-          lane={lane}
-          title={title}
-          ready={ready}
-          disabled={!ready || actions.deletingInBulk}
-          active={active}
-          pinned={lane.pinned === true}
-          workspaceName={workspaceName}
-          select={select && !actions.deletingInBulk ? { ...select, title } : undefined}
-          marker={
-            actions.marker !== null && (
-              <LaneMarker marker={actions.marker} onPick={actions.pickMarker} />
-            )
-          }
-          onClick={() => {
-            if (ready) navigate({ to: 'lane', lane: { hostId, laneId: lane.laneId } })
-          }}
-          onDoubleClick={() => {
-            if (actions.controlled && actions.running) rename()
-          }}
-          {...menu}
-        />
-      )}
+      <RemoteLanePresentation
+        hostId={hostId}
+        lane={lane}
+        title={title}
+        titleEditor={
+          draft === null ? undefined : (
+            <RenameInput
+              value={draft}
+              onChange={setDraft}
+              onCommit={save}
+              onCancel={() => setDraft(null)}
+              maxLength={80}
+              label="Lane name"
+            />
+          )
+        }
+        ready={ready}
+        disabled={!ready || actions.deletingInBulk}
+        active={active}
+        pinned={lane.pinned === true}
+        workspaceName={workspaceName}
+        select={select && !actions.deletingInBulk ? { ...select, title } : undefined}
+        marker={
+          actions.marker !== null && (
+            <LaneMarker marker={actions.marker} onPick={actions.pickMarker} />
+          )
+        }
+        onClick={(event) => {
+          if (ready && event.detail <= 1)
+            navigate({ to: 'lane', lane: { hostId, laneId: lane.laneId } })
+        }}
+        onDoubleClick={canRename ? rename : undefined}
+        {...menu}
+      />
     </>
   )
 }

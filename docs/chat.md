@@ -1320,6 +1320,10 @@ representative-folder grouping rule, so worktree rows reveal the correct group.
 
 ## Remote lanes
 
+Desktop and the PWA use the same [lane row](lanes.md#deleting-lanes) to rename
+in place. Choose **Rename…** or double-click the row when you have control.
+A current Host can also rename a stopped or failed lane without resuming it.
+
 Remote lanes use the same transcript renderer as local lanes. The header names
 the machine; the control strip names the controller. Viewers have a read-only
 composer and an explicit Take control action. There is no automatic takeover.

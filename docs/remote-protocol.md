@@ -546,6 +546,16 @@ each share as `batch: {id, index, size}`. `OpsRunResult` is `ok`, `confirm` or
 code, text}` on both paths; frame-level refusal stays for malformed frames. An op
 that may outlast the Host's answer deadline answers `ok` with `data: {jobId}`.
 
+The optional `ready.laneRename` boolean advertises live and stopped rename
+through the existing `ops.run` command and catalog op `lane.rename`. Its `args`
+carry `name`, target `ref`, and an optional `controlFence`. Surfaces send the
+fence and need `sessions.control` plus current lane control; the Host checks both
+before the edit. Agents continue to use the catalog's policy and the Host
+rechecks the resolved fence. The Host chooses between pi's `set_session_name`
+when running and appending to the saved transcript when stopped or failed,
+under the same path lock as resume and deletion. With no flag, clients keep
+the legacy running-only `set_session_name` path.
+
 `machine.status` may include `data.update: {pauseControl: true}` in its result.
 This advertises the catalog name `service.pause`, a write in the existing
 `ops.run` envelope with `args: {action: 'abort-now' | 'cancel'}`. It requires a

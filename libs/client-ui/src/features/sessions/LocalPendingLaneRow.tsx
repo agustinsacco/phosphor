@@ -15,11 +15,11 @@ import { navigateToLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { committedRename } from './inlineRename'
 import { LaneMarker } from './LaneMarker'
-import { RenameInput, SESSION_TITLE_CLASS } from './LocalLaneRow'
+import { RenameInput } from './RenameInput'
 import { useNameTransition } from './nameTransition'
 import { applySessionRename } from './sessionActions'
 import { sessionSubtitle } from './sessionSubtitle'
-import { SessionIndicator, SubtitleSegments } from './SidebarPrimitives'
+import { SESSION_TITLE_CLASS, SessionIndicator, SubtitleSegments } from './SidebarPrimitives'
 import { usePendingLaneActions } from './useLocalLaneActions'
 
 /**

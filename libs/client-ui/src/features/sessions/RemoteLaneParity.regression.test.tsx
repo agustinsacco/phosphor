@@ -407,7 +407,14 @@ it.each(['desktop', 'browser'] as const)(
     await act(async () =>
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
     )
-    expect(invoke).toHaveBeenCalledExactlyOnceWith(
+    expect(invoke.mock.calls.filter(([channel]) => channel === 'ops:run')).toHaveLength(1)
+    expect(invoke).not.toHaveBeenCalledWith(
+      'hosts:resumeLane',
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(invoke).not.toHaveBeenCalledWith('hosts:openLane', expect.anything(), expect.anything())
+    expect(invoke).toHaveBeenCalledWith(
       'ops:run',
       { kind: 'remote', hostId: MOCK_HOST_ID },
       {

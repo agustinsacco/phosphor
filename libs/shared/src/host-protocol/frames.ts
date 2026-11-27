@@ -74,6 +74,8 @@ export type HostFrame =
       readonly machineShell?: boolean
       /** Additive support marker: the Host keeps lane pins and markers (`lane.marks`). */
       readonly laneMarks?: boolean
+      /** The catalog can rename both live and saved lanes. */
+      readonly laneRename?: boolean
       /** Host accepts the partial opt-in on machine.models. */
       readonly partialModels?: boolean
       /** Retained-worktree lane archive, restore and explicit cleanup. */

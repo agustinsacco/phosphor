@@ -29,6 +29,7 @@ import { useSessionOrderActions } from './SessionList'
 import {
   remoteLaneDebugSource,
   renameLane,
+  renameSavedHostLane,
   routineFromLane,
   sessionCost,
   usedMarkers,
@@ -49,7 +50,8 @@ export interface RemoteLaneActions extends LaneActions, ReturnType<typeof remote
   /** The last refused action's reason, for a sheet that stays open to explain it. */
   error: string | null
   deletingInBulk: boolean
-  /** Names the lane through its live session; resolves false when the Host refused. */
+  canRename: boolean
+  /** Resolves false when the Host refused. */
   saveName: (name: string) => Promise<boolean>
   marker: string | null
 }
@@ -93,6 +95,8 @@ export function useRemoteLaneActions({
   )
   const editing = useEditingMenu(hostId, lane, !state.stopBlocked, setDialog, runner.act)
   const access = remoteLaneAccess(state)
+  const context = hostLaneContext(state)
+  const canRename = !context.busy && !context.refusals.rename
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
     hostId,
@@ -112,8 +116,12 @@ export function useRemoteLaneActions({
   })
 
   const saveName = async (name: string): Promise<boolean> =>
-    access.controlled && access.running && !!name.trim() && !state.busy
-      ? runner.act(async () => renameLane(await session(), name.trim()))
+    canRename && name.trim()
+      ? runner.act(async () =>
+          state.caps.laneRename
+            ? renameSavedHostLane(hostId, lane.laneId, name.trim())
+            : renameLane(await session(), name.trim()),
+        )
       : false
   const dialogs = (
     <RemoteLaneDialogs
@@ -128,13 +136,13 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] =>
-      laneActions(hostLaneContext(state), { ...handlers, ...editing }, orderActions),
+    items: (): ContextMenuItem[] => laneActions(context, { ...handlers, ...editing }, orderActions),
     dialogs,
     title,
     busy: state.busy,
     error: runner.error,
     deletingInBulk,
+    canRename,
     saveName,
     pickMarker: access.canMark && state.markers !== 'off' ? handlers.marker : undefined,
     marker,

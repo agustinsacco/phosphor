@@ -60,7 +60,7 @@ export function summaryFor(state: LiveState, laneId: string): LaneSummary | null
     ...(pause ? { pause } : {}),
     activity: live?.projection.activity() ?? summary.activity,
     title:
-      title(sessionState?.sessionName) ??
+      (live?.exited ? null : title(sessionState?.sessionName)) ??
       title(summary.title) ??
       live?.firstPrompt ??
       promptTitle(live?.projection.firstUserText() ?? ''),

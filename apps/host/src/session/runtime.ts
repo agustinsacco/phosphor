@@ -1,3 +1,4 @@
+import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
 import { createDrain, endTurn, within } from './lifecycle'
 import { createRuntimeOperations } from './runtime-operations'
 import { createRuntimeState, type HostMachine, type RuntimeOptions } from './runtime-state'
@@ -33,6 +34,12 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     roots: state.roots,
     resourceRoot: machine.resourceRoot,
   })
+  const sessionOwner = (path: string) => {
+    const key = sessionPathKey(path)
+    return state.registry
+      .list()
+      .find((lane) => lane.diskPath && sessionPathKey(lane.diskPath) === key)?.sessionId
+  }
   return {
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     ...(options.leases ? { leases: options.leases } : {}),
@@ -68,14 +75,16 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     async mutateStoppedSession<T>(path: string, change: () => Promise<T>): Promise<T> {
       state.paths.cancelSessionOpens(path)
       return state.paths.withSessionPath(path, async () => {
-        if (state.registry.list().some((lane) => lane.diskPath === path))
-          throw new Error('Stop the lane before changing its saved files.')
+        if (sessionOwner(path)) throw new Error('Stop the lane before changing its saved files.')
         return change()
       })
     },
-    /** Reads a transcript, live or not, inside its path lock: a fork's source (P1). */
-    withSessionFile<T>(path: string, read: () => Promise<T>): Promise<T> {
-      return state.paths.withSessionPath(path, read)
+    /** Inside the path lock, a fork may read live; a rename checks who owns the file. */
+    withSessionFile<T>(
+      path: string,
+      use: (owner: () => string | undefined) => Promise<T>,
+    ): Promise<T> {
+      return state.paths.withSessionPath(path, () => use(() => sessionOwner(path)))
     },
   }
 }

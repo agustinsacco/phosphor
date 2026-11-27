@@ -10,6 +10,7 @@ type HostCapsSource = Pick<
   | 'state'
   | 'capabilities'
   | 'laneMarks'
+  | 'laneRename'
   | 'laneArchive'
   | 'machineShell'
   | 'laneTransfer'
@@ -33,6 +34,7 @@ export interface MachineCaps {
   refusalAs(cap: GrantedCapability, feature: string): string | undefined
   /** Keeps lane pins and markers. */
   laneMarks: boolean
+  laneRename: boolean
   laneArchive: boolean
   /** Offers a machine shell. */
   machineShell: boolean
@@ -56,6 +58,7 @@ export function machineCaps(host: HostCapsSource | undefined): MachineCaps {
       !ready ? REMOTE_NOT_READY : caps.map((cap) => refusalAs(cap)).find(Boolean),
     refusalAs,
     laneMarks: host?.laneMarks === true,
+    laneRename: host?.laneRename === true,
     laneArchive: host?.laneArchive === true,
     machineShell: host?.machineShell === true,
     laneTransfer: host?.laneTransfer === true,
@@ -87,6 +90,7 @@ export const LOCAL_MACHINE_CAPS: MachineCaps = Object.freeze({
   refusal: () => undefined,
   refusalAs: () => undefined,
   laneMarks: true,
+  laneRename: true,
   laneArchive: true,
   machineShell: true,
   laneTransfer: true,
