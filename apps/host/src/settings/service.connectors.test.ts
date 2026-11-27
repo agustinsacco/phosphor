@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { mkdir, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   removeSettingsFixtures,
@@ -57,5 +57,31 @@ describe('Host connectors read', () => {
     ])
     const machine = await f.read('connectors')
     expect(machine.connectors?.servers[0]).not.toHaveProperty('overridden')
+  })
+})
+
+it('patches only exposure under revision and transport checks, preserving private fields', async () => {
+  const f = await fixture()
+  const path = join(f.agentDir, 'mcp.json')
+  const http = { url: 'https://example.com/mcp', headers: { authorization: 'fixture-header' } }
+  const stdio = { command: 'fixture-command', env: { FIXTURE: 'secret' } }
+  const original = JSON.stringify({ mcpServers: { http, stdio } })
+  await writeFile(path, original)
+  const before = await f.read('connectors')
+  const expose = (name: string, transport: string, snapshot = before) =>
+    f.settings.changeAgentConnector(
+      snapshot,
+      { type: 'mcp.expose', name, transport, exposure: 'direct' },
+      false,
+      () => true,
+    )
+  await expect(expose('stdio', 'https')).rejects.toThrow('pass --transport stdio')
+  await expect(expose('http', 'stdio')).rejects.toThrow('HTTPS')
+  expect(await readFile(path, 'utf8')).toBe(original)
+  await expose('http', 'https')
+  await expect(expose('stdio', 'stdio')).rejects.toThrow('Settings changed')
+  await expose('stdio', 'stdio', await f.read('connectors'))
+  expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
+    mcpServers: { http: { ...http, exposure: 'direct' }, stdio: { ...stdio, exposure: 'direct' } },
   })
 })
