@@ -37,6 +37,7 @@ import { useDraftsStore } from '@/stores/drafts'
 import { worktreeAwareName } from '@/lib/path'
 import { attachMachinesListener } from '@/stores/machines'
 import { usePlatform } from '@/platform/Platform'
+import { watchWindowMotion } from './windowMotion'
 
 export function App(): React.JSX.Element {
   useMachineUpdateObserver()
@@ -110,6 +111,7 @@ export function App(): React.JSX.Element {
   const { localLanes } = usePlatform()
   useEffect(() => attachMachinesListener(localLanes), [localLanes])
   useEffect(() => attachRemoteLanesListener(), [])
+  useEffect(() => watchWindowMotion(), [])
 
   // Main says the slash-command set changed (package, MCP server, skill):
   // drop the home composer's lists and re-ask every live session.

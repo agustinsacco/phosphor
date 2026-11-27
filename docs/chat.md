@@ -238,7 +238,7 @@ The composer is one small field with several ways in.
   preceded (`ThoughtRow` in `ActivityGroup.tsx`, text helpers in
   `features/chat/thoughts.ts`). Collapsed by default, expandable during and
   after; respects pi's `hideThinkingBlock`.
-  - **While it streams**, the run's last row shimmers "Thinking 8s · <newest
+  - **While it streams**, the run's last row pulses "Thinking 8s · <newest
     sentence>", falling back to the latest section title while a Codex section
     (its summaries open each section with `**Title**`) has only its title. The
     group's line keeps its step summary, with "thought for Ns" ticking.

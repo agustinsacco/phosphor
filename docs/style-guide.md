@@ -300,9 +300,16 @@ for the shared implementation and dismissal contract.
 - Motion: message-in 180ms, expand-in 140ms, lane-in 220ms (a transcript
   mounting), the opening-lane overlay (180ms fade after a 90ms beat, 200ms
   out), toasts (280ms slide from the right; on exit the card fades while its
-  row collapses so the stack closes up, never jumps), beacon, shimmer. All
+  row collapses so the stack closes up, never jumps), beacon, text pulse. All
   token-driven and all gated on `prefers-reduced-motion`. The streaming cursor `▍` and the
   working beacon inherit phosphor automatically.
+- Looping motion animates only `transform` and `opacity`, never a background,
+  so the compositor draws it without repainting. "Thinking", a running tool's
+  verb and a provisional lane name pulse their opacity rather than sweep a
+  gradient. Every infinite animation also sets
+  `animation-play-state: var(--px-loop-state)` after its shorthand, so loops
+  pause while the window is in the background (`app/windowMotion.ts`).
+  `styles/loopingAnimations.test.ts` enforces both.
 
 ### Loading identity — Phosphor Beacon
 
@@ -344,7 +351,7 @@ turning instead of at rest — so it draws `BeaconGlyph` from
   identical orbiting marks for one turn read as two things loading. The background
   strip also yields its beacon while the parent is starting or working, retaining
   its readable activity and inspection action. Same rule as a running tool,
-  whose label shimmers instead of adding a circle.
+  whose label pulses instead of adding a circle.
 - **Accessibility:** pair the mark with readable status text; set `decorative`
   when that text already names the state. Standalone marks receive a label.
   No fake percentage or per-lane live-announcement loop. Reduced motion stops

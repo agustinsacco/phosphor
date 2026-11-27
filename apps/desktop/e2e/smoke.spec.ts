@@ -2855,11 +2855,10 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // Renamed, not duplicated: the provisional slug branch is gone.
     expect(names).not.toContain('phosphor/update-hello-ts')
 
-    // The "still being named" treatment must CLEAR. Catching the shimmer while
+    // The "still being named" treatment must CLEAR. Catching the pulse while
     // it is up would be racing a sub-second window, but a stuck one is the
-    // failure that actually matters: `.name-pending` paints its glyphs with a
-    // transparent fill over a moving gradient, so a flag that never resets
-    // leaves every session title permanently animated.
+    // failure that actually matters: `.name-pending` loops its glyphs' opacity,
+    // so a flag that never resets leaves every session title permanently animated.
     await expect(page.locator('.name-pending')).toHaveCount(0, { timeout: 15_000 })
     await expect(page.getByTestId('branch-chip')).not.toHaveAttribute('data-tooltip', /provisional/)
 
