@@ -24,6 +24,7 @@ import { laneIdOf, laneRefFor } from './lane-ref'
  */
 export interface HostSurfacePrincipal extends SurfacePrincipal {
   readonly caps: readonly HostCapability[]
+  readonly currentCaps?: () => readonly HostCapability[]
 }
 
 export function hasCaps(principal: SurfacePrincipal): principal is HostSurfacePrincipal {
@@ -44,7 +45,7 @@ export function surfaceAdmits(
 /** What `whoami` shows: the principal, without the connection's capability list. */
 export function shownPrincipal(principal: OpPrincipal): OpPrincipal {
   if (principal.kind !== 'surface' || !hasCaps(principal)) return principal
-  const { caps: _caps, ...shown } = principal
+  const { caps: _caps, currentCaps: _currentCaps, ...shown } = principal
   return shown
 }
 

@@ -29,6 +29,7 @@ import { useSessionOrderActions } from './SessionList'
 import {
   remoteLaneDebugSource,
   renameLane,
+  renameSavedHostLane,
   routineFromLane,
   sessionCost,
   usedMarkers,
@@ -49,7 +50,8 @@ export interface RemoteLaneActions extends LaneActions, ReturnType<typeof remote
   /** The last refused action's reason, for a sheet that stays open to explain it. */
   error: string | null
   deletingInBulk: boolean
-  /** Names the lane through its live session; resolves false when the Host refused. */
+  canRename: boolean
+  /** Resolves false when the Host refused. */
   saveName: (name: string) => Promise<boolean>
   marker: string | null
 }
@@ -82,7 +84,7 @@ export function useRemoteLaneActions({
   const orderActions = useSessionOrderActions()
   const entry = useRemoteLaneSession(hostId, lane.laneId)
   const runner = useLaneActionRunner(onDone)
-  const [dialog, setDialog] = useState<LaneDialog>(null)
+  const { dialog, setDialog, openDialog } = useLaneDialog(onDone)
   const title = useRemoteLaneTitle(lane, hostId)
   const { state, prs, deletingInBulk, marker } = useLaneActionState(
     hostId,
@@ -93,6 +95,8 @@ export function useRemoteLaneActions({
   )
   const editing = useEditingMenu(hostId, lane, !state.stopBlocked, setDialog, runner.act)
   const access = remoteLaneAccess(state)
+  const context = hostLaneContext(state)
+  const canRename = !context.busy && !context.refusals.rename
   const session = async (): Promise<string> => entry?.phosphorId ?? openLaneSession(hostId, lane)
   const handlers = laneHandlers({
     hostId,
@@ -104,17 +108,14 @@ export function useRemoteLaneActions({
     session,
     exportAs: { title, nativeFiles },
     onRename,
-    openDialog: (next) => {
-      setDialog(next)
-      onDone?.()
-    },
+    openDialog,
     onMarked: () => onDone?.(),
   })
 
-  const saveName = async (name: string): Promise<boolean> =>
-    access.controlled && access.running && !!name.trim() && !state.busy
-      ? runner.act(async () => renameLane(await session(), name.trim()))
-      : false
+  const saveName = laneNameSaver(canRename, state.caps.laneRename, runner.act, {
+    saved: (name) => renameSavedHostLane(hostId, lane.laneId, name, entry?.phosphorId),
+    running: async (name) => renameLane(await session(), name),
+  })
   const dialogs = (
     <RemoteLaneDialogs
       dialog={dialog}
@@ -128,17 +129,47 @@ export function useRemoteLaneActions({
     />
   )
   return {
-    items: (): ContextMenuItem[] =>
-      laneActions(hostLaneContext(state), { ...handlers, ...editing }, orderActions),
+    items: (): ContextMenuItem[] => laneActions(context, { ...handlers, ...editing }, orderActions),
     dialogs,
     title,
     busy: state.busy,
     error: runner.error,
     deletingInBulk,
+    canRename,
     saveName,
     pickMarker: access.canMark && state.markers !== 'off' ? handlers.marker : undefined,
     marker,
     ...access,
+  }
+}
+
+/** The lane's open dialog; opening one also closes whatever surface asked for it. */
+function useLaneDialog(onDone: (() => void) | undefined) {
+  const [dialog, setDialog] = useState<LaneDialog>(null)
+  const openDialog = (next: LaneDialog): void => {
+    setDialog(next)
+    onDone?.()
+  }
+  return { dialog, setDialog, openDialog }
+}
+
+/**
+ * Saves a typed name: a Host that renames saved lanes takes every rename; an older one
+ * only a running lane's, through pi. Blank, or not renamable now, saves nothing.
+ */
+function laneNameSaver(
+  canRename: boolean,
+  hostRenames: boolean,
+  act: (action: () => Promise<unknown>) => Promise<boolean>,
+  rename: {
+    saved: (name: string) => Promise<unknown>
+    running: (name: string) => Promise<unknown>
+  },
+): (name: string) => Promise<boolean> {
+  return async (name) => {
+    const trimmed = name.trim()
+    if (!canRename || !trimmed) return false
+    return act(() => (hostRenames ? rename.saved(trimmed) : rename.running(trimmed)))
   }
 }
 

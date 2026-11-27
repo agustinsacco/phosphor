@@ -8,6 +8,7 @@ import {
 import { dataResult, op } from '@phosphor/session-runtime/ops/results'
 import type { OpHandler, OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import type { DaemonHandlerDeps } from './index'
+import { laneRename } from './lane-rename'
 import { liveSession, requireRuntime, targetLane } from './lane-target'
 
 /** pi-ext/context-files.ts's command: the composer's CLAUDE.md / AGENTS.md checkboxes send it. */
@@ -16,7 +17,7 @@ const CONTEXT_FILES_COMMAND = 'phosphor-context-files'
 const isOwnLane = (ctx: OpHandlerContext) =>
   ctx.principal.kind === 'agent' && ctx.lane?.sessionId === ctx.principal.sessionId
 
-/** The lane's pin, marker and title as Desktop keeps them: marks in the Host store, the title in pi. */
+/** The lane's pin, marker and title as Desktop keeps them: marks in the Host store, the title in the transcript. */
 function markHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   const marks = (ctx: OpHandlerContext, change: { pinned?: boolean; marker?: string }) => {
     const lane = targetLane(ctx)
@@ -27,17 +28,7 @@ function markHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandle
     return { lane, stored }
   }
   return {
-    'lane.rename': op<{ name: string }>(async ({ name }, ctx) => {
-      const lane = targetLane(ctx)
-      const sessionId = liveSession(ctx, 'rename')
-      const result = await requireRuntime(deps.laneRuntime).command(sessionId, {
-        type: 'set_session_name',
-        name,
-      })
-      if (!result.success)
-        throw new OpRefusal('unavailable', result.error ?? 'pi refused this command.')
-      return { text: `Renamed lane to ${name}.`, before: { ref: lane.ref, name: lane.title } }
-    }),
+    'lane.rename': laneRename(deps),
     'lane.pin': op<{ on: boolean }>(({ on }, ctx) => {
       const { lane, stored } = marks(ctx, { pinned: on })
       return {

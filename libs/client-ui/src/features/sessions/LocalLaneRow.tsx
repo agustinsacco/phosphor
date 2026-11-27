@@ -15,31 +15,20 @@ import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { openSidebarConversation } from './completionActions'
 import { committedRename } from './inlineRename'
+import { RenameInput } from './RenameInput'
 import { LaneMarker } from './LaneMarker'
 import { SelectableIndicator } from './LaneSelect'
 import { useNameTransition } from './nameTransition'
 import { PrBadge } from './PrBadge'
 import { sessionSubtitle } from './sessionSubtitle'
 import { renameSidebarSession } from './sidebarActions'
-import { LaneRow, SubtitleSegments } from './SidebarPrimitives'
+import { LANE_ROW_CLASS, LaneRow, SESSION_TITLE_CLASS, SubtitleSegments } from './SidebarPrimitives'
 import { useLocalLaneActions } from './useLocalLaneActions'
 import { useLocalLanePrs } from './useLanePrs'
 
-/**
- * What a row says it is doing, in the subtitle's time slot.
- *
- * `opening` is the only one that is not about the agent: it covers the click
- * → process-up window, which is otherwise a second or more of a row that
- * looks exactly like every idle row beside it.
- */
-// One line, always. A narrow sidebar used to wrap every long title onto a
-// second line, so the list re-flowed as the user dragged the divider and a
-// lane stopped being a fixed-height row. The full title stays in the tooltip.
-export const SESSION_TITLE_CLASS = 'text-text block truncate text-lg font-medium leading-5'
-
 function localRowClass(active: boolean, selected: boolean, deleting: boolean): string {
   return clsx(
-    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[color,background-color,opacity]',
+    LANE_ROW_CLASS,
     // Selection stays neutral; working has its own rail and activity label.
     active ? 'bg-sidebar-active' : !deleting && 'hover:bg-sidebar-hover',
     selected && 'bg-accent-soft',
@@ -308,43 +297,5 @@ export function SessionRow({
       </div>
       {actions.dialogs}
     </>
-  )
-}
-
-/**
- * The inline rename field, shared by both row types.
- *
- * Shared rather than duplicated for the same reason the subtitle is: a live
- * session swaps from `PendingSessionRow` to `SessionRow` mid-turn, and the
- * editor must not change shape under the caret when it does.
- */
-export function RenameInput({
-  value,
-  onChange,
-  onCommit,
-  onCancel,
-}: {
-  value: string
-  onChange: (next: string) => void
-  onCommit: () => void
-  onCancel: () => void
-}): React.JSX.Element {
-  return (
-    <input
-      autoFocus
-      // Pre-selected: a double-click rename usually replaces the whole
-      // generated title rather than editing a word of it.
-      onFocus={(e) => e.target.select()}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onCommit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-        if (e.key === 'Escape') onCancel()
-      }}
-      aria-label="Session name"
-      className="border-border focus:border-accent block w-full min-w-0 rounded border bg-transparent px-1 py-px text-base leading-4 outline-none"
-      data-tooltip="Session name"
-    />
   )
 }

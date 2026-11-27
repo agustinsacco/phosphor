@@ -6,7 +6,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { RemoteLaneRow, remoteLaneTitle } from './RemoteLaneRow'
-import { ONLY_WHILE_RUNNING, remoteControlHint, TAKE_CONTROL_FIRST } from './remoteLaneActions'
+import { remoteControlHint, TAKE_CONTROL_FIRST } from './remoteLaneActions'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { featureNotOffered } from '@/stores/hostRefusals'
@@ -58,11 +58,11 @@ function render(ready = true): void {
   )
 }
 function menu(): void {
-  act(() =>
+  act(() => {
     container
       .querySelector('button')!
-      .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })),
-  )
+      .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }))
+  })
 }
 function button(text: string): HTMLButtonElement {
   const found = [...document.querySelectorAll('button')].find((b) =>
@@ -141,13 +141,24 @@ it('a controller of a stopped lane can delete it, and rename says why it waits',
   menu()
   expect(button('Archive').disabled).toBe(false)
   expect(button('Rename').disabled).toBe(true)
-  expect(button('Rename').textContent).toContain(ONLY_WHILE_RUNNING)
+  expect(button('Rename').textContent).toContain('Update this Host to rename stopped lanes.')
+  act(() => {
+    container
+      .querySelector('[data-testid=remote-session-row]')!
+      .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+  })
+  expect(container.querySelector('input')).toBeNull()
 })
 it('renames inline through the remote session and waits for success', async () => {
   render()
   menu()
   act(() => button('Rename').click())
-  const input = document.querySelector<HTMLInputElement>('[aria-label="Lane name"]')!
+  const row = container.querySelector('[data-testid=remote-session-row]')!
+  expect(row.tagName).toBe('DIV')
+  expect(row.querySelector('[data-testid=session-indicator]')).not.toBeNull()
+  const input = row.querySelector<HTMLInputElement>('input')!
+  expect(input.className).toContain('focus:border-accent')
+  expect(input.selectionEnd).toBe(input.value.length)
   const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
   act(() => {
     setter.call(input, 'My remote title')

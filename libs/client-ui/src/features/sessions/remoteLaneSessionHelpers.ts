@@ -1,8 +1,11 @@
+import { OpDenied, runAgentOp } from '@/features/agent-control/agentOps'
+import { ensureServiceLaneControl, ServiceLaneControlRefused } from '@/platform/serviceLaneControl'
+import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import type { HostLaneView } from '@shared/ipc'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
 import { piCall, piCallOk } from '@/lib/rpc'
 import { useChatStore } from '@/stores/chat'
-import { machineLabel } from '@/stores/remoteLanes'
+import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { makeRoutine } from '@/stores/routines'
 
 /**
@@ -19,6 +22,28 @@ export function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView):
 export async function renameLane(sessionId: string, name: string): Promise<void> {
   if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) throw new Error()
   useChatStore.getState().patchMeta(sessionId, { sessionName: name })
+}
+
+/** The capable Host chooses the running or stopped path at the time of the edit. */
+export async function renameSavedHostLane(
+  hostId: string,
+  laneId: string,
+  name: string,
+  /** The lane's open chat, if any: its cached name is what the row and top bar show. */
+  sessionId?: string,
+): Promise<void> {
+  const currentHost = () => useRemoteLanesStore.getState().hosts[hostId]
+  if (currentHost()?.local) await ensureServiceLaneControl(hostId, laneId)
+  const control = currentHost()?.lanes.find((lane) => lane.laneId === laneId)?.control
+  if (!control?.controller?.self) throw new ServiceLaneControlRefused('Take control first.')
+  try {
+    await runAgentOp(hostId, 'lane.rename', { ref: laneId, name, controlFence: control.fence })
+  } catch (error) {
+    if (error instanceof OpDenied) throw new ServiceLaneControlRefused(error.message)
+    throw error
+  }
+  if (sessionId) useChatStore.getState().patchMeta(sessionId, { sessionName: name })
+  await refreshHostsSnapshot()
 }
 
 /**

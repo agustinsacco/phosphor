@@ -10,6 +10,7 @@ export const TAKE_CONTROL_FIRST = 'Take control first.'
 export const ONLY_WHILE_RUNNING = 'Only while running.'
 /** A Host older than `laneMarks` cannot keep pins or markers, and only that Host can. */
 export const LANE_MARKS_NEED_UPDATE = 'Update this Host to pin and mark lanes.'
+export const LANE_RENAME_NEEDS_UPDATE = 'Update this Host to rename stopped lanes.'
 export const LANE_MOVE_NEEDS_UPDATE = 'Update this Host to move lanes.'
 /** A move copies the saved transcript, so a lane mid-turn waits; an idle one is stopped first. */
 export const WAIT_BEFORE_MOVE = 'Wait for this lane to finish working.'
@@ -92,7 +93,7 @@ export function hostLaneContext(state: RemoteLaneActionState): LaneActionContext
     busy: state.busy,
     refusals: {
       open: notReady,
-      rename: controlHint ?? whileRunning,
+      rename: controlHint ?? (!running && !caps.laneRename ? LANE_RENAME_NEEDS_UPDATE : undefined),
       // The lane's own readiness gates first; the capability alone says whether routines exist here.
       makeRoutine:
         notReady ?? (caps.granted('routines') ? undefined : featureNotOffered('routines')),

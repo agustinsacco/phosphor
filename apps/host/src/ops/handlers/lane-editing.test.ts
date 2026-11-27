@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { OpsRunResult } from '@phosphor/shared/host-protocol-ops'
 import type { AuditEntry, UndoRecord } from '@phosphor/session-runtime/ops/audit'
 import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
@@ -15,7 +15,7 @@ import { daemonUndoIsCurrent, type DaemonHandlerDeps } from './index'
 const MACHINE = '33333333-3333-4333-8333-333333333333'
 const surface = {
   kind: 'surface',
-  clientId: 'owner',
+  clientId: '33333333-3333-4333-8333-333333333334',
   label: 'Desktop',
   via: 'owner',
   caps: ['sessions.read', 'sessions.control', 'workspaces.write', 'machine.configure'],
@@ -25,9 +25,11 @@ const cli: OpPrincipal = { kind: 'local', clientId: 'cli' }
 let fx: EditingFixture
 let service: OpsService
 const live = new Map<string, string>()
+const command = vi.fn(async () => ({ success: true }))
 
 beforeEach(async () => {
   live.clear()
+  command.mockClear()
   fx = await editingFixture()
   service = await createOpsService({
     stateDirectory: fx.stateDirectory,
@@ -48,7 +50,15 @@ beforeEach(async () => {
       summary: (id) => fx.store.getLane(id),
       sessionFor: (id) => live.get(id) ?? null,
     },
-    command: async () => ({ success: true }),
+    command,
+    laneRuntime: {
+      command,
+      mcpControl: async () => {
+        throw new Error('not used')
+      },
+      summaryFor: (id) => fx.store.getLane(id),
+      publishSummary: (id) => fx.ports.announce(id),
+    },
     unattended: () => false,
     log: () => {},
   })
@@ -61,7 +71,12 @@ afterEach(() => {
 const refOf = (laneId: string) => `host:${MACHINE}/lane:${laneId}`
 type Args = Readonly<Record<string, unknown>>
 const run = (principal: OpPrincipal, op: string, args: Args, page?: string) =>
-  service.dispatcher.run(principal, { op, args, ...(page !== undefined ? { page } : {}) })
+  service.dispatcher.run(principal, {
+    op,
+    args,
+    reason: 'Organize lanes',
+    ...(page !== undefined ? { page } : {}),
+  })
 
 /** An asked op, approved by the user, then resubmitted with its confirmation. */
 async function approved(principal: OpPrincipal, op: string, args: Args) {
@@ -216,4 +231,136 @@ it('offers no Undo for a rewind', async () => {
   const lane = fx.lane('source', transcript(fx.repo))
   const rewound = ok(await approved(cli, 'lane.rewind', { ref: refOf(lane.laneId), entry: 'u2' }))
   expect(rewound.undo).toBeUndefined()
+})
+
+it('renames a stopped transcript without pi and publishes the title', async () => {
+  const lane = fx.lane('rename', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  const args = { ref: lane.laneId, name: ' New name ', controlFence: control.fence }
+  ok(await run(surface, 'lane.rename', args))
+  const entries = readFileSync(lane.sessionFile!, 'utf8').trimEnd().split('\n')
+  expect(JSON.parse(entries.at(-1)!)).toMatchObject({
+    type: 'session_info',
+    name: 'New name',
+    parentId: 'u2',
+  })
+  expect(fx.store.getLane(lane.laneId)?.title).toBe('New name')
+  expect(fx.announced).toEqual([lane.laneId])
+  expect(command).not.toHaveBeenCalled()
+})
+
+it('refuses stale fences, viewers and invalid names without changing the lane', async () => {
+  const lane = fx.lane('rename-refused', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: '33333333-3333-4333-8333-333333333335',
+    label: 'Other',
+  })
+  const args = { ref: lane.laneId, name: 'New name', controlFence: control.fence }
+  expect(await run(surface, 'lane.rename', args)).toMatchObject({ code: 'not-controller' })
+  const current = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  expect(await run(surface, 'lane.rename', args)).toMatchObject({ code: 'not-controller' })
+  const request = { ...args, controlFence: current.fence }
+  const viewer = { ...surface, caps: ['sessions.read'] }
+  expect(await run(viewer, 'lane.rename', request)).toMatchObject({
+    code: 'forbidden',
+  })
+  for (const name of [' ', 'x'.repeat(81), 'x\ny', 'x\n'])
+    expect(await run(surface, 'lane.rename', { ...request, name })).toMatchObject({
+      code: 'bad-request',
+    })
+  expect(fx.store.getLane(lane.laneId)?.title).toBe('Source')
+  expect(fx.announced).toEqual([])
+  expect(command).not.toHaveBeenCalled()
+})
+
+it('keeps agent rename available on a stopped lane under the catalog policy', async () => {
+  const source = fx.lane('asking', transcript(fx.repo))
+  const target = fx.lane('asked', transcript(fx.repo))
+  live.set(source.laneId, 'asking-session')
+  const agent: OpPrincipal = {
+    kind: 'agent',
+    sessionId: 'asking-session',
+    laneRef: refOf(source.laneId),
+    unattended: false,
+    lineage: 0,
+  }
+  ok(await run(agent, 'lane.rename', { ref: target.laneId, name: 'Agent named' }))
+  expect(fx.store.getLane(target.laneId)?.title).toBe('Agent named')
+  expect(command).not.toHaveBeenCalled()
+})
+
+it('lets the user undo an agent’s rename once they hold the lane, whatever the fence was', async () => {
+  const source = fx.lane('undo-asking', transcript(fx.repo))
+  const target = fx.lane('undo-asked', transcript(fx.repo))
+  live.set(source.laneId, 'undo-asking-session')
+  const agent: OpPrincipal = {
+    kind: 'agent',
+    sessionId: 'undo-asking-session',
+    laneRef: refOf(source.laneId),
+    unattended: false,
+    lineage: 0,
+  }
+  const renamed = ok(await run(agent, 'lane.rename', { ref: target.laneId, name: 'Agent named' }))
+  // Control moves after the rename: the fence the rename saw is gone.
+  fx.store.takeControl(target.laneId, { clientId: surface.clientId, label: surface.label })
+  expect(await service.dispatcher.undo(surface, renamed.auditId!)).toMatchObject({
+    status: 'ok',
+  })
+  expect(fx.store.getLane(target.laneId)?.title).toBe('Source')
+})
+
+it('refuses a fenceless rename of a lane another client holds', async () => {
+  const lane = fx.lane('rename-held', transcript(fx.repo))
+  fx.store.takeControl(lane.laneId, {
+    clientId: '33333333-3333-4333-8333-333333333335',
+    label: 'Other',
+  })
+  expect(await run(surface, 'lane.rename', { ref: lane.laneId, name: 'Mine' })).toMatchObject({
+    code: 'not-controller',
+  })
+  expect(fx.store.getLane(lane.laneId)?.title).toBe('Source')
+})
+
+it('renames a lane whose pi is starting through that pi, not the file', async () => {
+  const lane = fx.lane('rename-starting', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  fx.open.add(lane.sessionFile!)
+  const args = { ref: lane.laneId, name: 'While starting', controlFence: control.fence }
+  ok(await run(surface, 'lane.rename', args))
+  expect(command).toHaveBeenCalledWith('pi', { type: 'set_session_name', name: 'While starting' })
+})
+
+it('refuses a rename while the lane’s pi is stopping', async () => {
+  const lane = fx.lane('rename-stopping', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  fx.open.add(lane.sessionFile!)
+  fx.stopping.add(lane.sessionFile!)
+  const args = { ref: lane.laneId, name: 'While stopping', controlFence: control.fence }
+  expect(await run(surface, 'lane.rename', args)).toMatchObject({ code: 'busy' })
+  expect(command).not.toHaveBeenCalled()
+})
+
+it('stores and publishes the name of a lane whose pi is still starting', async () => {
+  const lane = fx.lane('rename-starting-title', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  fx.open.add(lane.sessionFile!)
+  const args = { ref: lane.laneId, name: 'Kept title', controlFence: control.fence }
+  ok(await run(surface, 'lane.rename', args))
+  expect(fx.store.getLane(lane.laneId)?.title).toBe('Kept title')
+  expect(fx.announced).toEqual([lane.laneId])
 })

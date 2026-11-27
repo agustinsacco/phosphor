@@ -65,9 +65,13 @@ export interface OpsAdapterPorts {
 }
 
 /** A surface asks with the capabilities its own connection holds now. */
-function withCaps(principal: OpPrincipal, caps: readonly HostCapability[]): OpPrincipal {
+function withCaps(
+  principal: OpPrincipal,
+  caps: readonly HostCapability[],
+  currentCaps: () => readonly HostCapability[],
+): OpPrincipal {
   if (principal.kind !== 'surface') return principal
-  const surface: HostSurfacePrincipal = { ...principal, caps: [...caps] }
+  const surface: HostSurfacePrincipal = { ...principal, caps: [...caps], currentCaps }
   return surface
 }
 
@@ -101,15 +105,22 @@ export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory 
     const { socket, client } = connection
     const principal = connection.principal ?? { kind: 'grant-user', clientId: client.id }
     let closed = false
+    let liveCaps: readonly HostCapability[] = []
     function execute(request: OpsRunRequest, caps: readonly HostCapability[]) {
-      const asked = withCaps(opPrincipalFor(principal, client, request.actor), caps)
+      const asked = withCaps(opPrincipalFor(principal, client, request.actor), caps, () =>
+        closed ? [] : liveCaps,
+      )
       return queue.run(queueKey(asked), opClass(request), () => run(asked, request))
     }
     return {
       close() {
         closed = true
       },
+      renew(caps) {
+        liveCaps = caps
+      },
       handle(frame, caps) {
+        liveCaps = caps
         if (frame.type === 'call' && (frame.method === OPS_RUN || frame.method === OPS_CLI)) {
           const task = ():
             ReturnType<typeof execute> | 'bad-request' | 'unsupported' | 'forbidden' => {

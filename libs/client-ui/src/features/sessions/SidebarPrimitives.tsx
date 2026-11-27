@@ -109,19 +109,17 @@ export function SessionIndicator({
   )
 }
 
+/** A fixed, single-line title at any sidebar width. */
+export const SESSION_TITLE_CLASS = 'text-text block truncate text-lg font-medium leading-5'
+
+export const LANE_ROW_CLASS =
+  'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[color,background-color,opacity]'
+
 export function LaneRow({
   className,
   ...props
 }: React.ComponentPropsWithRef<typeof TooltipButton>): React.JSX.Element {
-  return (
-    <TooltipButton
-      {...props}
-      className={clsx(
-        'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[color,background-color,opacity]',
-        className,
-      )}
-    />
-  )
+  return <TooltipButton {...props} className={clsx(LANE_ROW_CLASS, className)} />
 }
 
 const NO_MENU = (): ContextMenuItem[] => []

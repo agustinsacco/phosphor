@@ -1,4 +1,4 @@
-import { appendFile, open, readFile, writeFile, type FileHandle } from 'node:fs/promises'
+import { appendFile, open, readFile, stat, writeFile, type FileHandle } from 'node:fs/promises'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { dirname, join } from 'node:path'
 
@@ -71,6 +71,45 @@ async function currentLeafId(path: string): Promise<string | null> {
   return leafIdIn(await readFile(path, 'utf8'), false)
 }
 
+/** Name the session without changing which conversation branch pi resumes. */
+export async function appendSessionName(
+  path: string,
+  name: string,
+  allowed: () => void,
+): Promise<void> {
+  const entry = {
+    type: 'session_info',
+    id: newEntryId(),
+    parentId: await currentLeafId(path),
+    timestamp: new Date().toISOString(),
+    name,
+  }
+  await appendEntry(path, entry, allowed)
+}
+
+/**
+ * Append one record. A crash can leave the last line unterminated; appending onto it
+ * would merge the two records into one unreadable line, so a leading LF keeps each its own.
+ */
+async function appendEntry(path: string, entry: object, allowed?: () => void): Promise<void> {
+  const boundary = (await endsMidLine(path)) ? '\n' : ''
+  // Last, after every read: control can move while the tail is read.
+  allowed?.()
+  await appendFile(path, boundary + JSON.stringify(entry) + '\n', 'utf8')
+}
+
+async function endsMidLine(path: string): Promise<boolean> {
+  const { size } = await stat(path)
+  if (size === 0) return false
+  const handle = await open(path, 'r')
+  try {
+    const { buffer } = await handle.read(Buffer.alloc(1), 0, 1, size - 1)
+    return buffer[0] !== 0x0a
+  } finally {
+    await handle.close()
+  }
+}
+
 /** Append a label entry (bookmark) targeting `targetId`. */
 export async function appendLabel(
   path: string,
@@ -86,7 +125,7 @@ export async function appendLabel(
     targetId,
     label,
   }
-  await appendFile(path, JSON.stringify(entry) + '\n', 'utf8')
+  await appendEntry(path, entry)
 }
 
 /**
@@ -105,7 +144,7 @@ export async function appendBranchJump(path: string, targetId: string): Promise<
     fromId: leafId,
     summary: 'Jumped here from another branch in Phosphor (tree view).',
   }
-  await appendFile(path, JSON.stringify(entry) + '\n', 'utf8')
+  await appendEntry(path, entry)
 }
 
 /**

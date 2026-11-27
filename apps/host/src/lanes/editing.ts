@@ -64,6 +64,12 @@ async function assertExists(path: string): Promise<void> {
   }
 }
 
+/** Append under the caller's path lock, after confirming no pi owns this file. */
+export async function writeStoppedLaneName(file: string, name: string, allowed: () => void) {
+  await assertExists(file)
+  await writer.appendSessionName(file, name, allowed)
+}
+
 function entryIn(tree: SessionTree, id: string) {
   const entry = tree.entries.find((e) => e.id === id)
   if (!entry) throw new LaneEditRefused(`No entry ${id} in this lane’s conversation.`)

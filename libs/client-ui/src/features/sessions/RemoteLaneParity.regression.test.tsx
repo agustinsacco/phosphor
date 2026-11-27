@@ -94,7 +94,7 @@ function rightClick(target: HTMLElement = row()): void {
 function menuRows(): HTMLButtonElement[] {
   return [
     ...(document
-      .querySelector('[data-testid=context-menu]')
+      .querySelector('[data-testid=context-menu], [data-testid=context-menu-sheet]')
       ?.querySelectorAll<HTMLButtonElement>('button') ?? []),
   ]
 }
@@ -366,5 +366,62 @@ it.each(['desktop', 'browser'] as const)(
       }),
     )
     expect([moveUp('Pin B'), moveUp('Lane B')]).toEqual([true, true])
+  },
+)
+
+it.each(['desktop', 'browser'] as const)(
+  '%s renames a stopped lane in place without a second navigation',
+  async (name) => {
+    host((view) => {
+      Object.assign(view, { laneRename: true })
+      Object.assign(view.lanes[0]!, { activity: 'stopped', branch: 'saved-branch', pinned: true })
+      view.lanes[0]!.control.controller = { self: true, label: 'You', connected: true }
+    })
+    invoke.mockImplementation(async (channel) =>
+      channel === 'ops:run' ? { status: 'ok' } : undefined,
+    )
+    render(name, name === 'browser' ? COMPACT_PLATFORM : DESKTOP_PLATFORM)
+    rightClick()
+    expect(menuRow('Rename')?.disabled).toBe(false)
+    act(() => {
+      document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    act(() => {
+      row().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }))
+      row().dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }))
+      row().dispatchEvent(new MouseEvent('dblclick', { bubbles: true, detail: 2 }))
+    })
+    expect(navigate).toHaveBeenCalledTimes(1)
+    expect(row().querySelector('[data-testid=session-indicator]')).not.toBeNull()
+    expect(row().textContent).toContain('saved-branch')
+    expect(row().querySelector('[data-testid=lane-pin]')).not.toBeNull()
+    const input = row().querySelector('input')!
+    expect(document.activeElement).toBe(input)
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        input,
+        'New saved title',
+      )
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    )
+    expect(invoke.mock.calls.filter(([channel]) => channel === 'ops:run')).toHaveLength(1)
+    expect(invoke).not.toHaveBeenCalledWith(
+      'hosts:resumeLane',
+      expect.anything(),
+      expect.anything(),
+    )
+    expect(invoke).not.toHaveBeenCalledWith('hosts:openLane', expect.anything(), expect.anything())
+    expect(invoke).toHaveBeenCalledWith(
+      'ops:run',
+      { kind: 'remote', hostId: MOCK_HOST_ID },
+      {
+        op: 'lane.rename',
+        args: { ref: lane().laneId, name: 'New saved title', controlFence: lane().control.fence },
+      },
+    )
+    expect(row().querySelector('input')).toBeNull()
   },
 )

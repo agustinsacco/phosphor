@@ -1,3 +1,4 @@
+import clsx from 'clsx'
 import { PrBadge } from './PrBadge'
 import { useRemoteLanePrs } from './lanePrMenu'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
@@ -6,7 +7,7 @@ import { useId } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { REMOTE_NOT_READY } from '@/stores/remoteLanes'
-import { LaneRow, SubtitleSegments } from './SidebarPrimitives'
+import { LANE_ROW_CLASS, LaneRow, SESSION_TITLE_CLASS, SubtitleSegments } from './SidebarPrimitives'
 import { SelectableIndicator, type LaneSelect } from './LaneSelect'
 import { PinIcon } from '@/components/icons'
 import { LaneWorkspaceBadge } from './LaneWorkspaceBadge'
@@ -26,7 +27,7 @@ export function useRemoteLaneTitle(lane: HostLaneView, hostId?: string): string 
   const chat = useChatStore((s) => (sessionId ? s.sessions[sessionId] : undefined))
   const first = chat?.items.find((item) => item.kind === 'user')
   return remoteLaneTitle(
-    chat?.meta?.sessionName,
+    lane.activity === 'stopped' || lane.activity === 'failed' ? undefined : chat?.meta?.sessionName,
     lane.title,
     first?.kind === 'user' ? first.text : undefined,
   )
@@ -36,6 +37,7 @@ type RemoteLanePresentationProps = Omit<React.ComponentProps<typeof LaneRow>, 'c
   lane: HostLaneView
   hostId?: string
   title: string
+  titleEditor?: React.ReactNode
   ready?: boolean
   active?: boolean
   /** Its open is running, selected or not (`useHostLaneOpenInFlight`). */
@@ -54,6 +56,7 @@ export function RemoteLanePresentation({
   lane,
   hostId,
   title,
+  titleEditor,
   ready = true,
   active = false,
   opening = false,
@@ -69,6 +72,63 @@ export function RemoteLanePresentation({
   const view = remoteLanePresentation(lane, ready)
   const inFlight = useHostLaneOpenInFlight(hostId ?? '', lane.laneId) && hostId !== undefined
   const activity = opening || inFlight ? 'opening' : view.activity
+  const rowProps = {
+    'aria-label': title,
+    'aria-describedby': description,
+    'aria-current': active ? ('page' as const) : undefined,
+    'data-testid': 'remote-session-row',
+    'data-activity': activity,
+    className: active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
+  }
+  const body = (
+    <>
+      <SelectableIndicator state={view.indicator} select={select} />
+      {marker}
+      <span className="min-w-0 flex-1">
+        {titleEditor ?? <span className={SESSION_TITLE_CLASS}>{title}</span>}
+        <span className="text-text-secondary @container/lane-line flex items-center gap-1 text-base leading-4">
+          <SubtitleSegments segments={view.segments} activity={activity} />
+          {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
+          {showPr && <PrBadge prs={prs} />}
+        </span>
+      </span>
+      {workspaceName && <LaneWorkspaceBadge name={workspaceName} />}
+      {pinned && (
+        <span data-testid="lane-pin" className="shrink-0">
+          <PinIcon className="text-text-tertiary" />
+        </span>
+      )}
+    </>
+  )
+  return (
+    <>
+      {titleEditor ? (
+        <div {...rowProps} className={clsx(LANE_ROW_CLASS, rowProps.className)}>
+          {body}
+        </div>
+      ) : (
+        <LaneRow
+          disabled={!ready}
+          tooltip={!ready ? REMOTE_NOT_READY : title}
+          {...rowProps}
+          {...props}
+        >
+          {body}
+        </LaneRow>
+      )}
+      <span id={description} className="sr-only">
+        {laneDescription(view, activity, pinned)}
+      </span>
+    </>
+  )
+}
+
+/** What a screen reader hears after the title: pin, state, activity, then the subtitle. */
+function laneDescription(
+  view: ReturnType<typeof remoteLanePresentation>,
+  activity: string | undefined,
+  pinned: boolean,
+): string {
   const stateLabel = {
     streaming: '',
     unseen: 'Unread activity. ',
@@ -84,43 +144,6 @@ export function RemoteLanePresentation({
           : segment.text,
     )
     .join(' · ')
-  return (
-    <>
-      <LaneRow
-        disabled={!ready}
-        tooltip={!ready ? REMOTE_NOT_READY : title}
-        aria-label={title}
-        aria-describedby={description}
-        aria-current={active ? 'page' : undefined}
-        data-testid="remote-session-row"
-        data-activity={activity}
-        className={active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover'}
-        {...props}
-      >
-        <SelectableIndicator state={view.indicator} select={select} />
-        {marker}
-        <span className="min-w-0 flex-1">
-          <span className="text-text block truncate text-lg font-medium leading-5">{title}</span>
-          <span className="text-text-secondary @container/lane-line flex items-center gap-1 text-base leading-4">
-            <SubtitleSegments segments={view.segments} activity={activity} />
-            {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
-            {showPr && <PrBadge prs={prs} />}
-          </span>
-        </span>
-        {workspaceName && <LaneWorkspaceBadge name={workspaceName} />}
-        {pinned && (
-          <span data-testid="lane-pin" className="shrink-0">
-            <PinIcon className="text-text-tertiary" />
-          </span>
-        )}
-      </LaneRow>
-      <span id={description} className="sr-only">
-        {pinned ? 'Pinned. ' : ''}
-        {stateLabel}
-        {activity === 'working' ? 'Working. ' : activity === 'opening' ? 'Opening. ' : ''}
-        {details}
-        {view.needsYou ? ' · needs you' : ''}
-      </span>
-    </>
-  )
+  const doing = activity === 'working' ? 'Working. ' : activity === 'opening' ? 'Opening. ' : ''
+  return `${pinned ? 'Pinned. ' : ''}${stateLabel}${doing}${details}${view.needsYou ? ' · needs you' : ''}`
 }

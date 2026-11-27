@@ -71,6 +71,7 @@ export interface HostConnectionView {
   machineShell?: boolean
   /** Host keeps lane pins and markers, so every client shows the same ones. */
   laneMarks?: boolean
+  laneRename?: boolean
   partialModels?: boolean
   warmOnOpen?: boolean
   laneArchive?: boolean

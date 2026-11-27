@@ -21,6 +21,8 @@ export interface EditingFixture {
   readonly ports: LaneEditingPorts
   /** Files a pi owns: label and jump refuse them, as the runtime's registry does. */
   readonly open: Set<string>
+  /** Open transcripts whose pi is stopping, not starting. */
+  readonly stopping: Set<string>
   readonly announced: string[]
   /** What editing logged, by message. */
   readonly logged: string[]
@@ -44,6 +46,7 @@ export async function editingFixture(storePorts: StorePorts = {}): Promise<Editi
   db.exec('PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;')
   const paths = createSessionPathRuntime()
   const open = new Set<string>()
+  const stopping = new Set<string>()
   const announced: string[] = []
   const logged: string[] = []
   const repository = store.syncRepositories([repo])[0]!
@@ -59,7 +62,12 @@ export async function editingFixture(storePorts: StorePorts = {}): Promise<Editi
           if (open.has(path)) throw new Error('Stop the lane before changing its saved files.')
           return change()
         }),
-      withSessionFile: (path, read) => paths.withSessionPath(path, read),
+      withSessionFile: (path, read) =>
+        paths.withSessionPath(path, () =>
+          read(() =>
+            open.has(path) ? { sessionId: 'pi', stopping: stopping.has(path) } : undefined,
+          ),
+        ),
     },
   }
   return {
@@ -71,6 +79,7 @@ export async function editingFixture(storePorts: StorePorts = {}): Promise<Editi
     db,
     ports,
     open,
+    stopping,
     announced,
     logged,
     lane(name, lines) {

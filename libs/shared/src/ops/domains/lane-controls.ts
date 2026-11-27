@@ -6,6 +6,7 @@ import {
   choice,
   configure,
   control,
+  count,
   domain,
   id,
   laneScope,
@@ -55,10 +56,17 @@ export const laneControls = [
     object({ level: choice(...ALL_THINKING_LEVELS) }),
     { ...after, positional: ['level'], inverse: previous('thinking.set') },
   ),
-  marks('lane.rename', 'Rename a lane.', 'lane', object({ name: text(200), ref: target }), {
-    positional: ['name'],
-    inverse: previous('lane.rename'),
-  }),
+  marks(
+    'lane.rename',
+    'Rename a lane.',
+    'lane',
+    object({
+      name: text(200),
+      ref: target,
+      controlFence: optional(count(Number.MAX_SAFE_INTEGER, 0)),
+    }),
+    { positional: ['name'], inverse: previous('lane.rename') },
+  ),
   marks('lane.pin', 'Pin or unpin a lane.', 'lane', object({ on, ref: target }), {
     positional: ['on'],
     inverse: previous('lane.pin'),
