@@ -2,6 +2,7 @@ import type * as CliOpsModule from './cli-ops'
 import { describe, expect, it, vi } from 'vitest'
 import { LANE_WAIT_DEADLINE_MS, type OpRequestEnvelope } from '@phosphor/shared/ops'
 import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
+import { BRAIN_SURFACE } from '@phosphor/shared/host-brain'
 import { readCliRequest } from './cli-args'
 import { runCli, type CliContext } from './cli'
 import { runCliOps } from './cli-ops'
@@ -119,7 +120,7 @@ it('asks the local owner for all catalog help forms and routes the service updat
     applies: 'now' as const,
   }))
   const close = vi.fn()
-  vi.mocked(openLocalClient).mockReturnValue({ run, close })
+  vi.mocked(openLocalClient).mockReturnValue({ run, runBrain: vi.fn(), close })
   for (const args of [
     ['help', 'lane', 'read'],
     ['help', 'lane.read'],
@@ -147,7 +148,7 @@ it('keeps ordinary CLI envelopes compatible with the old owner’s deadline ceil
     return { status: 'ok' as const, text: 'owner reply', applies: 'now' as const }
   })
   for (const args of [['lane', 'list'], ['lane', 'wait'], ['lane.wait']]) {
-    vi.mocked(openLocalClient).mockReturnValueOnce({ run, close: vi.fn() })
+    vi.mocked(openLocalClient).mockReturnValueOnce({ run, runBrain: vi.fn(), close: vi.fn() })
     expect(await cli(args)).toMatchObject({ code: 0, stdout: 'owner reply\n' })
   }
   expect(run.mock.calls.map(([request]) => request.deadlineMs)).toEqual([
@@ -174,4 +175,62 @@ it('labels offline help as static and keeps an unknown domain error short', asyn
   expect(unknown.stderr).toContain('Did you mean lane?')
   expect(unknown.stderr).toContain('phosphor help')
   expect(unknown.stderr.length).toBeLessThan(200)
+})
+
+describe('the brain domain', () => {
+  const ok = { status: 'ok' as const, text: 'owner reply', applies: 'now' as const }
+
+  it('keeps lane recall on the catalog and sends every other brain command to the private Brain CLI', async () => {
+    const run = vi.fn(async () => ok)
+    const runBrain = vi.fn(async () => ({ ...ok, data: { counts: {} } }))
+    vi.mocked(openLocalClient).mockReturnValue({ run, runBrain, close: vi.fn() })
+    expect(await cli(['brain', 'search', 'Harbor'])).toMatchObject({ code: 0 })
+    expect(await cli(['brain', 'flag', '1', 'wrong', 'stale'])).toMatchObject({ code: 0 })
+    expect(run.mock.calls).toEqual([
+      [expect.objectContaining({ argv: ['brain', 'search', 'Harbor'] })],
+      [expect.objectContaining({ argv: ['brain', 'flag', '1', 'wrong', 'stale'] })],
+    ])
+    expect(runBrain).not.toHaveBeenCalled()
+    expect(await cli(['brain', 'status'])).toMatchObject({ code: 0 })
+    expect(runBrain).toHaveBeenCalledExactlyOnceWith(
+      { op: BRAIN_SURFACE, args: { method: 'brain:status', args: [] } },
+      false,
+    )
+    expect(run).toHaveBeenCalledTimes(2)
+  })
+
+  it('answers Brain help offline in every spelling, and leaves lane recall help to the catalog', async () => {
+    vi.mocked(openLocalClient).mockClear()
+    vi.mocked(openLocalClient).mockImplementation(() => {
+      throw new Error('No local socket')
+    })
+    for (const argv of [['brain'], ['brain', '--help'], ['brain', 'help'], ['help', 'brain']]) {
+      const result = await cli(argv)
+      expect(result, argv.join(' ')).toMatchObject({ code: 0, stderr: '' })
+      expect(result.stdout).toContain('phosphor brain queue <lane-id>')
+      expect(result.stdout).not.toContain('--host')
+    }
+    for (const argv of [
+      ['brain', 'queue', '--help'],
+      ['help', 'brain', 'queue'],
+      ['help', 'brain.queue'],
+    ])
+      expect((await cli(argv)).stdout, argv.join(' ')).toMatch(/^Usage: phosphor brain queue/)
+    expect(openLocalClient).not.toHaveBeenCalled()
+    expect((await cli(['help', 'brain', 'search'])).stdout).toMatch(/^Static catalog/)
+  })
+
+  it('refuses another Host and an unknown Brain command as usage errors, contacting nothing', async () => {
+    vi.mocked(openLocalClient).mockClear()
+    expect(await cli(['brain', 'status', '--host', 'all'])).toMatchObject({
+      code: 64,
+      stdout: '',
+      stderr: expect.stringContaining('this Host only'),
+    })
+    expect(await cli(['brain', 'fly'])).toMatchObject({
+      code: 64,
+      stderr: expect.stringContaining('phosphor brain --help'),
+    })
+    expect(openLocalClient).not.toHaveBeenCalled()
+  })
 })
