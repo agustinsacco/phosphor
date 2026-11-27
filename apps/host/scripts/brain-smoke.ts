@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
+import { fork, type ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
 import { syntheticInference } from './brain-native-smoke'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
-import { Worker } from 'node:worker_threads'
 import { openBrainStore } from '@phosphor/memory-engine/store'
 import { loadSqlite } from '@phosphor/session-runtime/sqlite'
 import { unverifiedFiles } from '@phosphor/brain-runtime/embedding/embedding-files'
@@ -16,24 +17,30 @@ import {
   BRAIN_WORKER_DIR,
 } from '../src/brain/packaged-runtime'
 
-async function reply<T>(worker: Worker, request: unknown): Promise<T> {
+function reply<T>(worker: ChildProcess, request: object): Promise<T> {
   return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      worker.off('error', failed).off('disconnect', disconnected).off('message', received)
+    }
     const failed = (error: Error) => {
-      worker.off('message', received)
+      cleanup()
       reject(error)
     }
+    const disconnected = () => failed(new Error('Brain worker disconnected before replying.'))
     const received = (message: T) => {
-      worker.off('error', failed)
+      cleanup()
       resolve(message)
     }
-    worker.once('error', failed).once('message', received)
-    worker.postMessage(request)
+    worker.once('error', failed).once('disconnect', disconnected).once('message', received)
+    worker.send(request, (error) => {
+      if (error) failed(error)
+    })
   })
 }
 
-async function searchSmoke(worker: Worker, path: string) {
+async function searchSmoke(worker: ChildProcess, path: string) {
   openBrainStore({ path, Database: loadSqlite().DatabaseSync }).close()
-  worker.postMessage({ type: 'open', path })
+  worker.send({ type: 'open', path })
   const response = await reply<FromSearchWorker>(worker, {
     type: 'call',
     id: 1,
@@ -42,10 +49,10 @@ async function searchSmoke(worker: Worker, path: string) {
   })
   assert.equal(response.type, 'result')
   assert.equal(response.id, 1)
-  worker.postMessage({ type: 'close' })
+  worker.send({ type: 'close' })
 }
 
-async function embeddingSmoke(worker: Worker, model: string | undefined) {
+async function embeddingSmoke(worker: ChildProcess, model: string | undefined) {
   const before = await reply<FromEmbeddingWorker>(worker, {
     type: 'embed',
     id: 1,
@@ -84,17 +91,33 @@ async function embeddingSmoke(worker: Worker, model: string | undefined) {
   assert(score(first) > score(second))
 }
 
+function startWorker(dir: string, file: string) {
+  // Packaged Host workers use process IPC, not worker_threads, and inherit no Host flags.
+  const worker = fork(join(dir, BRAIN_WORKER_DIR, file), [], {
+    env: { PATH: '/usr/bin:/bin' },
+    execArgv: [],
+    serialization: 'advanced',
+    stdio: ['ignore', 'ignore', 'inherit', 'ipc'],
+  })
+  // Handle startup failures even when the other worker is still being probed.
+  worker.on('error', () => {})
+  return worker
+}
+
+async function stopWorker(worker: ChildProcess) {
+  if (worker.exitCode !== null || worker.signalCode !== null || !worker.pid) return
+  const exited = once(worker, 'exit')
+  worker.kill('SIGKILL')
+  await exited
+}
+
 const [dir, model] = process.argv.slice(2)
 assert(dir)
-const env = { PATH: '/usr/bin:/bin' }
 const start = performance.now()
 await syntheticInference(dir)
 const temp = mkdtempSync(join(tmpdir(), 'host-brain-smoke-'))
-const search = new Worker(join(dir, BRAIN_WORKER_DIR, BRAIN_SEARCH_WORKER), { env, execArgv: [] })
-const embedding = new Worker(join(dir, BRAIN_WORKER_DIR, BRAIN_EMBEDDING_WORKER), {
-  env,
-  execArgv: [],
-})
+const search = startWorker(dir, BRAIN_SEARCH_WORKER)
+const embedding = startWorker(dir, BRAIN_EMBEDDING_WORKER)
 try {
   await searchSmoke(search, join(temp, 'brain.sqlite'))
   await embeddingSmoke(embedding, model)
@@ -102,6 +125,6 @@ try {
     `Host Brain ${model ? 'verified model' : 'synthetic CPU inference'} and worker smoke: ${Math.round(performance.now() - start)} ms, peak RSS ${process.resourceUsage().maxRSS} KiB`,
   )
 } finally {
-  await Promise.all([search.terminate(), embedding.terminate()])
+  await Promise.all([stopWorker(search), stopWorker(embedding)])
   rmSync(temp, { recursive: true, force: true })
 }
