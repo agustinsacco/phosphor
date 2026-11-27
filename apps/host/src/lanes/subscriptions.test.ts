@@ -714,3 +714,21 @@ it('sends resource hints only to opted-in readers without creating legacy cursor
   ])
   s.subscriptions.close()
 })
+
+it('sends git resource hints only to clients that advertise git support', async () => {
+  const s = setup()
+  const subscribe = { type: 'subscribe', topic: 'lanes', resourceChanges: true } as const
+  s.subscriptions.handle({ ...subscribe, id: 'legacy' })
+  s.subscriptions.handle({
+    ...subscribe,
+    id: 'git',
+    gitResourceChanges: true,
+  } as typeof subscribe & { id: string })
+  await tick()
+  s.received.length = 0
+  const change = { kind: 'git', laneId, repositoryId: '0123456789abcdef' } as const
+  s.topic.resourceChanged(change as never)
+  await tick()
+  expect(s.received).toEqual([{ type: 'resource-changed', id: 'git', change }])
+  s.subscriptions.close()
+})
