@@ -209,7 +209,7 @@ migration, and rewrites only the disposable header cwd to isolate project resour
   shows a LIVE session's title prefers the chat store's `meta.sessionName` over
   the scanned `meta.name`, and a new session shows a placeholder sidebar row
   (`PendingSessionRow`) until the scan finds its file.
-- On the service, `apps/host/src/lanes/editing.ts` uses the shared writer through `mutateStoppedSession` (label/jump) and `withSessionFile` (fork/clone/rewind). It does not send pi a fork or clone RPC. Rename checks ownership under the same path lock: a live lane uses `set_session_name`; a stopped or failed one appends a `session_info` entry through the shared writer.
+- On the service, `apps/host/src/lanes/editing.ts` uses the shared writer through `mutateStoppedSession` (label/jump) and `withSessionFile` (fork/clone/rewind). It does not send pi a fork or clone RPC. Rename (`lane.rename`) checks ownership under the same path lock: a running lane, or one whose pi is still starting, gets `set_session_name`; a lane whose pi is stopping is refused until it exits; a stopped or crashed one gets a `session_info` entry through the shared writer, which starts a new line when the file ends mid-line.
 - In-app, the tree view's labels, branch jumps and forks (`sessions:appendLabel`, `sessions:jump`,
   `sessions:forkAt`) write pi's files from main, through
   `apps/desktop/electron/pi/session-mutation.ts` and inside the same path lock as resume

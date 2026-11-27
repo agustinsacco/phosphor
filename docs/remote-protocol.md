@@ -552,8 +552,9 @@ carry `name`, target `ref`, and an optional `controlFence`. Surfaces send the
 fence and need `sessions.control` plus current lane control; the Host checks both
 before the edit. Agents continue to use the catalog's policy and the Host
 rechecks the resolved fence. The Host chooses between pi's `set_session_name`
-when running and appending to the saved transcript when stopped or failed,
-under the same path lock as resume and deletion. With no flag, clients keep
+when running or still starting and appending to the saved transcript when stopped
+or failed, under the same path lock as resume and deletion; a lane whose pi is
+stopping is refused `busy` until it exits. With no flag, clients keep
 the legacy running-only `set_session_name` path.
 
 `machine.status` may include `data.update: {pauseControl: true}` in its result.
