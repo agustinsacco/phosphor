@@ -1,5 +1,7 @@
 import type * as CliOpsModule from './cli-ops'
 import { describe, expect, it, vi } from 'vitest'
+import { LANE_WAIT_DEADLINE_MS, type OpRequestEnvelope } from '@phosphor/shared/ops'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import { readCliRequest } from './cli-args'
 import { runCli, type CliContext } from './cli'
 import { runCliOps } from './cli-ops'
@@ -134,6 +136,31 @@ it('asks the local owner for all catalog help forms and routes the service updat
     [expect.objectContaining({ argv: ['service.update'] })],
   ])
   expect(close).toHaveBeenCalledTimes(6)
+})
+
+it('keeps ordinary CLI envelopes compatible with the old owner’s deadline ceiling', async () => {
+  const run = vi.fn(async (request: OpRequestEnvelope) => {
+    const wait =
+      request.argv[0] === 'lane.wait' || (request.argv[0] === 'lane' && request.argv[1] === 'wait')
+    const oldOwnerLimit = wait ? LANE_WAIT_DEADLINE_MS : 600_000
+    if (request.deadlineMs > oldOwnerLimit) throw new Error('Invalid operation request')
+    return { status: 'ok' as const, text: 'owner reply', applies: 'now' as const }
+  })
+  for (const args of [['lane', 'list'], ['lane', 'wait'], ['lane.wait']]) {
+    vi.mocked(openLocalClient).mockReturnValueOnce({ run, close: vi.fn() })
+    expect(await cli(args)).toMatchObject({ code: 0, stdout: 'owner reply\n' })
+  }
+  expect(run.mock.calls.map(([request]) => request.deadlineMs)).toEqual([
+    600_000,
+    LANE_WAIT_DEADLINE_MS,
+    LANE_WAIT_DEADLINE_MS,
+  ])
+})
+
+it('reserves the longer CLI backstop for the only catalog op over 600 seconds', () => {
+  expect(
+    OP_CATALOG.filter((spec) => (spec.deadlineMs ?? 0) > 600_000).map(({ name }) => name),
+  ).toEqual(['lane.wait'])
 })
 
 it('labels offline help as static and keeps an unknown domain error short', async () => {
