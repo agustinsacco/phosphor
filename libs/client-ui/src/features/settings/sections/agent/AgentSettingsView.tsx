@@ -40,6 +40,14 @@ export function AgentSettingsView({ source }: { source: AgentSource }): React.JS
                 <Toggle on={policy.autoName} onChange={policy.setAutoName} />
               </Row>
             )}
+            {policy?.lowPriority && (
+              <Row
+                title={AGENT_ROW_TEXT.lowPriority.title}
+                description={AGENT_ROW_TEXT.lowPriority.description}
+              >
+                <Toggle on={policy.lowPriority.on} onChange={policy.lowPriority.set} />
+              </Row>
+            )}
           </Group>
           <PiGroup id="behaviour" source={source} />
           {(policy || source.fields.includes('compaction.enabled')) && (

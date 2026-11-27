@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { brainContribution } from './contributions/brain'
 import { sessionFixture } from './__fixtures__/session-runtime'
 import { RATE_LIMIT_STATUS_KEY } from '@shared/claude-limits'
+import { applyLanePriority } from './lane-priority'
 
 vi.mock('electron', () => {
   throw new Error('Startup imported Electron')
 })
+// The fixture's clients carry a fake pid; never renice a real process from a test.
+vi.mock('./lane-priority', () => ({ applyLanePriority: vi.fn() }))
 
 describe('portable startup', () => {
   it('normalizes cwd, waits for pi, records recents, and emits whole events', async () => {
@@ -19,6 +22,15 @@ describe('portable startup', () => {
     const event = { type: 'message_update', delta: 'whole payload' }
     h.clients[0]!.emit('event', event)
     expect(h.emit).toHaveBeenCalledWith({ kind: 'event', event })
+    await h.registry.disposeAll()
+  })
+
+  it('lowers the spawned lane when the owner asks', async () => {
+    vi.mocked(applyLanePriority).mockClear()
+    const h = sessionFixture()
+    h.runtime.policy.lowPriority = () => true
+    await h.spawn({ workspacePath: '/repo' }, h.sink)
+    expect(applyLanePriority).toHaveBeenCalledWith(123, true, h.runtime.log)
     await h.registry.disposeAll()
   })
 

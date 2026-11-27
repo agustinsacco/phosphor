@@ -90,6 +90,7 @@ const fieldsFor = (state?: MachineAgentDefaults): Fields => ({
   thinking: state?.defaultThinkingLevel ?? '',
   budget: state?.contextBudget ?? '',
   naming: state?.autoNameLanes ?? true,
+  lowPriority: state?.lowPriorityLanes,
   behavior: projectAgentBehavior({ ...state }),
   directives: normalizeAgentDirectives(state?.agentDirectives),
 })

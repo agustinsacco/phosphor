@@ -55,6 +55,7 @@ export async function readAgentSettings(
       ...(host.config.contextFiles && { contextFiles: host.config.contextFiles }),
       contextBudget: host.config.contextBudget ?? '',
       autoNameLanes: host.config.autoNameLanes !== false,
+      lowPriorityLanes: host.config.lowPriorityLanes === true,
       // Read at each lane's first prompt (live-policy.ts): clients drop the restart notice.
       namingLive: true,
       agentDirectives: normalizeAgentDirectives(
@@ -65,7 +66,13 @@ export async function readAgentSettings(
 }
 
 /** Host config, not pi settings: they apply to the next lane started on this Host. */
-const POLICY_KEYS = new Set(['contextFiles', 'contextBudget', 'autoNameLanes', 'agentDirectives'])
+const POLICY_KEYS = new Set([
+  'contextFiles',
+  'contextBudget',
+  'autoNameLanes',
+  'lowPriorityLanes',
+  'agentDirectives',
+])
 
 export async function changeAgentSettings(
   state: SettingsContext,

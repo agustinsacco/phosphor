@@ -36,6 +36,8 @@ export interface SessionPolicyRuntime {
   resetCompaction: () => Promise<void>
   /** Whether `cwd` is the Brain lane's folder (Desktop only): it gets the Brain lane's fixed block. */
   brainLane?: (cwd: string) => boolean
+  /** The owner's "lower lane priority" setting, read at each lane start (`lane-priority.ts`). */
+  lowPriority?: () => boolean
 }
 
 /** Resolve the policy once for a spawn; budget and ownership remain live elsewhere. */
@@ -47,6 +49,7 @@ export async function prepareSessionPolicy(
 ): Promise<{
   spawnOptions: Omit<PiSpawnOptions, 'cwd'>
   accountId?: string
+  lowPriority: boolean
   refreshDirectives: ReturnType<typeof createLiveDirectives>
 }> {
   const { stub, binaryPath, prefixArgs, extensions } = launch
@@ -86,6 +89,7 @@ export async function prepareSessionPolicy(
   if (!stub) await runtime.resetCompaction()
   return {
     accountId: account?.id,
+    lowPriority: runtime.lowPriority?.() === true,
     refreshDirectives: createLiveDirectives(
       projectKey,
       () => compose(runtime.preferences()),

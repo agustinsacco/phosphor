@@ -233,7 +233,7 @@ An invalid one is left untouched
 with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
 `contextBudget`, `agentDirectives`, `environment.pass`, `accounts`, `control`, `api.port`, `api.webOrigin` and `resourceRoot`
 when the old config loads and validates. User-added PATH folders are also kept. Other settings are detected again;
-`autoNameLanes` and `allowRepositoryChanges` return to their default `true`.
+`autoNameLanes` and `allowRepositoryChanges` return to their default `true`, and `lowPriorityLanes` to off.
 A broken old file is replaced with a note. A symlink is replaced, never written through.
 
 The new directory is 0700 and the new file 0600. An existing directory must
@@ -535,6 +535,7 @@ variable directly names the config file.
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `version`                | Required, exactly `1`.                                                                                                                                                                                                 |
 | `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names. Read at each lane's first prompt.                                                                                                                 |
+| `lowPriorityLanes`       | Optional boolean, default `false`. New lanes start at CPU priority nice 10, inherited by what they run. Read at each lane start.                                                                                       |
 | `agentDirectives`        | Optional object of booleans `machineAwareness`, `worktreeGuard`, `laneCharter` and `subagentPolicy`, each default `true`. Read at each lane start, so edits need no restart.                                           |
 | `allowRepositoryChanges` | Optional boolean, default `true`. Allows home-relative folder browsing and repository registration/removal.                                                                                                            |
 | `api.webOrigin`          | Optional exact browser origin or `null` to disable. Defaults to `https://phosphor-app.saccolabs.com` only with the canonical production control origin; otherwise disabled.                                            |

@@ -26,4 +26,5 @@ export const desktopSessionPolicy: SessionPolicyRuntime = {
   compressionEnvironment: () => headroomSupervisor().sessionEnv(),
   resetCompaction: ensureCompactionReset,
   brainLane: (cwd) => isBrainLaneFolder(cwd, brainLaneFolder(app.getPath('userData'))),
+  lowPriority: () => getPrefs().lanes.lowPriority,
 }

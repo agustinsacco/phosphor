@@ -148,6 +148,14 @@ const hostPolicy = (draft: Draft, namingLive: true | undefined): AgentSource['po
   autoNameNote: namingLive
     ? undefined
     : 'On this Host it applies after its service restarts; saving never restarts it.',
+  ...(draft.fields.lowPriority === undefined
+    ? {}
+    : {
+        lowPriority: {
+          on: draft.fields.lowPriority,
+          set: (on: boolean) => draft.set('lowPriority', on),
+        },
+      }),
 })
 
 /**

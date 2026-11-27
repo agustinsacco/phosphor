@@ -3,15 +3,24 @@
  * tokens; nothing here is a hex value.
  */
 
-/* A running stage: a warning dash that drifts, still when motion is reduced. */
+/* A running stage: a warning dash that drifts, still when motion is reduced.
+   The dashes slide on a wider layer rather than moving the background, which
+   would repaint the segment every frame; two 5px periods wrap seamlessly. */
 .pr-rail-run {
+  position: relative;
+  overflow: hidden;
+}
+.pr-rail-run::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 0 -10px;
   background: repeating-linear-gradient(90deg, var(--px-warning) 0 3px, transparent 3px 5px);
-  background-size: 10px 100%;
   animation: pr-rail-drift 1.2s linear infinite;
+  animation-play-state: var(--px-loop-state);
 }
 @keyframes pr-rail-drift {
   to {
-    background-position: 10px 0;
+    transform: translateX(10px);
   }
 }
 .pr-rail-part {
@@ -24,7 +33,7 @@
   border-image: linear-gradient(90deg, var(--px-success) 50%, var(--px-border-strong) 50%) 1;
 }
 @media (prefers-reduced-motion: reduce) {
-  .pr-rail-run {
+  .pr-rail-run::before {
     animation: none;
   }
 }

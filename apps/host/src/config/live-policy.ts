@@ -67,5 +67,6 @@ export function hostLivePolicy(configPath: string, started: HostConfigV1) {
     agentDirectives: hostDirectives(configPath, started),
     contextFiles: () => read().contextFiles,
     contextBudget: hostContextBudget(configPath, started),
+    lowPriorityLanes: () => read().lowPriorityLanes === true,
   }
 }

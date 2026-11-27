@@ -34,6 +34,8 @@ export interface LanePrefs {
    * is not a row trailer either way — see `apps/desktop/src/features/sessions/sessionSubtitle.ts`.
    */
   prStatus: boolean
+  /** New lanes run at a lower CPU priority so a busy lane cannot starve the desktop. */
+  lowPriority: boolean
 }
 
 /** Bounds the settings UI enforces, and the store clamps to. */
@@ -46,6 +48,7 @@ export const DEFAULT_LANE_PREFS: LanePrefs = {
   autoName: true,
   branchSlugMaxLength: 40,
   prStatus: true,
+  lowPriority: false,
 }
 
 /**
@@ -70,6 +73,7 @@ export function normalizeLanePrefs(input: Partial<LanePrefs> | undefined): LaneP
       DEFAULT_LANE_PREFS.branchSlugMaxLength,
     ),
     prStatus: Boolean(merged.prStatus),
+    lowPriority: merged.lowPriority === true,
   }
 }
 

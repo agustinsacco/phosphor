@@ -15,6 +15,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Several lanes often run the suite at once on one machine; the default (every
+    // core per run) oversubscribes it. CI runners are single-tenant. VITEST_MAX_WORKERS overrides.
+    maxWorkers: process.env.CI ? undefined : '50%',
     include: [
       'apps/desktop/*.test.ts',
       'apps/desktop/src/**/*.{test.ts,test.tsx}',

@@ -56,7 +56,10 @@ npm run check:pr
 ```
 
 Use `--maxWorkers=2` for broad Vitest runs. Re-run a timeout alone before calling
-it a regression. `npm run validate` runs typecheck, lint, formatting, unit tests,
+it a regression. Locally `npm test` uses half the cores (`maxWorkers: '50%'`), because
+several lanes often run it at once; CI keeps Vitest's default. `npm run lint` caches
+ESLint results by file content in `node_modules/.cache/eslint/`, so a repeat run
+only lints changed files. Its rules are per-file and untyped; the typed rules run in oxlint. `npm run validate` runs typecheck, lint, formatting, unit tests,
 Desktop/Host/Control/Web builds and Desktop/browser e2e, with a PASS/FAIL summary and log file.
 `SKIP_E2E=1` skips only e2e, never builds. `npm run check:pr` is the pre-PR
 check: typecheck, lint, formatting, the size ratchet and unit tests, then only the

@@ -40,6 +40,7 @@
   opacity: 0.45;
   transform-origin: 50px 50px;
   animation: px-beacon-orbit calc(var(--px-beacon-duration) * 5) linear infinite;
+  animation-play-state: var(--px-loop-state);
 }
 
 /*
@@ -105,6 +106,7 @@
   border: 1px solid var(--px-accent);
   opacity: 0.5;
   animation: host-orbit-ping var(--px-beacon-duration) ease-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 .host-orbit-dot[data-tone='unread']::before {
   width: 8px;

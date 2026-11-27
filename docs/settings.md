@@ -174,7 +174,7 @@ section as alerts.
 Each section is the shared view, editing the Host's own files. What a Host adds or
 withholds:
 
-- **Agent** adds the Host's context budget, automatic naming and directive policy,
+- **Agent** adds the Host's context budget, automatic naming, lane priority and directive policy,
   and its global instructions.
 - **Accounts** and **Claude Code** sign in in a private terminal on the Host;
   Claude Code installs the provider and CLI by reviewed task and lists the saved
@@ -255,8 +255,8 @@ overrides. Unknown nested settings are retained on save. A Host whose read lacks
 New lanes read pi defaults and resources; existing lanes are not silently
 restarted. Folder editors keep saved values visible before trust, clearly marked
 inactive; the runtime applies folder configuration only after pi trusts it. Host policy
-(context budget, automatic naming, directive switches) applies to the next lane without
-a restart; only an older Host without `namingLive` needs a service restart for naming.
+(context budget, automatic naming, lane priority, directive switches) applies to the next
+lane without a restart; only an older Host without `namingLive` needs a service restart for naming.
 
 **Instructions and directives** opens the Host's
 own [global instructions](chat.md#global-instructions) in the same editor as This
@@ -444,7 +444,12 @@ The groups, in order:
   thinking level (off · minimal · low · medium · high · xhigh · max). **Name new
   lanes automatically**: `LanePrefs.autoName` on This Mac, the Host's
   `autoNameLanes`. A Host whose read lacks `namingLive` says a change applies after
-  its service restarts.
+  its service restarts. **Run lanes at lower priority**: `LanePrefs.lowPriority` on
+  This Mac, the Host's `lowPriorityLanes`, default off. A new lane's pi starts at
+  nice 10 (`lane-priority.ts`) and everything it runs inherits it, so builds and
+  tests yield to the desktop when the machine is busy and run at full speed when it
+  is idle. Running lanes keep their priority. A Host whose read lacks the key hides
+  the row. Moving This Mac to the service does not carry the in-app switch over.
 - **Behaviour.** Hide thinking blocks; steering and follow-up delivery (one at a
   time, or all).
 - **Compaction.** Auto-compaction, the context budget, reserve tokens and keep

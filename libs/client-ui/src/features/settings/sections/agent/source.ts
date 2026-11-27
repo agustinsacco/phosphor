@@ -47,6 +47,8 @@ export interface AgentPolicy {
   setAutoName(on: boolean): void
   /** Said under the automatic naming switch: when a change takes effect, if not at once. */
   autoNameNote?: string
+  /** New lanes start at a lower CPU priority. Absent where the machine cannot set it. */
+  lowPriority?: { on: boolean; set(on: boolean): void }
 }
 
 export interface AgentDirectives {

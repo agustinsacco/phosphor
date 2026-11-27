@@ -12,6 +12,8 @@ export type AgentDraftFields = {
   /** '' is the Host's default budget. */
   budget: string
   naming: boolean
+  /** Lower CPU priority for new lanes; absent on a Host that predates the switch. */
+  lowPriority?: boolean
   behavior: MachineAgentBehavior
   /** Host config, read at each lane start: no restart. */
   directives: AgentDirectivePrefs
@@ -61,6 +63,8 @@ export function nextAgentPatch(
   const policy: AgentPatch = {}
   if (fields.budget.trim() !== base.budget) policy.contextBudget = fields.budget.trim()
   if (fields.naming !== base.naming) policy.autoNameLanes = fields.naming
+  if (fields.lowPriority !== undefined && fields.lowPriority !== base.lowPriority)
+    policy.lowPriorityLanes = fields.lowPriority
   if (!same(fields.directives, base.directives)) policy.agentDirectives = fields.directives
   return filled(policy)
 }
@@ -88,6 +92,7 @@ export function rebaseAgentFields(
     thinking: adopt('thinking', 'defaultThinkingLevel' in patch),
     budget: adopt('budget', 'contextBudget' in patch),
     naming: adopt('naming', 'autoNameLanes' in patch),
+    lowPriority: adopt('lowPriority', 'lowPriorityLanes' in patch),
     behavior,
     // After behavior: drafts compare fields as JSON, so the order is fieldsFor's.
     directives: adopt('directives', 'agentDirectives' in patch),

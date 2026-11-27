@@ -135,6 +135,8 @@
   --px-radius-lg: 8px;
   --px-radius-composer: 12px;
   --px-beacon-duration: 2.4s;
+  /* Every looping animation reads this; windowMotion.ts pauses them in the background. */
+  --px-loop-state: running;
 
   /* Font sizes driven by settings (see stores/settings.ts) */
   --px-chat-font-size: 14.5px;
@@ -568,6 +570,7 @@ html {
   content: '▍';
   color: var(--px-accent);
   animation: px-blink 1.1s infinite;
+  animation-play-state: var(--px-loop-state);
   margin-left: 1px;
 }
 
@@ -576,6 +579,7 @@ html {
   content: '▍';
   color: var(--px-accent);
   animation: px-blink 1.1s infinite;
+  animation-play-state: var(--px-loop-state);
   margin-left: 1px;
 }
 
@@ -594,29 +598,25 @@ html {
 .pulse-spark {
   display: inline-block;
   animation: px-pulse-spark 1.6s ease-in-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 
-/* Shimmer on "Thinking…" label */
-@keyframes px-shimmer {
-  0% {
-    background-position: 200% 0;
-  }
+/* "Thinking…", a running tool's verb and a provisional lane name breathe.
+   They used to sweep a gradient across the glyphs, but a moving background
+   repaints the text every frame; opacity stays on the compositor. */
+@keyframes px-text-breathe {
+  0%,
   100% {
-    background-position: -200% 0;
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
   }
 }
 .thinking-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--px-text-tertiary) 40%,
-    var(--px-text) 50%,
-    var(--px-text-tertiary) 60%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: px-shimmer 2.2s linear infinite;
+  color: var(--px-text);
+  animation: px-text-breathe 2.2s ease-in-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 
 /* Notifications (ToastHost).
@@ -908,6 +908,19 @@ fieldset[aria-busy='true'] .composer-field {
   animation: find-flash 1.2s ease-out;
 }
 
+/* A background window draws no frames for looping motion (app/windowMotion.ts).
+   Tailwind's looping utilities live in a cascade layer, so this unlayered
+   longhand wins over their shorthand. */
+:root[data-window-inactive] {
+  --px-loop-state: paused;
+}
+.animate-spin,
+.animate-pulse,
+.animate-ping,
+.animate-bounce {
+  animation-play-state: var(--px-loop-state);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1051,21 +1064,13 @@ fieldset[aria-busy='true'] .composer-field {
 }
 
 /**
- * A running tool: the verb label shimmers instead of a spinning circle
+ * A running tool: the verb label breathes instead of a spinning circle
  * competing with the ✳ spark for attention.
  */
 .tool-running-label {
-  background: linear-gradient(
-    90deg,
-    var(--px-text-secondary) 40%,
-    var(--px-text) 50%,
-    var(--px-text-secondary) 60%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: px-shimmer 2s linear infinite;
+  color: var(--px-text);
+  animation: px-text-breathe 2s ease-in-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 
 /**
@@ -1074,7 +1079,7 @@ fieldset[aria-busy='true'] .composer-field {
  * A chat's branch is cut from a slug of its first message and pi starts
  * immediately, so for a few seconds the title on screen is a placeholder that
  * is about to be replaced (see specs/log/2026-08-22-fast-session-start.md).
- * Shimmering the actual glyphs rather than swapping in a skeleton bar is the
+ * Pulsing the actual glyphs rather than swapping in a skeleton bar is the
  * point: the provisional title is real, readable, useful text — it just is not
  * final. A skeleton would hide information the user already has.
  *
@@ -1085,21 +1090,13 @@ fieldset[aria-busy='true'] .composer-field {
  * least as often as in the top bar, so a temporary name sitting motionless
  * there read as settled rather than still in flight. The branch chip
  * (`BranchControl`) is the one holdout: it stays arrival-only (`.name-enter`)
- * so a single naming event still tops out at two shimmering surfaces instead
+ * so a single naming event still tops out at two pulsing surfaces instead
  * of going back to four.
  */
 .name-pending {
-  background: linear-gradient(
-    90deg,
-    var(--px-text-tertiary) 40%,
-    var(--px-text) 50%,
-    var(--px-text-tertiary) 60%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: px-shimmer 2s linear infinite;
+  color: var(--px-text);
+  animation: px-text-breathe 2s ease-in-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 
 /**
@@ -1163,9 +1160,11 @@ fieldset[aria-busy='true'] .composer-field {
 }
 .phosphor-loader[data-animated='true'] .phosphor-loader-orbit {
   animation: px-beacon-orbit var(--px-beacon-duration) linear infinite;
+  animation-play-state: var(--px-loop-state);
 }
 .phosphor-loader[data-animated='true'] .phosphor-loader-core {
   animation: px-beacon-core var(--px-beacon-duration) ease-in-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 @keyframes px-beacon-orbit {
   to {
@@ -1264,6 +1263,7 @@ fieldset[aria-busy='true'] .composer-field {
 }
 .tool-running-dot {
   animation: px-dot-pulse 1.2s ease-in-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1301,6 +1301,7 @@ fieldset[aria-busy='true'] .composer-field {
   background: var(--px-border);
   border-radius: 6px;
   animation: px-skeleton 1.4s ease-in-out infinite;
+  animation-play-state: var(--px-loop-state);
 }
 
 @media (prefers-reduced-motion: reduce) {

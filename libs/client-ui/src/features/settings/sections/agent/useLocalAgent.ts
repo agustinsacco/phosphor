@@ -170,6 +170,10 @@ export function useLocalAgent(): AgentSource {
           setBudget: prefs.setBudget,
           autoName: lanes.autoName,
           setAutoName: (on) => useLanePrefsStore.getState().setLanePrefs({ autoName: on }),
+          lowPriority: {
+            on: lanes.lowPriority,
+            set: (on) => useLanePrefsStore.getState().setLanePrefs({ lowPriority: on }),
+          },
         },
     directives: prefs.directives
       ? {

@@ -89,6 +89,12 @@ export const AGENT_ROW_TEXT = {
       'A one-shot model call titles a lane from its first message and renames its branch to match. Off keeps the first message as the title.',
     keywords: 'auto title rename session',
   },
+  lowPriority: {
+    title: 'Run lanes at lower priority',
+    description:
+      'New lanes and everything they start, like builds and tests, give way to your other apps when the machine is busy. They run at full speed when it is idle. Applies to lanes started after the change.',
+    keywords: 'cpu nice priority performance slow busy fan battery',
+  },
   budget: {
     title: 'Context budget',
     description: '',

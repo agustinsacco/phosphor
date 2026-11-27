@@ -64,6 +64,7 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
       'contextBudget',
       'contextFiles',
       'autoNameLanes',
+      'lowPriorityLanes',
       'agentDirectives',
       ...AGENT_BEHAVIOR_KEYS,
     ])
@@ -80,7 +81,7 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
           ? isContextFilePrefs(value)
           : key === 'contextBudget'
             ? typeof value === 'string' && (value === '' || isValidContextBudgetValue(value))
-            : key === 'autoNameLanes'
+            : key === 'autoNameLanes' || key === 'lowPriorityLanes'
               ? typeof value === 'boolean'
               : key === 'agentDirectives'
                 ? validDirectives(value)
@@ -97,6 +98,7 @@ function validAgentPatch(c: Record<string, unknown>, read: Scope): boolean {
       ('contextFiles' in p ||
         'contextBudget' in p ||
         'autoNameLanes' in p ||
+        'lowPriorityLanes' in p ||
         'agentDirectives' in p)
     )
   )

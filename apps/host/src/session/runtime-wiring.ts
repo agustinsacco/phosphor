@@ -70,6 +70,7 @@ export function wireRuntimeStartup(
         return account ? { id: account.id, env: claudeAccountEnv(account) } : null
       },
       strictAccountSelection: true,
+      lowPriority: () => options.lowPriorityLanes?.() === true,
       compressionEnvironment: () => ({}),
       resetCompaction: async () => {},
     },

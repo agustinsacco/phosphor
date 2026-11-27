@@ -111,6 +111,7 @@ function applyAgentPatch(agent: MachineAgentDefaults, patch: MachineAgentPatch):
   // A cleared policy key reads back as the Host's default.
   agent.contextBudget ??= ''
   agent.autoNameLanes ??= true
+  agent.lowPriorityLanes ??= false
 }
 export function mockSettingsCheck(hostId: string, repositoryId?: string): MachineSettings {
   const value = mockSettingsRead(hostId, 'connectors', repositoryId)
@@ -148,6 +149,7 @@ function mockSettingsSamples(hostId: string, repositoryId?: string) {
       defaultThinkingLevel: 'medium',
       contextBudget: '200k',
       autoNameLanes: true,
+      lowPriorityLanes: false,
       namingLive: true,
       agentDirectives: { ...DEFAULT_AGENT_DIRECTIVES },
     },
