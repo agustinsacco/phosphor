@@ -98,7 +98,9 @@ it.each(['missing capability', 'failed refresh'] as const)(
         [hostId]: {
           connectionToken: 'test-connection-1',
           state: 'ready',
-          capabilities: cause === 'failed refresh' ? ['artifacts.read'] : [],
+          // A ready Host that grants something, but not artifacts: one that grants
+          // nothing is not connected (`hostPhase`), and its chip says Down.
+          capabilities: cause === 'failed refresh' ? ['artifacts.read'] : ['sessions.read'],
           lanes: [],
           repositories: [],
         },
