@@ -204,3 +204,25 @@ it('keeps Knowledge search separate and does not fetch a private conversation on
     restore()
   }
 })
+
+it('keeps an explicit Knowledge choice after reconnect without retaining the old scope', async () => {
+  const { render, click, node, ready, hostInvoke, restore } = createFixture()
+  try {
+    await render('harbor')
+    await click('Knowledge')
+    await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
+    expect(node.querySelector('[aria-label="Transcript"]')).toBeNull()
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: { harbor: { ...ready, connectionToken: 'new-epoch' } },
+      }),
+    )
+    expect(node.querySelector('[aria-label="Find in Brain"]')).not.toBeNull()
+    expect(hostInvoke).not.toHaveBeenCalledWith(
+      { hostId: 'harbor', connectionToken: 'new-epoch' },
+      { method: 'brain:laneShow', args: [] },
+    )
+  } finally {
+    restore()
+  }
+})
