@@ -80,16 +80,7 @@ export function CommandMenu({
         const header = browsing && (index === 0 || entries[index - 1]!.badge !== entry.badge)
         return (
           <div key={`${entry.badge}-${entry.name}`}>
-            {header && (
-              <div
-                role="presentation"
-                className={`text-text-tertiary px-3 pb-0.5 text-2xs font-semibold uppercase tracking-wide ${
-                  index === 0 ? 'pt-0.5' : 'border-border/60 mt-1 border-t pt-1.5'
-                }`}
-              >
-                {BADGE_LABELS[entry.badge]}
-              </div>
-            )}
+            {header && <SectionHeading badge={entry.badge} first={index === 0} />}
             <MenuRow
               id={commandOptionId(listboxId, index)}
               role="option"
@@ -117,6 +108,26 @@ export function CommandMenu({
         )
       })}
     </PopupMenu>
+  )
+}
+
+/** A section's label above its first row. Not an option: it takes no index. */
+function SectionHeading({
+  badge,
+  first,
+}: {
+  badge: CommandBadge
+  first: boolean
+}): React.JSX.Element {
+  return (
+    <div
+      role="presentation"
+      className={`text-text-tertiary px-3 pb-0.5 text-2xs font-semibold uppercase tracking-wide ${
+        first ? 'pt-0.5' : 'border-border/60 mt-1 border-t pt-1.5'
+      }`}
+    >
+      {BADGE_LABELS[badge]}
+    </div>
   )
 }
 
