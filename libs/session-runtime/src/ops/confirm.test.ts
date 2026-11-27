@@ -90,6 +90,19 @@ describe('create', () => {
     ])
   })
 
+  it('displays the exact worktree target even when it cannot fit in a wire item ID', () => {
+    const path = `/repo  copy/${'long/'.repeat(32)}.phosphor/worktrees/topic`
+    const c = setup().create({
+      op: 'worktree.prune',
+      summary: 'Prune a worktree registration.',
+      args: { path },
+      targets: [{ hostId: HOST, op: 'worktree.prune', ids: [], labels: [] }],
+    })
+    expect(parseOpsRunResult(c)).toEqual(c)
+    const quoted = /Exact path: ("[^\n]+")/.exec(c.message)?.[1]
+    expect(quoted && JSON.parse(quoted)).toBe(path)
+  })
+
   it('names the client controlling a target lane, and lists every id of a batch per machine', () => {
     const c = setup().create({
       batchId: '22222222-2222-4222-8222-222222222222',
