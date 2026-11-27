@@ -92,6 +92,8 @@ class HostLanePauses implements LanePauses {
   private readonly subagents = new Map<string, number>()
   private shown = new Set<string>()
   private active: Pausing | Paused | null = null
+  /** How the last wait ended (`ServicePauseState` `ended`), until the next begins. */
+  private ended: 'cancelled' | 'deadline' | undefined
   private timer: ReturnType<typeof setTimeout> | undefined
 
   constructor(private readonly ports: LanePausePorts) {
@@ -100,7 +102,7 @@ class HostLanePauses implements LanePauses {
 
   state(): ServicePauseState {
     const active = this.active
-    if (!active) return NONE
+    if (!active) return this.ended ? { kind: 'none', ended: this.ended } : NONE
     if (active.kind === 'paused')
       return { kind: 'paused', purpose: 'update', since: iso(active.since) }
     return {
@@ -116,6 +118,7 @@ class HostLanePauses implements LanePauses {
     if (this.active?.kind === 'pausing') return this.active.done
     if (this.active?.kind === 'paused') return Promise.resolve('paused')
     const since = this.ports.now()
+    this.ended = undefined
     let settle: (outcome: PauseOutcome) => void = () => {}
     const done = new Promise<PauseOutcome>((resolve) => (settle = resolve))
     const limitMs = Math.min(Math.max(1, deadlineMs), PAUSE_LIMIT_MS)
@@ -272,7 +275,10 @@ class HostLanePauses implements LanePauses {
       }
       for (const laneId of ending.laneIds) this.stored.delete(laneId)
     }
-    if (ending.kind === 'pausing') ending.settle(outcome)
+    if (ending.kind === 'pausing') {
+      this.ended = outcome === 'deadline' ? 'deadline' : 'cancelled'
+      ending.settle(outcome)
+    }
     try {
       this.show([])
       this.ports.resumed()

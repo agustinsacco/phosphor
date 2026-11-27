@@ -2,6 +2,12 @@ import type { HostConnectionView, LocalMachineStatus } from '@shared/ipc'
 import type { ServicePauseState } from '@shared/host-protocol-owner'
 import type { MachineUpdateReport } from '@shared/machine-update'
 import { compareVersions } from '@shared/version'
+import {
+  RESTART_DEADLINE_MS,
+  RESTART_SLOW_MS,
+  restartedFor,
+  waitEnded,
+} from './machineUpdateTimers'
 
 export type UpdateStep = 'downloading' | 'waiting' | 'paused' | 'restarting' | 'health'
 export const UPDATE_STEPS: readonly UpdateStep[] = [
@@ -18,6 +24,8 @@ export type UpdateFinish =
   | 'updated'
   | 'current'
   | 'rolled-back'
+  /** A new instance came back on the old version with no update result: not proof of a rollback. */
+  | 'restarted'
   | 'download'
   | 'still-working'
   | 'cancelled'
@@ -43,8 +51,12 @@ export interface UpdateRun {
   shownAt: number
   reached: UpdateStep
   waiting?: Waiting
+  /** When this client first saw the wait for working lanes. */
+  waitingSince?: number
   interruptedLink?: 'offline' | 'returned'
   restartAt?: number
+  /** Restarting past `RESTART_SLOW_MS`: a failed update may be rolling back. */
+  slowRestart?: true
   wentOffline?: true
   finish?: UpdateFinish
   settled?: true
@@ -110,8 +122,10 @@ export function nextRun(run: UpdateRun, now: number): UpdateRun {
   if (run.settled || now - run.shownAt < 600) return run
   const at = UPDATE_STEPS.indexOf(run.step)
   const reached = UPDATE_STEPS.indexOf(run.reached)
-  if (run.finish && (at >= reached || (run.finish !== 'updated' && run.finish !== 'rolled-back')))
-    return { ...run, settled: true, settledAt: now }
+  // A run that restarted walks its steps to the result, as a successful one does.
+  const walks =
+    run.finish === 'updated' || run.finish === 'rolled-back' || run.finish === 'restarted'
+  if (run.finish && (at >= reached || !walks)) return { ...run, settled: true, settledAt: now }
   if (at >= reached) return run
   const next = UPDATE_STEPS[at + 1]!
   const step =
@@ -154,7 +168,7 @@ export function observePause(
 ): UpdateRun {
   if (run.finish || run.path !== 'op') return run
   if (pause?.kind === 'pausing' && !run.restartAt && run.reached !== 'paused')
-    return { ...reach(run, 'waiting', now), waiting: pause }
+    return { ...reach(run, 'waiting', now), waiting: pause, waitingSince: run.waitingSince ?? now }
   if (pause?.kind === 'paused') return reach(run, 'paused', now)
   // An externally started pause has no job for this principal; its deadline is still authoritative.
   if (
@@ -164,12 +178,8 @@ export function observePause(
     !run.controlling &&
     run.reached === 'waiting'
   )
-    return { ...run, finish: 'still-working' }
+    return { ...run, finish: pause.ended === 'cancelled' ? 'cancelled' : 'still-working' }
   return run
-}
-
-function restartDeadlinePassed(run: UpdateRun, now: number): boolean {
-  return run.restartAt !== undefined && now - run.restartAt >= 4 * 60_000
 }
 
 function returned(
@@ -198,8 +208,13 @@ function returned(
     epoch &&
     epoch !== run.epoch
   )
-    return { ...reach(run, 'health', now), finish: 'rolled-back', settled: undefined }
-  if (!run.wentOffline && version && version === run.from && restartDeadlinePassed(run, now))
+    return { ...reach(run, 'health', now), finish: 'restarted', settled: undefined }
+  if (
+    !run.wentOffline &&
+    version &&
+    version === run.from &&
+    restartedFor(run, now, RESTART_SLOW_MS)
+  )
     return { ...run, finish: 'apply' }
   return run
 }
@@ -236,7 +251,11 @@ export function tickRun(run: UpdateRun, now: number): UpdateRun {
       run.taskExit.code !== 0
     )
       return nextRun({ ...run, finish: 'download' }, now)
-    if (restartDeadlinePassed(run, now)) return nextRun({ ...run, finish: 'not-back' }, now)
+    if (restartedFor(run, now, RESTART_DEADLINE_MS))
+      return nextRun({ ...run, finish: 'not-back' }, now)
+    if (waitEnded(run, now)) return nextRun({ ...run, finish: 'still-working' }, now)
+    if (!run.slowRestart && restartedFor(run, now, RESTART_SLOW_MS))
+      return nextRun({ ...run, slowRestart: true }, now)
     if (run.reached === 'paused' && now - run.shownAt >= 5 * 60_000)
       return nextRun({ ...run, finish: 'apply' }, now)
     if (run.reached === 'downloading' && now - run.started >= 15 * 60_000)

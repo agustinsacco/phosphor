@@ -15,6 +15,8 @@ function updateLine(state: MachineUpdateState): string | undefined {
   if (!run.settled) {
     if (run.step === 'downloading')
       return `Downloading and verifying${available ? ` ${available}` : ' the release'}…`
+    if (run.step === 'restarting' && run.slowRestart)
+      return 'Still restarting… a failed update rolls back on its own.'
     if (run.step === 'restarting')
       return `Restarting${to ? ` on ${to}` : ''}. This usually takes under a minute.`
     if (run.step === 'health') return 'Checking that the service is back…'
@@ -25,6 +27,8 @@ function updateLine(state: MachineUpdateState): string | undefined {
       return `Updated to ${to}. Lanes continue on their next message.`
     case 'rolled-back':
       return `${to ?? 'The update'} didn’t pass its health check, so ${label} is back on ${installed ?? 'the previous version'}.`
+    case 'restarted':
+      return `${label} restarted; the update didn’t finish.${installed ? ` Still on ${installed}.` : ''}`
     case 'still-working':
       return 'Lanes were still working. Nothing changed.'
     case 'cancelled':
@@ -32,7 +36,7 @@ function updateLine(state: MachineUpdateState): string | undefined {
     case 'download':
       return 'Couldn’t download and verify the update. Nothing changed.'
     case 'not-back':
-      return `${label} hasn’t come back after 4 minutes. It may still be restarting.`
+      return `${label} hasn’t come back after 6 minutes. It may still be restarting.`
     case 'current':
       return 'Already up to date.'
     case 'apply':

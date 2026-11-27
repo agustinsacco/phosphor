@@ -189,9 +189,7 @@ describe('service pause waits and Abort now', () => {
   })
 
   it('reports how the last wait ended until the next pause begins', async () => {
-    const { pauses } = setup(() => [
-      { laneId: f.lane.laneId, sessionId: 'pi-live', working: true },
-    ])
+    const { pauses } = setup(() => [{ laneId: f.lane.laneId, sessionId: 'pi-live', working: true }])
     expect(pauses.state()).toEqual({ kind: 'none' })
     const first = pauses.begin('update')
     pauses.cancel()
@@ -308,7 +306,10 @@ describe('service pause on the wire', () => {
       kind: 'pausing',
       waitingOn: { turns: 1 },
     })
-    expect(answerPauseCall(pauses, { action: 'cancel' }, log)).toEqual({ kind: 'none' })
+    expect(answerPauseCall(pauses, { action: 'cancel' }, log)).toEqual({
+      kind: 'none',
+      ended: 'cancelled',
+    })
     answerPauseCall(pauses, { action: 'begin', purpose: 'update', deadlineMs: 5000 }, log)
     answerPauseCall(pauses, { action: 'abort-now' }, log)
     await vi.waitFor(() => expect(pauses.state()).toMatchObject({ kind: 'paused' }))

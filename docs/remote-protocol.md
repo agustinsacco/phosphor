@@ -582,6 +582,14 @@ human surface with configuration and session-control access and acts only on a
 waiting update. An older Host omits the bit; clients do not offer those controls.
 No new frame type or connection capability is involved.
 
+`machine.status` `data.pause` (and the owner socket's `machine.local` `pause`) is
+`{kind: 'none' | 'pausing' | 'paused', …}`. `{kind: 'none'}` may carry an additive
+`ended?: 'cancelled' | 'deadline'`: how the last wait for working lanes ended, kept
+until the next pause begins, so a window with no job can tell a cancel from the
+cap. An older Host sends none; a client reads a missing, malformed or unknown value
+as absent and says the lanes were still working, as before. The frozen 684cb3478
+result parser accepts it inside the opaque data.
+
 `OPS_LIMITS`: the `args` JSON is at most 300 KiB, a content argument inside it at
 most 256 KiB, a command result 64 KiB, and a call's `data` 1 MiB. Agent/CLI
 inventory pages cap serialized rows at 12 KiB; the tool separately caps rendered

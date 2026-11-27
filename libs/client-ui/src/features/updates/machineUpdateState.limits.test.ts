@@ -27,6 +27,13 @@ const host: HostConnectionView = {
 }
 const MIN = 60_000
 
+/** Walk a finished run through its remaining steps, 600 ms each. */
+function settle(run: UpdateRun, from: number): UpdateRun {
+  let at = from
+  while (!run.settled && at < from + 10_000) run = tickRun(run, (at += 600))
+  return run
+}
+
 function lines(entry: MachineUpdateEntry, now: number, at = host): string[] {
   return softwareUpdateLines(
     deriveMachineUpdate({
@@ -96,7 +103,7 @@ describe('a Host that comes back as a new instance mid-update', () => {
   it('says it restarted without finishing, not that it rolled back', () => {
     const run = observeConnection(applying(), {}, back, 20)
     expect(run.finish).toBe('restarted')
-    const settled = tickRun(run, 1000)
+    const settled = settle(run, 20)
     const text = lines({ run: settled }, 1000).join(' ')
     expect(text).toContain('Studio restarted')
     expect(text).toContain('didn’t finish')
@@ -104,7 +111,7 @@ describe('a Host that comes back as a new instance mid-update', () => {
   })
 
   it('says rolled back once the update result says so', () => {
-    const run = tickRun(observeConnection(applying(), {}, back, 20), 1000)
+    const run = settle(observeConnection(applying(), {}, back, 20), 20)
     const last = {
       from: '1.2.3',
       to: '1.3.0',
