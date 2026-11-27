@@ -8,6 +8,7 @@ import { loadOwnerKey, type OwnerKeyResult } from '../daemon/owner-key'
 export function createOwnerKeyAccess(load: () => Promise<OwnerKeyResult>) {
   let request: Promise<OwnerKeyResult> | undefined
   let status: 'checking' | 'unavailable' | undefined
+  let opened = false
   const listeners = new Set<() => void>()
   function set(next: typeof status) {
     status = next
@@ -22,6 +23,7 @@ export function createOwnerKeyAccess(load: () => Promise<OwnerKeyResult>) {
           reason: 'Protected storage could not be opened.',
         }))
         .then((result) => {
+          opened ||= result.ok
           set(result.ok ? undefined : 'unavailable')
           return result
         })
@@ -32,6 +34,8 @@ export function createOwnerKeyAccess(load: () => Promise<OwnerKeyResult>) {
   return {
     get,
     status: () => status,
+    /** Protected storage answered this run, so reading another secret from it asks nothing more. */
+    opened: () => opened,
     onChange: (listener: () => void) => listeners.add(listener),
     retry() {
       if (status === 'unavailable') request = undefined

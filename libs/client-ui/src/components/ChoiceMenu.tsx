@@ -27,6 +27,7 @@ export function ChoiceMenu({
   triggerClassName,
   bordered = false,
   escapeContainer = false,
+  onOpen,
 }: {
   value: string
   choices: MenuChoice[]
@@ -38,6 +39,8 @@ export function ChoiceMenu({
   triggerClassName?: string
   bordered?: boolean
   escapeContainer?: boolean
+  /** The list is about to show, by click or keyboard. */
+  onOpen?: () => void
 }): React.JSX.Element {
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -74,6 +77,7 @@ export function ChoiceMenu({
         if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
           event.preventDefault()
           if (!open) {
+            onOpen?.()
             setOpen(true)
             setIndex(selectedIndex(choices, value))
             return
@@ -104,6 +108,7 @@ export function ChoiceMenu({
         }
         onClick={() => {
           setIndex(selectedIndex(choices, value))
+          if (!open) onOpen?.()
           setOpen(!open)
         }}
       >

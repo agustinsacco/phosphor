@@ -123,7 +123,9 @@ Signed-in windows show a lane scope control beneath the main navigation
 (`MachineSwitcher`, the only machine-scope control on either client): a
 divider, a “Lanes on” caption and a bordered field with the selected machine's
 status dot, name and state in words (“Idle”, “2 running”, reachability). It is
-a picker, not a nav row, so it never uses the Machines page icon. The local
+a picker, not a nav row, so it never uses the Machines page icon. Opening it
+asks for the machine directory if this run has not loaded it, and its header
+reads “Loading…” until the list arrives. The local
 machine is named in its platform's word everywhere in the UI: **This Mac** on
 macOS and **This computer** on Linux (`localMachineLabel`,
 `lib/localMachine.ts`); these docs call it This Mac. Each window

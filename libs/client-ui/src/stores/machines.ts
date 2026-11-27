@@ -66,15 +66,20 @@ export function attachMachinesListener(onDemand = false): () => void {
     let active = true
     let signingIn = false
     requested = !onDemand || useLayoutStore.getState().page === 'machines'
-    const applyAccount = ({ account }: AccountView) => {
-      if (signingIn && account.status === 'signed-in') requested = true
-      signingIn = account.status === 'signing-in'
-      useMachinesStore.getState().enableRemote(account.status === 'signed-in')
-    }
-    const offPage = useLayoutStore.subscribe((next) => {
-      if (requested || next.page !== 'machines') return
+    const request = () => {
+      if (requested) return
       requested = true
       void useMachinesStore.getState().refresh()
+    }
+    // Signing in, or main saying discovery already runs, is a request too.
+    const applyAccount = ({ account, remoteDiscoveryActive }: AccountView) => {
+      const signedIn = account.status === 'signed-in'
+      useMachinesStore.getState().enableRemote(signedIn)
+      if (signedIn && (signingIn || remoteDiscoveryActive)) request()
+      signingIn = account.status === 'signing-in'
+    }
+    const offPage = useLayoutStore.subscribe((next) => {
+      if (next.page === 'machines') request()
     })
     const offAccount = window.phosphor.onAccountChanged((view) => {
       pushed = true
@@ -87,16 +92,8 @@ export function attachMachinesListener(onDemand = false): () => void {
       .invoke('account:get')
       .then((view) => {
         if (!active) return
-        if (!pushed) {
-          requested ||= view.remoteDiscoveryActive === true
-          applyAccount(view)
-        } else if (
-          !requested &&
-          view.remoteDiscoveryActive &&
-          useMachinesStore.getState().remoteEnabled
-        ) {
-          void useMachinesStore.getState().refresh()
-        }
+        if (!pushed) applyAccount(view)
+        else if (view.remoteDiscoveryActive && useMachinesStore.getState().remoteEnabled) request()
       })
       .catch(() => undefined)
     detach = () => {

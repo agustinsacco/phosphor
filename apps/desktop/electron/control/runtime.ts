@@ -52,13 +52,18 @@ function notifyRemote(view: AccountView) {
   for (const listener of remoteListeners) listener(view)
 }
 
-/** Called by Machines. A remembered profile alone is not a request to unlock the account. */
+/**
+ * Called by Machines, or once protected storage is already open. A remembered
+ * profile alone is not a request to unlock the account. Open windows hear it,
+ * so their machine list loads without a page visit.
+ */
 export function activateRemoteAccess(): void {
   if (remoteActive) return
   const view = accountSnapshot()
   if (view.account.status !== 'signed-in') return
   remoteActive = true
   notifyRemote(view)
+  broadcast('account:changed', { ...view, remoteDiscoveryActive: true })
 }
 
 export function initControlRuntime(): void {

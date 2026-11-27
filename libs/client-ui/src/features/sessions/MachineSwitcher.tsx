@@ -162,6 +162,12 @@ function useLocalMachineActivity(): MachineActivity {
   return { running, new: newCount, needsYou }
 }
 
+/** Opening the scope menu asks for the machines it lists, as the Machines page does. */
+function requestDirectory(): void {
+  const machines = useMachinesStore.getState()
+  if (!machines.directoryLoaded) void machines.refresh()
+}
+
 /** Chooses the lane scope: a machine id, `local` or `all`. */
 export type MachineScopeChange = (scope: string) => void
 const setFilter: MachineScopeChange = (scope) => useRemoteLanesStore.getState().setFilter(scope)
@@ -259,6 +265,7 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
   const { localLanes } = usePlatform()
   const machines = useMachinesStore((s) => s.machines)
   const now = useMachinesStore((s) => s.nowMs)
+  const listing = useMachinesStore((s) => s.loading && !s.directoryLoaded)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const loading = useRemoteLanesStore((s) => s.snapshotStatus === 'loading')
   const selected = useRemoteLanesStore((s) => s.filter)
@@ -303,11 +310,16 @@ function EnabledMachineSwitcher({ onScope }: { onScope: MachineScopeChange }): R
       <ChoiceMenu
         value={selected}
         label="Machine filter"
+        onOpen={requestDirectory}
         triggerClassName="border-border bg-surface hover:border-border-strong text-text flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-left text-base transition-colors pointer-coarse:min-h-11"
         header={
           <div className="text-text-tertiary flex justify-between px-3 py-2 text-xs">
             <span className="font-semibold uppercase tracking-wider">Machines</span>
-            <span>{ids.length + Number(localLanes && !localServiceId(hosts))} total</span>
+            <span>
+              {listing
+                ? 'Loading…'
+                : `${ids.length + Number(localLanes && !localServiceId(hosts))} total`}
+            </span>
           </div>
         }
         choices={[
