@@ -22,6 +22,7 @@ describe('laneAgents', () => {
         entry('broke', { active: 0, state: 'failed', endedAt: 300 }),
       ],
       100,
+      {},
     )
     expect(view?.running).toBe(1)
     expect(view?.agents.map((a) => [a.label, a.detail, a.running, a.failed])).toEqual([
@@ -31,9 +32,34 @@ describe('laneAgents', () => {
     ])
   })
 
+  it('splits one parallel call into its children', () => {
+    const tool = {
+      toolCallId: 'p',
+      toolName: 'subagent',
+      status: 'running',
+      args: { tasks: [{ agent: 'scout', task: 'Map callers' }, { agent: 'worker' }] },
+      output: {
+        content: [],
+        details: {
+          mode: 'parallel',
+          progress: [
+            { index: 0, agent: 'scout', status: 'completed' },
+            { index: 1, agent: 'worker', status: 'running', currentTool: 'bash' },
+          ],
+        },
+      },
+    } as unknown as ToolState
+    const view = laneAgents([entry('p', { toolCallId: 'p', active: 1 })], 100, { p: tool })
+    expect(view?.running).toBe(1)
+    expect(view?.agents.map((a) => [a.label, a.detail, a.running])).toEqual([
+      ['scout', 'Map callers', false],
+      ['worker', 'bash', true],
+    ])
+  })
+
   it('shows nothing once no agent is running', () => {
-    expect(laneAgents([entry('worker', { active: 0, endedAt: 200 })], 100)).toBeNull()
-    expect(laneAgents([], 100)).toBeNull()
+    expect(laneAgents([entry('worker', { active: 0, endedAt: 200 })], 100, {})).toBeNull()
+    expect(laneAgents([], 100, {})).toBeNull()
   })
 })
 

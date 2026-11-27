@@ -4521,7 +4521,7 @@ test('a parallel delegation shows every child working at once, then settles', as
       .fill('Fix the token refresh bug, split the work in parallel')
     await page.getByRole('button', { name: /Start lane/i }).click()
 
-    const row = page.getByRole('button', { name: /Running workflow/ })
+    const row = page.getByRole('button', { name: /^Running workflow/ })
     await expect(row).toBeVisible({ timeout: 60_000 })
     await expect(row).toContainText('scout · worker · researcher')
     await expect(row).toContainText('1/4 done')
@@ -4542,7 +4542,12 @@ test('a parallel delegation shows every child working at once, then settles', as
     ])
     // The parent turn is still running while its children work.
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
-    await expect(page.getByTestId('session-row').first()).toBeVisible()
+    // The open lane's row counts its agents and lists one line per child.
+    await expect(page.getByTestId('lane-agent-dots')).toHaveAttribute(
+      'aria-label',
+      '3 of 4 sub-agents running',
+    )
+    await expect(page.getByTestId('lane-agent-stack').locator('li')).toHaveCount(4)
     const current = page.getByTestId('background-work-indicator')
     await expect(current.getByTestId('current-work-headline')).toHaveText(
       '3 agents working · parent working',

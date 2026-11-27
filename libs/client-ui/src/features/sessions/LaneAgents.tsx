@@ -22,7 +22,10 @@ export function useLaneWork(sessionId: string | undefined): {
   const work = useCurrentWork(id)
   const since = useChatStore((s) => s.sessions[id]?.agentStartedAt ?? null)
   return useMemo(
-    () => ({ doing: laneDoing(work.tools, since), agents: laneAgents(work.entries, since) }),
+    () => ({
+      doing: laneDoing(work.tools, since),
+      agents: laneAgents(work.entries, since, work.tools),
+    }),
     [work, since],
   )
 }
