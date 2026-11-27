@@ -59,7 +59,11 @@ function machineTarget(
   })
   const row = machineUpdateRow(state, now)
   wake.push(rowExpiresAt(entry))
-  const offered = previous?.machineId === id && previous.tone === 'action' && offerLasts(entry, now)
+  const offered =
+    previous?.machineId === id &&
+    previous.tone === 'action' &&
+    !entry.offerExpired &&
+    offerLasts(entry, now)
   if (!row && offered && host?.ops && entry.readToken !== host.connectionToken) return previous
   if (state.phase !== 'available') return row
   if (entry.offerExpired) return null

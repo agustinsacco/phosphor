@@ -93,8 +93,27 @@ export function observeResult(entry: MachineUpdateEntry, now: number): MachineUp
       return { ...entry, resultSeen, run: { ...run, claimed: true } }
   }
   if (run && !run.settled) return entry
+  if (run && ownLateFailure(run, last))
+    return { ...entry, resultSeen, run: { ...run, claimed: true } }
   const reported = reportedRun(entry, last, now)
   return { ...entry, resultSeen, ...(reported ? { run: reported } : {}) }
+}
+
+/** How soon after a targetless run settles its own restart's result can still arrive. */
+const LATE_RESULT_MS = 2 * 60_000
+
+/**
+ * A run that restarted and settled as a failure before learning its target
+ * already told the user; the rollback its own restart wrote, arriving late,
+ * is the same news. A result written later is another attempt.
+ */
+function ownLateFailure(run: UpdateRun, last: LastUpdate): boolean {
+  if (run.to || run.reported || run.claimed || run.restartAt === undefined) return false
+  if (run.from !== last.from || last.at === run.before || last.outcome === 'updated') return false
+  if (run.finish === 'updated' || run.finish === 'current' || run.settledAt === undefined)
+    return false
+  const at = Date.parse(last.at)
+  return Number.isFinite(at) && at <= run.settledAt + LATE_RESULT_MS
 }
 
 /** How long the updater keeps `update-result.json`, and so how long a result is news. */
