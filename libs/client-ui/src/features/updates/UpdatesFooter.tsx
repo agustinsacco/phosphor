@@ -6,7 +6,8 @@ import { usePlatform } from '@/platform/Platform'
 import { EMPTY_MACHINE_UPDATE, useMachineUpdatesStore } from '@/stores/machineUpdates'
 import { useMachinesStore } from '@/stores/machines'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { deriveMachineUpdate } from './machineUpdateState'
+import type { HostsSnapshot } from '@shared/ipc'
+import { deriveMachineUpdate, type MachineUpdateEntry } from './machineUpdateState'
 import { useUpdatesStore } from './updatesStore'
 import {
   appUpdateRow,
@@ -27,6 +28,48 @@ type Shown = Record<UpdateRowView['id'], { row: UpdateRowView | null; last: Upda
 const EMPTY_SLOT: Slot = { row: null, since: 0 }
 const NOTHING: Shown = { app: { row: null, last: null }, machine: { row: null, last: null } }
 
+/**
+ * The machine row's target before dwell and collapse: the run or the machine
+ * in scope, with "Update available" gated on a read and 3 s of ready, and
+ * held through a reconnect until a read on the new connection answers.
+ */
+function machineTarget(
+  input: {
+    scope: string
+    hosts: HostsSnapshot
+    byMachine: Record<string, MachineUpdateEntry>
+    terminal: boolean
+    readiness: Map<string, Readiness>
+    previous: UpdateRowView | null
+  },
+  now: number,
+  wake: (number | undefined)[],
+): UpdateRowView | null {
+  const { hosts, byMachine, previous } = input
+  const id = footerMachineId(input.scope, hosts, byMachine, now)
+  if (!id) return null
+  const entry = byMachine[id] ?? EMPTY_MACHINE_UPDATE
+  const host = hosts[id]
+  const state = deriveMachineUpdate({
+    machineId: id,
+    label: machineLabel(id),
+    host,
+    entry,
+    peers: Object.values(hosts),
+    configure: false,
+    terminal: input.terminal,
+    owner: false,
+  })
+  const row = machineUpdateRow(state, now)
+  wake.push(rowExpiresAt(entry))
+  const offered = previous?.machineId === id && previous.tone === 'action'
+  if (!row && offered && host?.ops && entry.readToken !== host.connectionToken) return previous
+  if (state.phase !== 'available') return row
+  const gate = availableShows(host, entry, input.readiness.get(id) ?? {}, offered, now)
+  wake.push(gate.wakeAt)
+  return gate.shows ? row : null
+}
+
 /** The rows to show now, by the show-delay, dwell and collapse rules, and when to look again. */
 function useUpdateRows(appInfo: boolean, terminal: boolean): Shown {
   const update = useUpdatesStore((s) => s.update)
@@ -36,48 +79,24 @@ function useUpdateRows(appInfo: boolean, terminal: boolean): Shown {
   const machines = useMachinesStore((s) => s.machines)
   const [tick, setTick] = useState(0)
   const [shown, setShown] = useState<Shown>(NOTHING)
-  const startedAt = useRef<number | undefined>(undefined)
+  const startedAt = useMachineUpdatesStore((s) => s.startedAt)
   const readiness = useRef(new Map<string, Readiness>())
   const slots = useRef<Slots>({ app: EMPTY_SLOT, machine: EMPTY_SLOT })
 
   useEffect(() => {
     const now = Date.now()
-    startedAt.current ??= now
     trackReadiness(readiness.current, hosts, now)
     const wake: (number | undefined)[] = []
     let app: UpdateRowView | null = null
     let machine: UpdateRowView | null = null
-    if (now - startedAt.current < START_DELAY_MS) wake.push(startedAt.current + START_DELAY_MS)
+    // Nothing during the app's start; a sidebar mounted later shows its rows at once.
+    if (startedAt !== undefined && now - startedAt < START_DELAY_MS)
+      wake.push(startedAt + START_DELAY_MS)
     else {
       app = appInfo ? appUpdateRow(update) : null
-      const id = footerMachineId(scope, hosts, byMachine, now)
-      const entry = (id && byMachine[id]) || EMPTY_MACHINE_UPDATE
-      if (id) {
-        const state = deriveMachineUpdate({
-          machineId: id,
-          label: machineLabel(id),
-          host: hosts[id],
-          entry,
-          peers: Object.values(hosts),
-          configure: false,
-          terminal,
-          owner: false,
-        })
-        machine = machineUpdateRow(state, now)
-        wake.push(rowExpiresAt(entry))
-        if (state.phase === 'available') {
-          const showing = slots.current.machine.row?.machineId === id
-          const gate = availableShows(
-            hosts[id],
-            entry,
-            readiness.current.get(id) ?? {},
-            showing,
-            now,
-          )
-          if (!gate.shows) machine = null
-          wake.push(gate.wakeAt)
-        }
-      }
+      const previous = slots.current.machine.row
+      const input = { scope, hosts, byMachine, terminal, readiness: readiness.current, previous }
+      machine = machineTarget(input, now, wake)
     }
     const nextApp = settleSlot(slots.current.app, app, now)
     const nextMachine = settleSlot(slots.current.machine, machine, now)
@@ -93,7 +112,7 @@ function useUpdateRows(appInfo: boolean, terminal: boolean): Shown {
     if (!Number.isFinite(at)) return
     const timer = setTimeout(() => setTick((n) => n + 1), at - now)
     return () => clearTimeout(timer)
-  }, [appInfo, terminal, update, hosts, scope, byMachine, machines, tick])
+  }, [appInfo, terminal, update, hosts, scope, byMachine, machines, startedAt, tick])
 
   return shown
 }

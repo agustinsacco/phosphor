@@ -394,11 +394,15 @@ replacement itself, with renames and deletions that fail.
 `update --stage` verifies, downloads and probes a release without selecting it. `update --apply X.Y.Z` selects a staged release and health-checks the restart, rolling back if unhealthy; it does not update pi packages. For local mode health requires a fresh `local.json` from the selected version, plus a new heartbeat if the previous service had a recent one. The service reports `update-result.json` for 24 hours. Plain CLI update does not wait for a coordinated pause; use [Settings → Advanced → Software](settings.md) to stage and pause first.
 
 A running release install also checks for itself (`update/check.ts`): it
-fetches and verifies the signed manifest as `--check` does, downloading nothing
-else, first 2 to 5 minutes after start, then every 6 hours give or take 30
+fetches and verifies the signed `host-latest` manifests as Desktop's release
+watch does (v2 for this machine's target, such as `darwin-x64`; v1 where no v2
+is published), downloading nothing else. A release older than the running one,
+or with no artifact for this machine, counts as a successful check with nothing
+available; the updater's downgrade guard is unchanged. It checks first 2 to 5
+minutes after start, then every 6 hours give or take 30
 minutes, and once more in the background when a `machine.status` read finds the
-last attempt older than 30 minutes (the read never waits). It honours
-`PHOSPHOR_HOST_RELEASE_URL`. A failed check is only logged and keeps the last good
+last attempt older than 30 minutes (the read never waits). It honours the
+service's own `PHOSPHOR_HOST_RELEASE_URL`, whether or not pi is passed it. A failed check is only logged and keeps the last good
 answer; a source install never checks. `machine.status` reports the result and
 `update-result.json` as `data.update`
 ([remote-protocol.md](remote-protocol.md)), which the sidebar's update row reads.

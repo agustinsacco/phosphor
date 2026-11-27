@@ -184,7 +184,8 @@ timer would otherwise start a second one on top of it.
 ## Surfaces
 
 - `UpdatesFooter` (`features/updates/UpdatesFooter.tsx`, the sidebar footer on
-  Desktop and the PWA) has at most two fixed rows above the account row, each
+  Desktop and the wide PWA; on a phone, the top of the Lanes page under the
+  machine scope) has at most two fixed rows above the account row, each
   `name · text` with the full sentence in its tooltip. Desktop and each
   machine's service update separately, each with its own action; there is no
   combined action and no automatic update.
@@ -198,16 +199,24 @@ timer would otherwise start a second one on top of it.
      seconds or **Update didn’t finish**, which stays until that machine's
      Software row has been shown. The row never starts an update: it opens that
      machine's Settings → Advanced, where the one confirm lives. While an update
-     runs on any machine, that run holds the row until it ends, whatever the scope.
+     runs on any machine, that run holds the row until it ends, whatever the scope;
+     a running update comes before another machine's held result. A rollback or
+     failed apply the Host reports with no update tracked here (a reload
+     mid-restart, or an update started elsewhere) shows once as **Update didn’t
+     finish**, in this row and the Software row, within the result's 24 hours. A
+     later, newer release is offered again once a finished update's result has
+     been shown.
 
   Availability comes from the Host's own report (`machine.status` `data.update`,
   [host.md](host.md#updating)); a Host without one falls back to a newer version
   running on another of your machines. The rows never jump or flicker: nothing
-  shows for the first 3 seconds after start; "Update available" appears only after
-  a successful read and 3 seconds of the machine being ready, survives a reconnect
-  for up to 10 minutes, and leaves only when a read says current or the scope
-  changes; each phase shows at least 600 ms; a scope switch replaces the text in
-  place and waits 150 ms before collapsing. Each row is 28 px and its height
+  shows for the first 3 seconds after the app starts (a sidebar reopened later
+  shows its rows at once); "Update available" appears only after a successful
+  read and 3 seconds of the machine being ready, survives a disconnection for up
+  to 10 minutes, stays through a reconnect until a status read on the new
+  connection answers, and leaves only when a read says current or the scope
+  changes; each phase shows at least 600 ms, collapsing included; a scope switch
+  replaces the text in place and waits 150 ms before collapsing. Each row is 28 px and its height
   animates in 200 ms (none under reduced motion), so the account row never moves.
 
 - Settings → About and This Mac's Settings → Advanced have **Check now** (one

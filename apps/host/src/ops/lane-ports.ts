@@ -2,8 +2,7 @@ import type { LaneEvent, LaneSummary } from '@phosphor/shared/host-protocol'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { answerPauseCall, type LanePauses } from '../lanes/pause'
 import type { HostRuntime } from '../session/runtime'
-import { fetchSignedRelease } from '@phosphor/session-runtime/host-install/fetch'
-import { startReleaseCheck } from '../update/check'
+import { newestRelease, startReleaseCheck } from '../update/check'
 import { hostUpdateProgram } from '../update/handoff'
 import { readUpdateResult } from '../update/health'
 import { HOST_VERSION } from '../version'
@@ -25,6 +24,8 @@ export interface DaemonLanePortsInput {
   readonly pauses: () => LanePauses | null | undefined
   /** The updater environment's base: pi's environment. */
   readonly env: Record<string, string>
+  /** The daemon's own environment: the release check honours its `PHOSPHOR_HOST_RELEASE_URL`. */
+  readonly releaseEnv: NodeJS.ProcessEnv
   readonly home: string
   readonly platform: NodeJS.Platform
   /** Where the updater keeps `update-result.json`. */
@@ -34,22 +35,15 @@ export interface DaemonLanePortsInput {
 }
 
 /** `machine.status`'s update report: a source install never checks, a release checks itself. */
-function machineUpdate(
+export function machineUpdate(
   input: DaemonLanePortsInput,
   supported: boolean,
 ): NonNullable<DaemonHandlerDeps['machineUpdate']> {
   const check = supported
     ? startReleaseCheck({
         installed: HOST_VERSION,
-        latest: async (signal) =>
-          (
-            await fetchSignedRelease(
-              { env: input.env, platform: input.platform },
-              undefined,
-              HOST_VERSION,
-              signal,
-            )
-          ).version,
+        latest: (signal) =>
+          newestRelease({ env: input.releaseEnv }, `${input.platform}-${process.arch}`, signal),
         log: input.log,
       })
     : undefined

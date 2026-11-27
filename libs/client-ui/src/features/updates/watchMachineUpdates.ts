@@ -9,7 +9,7 @@ import {
 } from '@/stores/machineUpdates'
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { localServiceId } from '@/stores/localServiceScope'
-import { lastUpdateOf, readUpdateJob, readUpdateStatus } from './machineUpdateFacts'
+import { lastUpdateOf, readUpdateJob, readUpdateStatus, reportedRun } from './machineUpdateFacts'
 import { changeUpdateRun, reconnectForUpdate, updateOp } from './machineUpdateRun'
 import {
   observeConnection,
@@ -31,13 +31,18 @@ function applyStatus(
       status: status ?? entry.status,
       version: host.hostVersion ?? local?.serviceVersion ?? entry.version,
       last: lastUpdateOf(entry, status, local),
+      // The owner socket's push is not a read of this connection's Host.
+      readToken: local ? entry.readToken : host.connectionToken,
     }
     const pause = status?.pause
     const active = pause && pause.kind !== 'none'
     let run = entry.run
     if (active && (!run || (run.settled && entry.status?.pause.kind === 'none')))
       run = startRun('op', entry, host, Date.now())
-    if (!run) return next
+    if (!run) {
+      const reported = active ? undefined : reportedRun(entry, next.last, Date.now())
+      return reported ? { ...next, run: reported } : next
+    }
     const now = Date.now()
     run = observePause(run, pause, now)
     return { ...next, run: tickRun(observeConnection(run, next, host, now), now) }
@@ -167,6 +172,7 @@ export function watchMachineUpdates(owner: boolean): () => void {
   if (!window.phosphor?.invoke) return () => {}
   let live = true
   let ownerTicket = 0
+  useMachineUpdatesStore.setState({ startedAt: Date.now() })
   const local = owner && typeof window.phosphor.onLocalMachineChanged === 'function'
   const offLocal = local
     ? window.phosphor.onLocalMachineChanged((status) => {
@@ -204,7 +210,7 @@ export function watchMachineUpdates(owner: boolean): () => void {
     offLocal?.()
     window.clearInterval(timer)
     window.removeEventListener('focus', focus)
-    useMachineUpdatesStore.setState({ byMachine: {} })
+    useMachineUpdatesStore.setState({ byMachine: {}, startedAt: undefined })
   }
 }
 

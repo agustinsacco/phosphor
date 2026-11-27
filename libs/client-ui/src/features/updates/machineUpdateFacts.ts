@@ -49,6 +49,38 @@ export function lastUpdateOf(
   return status?.update ? status.update.last : entry.last
 }
 
+/** How long the updater keeps `update-result.json`, and so how long a result is news. */
+const RESULT_TTL_MS = 24 * 60 * 60_000
+
+/**
+ * A rollback or failed apply the Host reports with no run here to explain it
+ * (a reload mid-restart, or an update started elsewhere): one settled run,
+ * shown once in the bottom-left row and the Software row.
+ */
+export function reportedRun(
+  entry: MachineUpdateEntry,
+  last: LastUpdate | undefined,
+  now: number,
+): UpdateRun | undefined {
+  if (entry.run || !last || last.outcome === 'updated') return undefined
+  const at = Date.parse(last.at)
+  if (!Number.isFinite(at) || now - at >= RESULT_TTL_MS) return undefined
+  return {
+    path: 'op',
+    started: now,
+    shownAt: now,
+    step: 'health',
+    reached: 'health',
+    from: last.from,
+    to: last.to,
+    before: last.at,
+    finish: last.outcome === 'failed' ? 'apply' : 'rolled-back',
+    settled: true,
+    settledAt: now,
+    reported: true,
+  }
+}
+
 export function appendUpdateDetails(run: UpdateRun, text: string): UpdateRun {
   return { ...run, details: ((run.details ? `${run.details}\n` : '') + text).slice(-32_000) }
 }

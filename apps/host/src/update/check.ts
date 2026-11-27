@@ -1,5 +1,11 @@
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import {
+  fetchLocalRelease,
+  type LocalReleaseSource,
+} from '@phosphor/session-runtime/host-install/release-v2'
 import { errorText } from '@phosphor/shared/errors'
+import { LEGACY_HOST_RELEASE_TARGETS } from '@phosphor/shared/host-release'
+import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
 import { compareVersions } from '@phosphor/shared/version'
 
 const MINUTE = 60_000
@@ -15,8 +21,8 @@ const STALE_MS = 30 * MINUTE
 export interface ReleaseCheckPorts {
   /** This Host's running version. */
   readonly installed: string
-  /** The newest signed release's version; nothing is downloaded but the manifest. */
-  readonly latest: (signal: AbortSignal) => Promise<string>
+  /** The newest signed release's version for this machine, if any; only manifests are read. */
+  readonly latest: (signal: AbortSignal) => Promise<string | undefined>
   readonly log: RuntimeLog
   readonly random?: () => number
 }
@@ -25,6 +31,27 @@ export interface ReleaseCheck {
   /** What the last successful check found; starts a background check when stale. */
   report(): { available?: string; checkedAt?: string }
   stop(): void
+}
+
+/**
+ * The version `host-latest` offers `target` (`darwin-x64`, ...): the v2
+ * manifest, or v1 where no v2 is published, as Desktop's release watch reads
+ * them. Undefined when the release has no artifact or protocol for this Host.
+ * No downgrade check: the caller compares, and the updater keeps its own guard.
+ */
+export async function newestRelease(
+  source: LocalReleaseSource,
+  target: string,
+  signal: AbortSignal,
+): Promise<string | undefined> {
+  const found = await fetchLocalRelease(source, signal)
+  if (found.manifest === 1)
+    return LEGACY_HOST_RELEASE_TARGETS.some((t) => t === target) ? found.version : undefined
+  const { release } = found
+  return release.artifacts.some((a) => a.target === target) &&
+    release.protocols.some((p) => p >= HOST_PROTOCOL_VERSION)
+    ? release.version
+    : undefined
 }
 
 /**
@@ -55,7 +82,8 @@ export function startReleaseCheck(ports: ReleaseCheckPorts): ReleaseCheck {
     try {
       const version = await ports.latest(stopped.signal)
       found = {
-        ...(compareVersions(version, ports.installed) > 0 ? { available: version } : {}),
+        // An older release (one withdrawn) is a successful "no update", not a failure.
+        ...(version && compareVersions(version, ports.installed) > 0 ? { available: version } : {}),
         checkedAt: new Date().toISOString(),
       }
     } catch (error) {

@@ -92,6 +92,7 @@ export async function bindRunOps(
       endings: started.opsLanes.endings,
       pauses: () => parts.services?.pauses,
       env: started.machine.env,
+      releaseEnv: context.env,
       home: context.home,
       platform: context.platform,
       stateDirectory: ports.stateDirectory,

@@ -51,6 +51,8 @@ export interface UpdateRun {
   settledAt?: number
   /** Its Settings row was shown, so the bottom-left row lets a failure go. */
   seen?: true
+  /** Not a run this client tracked: the Host's `last` result, shown once. */
+  reported?: true
   jobId?: string
   awaitingJob?: true
   taskExit?: { code: number; at: number }
@@ -62,6 +64,8 @@ export interface MachineUpdateEntry {
   status?: UpdateStatus
   last?: LastUpdate
   run?: UpdateRun
+  /** The connection the last status read was on: an offer stays until a read on a new one. */
+  readToken?: string
 }
 
 export function nextRun(run: UpdateRun, now: number): UpdateRun {
@@ -214,6 +218,15 @@ export function holdUpdatePage(run: UpdateRun | undefined): boolean {
   )
 }
 
+/** A newer offer replaces a settled run once its result has nothing left to say. */
+function offerOutranks(run: UpdateRun | undefined, available: string): boolean {
+  if (!run) return true
+  if (!run.settled) return false
+  if (run.finish === 'updated') return !run.to || compareVersions(available, run.to) > 0
+  if (run.finish === 'current' || run.finish === 'cancelled') return true
+  return !!run.seen && run.finish !== 'not-back'
+}
+
 /** The Host's own report wins (tier 2); an older Host only learns of a newer version elsewhere. */
 function newerRelease(
   installed: string | undefined,
@@ -270,12 +283,12 @@ export function deriveMachineUpdate(input: {
   const phase: MachineUpdatePhase =
     run && !run.settled
       ? run.step
-      : run?.finish === 'updated'
-        ? 'done'
-        : run?.finish && run.finish !== 'current' && run.finish !== 'cancelled'
-          ? 'failed'
-          : available && (!run || run.finish === 'cancelled')
-            ? 'available'
+      : available && offerOutranks(run, available)
+        ? 'available'
+        : run?.finish === 'updated'
+          ? 'done'
+          : run?.finish && run.finish !== 'current' && run.finish !== 'cancelled'
+            ? 'failed'
             : installed || ready
               ? 'current'
               : 'unknown'

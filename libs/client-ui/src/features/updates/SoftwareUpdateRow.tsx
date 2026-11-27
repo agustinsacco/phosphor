@@ -268,7 +268,7 @@ export function SoftwareUpdateRow({
           onUpdate={() => void update().catch(() => undefined)}
         />
       </Row>
-      {state.run && <UpdatePipeline state={state} />}
+      {state.run && !state.run.reported && <UpdatePipeline state={state} />}
       {state.run?.details && (
         <details key={state.run.started} className="my-2 text-sm">
           <TooltipSummary>Show details</TooltipSummary>

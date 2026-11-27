@@ -238,6 +238,7 @@ it('keeps a failed update until it is opened, and opens that machine’s Advance
   const failed = run({ finish: 'download', settled: true, settledAt: 0 })
   setEntry('bee', { version: '1.2.0', run: failed })
   mount(COMPACT_PLATFORM)
+  wait(3000)
   wait(60 * 60_000)
   expect(rows()).toEqual(['machine: bee1 · Update didn’t finish'])
   act(() =>

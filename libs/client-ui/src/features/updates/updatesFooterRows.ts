@@ -117,17 +117,27 @@ export function machineUpdateRow(state: MachineUpdateState, now: number): Update
   }
 }
 
-/** A run outranks the scope until it ends; otherwise the machine in scope, if it is one. */
+/**
+ * A running update outranks the scope until it ends, then its held result;
+ * otherwise the machine in scope, if it is one. An active run on any machine
+ * comes before another machine's result.
+ */
 export function footerMachineId(
   scope: string,
   hosts: HostsSnapshot,
   byMachine: Record<string, MachineUpdateEntry>,
   now: number,
 ): string | undefined {
-  const running = Object.keys(byMachine).find((id) => {
-    const run = byMachine[id]?.run
-    return run && resultHolds(run, now)
-  })
+  const ids = Object.keys(byMachine)
+  const running =
+    ids.find((id) => {
+      const run = byMachine[id]?.run
+      return run && !run.settled
+    }) ??
+    ids.find((id) => {
+      const run = byMachine[id]?.run
+      return run && resultHolds(run, now)
+    })
   if (running) return running
   const id = serviceScope(scope, hosts)
   return hosts[id] ? id : undefined
@@ -194,7 +204,7 @@ const sameRow = (a: UpdateRowView | null, b: UpdateRowView | null) =>
 /**
  * The no-flicker rules for one slot: a phase stays 600 ms, another machine
  * replaces it at once (a scope switch), and nothing replaces it only after
- * 150 ms, so flipping back and forth does not bounce.
+ * 150 ms and the 600 ms, so flipping back and forth does not bounce.
  */
 export function settleSlot(
   slot: Slot,
@@ -206,7 +216,7 @@ export function settleSlot(
   if (!slot.row) return { slot: { row: target, since: now } }
   const want = slot.want && sameRow(slot.want.row, target) ? slot.want : { row: target, since: now }
   const at = !target
-    ? want.since + COLLAPSE_MS
+    ? Math.max(want.since + COLLAPSE_MS, slot.since + DWELL_MS)
     : target.machineId !== slot.row.machineId
       ? now
       : slot.since + DWELL_MS
