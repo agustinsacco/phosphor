@@ -91,4 +91,23 @@ describe('opsRun', () => {
     expect(c.call).not.toHaveBeenCalled()
     await expect(opsRun(c, request, { write: false })).rejects.toThrow(OPS_UNREADABLE)
   })
+
+  // Hosts before request `limit` parse ops.run with exact keys and answer `bad-request`
+  // before running anything, so asking again without the page size is safe.
+  it('asks an older Host again without --limit, and only then', async () => {
+    const badRequest: CallResult = {
+      type: 'result',
+      id: 'c',
+      ok: false,
+      error: { code: 'bad-request', message: 'bad-request' },
+    }
+    const c = connection({})
+    c.call.mockResolvedValueOnce(badRequest)
+    await expect(opsRun(c, { ...request, limit: 10 }, { write: false })).resolves.toEqual(ok)
+    expect(c.call).toHaveBeenNthCalledWith(1, 'ops.run', { ...request, limit: 10 })
+    expect(c.call).toHaveBeenNthCalledWith(2, 'ops.run', request)
+    const plain = connection({ call: badRequest })
+    await expect(opsRun(plain, request, { write: false })).rejects.toThrow('bad-request')
+    expect(plain.call).toHaveBeenCalledOnce()
+  })
 })
