@@ -79,7 +79,11 @@ changes config, identity, state or provider installs. An already selected versio
 version folder untouched and makes sure the launcher is in place. Any other
 existing version folder is refused, with an instruction to run
 `phosphor update --rollback` or remove that folder before trying again.
-Use `phosphor update` to select another signed release. A normal update also
+Use `phosphor update` to select another signed release. It reads the signed
+release the way the installer does: the v2 manifest for this machine's target
+(the only one that lists Intel Macs), and v1 only when the tag publishes no
+v2. A v2 that fails its signature, its parser or the cross-check against the
+v1 beside it is refused, with no v1 fallback. A normal update also
 runs `pi update npm:@saccolabs/pi-claude-cli` when that package is installed,
 including when the Host is already current. Its output passes through; failure
 prints a warning without failing the Host update. Check-only and rollback do
@@ -396,11 +400,10 @@ replacement itself, with renames and deletions that fail.
 `update --stage` verifies, downloads and probes a release without selecting it. `update --apply X.Y.Z` selects a staged release and health-checks the restart, rolling back if unhealthy; it does not update pi packages. For local mode health requires a fresh `local.json` from the selected version, plus a new heartbeat if the previous service had a recent one. The service reports `update-result.json` for 24 hours. Plain CLI update does not wait for a coordinated pause; use [Settings → Advanced → Software](settings.md) to stage and pause first.
 
 A running release install also checks for itself (`update/check.ts`): it
-fetches and verifies the signed v1 `host-latest` manifest the updater reads,
-downloading nothing else, and offers its version only when it lists an artifact
-for this machine and a protocol at least this Host's: what `update` would
-accept. So it offers nothing for a v2-only target such as `darwin-x64`
-([known-issues.md](known-issues.md) HL5). A release older than the running one,
+fetches and verifies the signed `host-latest` manifests the updater reads (v2,
+or v1 when no v2 is published), downloading nothing else, and offers its
+version only when it lists an artifact for this machine and a protocol at least
+this Host's: what `update` would accept, `darwin-x64` included. A release older than the running one,
 or one the updater would refuse, counts as a successful check with nothing
 available; the updater's downgrade guard is unchanged. It checks first 2 to 5
 minutes after start, then every 6 hours give or take 30

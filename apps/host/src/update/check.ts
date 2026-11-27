@@ -1,13 +1,8 @@
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
-import { downloadRelease, releaseUrl } from '@phosphor/session-runtime/host-install/download'
-import { verifyReleaseManifest } from '@phosphor/session-runtime/host-install/verify'
+import { supportedArtifact } from '@phosphor/session-runtime/host-install/fetch'
+import { fetchSignedManifest } from '@phosphor/session-runtime/host-install/signed-release'
 import { errorText } from '@phosphor/shared/errors'
-import {
-  HOST_RELEASE_KEYS,
-  HOST_RELEASE_MANIFEST_MAX_BYTES,
-  type HostReleaseKey,
-} from '@phosphor/shared/host-release'
-import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
+import { HOST_RELEASE_KEYS, type HostReleaseKey } from '@phosphor/shared/host-release'
 import { compareVersions } from '@phosphor/shared/version'
 
 const MINUTE = 60_000
@@ -35,15 +30,13 @@ export interface ReleaseCheck {
   stop(): void
 }
 
-const MANIFEST = 'phosphor-host.manifest.json'
-
 /**
  * The version a plain update would install on `target`, read as the updater
- * reads it (`fetchSignedRelease`): the signed v1 `host-latest` manifest, with
- * an artifact for this target and a protocol at least ours. Undefined when the
- * updater would refuse the release. A v2-only target such as `darwin-x64` is
- * never offered (known issue HL5). No downgrade check: the caller compares,
- * and the updater keeps its own guard.
+ * reads it (`fetchSignedRelease`): the signed `host-latest` release, v2 when
+ * published (it lists Intel Macs) and v1 otherwise, with an artifact for this
+ * target and a protocol at least ours. Undefined when the updater would refuse
+ * the release. No downgrade check: the caller compares, and the updater keeps
+ * its own guard.
  */
 export async function newestRelease(
   source: { env: NodeJS.ProcessEnv; keys?: readonly HostReleaseKey[] },
@@ -52,14 +45,8 @@ export async function newestRelease(
 ): Promise<string | undefined> {
   const keys = source.keys ?? HOST_RELEASE_KEYS
   if (!keys.length) throw new Error('No Host release keys are pinned.')
-  const url = (file: string) => releaseUrl(source.env, 'host-latest', file)
-  const manifest = await downloadRelease(url(MANIFEST), HOST_RELEASE_MANIFEST_MAX_BYTES, signal)
-  const signature = await downloadRelease(url(`${MANIFEST}.sig`), 8192, signal)
-  const release = verifyReleaseManifest(manifest, signature.toString('utf8'), keys)
-  return release.artifacts.some((a) => a.target === target) &&
-    release.protocols.some((p) => p >= HOST_PROTOCOL_VERSION)
-    ? release.version
-    : undefined
+  const { release } = await fetchSignedManifest({ env: source.env, keys }, signal)
+  return supportedArtifact(release, target) ? release.version : undefined
 }
 
 /**

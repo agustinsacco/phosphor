@@ -2,14 +2,16 @@ import { lstatSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   HOST_RELEASE_KEYS,
-  HOST_RELEASE_MANIFEST_MAX_BYTES,
   type HostReleaseKey,
+  type HostReleaseManifest,
+  type HostReleaseManifestV2,
 } from '@phosphor/shared/host-release'
 import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
 import { decompressRelease, extractRelease } from './archive'
 import { downloadRelease, releaseUrl } from './download'
 import { readBounded } from './files'
-import { verifyReleaseArtifact, verifyReleaseManifest } from './verify'
+import { fetchSignedManifest } from './signed-release'
+import { verifyReleaseArtifact } from './verify'
 
 export class UpdateFailure extends Error {
   constructor(
@@ -49,40 +51,45 @@ export interface FetchContext {
   progress?: (step: UpdateStep) => void
 }
 
-type Artifact = ReturnType<typeof verifyReleaseManifest>['artifacts'][number]
+type ReleaseArtifact = (HostReleaseManifest | HostReleaseManifestV2)['artifacts'][number]
 /** What staging reads from an artifact; a v1 or v2 manifest entry both fit. */
-type StagedArtifact = Pick<Artifact, 'file' | 'bytes' | 'sha256'>
+type StagedArtifact = Pick<ReleaseArtifact, 'file' | 'bytes' | 'sha256'>
 
-/** The signed release to move to: its version, this machine's artifact and any protocol notice. */
+/** This machine's artifact in a release, when the release also speaks a protocol at least ours. */
+export function supportedArtifact(
+  release: HostReleaseManifest | HostReleaseManifestV2,
+  target: string,
+): ReleaseArtifact | undefined {
+  const artifact = release.artifacts.find((a) => a.target === target)
+  return artifact && release.protocols.some((p) => p >= HOST_PROTOCOL_VERSION)
+    ? artifact
+    : undefined
+}
+
+/**
+ * The signed release to move to: its version, this machine's artifact and any
+ * protocol notice. Reads the v2 manifest for this machine's target (Intel Macs
+ * are listed only there), and v1 when no v2 is published on the tag.
+ */
 export async function fetchSignedRelease(
   context: FetchContext,
   requested: string | undefined,
   installed: string,
   signal: AbortSignal,
-): Promise<{ version: string; artifact: Artifact; notice?: string }> {
+): Promise<{ version: string; artifact: ReleaseArtifact; notice?: string }> {
   const keys = context.keys ?? HOST_RELEASE_KEYS
   if (!keys.length) throw new UpdateFailure('No Host release keys are pinned.', 69)
   context.progress?.({ step: 'check' })
-  const tag = requested ? `host-v${requested}` : 'host-latest'
-  const name = requested
-    ? `phosphor-host-${requested}.manifest.json`
-    : 'phosphor-host.manifest.json'
-  const manifest = await downloadRelease(
-    releaseUrl(context.env, tag, name),
-    HOST_RELEASE_MANIFEST_MAX_BYTES,
+  const { release: signed } = await fetchSignedManifest(
+    { env: context.env, keys, ...(requested && { requested }) },
     signal,
   )
-  const signature = await downloadRelease(releaseUrl(context.env, tag, `${name}.sig`), 8192, signal)
-  const signed = verifyReleaseManifest(manifest, signature.toString('utf8'), keys)
   const version = signed.version
   if (requested && version !== requested)
     throw new UpdateFailure('Release version does not match the request.', 64)
   if (compareVersions(version, installed) < 0) throw new UpdateFailure('refusing to downgrade', 64)
-  const artifact = signed.artifacts.find(
-    (a) => a.target === `${context.platform}-${context.arch ?? process.arch}`,
-  )
-  if (!artifact || !signed.protocols.some((p) => p >= HOST_PROTOCOL_VERSION))
-    throw new UpdateFailure('Release does not support this Host.', 69)
+  const artifact = supportedArtifact(signed, `${context.platform}-${context.arch ?? process.arch}`)
+  if (!artifact) throw new UpdateFailure('Release does not support this Host.', 69)
   context.progress?.({ step: 'found', version, installed })
   // A newer protocol is how a Host catches up with updated apps; say so when it drops ours.
   const notice = signed.protocols.includes(HOST_PROTOCOL_VERSION)
