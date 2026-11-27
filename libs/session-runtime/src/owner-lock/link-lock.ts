@@ -151,6 +151,7 @@ export async function publishLinkLock<T extends LinkLockHolder>(
   lock: LinkLock<T>,
   temp: string,
   body: string,
+  guardPublication = false,
 ): Promise<void> {
   const existing = await snapshotLinkLock(lock)
   if (existing?.lock && (await lock.isLive(existing.lock)))
@@ -165,7 +166,12 @@ export async function publishLinkLock<T extends LinkLockHolder>(
     }
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await (lock.ports.link ?? link)(temp, lock.path)
+        if (guardPublication) await acquireRecoveryGate(lock)
+        try {
+          await (lock.ports.link ?? link)(temp, lock.path)
+        } finally {
+          if (guardPublication) await rmdir(lock.gatePath)
+        }
         return
       } catch (error) {
         if (!(error instanceof Error && errnoIs(error, 'EEXIST'))) throw error

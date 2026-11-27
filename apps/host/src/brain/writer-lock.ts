@@ -133,7 +133,12 @@ export async function acquireHostBrainWriterLock(
 ): Promise<HostBrainWriterLock> {
   const token = randomBytes(32).toString('hex')
   const { lock, ports } = writerLinkLock(stateDirectory, token, options)
-  await publishLinkLock(lock, `${lock.path}.${token}.tmp`, await writerRecordText(ports, token))
+  await publishLinkLock(
+    lock,
+    `${lock.path}.${token}.tmp`,
+    await writerRecordText(ports, token),
+    true,
+  )
   return { release: () => releaseLinkLock(lock) }
 }
 

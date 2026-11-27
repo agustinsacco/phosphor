@@ -37,8 +37,8 @@ async function afterApproval(
   const deadline = Math.min(ask.expiresAt, Date.now() + OPS_LIMITS.confirmTtlMs)
   const status = { op: BRAIN_APPROVAL, args: { action: 'status', id: ask.confirmId } }
   while (Date.now() < deadline) {
-    const reply = await client.runBrain(status, false)
-    if (Date.now() >= deadline) return 'expired'
+    const reply = await pollUntil(client, status, deadline)
+    if (!reply || Date.now() >= deadline) return 'expired'
     const state = reply.status === 'ok' && (reply.data as { state?: unknown } | null)?.state
     if (state === 'approved') {
       const confirm = { confirmId: ask.confirmId, digest: ask.digest }
@@ -49,6 +49,20 @@ async function afterApproval(
     await sleep(Math.min(2000, deadline - Date.now()))
   }
   return 'expired'
+}
+
+async function pollUntil(client: Client, status: OpsRunRequest, deadline: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      client.runBrain(status, false),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), Math.max(0, deadline - Date.now()))
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 function helpTopic(argv: readonly string[]): string | null | undefined {

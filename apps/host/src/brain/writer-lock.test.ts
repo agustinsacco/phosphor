@@ -63,7 +63,9 @@ it('reclaims the lock of a killed writer, and of a reused pid with another start
 it('refuses a gate left after stale-record removal without publishing a new writer', async () => {
   const path = join(state, HOST_BRAIN_WRITER_LOCK)
   await mkdir(path + '-recovery')
-  await expect(acquireHostBrainWriterLock(state)).rejects.toThrow(/needs repair/)
+  await expect(
+    acquireHostBrainWriterLock(state, { now: () => Date.now() + 86_400_000 }),
+  ).rejects.toThrow(/needs repair/)
   expect(existsSync(path)).toBe(false)
   expect(existsSync(path + '-recovery')).toBe(true)
 })
