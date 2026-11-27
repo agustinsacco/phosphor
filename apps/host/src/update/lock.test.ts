@@ -165,9 +165,12 @@ it('interoperates both ways with the real generated installer and reclaims its d
   release()
   // A live actual installer process pauses immediately after writing its own pid.
   const installer = readFileSync(script, 'utf8')
+  const pidWritten = 'printf \'%s\\n\' "$$" > "$lock/pid" || fail\nend_critical\n'
+  // A replacer function: a replacement string would turn the installer's `$$` into `$`.
   const text = installer.replace(
-    'end_critical\n[ ! -e "$root/current" ]',
-    'end_critical\nprintf "ready\\n" > "$HOME/ready"\nwhile [ ! -f "$HOME/continue" ]; do sleep 0.05; done\n[ ! -e "$root/current" ]',
+    pidWritten,
+    () =>
+      `${pidWritten}printf "ready\\n" > "$HOME/ready"\nwhile [ ! -f "$HOME/continue" ]; do sleep 0.05; done\n`,
   )
   // Without the pause the child below waits for `ready` until its timeout.
   expect(text, 'installer pause anchor').not.toBe(installer)
