@@ -1,4 +1,4 @@
-import { sessionPathKey } from '@phosphor/session-runtime/pi/session-path-lock'
+import { sessionOwnerOf } from './session-owner'
 import { createDrain, endTurn, within } from './lifecycle'
 import { createRuntimeOperations } from './runtime-operations'
 import { createRuntimeState, type HostMachine, type RuntimeOptions } from './runtime-state'
@@ -34,12 +34,8 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     roots: state.roots,
     resourceRoot: machine.resourceRoot,
   })
-  const sessionOwner = (path: string) => {
-    const key = sessionPathKey(path)
-    return state.registry
-      .list()
-      .find((lane) => lane.diskPath && sessionPathKey(lane.diskPath) === key)?.sessionId
-  }
+  const sessionOwner = (path: string) =>
+    sessionOwnerOf(state.registry.list(), path, (id) => !!state.registry.get(id)?.client.alive)
   return {
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     ...(options.leases ? { leases: options.leases } : {}),

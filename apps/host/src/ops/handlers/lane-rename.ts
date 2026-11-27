@@ -17,7 +17,13 @@ function checkControl(ctx: OpHandlerContext, lane: StoredLane, fence?: number): 
       !(principal.currentCaps?.() ?? principal.caps).includes('sessions.control')
     )
       throw new OpRefusal('forbidden', 'This connection cannot control lanes.')
-    if (lane.control.controller?.clientId !== principal.clientId || lane.control.fence !== fence)
+    // A fence pins the control the client saw. Undo carries none: the user only has to hold it now.
+    const controller = lane.control.controller?.clientId
+    if (
+      fence !== undefined
+        ? controller !== principal.clientId || lane.control.fence !== fence
+        : controller !== undefined && controller !== principal.clientId
+    )
       throw new OpRefusal('not-controller', 'Lane control changed. Take control first.')
   } else if (lane.control.fence !== ctx.lane?.controlFence) {
     throw new OpRefusal('not-controller', 'Lane control changed. Try again.')
@@ -68,7 +74,7 @@ export function laneRename(deps: DaemonHandlerDeps) {
       }
       return {
         text: `Renamed lane to ${name}.`,
-        before: { ref, name: lane.title ?? '', controlFence: lane.control.fence },
+        before: { ref, name: lane.title ?? '' },
       }
     }
     return file ? deps.editing.runtime.withSessionFile(file, rename) : rename()

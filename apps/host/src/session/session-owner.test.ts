@@ -1,20 +1,18 @@
 import { expect, it } from 'vitest'
 import { sessionOwnerOf } from './session-owner'
 
-const session = (sessionId: string, diskPath: string, alive: boolean) => ({
-  sessionId,
-  diskPath,
-  client: { alive },
-})
+const live = new Set(['s1'])
+const alive = (sessionId: string) => live.has(sessionId)
+const session = (sessionId: string, diskPath: string) => ({ sessionId, diskPath })
 
 it('names the live pi that owns a transcript', () => {
-  expect(sessionOwnerOf([session('s1', '/x/a.jsonl', true)], '/x/a.jsonl')).toBe('s1')
+  expect(sessionOwnerOf([session('s1', '/x/a.jsonl')], '/x/a.jsonl', alive)).toBe('s1')
 })
 
 it('does not count a pi that exited: a crashed lane is not starting or stopping', () => {
-  expect(sessionOwnerOf([session('s1', '/x/a.jsonl', false)], '/x/a.jsonl')).toBeUndefined()
+  expect(sessionOwnerOf([session('s2', '/x/a.jsonl')], '/x/a.jsonl', alive)).toBeUndefined()
 })
 
 it('ignores other transcripts', () => {
-  expect(sessionOwnerOf([session('s1', '/x/b.jsonl', true)], '/x/a.jsonl')).toBeUndefined()
+  expect(sessionOwnerOf([session('s1', '/x/b.jsonl')], '/x/a.jsonl', alive)).toBeUndefined()
 })

@@ -75,7 +75,7 @@ it('renames a live lane through pi and refuses an unsaved stopped one', async ()
   const h = harness()
   expect(await h.handlers['lane.rename']!({ name: 'Next' }, ctx(agent))).toEqual({
     text: 'Renamed lane to Next.',
-    before: { ref: lane.ref, name: 'Mine', controlFence: lane.controlFence },
+    before: { ref: lane.ref, name: 'Mine' },
   })
   expect(h.runtime.command).toHaveBeenCalledWith('s1', { type: 'set_session_name', name: 'Next' })
   await expect(
