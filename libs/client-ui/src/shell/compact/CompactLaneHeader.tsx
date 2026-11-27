@@ -22,8 +22,9 @@ import type { LanePane, Location } from '@/navigation/location'
 import { useChatStore } from '@/stores/chat'
 import { LaneLinks } from '@/features/sessions/LaneLinks'
 import { useMachinesStore } from '@/stores/machines'
-import { connectionLabel, machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
-import { hostReady, hostStarting } from '@/stores/hostReadiness'
+import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { hostPhaseLabel, hostReady } from '@/stores/hostReadiness'
+import { useHostPhase } from '@/stores/machineStartLimit'
 import { laneListFor } from './browserMemory'
 
 type LaneLocation = Extract<Location, { to: 'lane' }>
@@ -109,8 +110,9 @@ export function CompactLaneHeader({ location }: { location: LaneLocation }): Rea
 }
 
 /**
- * "● Host · Controlled by you · Files". The control state is its own node. A reader
- * sees the connection instead: who holds the lane is in its locked composer.
+ * "● Host · Controlled by you · Files". The control state is its own node. A reader,
+ * or any lane on a machine that is not ready, sees the machine's phase instead, the
+ * one its composer reads (`hostPhase`): who holds the lane is in its locked composer.
  */
 function LaneStatus({
   id,
@@ -124,8 +126,9 @@ function LaneStatus({
   pane?: string
 }): React.JSX.Element {
   useMachinesStore((s) => s.machines)
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const ready = hostReady(host)
+  const state = useRemoteLanesStore((s) => s.hosts[hostId]?.state)
+  const phase = useHostPhase(hostId)
+  const ready = phase === 'ready'
   return (
     <span id={id} className="compact-lane-status">
       <span
@@ -136,9 +139,7 @@ function LaneStatus({
       <span className="truncate">{machineLabel(hostId)}</span>
       <span aria-hidden>·</span>
       <span className="truncate">
-        {control && ((ready && control.controlling) || hostStarting(host))
-          ? control.status
-          : connectionLabel(host?.state)}
+        {control && ready && control.controlling ? control.status : hostPhaseLabel(phase, state)}
       </span>
       {pane && <span aria-hidden>·</span>}
       {pane && <span>{pane}</span>}

@@ -1,7 +1,9 @@
 import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import { localMachineLabel } from '@/lib/localMachine'
-import { useRemoteLanesStore, machineLabel, connectionLabel } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
+import { hostPhaseLabel } from '@/stores/hostReadiness'
+import { useHostPhase } from '@/stores/machineStartLimit'
 import { Button, Chip } from '@/components/form'
 import { useLaneControl } from './useLaneControl'
 
@@ -13,16 +15,17 @@ export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Ele
   return <HostMachineChip hostId={target?.kind === 'remote' ? target.hostId : undefined} />
 }
 
-/** A Host's name and connection state; This Mac's name without a Host. */
+/** A Host's name and phase (`hostPhase`), as its composer reads it; This Mac's name without a Host. */
 export function HostMachineChip({ hostId }: { hostId: string | undefined }): React.JSX.Element {
   const state = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId]?.state : undefined))
+  const phase = useHostPhase(hostId)
   useMachinesStore((s) => s.machines)
   return (
     <Chip
       className="bg-chip text-text-secondary shrink-0 whitespace-nowrap"
       data-testid="machine-chip"
     >
-      {hostId ? `${machineLabel(hostId)} · ${connectionLabel(state)}` : localMachineLabel()}
+      {hostId ? `${machineLabel(hostId)} · ${hostPhaseLabel(phase, state)}` : localMachineLabel()}
     </Chip>
   )
 }
