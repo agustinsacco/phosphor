@@ -1,5 +1,4 @@
 import { useBrain } from '@/features/brain/useBrain'
-import { useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo } from '@shared/models'
 import { useMenuTriggers } from '@/components/ContextMenu'
@@ -13,13 +12,12 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { navigateToLane } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { committedRename } from './inlineRename'
 import { LaneMarker } from './LaneMarker'
-import { RenameInput } from './RenameInput'
+import { laneRowBody, localLaneTitle, useInlineRename } from './laneRowBody'
 import { useNameTransition } from './nameTransition'
 import { applySessionRename } from './sessionActions'
 import { sessionSubtitle } from './sessionSubtitle'
-import { SESSION_TITLE_CLASS, SessionIndicator, SubtitleSegments } from './SidebarPrimitives'
+import { SessionIndicator, SubtitleSegments } from './SidebarPrimitives'
 import { usePendingLaneActions } from './useLocalLaneActions'
 
 /**
@@ -82,29 +80,17 @@ export function PendingSessionRow({
   // meta.path yet, so there can be no explicit override: always Auto.
   const { marker, markerMode } = usePendingMarker(phosphorId, git?.branch)
 
-  const [renaming, setRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState('')
-
-  const beginRename = (): void => {
-    setRenameValue(title)
-    setRenaming(true)
-  }
-
-  const applyRename = (): void => {
-    const name = committedRename(renameValue, title)
-    setRenaming(false)
-    if (!name) return
-    // No `refreshDisk` follow-up, unlike the disk-backed row: there is no file
-    // to rescan yet. `applySessionRename` patches the chat store, and this
-    // row's title reads that store, so the new name shows immediately and
-    // survives the swap to `SessionRow` (which prefers the live name too).
-    void applySessionRename(phosphorId, name)
-  }
+  // No `refreshDisk` follow-up, unlike the disk-backed row: there is no file
+  // to rescan yet. `applySessionRename` patches the chat store, and this row's
+  // title reads that store, so the new name shows immediately and survives the
+  // swap to `SessionRow` (which prefers the live name too).
+  const rename = useInlineRename(title, (name) => void applySessionRename(phosphorId, name))
+  const renaming = rename.editing
   const menuItems = usePendingLaneActions({
     phosphorId,
     title,
     deleting,
-    onRename: beginRename,
+    onRename: rename.begin,
     onDelete,
   })
   const menu = useMenuTriggers(menuItems, { title })
@@ -117,49 +103,16 @@ export function PendingSessionRow({
     active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
   )
 
-  const body = (
-    <>
-      <SessionIndicator state={activity ? 'streaming' : 'live'} />
-      {markerMode !== 'off' && <LaneMarker marker={marker} />}
-      <span className="min-w-0 flex-1">
-        {renaming ? (
-          <RenameInput
-            value={renameValue}
-            onChange={setRenameValue}
-            onCommit={applyRename}
-            onCancel={() => {
-              setRenaming(false)
-              setRenameValue('')
-            }}
-          />
-        ) : (
-          <span
-            key={title}
-            data-tooltip={naming.pending ? 'Naming this chat…' : title}
-            data-testid="session-title"
-            className={clsx(
-              SESSION_TITLE_CLASS,
-              // See SessionRow: shimmers while pending too, must match exactly —
-              // this row is swapped for a real SessionRow mid-shimmer the moment
-              // the session file lands, and any difference reads as a twitch.
-              naming.pending && 'name-pending',
-              naming.settled && 'name-enter',
-            )}
-          >
-            {title}
-          </span>
-        )}
-        <span
-          className={clsx(
-            'flex items-center gap-1 text-base leading-4',
-            active ? 'text-text' : 'text-text-secondary',
-          )}
-        >
-          <SubtitleSegments segments={subtitle} activity={activity} />
-        </span>
-      </span>
-    </>
-  )
+  const body = laneRowBody({
+    indicator: <SessionIndicator state={activity ? 'streaming' : 'live'} />,
+    marker: markerMode !== 'off' && <LaneMarker marker={marker} />,
+    title: rename.editor ?? localLaneTitle(title, naming),
+    subtitleClassName: clsx(
+      'flex items-center gap-1 text-base leading-4',
+      active ? 'text-text' : 'text-text-secondary',
+    ),
+    subtitle: <SubtitleSegments segments={subtitle} activity={activity} />,
+  })
 
   // A <div> while editing, for the same reason SessionRow swaps its tag: a
   // text field inside a <button> is invalid HTML and Enter belongs to the
@@ -183,7 +136,7 @@ export function PendingSessionRow({
       disabled={deleting}
       aria-busy={deleting}
       {...menu}
-      onDoubleClick={beginRename}
+      onDoubleClick={rename.begin}
       data-testid="session-row"
       data-pending="true"
       tooltip={deleting ? 'Deleting lane' : title}

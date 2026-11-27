@@ -1,5 +1,4 @@
 import { useBrain } from '@/features/brain/useBrain'
-import { useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta } from '@shared/models'
 import { useMenuTriggers } from '@/components/ContextMenu'
@@ -14,15 +13,14 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { openSidebarConversation } from './completionActions'
-import { committedRename } from './inlineRename'
-import { RenameInput } from './RenameInput'
+import { laneRowBody, localLaneTitle, useInlineRename } from './laneRowBody'
 import { LaneMarker } from './LaneMarker'
 import { SelectableIndicator } from './LaneSelect'
 import { useNameTransition } from './nameTransition'
 import { PrBadge } from './PrBadge'
 import { sessionSubtitle } from './sessionSubtitle'
 import { renameSidebarSession } from './sidebarActions'
-import { LANE_ROW_CLASS, LaneRow, SESSION_TITLE_CLASS, SubtitleSegments } from './SidebarPrimitives'
+import { LANE_ROW_CLASS, LaneRow, SubtitleSegments } from './SidebarPrimitives'
 import { useLocalLaneActions } from './useLocalLaneActions'
 import { useLocalLanePrs } from './useLanePrs'
 
@@ -118,25 +116,10 @@ export function SessionRow({
       { elide: false },
     ) ?? 'Untitled session'
 
-  const [renaming, setRenaming] = useState(false)
-  const [renameValue, setRenameValue] = useState('')
-
-  const beginRename = (): void => {
-    setRenameValue(title)
-    setRenaming(true)
-  }
-
-  const applyRename = (): void => {
-    const name = committedRename(renameValue, title)
-    setRenaming(false)
-    if (!name) return
+  const rename = useInlineRename(title, (name) => {
     void renameSidebarSession(workspacePath, meta, name, livePhosphorId)
-  }
-
-  const cancelRename = (): void => {
-    setRenaming(false)
-    setRenameValue('')
-  }
+  })
+  const renaming = rename.editing
   // Badge reads the session's own cwd, so a Pinned row shows the project it
   // actually belongs to rather than whatever is on screen. Project only — the
   // subtitle beneath it already carries `wt` and the branch.
@@ -156,7 +139,7 @@ export function SessionRow({
     git,
     prs: prs.owned,
     deleting,
-    onRename: beginRename,
+    onRename: rename.begin,
     onOpenTree,
     onDelete,
   })
@@ -173,8 +156,8 @@ export function SessionRow({
 
   const rowClassName = localRowClass(active, selected, deleting)
 
-  const body = (
-    <>
+  const body = laneRowBody({
+    indicator: (
       <SelectableIndicator
         state={indicatorState}
         select={
@@ -183,76 +166,49 @@ export function SessionRow({
             : undefined
         }
       />
-      {markerMode !== 'off' && (
-        <LaneMarker marker={marker} onPick={deleting ? undefined : actions.pickMarker} />
-      )}
-      <span className="min-w-0 flex-1">
-        {renaming ? (
-          <RenameInput
-            value={renameValue}
-            onChange={setRenameValue}
-            onCommit={applyRename}
-            onCancel={cancelRename}
-          />
-        ) : (
+    ),
+    marker: markerMode !== 'off' && (
+      <LaneMarker marker={marker} onPick={deleting ? undefined : actions.pickMarker} />
+    ),
+    title: rename.editor ?? localLaneTitle(title, naming),
+    subtitleClassName: clsx(
+      '@container/lane-line flex items-center gap-1 text-base leading-4',
+      active ? 'text-text' : 'text-text-secondary',
+    ),
+    subtitle: (
+      <>
+        {isSuspended && (
           <span
-            // Re-keyed on the title so the arrival of a generated name replays
-            // the entrance; without it React patches the text node in place and
-            // the name simply pops.
-            key={title}
-            data-tooltip={naming.pending ? 'Naming this chat…' : title}
-            data-testid="session-title"
-            className={clsx(
-              SESSION_TITLE_CLASS,
-              // Shimmers while pending, same as the top bar (.name-pending in
-              // index.css) — a session you just created is watched here in
-              // the sidebar at least as often as in the top bar, and a name
-              // sitting still read as settled rather than still in flight.
-              // The branch chip in BranchControl stays arrival-only: that combo
-              // (this row, the top bar, the chip, all three at once) is what
-              // previously made starting a chat read as busy.
-              naming.pending && 'name-pending',
-              naming.settled && 'name-enter',
-            )}
+            className="bg-chip text-text-secondary mr-0.5 shrink-0 rounded px-1 font-medium"
+            data-tooltip="Suspended to save memory · opening resumes it"
           >
-            {title}
+            suspended
           </span>
         )}
-        <span
-          className={clsx(
-            '@container/lane-line flex items-center gap-1 text-base leading-4',
-            active ? 'text-text' : 'text-text-secondary',
-          )}
-        >
-          {isSuspended && (
-            <span
-              className="bg-chip text-text-secondary mr-0.5 shrink-0 rounded px-1 font-medium"
-              data-tooltip="Suspended to save memory · opening resumes it"
-            >
-              suspended
-            </span>
-          )}
-          <SubtitleSegments segments={subtitle} activity={activity} />
-          {showPrStatus && <PrBadge prs={prs.owned} />}
-        </span>
-      </span>
-      {deleting && (
-        <span className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium">
-          deleting
-        </span>
-      )}
-      {showWorkspace && rowWorkspaceName && (
-        <span
-          data-testid="session-workspace-badge"
-          data-tooltip={meta.cwd || workspacePath}
-          className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
-        >
-          {rowWorkspaceName}
-        </span>
-      )}
-      {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
-    </>
-  )
+        <SubtitleSegments segments={subtitle} activity={activity} />
+        {showPrStatus && <PrBadge prs={prs.owned} />}
+      </>
+    ),
+    trailing: (
+      <>
+        {deleting && (
+          <span className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium">
+            deleting
+          </span>
+        )}
+        {showWorkspace && rowWorkspaceName && (
+          <span
+            data-testid="session-workspace-badge"
+            data-tooltip={meta.cwd || workspacePath}
+            className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
+          >
+            {rowWorkspaceName}
+          </span>
+        )}
+        {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
+      </>
+    ),
+  })
 
   // The rename input needs a div. The inspector and portalled marker picker
   // stay siblings of the navigation button, never nested interactive controls.
@@ -274,7 +230,7 @@ export function SessionRow({
           <LaneRow
             onClick={open}
             {...menu}
-            onDoubleClick={beginRename}
+            onDoubleClick={rename.begin}
             disabled={deleting}
             aria-busy={deleting}
             data-testid="session-row"
