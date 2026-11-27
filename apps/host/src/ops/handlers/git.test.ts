@@ -50,13 +50,15 @@ function fixture() {
     removedAt: null,
     sessionFile: null,
   }
-  const state = { activity: 'stopped', occupant: '' }
+  const sibling = { ...lane, laneId: 'e0efa2f5-94c7-4a3a-944e-75f6e18d34d1' }
+  const state = { activity: 'stopped', siblingActivity: 'stopped', occupant: '' }
   const changed = vi.fn()
   const store = {
-    getLane: () => lane,
-    listLanes: () => [lane],
+    getLane: (id: string) => [lane, sibling].find((row) => row.laneId === id),
+    listLanes: () => [lane, sibling],
     listRepositories: () => [{ id: repositoryId, path: root }],
-    updateLane: (_id: string, patch: Partial<typeof lane>) => Object.assign(lane, patch),
+    updateLane: (id: string, patch: Partial<typeof lane>) =>
+      Object.assign(id === laneId ? lane : sibling, patch),
   }
   const feature = createGitFeature({ store, log: () => {} } as never)
   const paths = createSessionPathRuntime()
@@ -64,7 +66,10 @@ function fixture() {
     store,
     lanes: { lanesTopic: { resourceChanged: changed }, calls: { call: feature.call } },
     laneRuntime: {
-      summaryFor: () => ({ ...lane, activity: state.activity }),
+      summaryFor: (id: string) => ({
+        ...store.getLane(id),
+        activity: id === laneId ? state.activity : state.siblingActivity,
+      }),
       publishSummary: vi.fn(),
     },
     editing: { runtime: { withSessionFile: paths.withSessionPath } },
@@ -80,7 +85,24 @@ function fixture() {
       ...request,
     } as OpHandlerContext)
   }
-  return { root, write, run, state, changed, laneId, repositoryId }
+  const principal = {
+    kind: 'agent',
+    laneRef: laneRefFor([], laneId),
+    sessionId: 'asking-session',
+    lineage: 0,
+    unattended: false,
+  } as const
+  return {
+    root,
+    write,
+    run,
+    state,
+    changed,
+    laneId,
+    repositoryId,
+    principal,
+    siblingRef: laneRefFor([], sibling.laneId),
+  }
 }
 
 it('pages branches, worktrees and diff chunks; diff path is literal and confined', async () => {
@@ -163,6 +185,44 @@ it.each(['working', 'needs-input'])('refuses changes when the target is %s', asy
   })
   expect(f.changed).not.toHaveBeenCalled()
 })
+
+it.each(['self', 'idle sibling'])('allows a working agent to write on %s', async (target) => {
+  const f = fixture()
+  f.state.activity = 'working'
+  f.write('a.txt', 'agent change\n')
+  const request = {
+    principal: f.principal,
+    ...(target === 'idle sibling' ? { lane: { ref: f.siblingRef } } : {}),
+  }
+  await expect(
+    f.run('git.commitAll', { message: 'agent checkpoint' }, request),
+  ).resolves.toMatchObject({
+    data: { sha: expect.any(String) },
+  })
+  expect(git(f.root, 'show', 'HEAD:a.txt')).toBe('agent change')
+})
+
+it.each(['working', 'needs-input'])(
+  'refuses an agent write when its sibling is %s',
+  async (activity) => {
+    const f = fixture()
+    f.state.activity = 'working'
+    f.state.siblingActivity = activity
+    for (const ref of [f.principal.laneRef, f.siblingRef]) {
+      await expect(
+        f.run(
+          'git.commitAll',
+          { message: 'must not run' },
+          {
+            principal: f.principal,
+            lane: { ref },
+          },
+        ),
+      ).rejects.toMatchObject({ code: 'busy' })
+    }
+    expect(f.changed).not.toHaveBeenCalled()
+  },
+)
 
 it('refuses restore through traversal or a parent symlink', async () => {
   const f = fixture()
