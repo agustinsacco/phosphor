@@ -443,3 +443,27 @@ it('keeps a failure’s explanation above a later offer in Software', () => {
     'Version 1.3.0 is available.',
   ])
 })
+
+it('lets a run claim only a result with its own versions; any other is reported', () => {
+  const now = Date.parse('2026-11-26T12:00:00.000Z')
+  const updated = {
+    ...startRun('op', {}, host, 0),
+    to: '1.3.0',
+    restartAt: 5,
+    finish: 'updated' as const,
+    settled: true as const,
+  }
+  const other = {
+    from: '1.3.0',
+    to: '1.4.0',
+    outcome: 'rolled-back',
+    at: '2026-11-26T11:00:00.000Z',
+  } as const
+  expect(observeResult({ run: updated, last: other }, now).run).toMatchObject({
+    reported: true,
+    from: '1.3.0',
+    to: '1.4.0',
+  })
+  const own = { ...other, from: '1.2.3', to: '1.3.0', outcome: 'updated' } as const
+  expect(observeResult({ run: updated, last: own }, now).run).toMatchObject({ claimed: true })
+})

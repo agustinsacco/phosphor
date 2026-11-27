@@ -399,17 +399,63 @@ it('keeps a row’s dwell and collapse across a remount', () => {
   expect(rows()).toEqual([])
 })
 
-it('keeps the old text during its dwell but never its old action', () => {
+it('shows a changed action at once: the label always says what a click does', () => {
   setApp({ phase: 'downloaded', version: '2.0.0' })
   mount(DESKTOP_PLATFORM)
   wait(3000)
+  setApp({ phase: 'manual-download', version: '2.0.0' })
+  expect(rows()).toEqual(['app: Desktop · Download update'])
+  expect(button('app').title).toBe('Download version 2.0.0.')
   setApp({ phase: 'installing', version: '2.0.0' })
-  expect(rows()).toEqual(['app: Desktop · Restart to update'])
+  expect(rows()).toEqual(['app: Desktop · Installing…'])
   expect(button('app').disabled).toBe(true)
-  act(() => button('app').click())
-  expect(window.phosphor.invoke).not.toHaveBeenCalledWith('updates:restartAndInstall')
+})
+
+it('holds only progress text for its dwell', () => {
+  mount(DESKTOP_PLATFORM)
+  wait(3000)
+  setApp({ phase: 'downloading', version: '2.0.0', progressPercent: 1 })
+  setApp({ phase: 'installing', version: '2.0.0' })
+  expect(rows()).toEqual(['app: Desktop · Downloading 1%'])
   wait(600)
   expect(rows()).toEqual(['app: Desktop · Installing…'])
+})
+
+it('clears an offer once a status on the new connection finds the machine on that version', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  setEntry('bee', { ...available, readToken: '1' })
+  mount(COMPACT_PLATFORM)
+  wait(3000)
+  act(() =>
+    useRemoteLanesStore.setState({
+      hosts: { bee: host({ connectionToken: '2', hostVersion: '1.3.0' }) },
+    }),
+  )
+  // The release check has not run since the restart: the status has no checkedAt.
+  setEntry('bee', {
+    version: '1.3.0',
+    readToken: '2',
+    offer: { version: '1.3.0' },
+    status: { pause: { kind: 'none' }, update: { supported: true } },
+  })
+  wait(1000)
+  expect(rows()).toEqual([])
+})
+
+it('does not revive an offer on remount after it expired while unmounted', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  setEntry('bee', available)
+  mount(DESKTOP_PLATFORM)
+  wait(3000)
+  expect(rows()).toEqual(['machine: bee1 · Update available'])
+  act(() => root.unmount())
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ state: 'reconnecting' }) } }))
+  wait(11 * 60_000)
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ connectionToken: '2' }) } }))
+  root = createRoot(container)
+  mount(DESKTOP_PLATFORM)
+  wait(1000)
+  expect(rows()).toEqual([])
 })
 
 it('opens nothing from a machine row that is collapsing', () => {
