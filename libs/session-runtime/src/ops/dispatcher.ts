@@ -9,6 +9,7 @@
 import { isOpName, type OpsRunRequest, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
 import type { OpReplyEnvelope, OpRequestEnvelope } from '@phosphor/shared/ops'
 import { createLaneDeferred, type LaneDeferredQueue } from './deferred'
+import { createLaneWaits } from './lane-waits'
 import { createOpLimits } from './limits'
 import { createOpPipeline, type OpOutcome, type OpPipeline, type OpRunExtras } from './pipeline'
 import { principalKey } from './principals'
@@ -125,6 +126,7 @@ interface DispatcherCore {
   readonly now: () => number
   readonly pipeline: OpPipeline
   readonly queues: ReturnType<typeof createOpQueues>
+  readonly waits: ReturnType<typeof createLaneWaits>
   readonly deferred: LaneDeferredQueue
   /** Tool and run requests of a lane here, so `cancelLane` can abort them. */
   readonly inflight: Map<string, Set<AbortController>>
@@ -166,7 +168,7 @@ function execute(
   const group =
     request.op === 'audit.undo' ? request.op : (core.pipeline.spec(request.op)?.class ?? 'control')
   const key = `${principalKey(principal)}|${group}`
-  return core.queues.run(key, async () => {
+  const task = async (): Promise<OpOutcome | null> => {
     if (signal.aborted) return null
     onStart?.()
     try {
@@ -186,7 +188,11 @@ function execute(
         },
       }
     }
-  })
+  }
+  if (request.op !== 'lane.wait') return core.queues.run(key, task)
+  if (signal.aborted) return Promise.resolve(null)
+  const slot = core.waits.take(principal, signal)
+  return typeof slot === 'function' ? task().finally(slot) : Promise.resolve({ result: slot })
 }
 
 async function runOp(
@@ -195,12 +201,14 @@ async function runOp(
   request: OpsRunRequest,
   hosts?: OpRunExtras['hosts'],
   deadlineMs = 30_000,
+  caller?: AbortSignal,
 ): Promise<OpsRunResult> {
   const { controller, release } = track(core, principal)
   const deadlineAt = core.now() + deadlineMs
   const timer = setTimeout(() => controller.abort(), deadlineMs)
   try {
-    const outcome = await execute(core, principal, request, controller.signal, deadlineAt, {
+    const signal = caller ? AbortSignal.any([caller, controller.signal]) : controller.signal
+    const outcome = await execute(core, principal, request, signal, deadlineAt, {
       hosts,
     })
     return outcome?.result ?? { status: 'denied', code: 'unavailable', text: STOPPED }
@@ -306,23 +314,32 @@ export function createOpsDispatcher(binding: OpsBinding, deps: OpsDispatcherDeps
     now,
     pipeline,
     queues: createOpQueues(),
+    waits: createLaneWaits(),
     deferred,
     inflight: new Map(),
   }
-  const run = (principal: OpPrincipal, request: OpsRunRequest) =>
+  const run = (principal: OpPrincipal, request: OpsRunRequest, signal?: AbortSignal) =>
     runOp(
       core,
       principal,
       request,
       undefined,
       request.op === 'lane.wait' ? core.pipeline.spec(request.op)?.deadlineMs : undefined,
+      request.op === 'lane.wait' ? signal : undefined,
     )
   return {
     run,
-    async runFromCli(principal, envelope) {
+    async runFromCli(principal, envelope, signal) {
       const parsed = toolRequest(deps, envelope)
       if ('error' in parsed) return { status: 'denied', code: 'bad-request', text: parsed.error }
-      return runOp(core, principal, parsed.request, parsed.hosts, envelope.deadlineMs)
+      return runOp(
+        core,
+        principal,
+        parsed.request,
+        parsed.hosts,
+        envelope.deadlineMs,
+        parsed.request.op === 'lane.wait' ? signal : undefined,
+      )
     },
     runFromTool: (sessionId, envelope) => runFromTool(core, sessionId, envelope),
     surfaceAnswered: (sessionId, response, origin) =>

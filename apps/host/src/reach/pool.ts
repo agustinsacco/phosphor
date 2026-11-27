@@ -6,24 +6,25 @@
  * write reads `unconfirmed`, and a read is tried once more on a new
  * connection. A target that closes 4403 is left alone for a minute.
  */
-import {
-  createHostConnection,
-  hostEndpoint,
-  type HostConnectionSnapshot,
-} from '@phosphor/host-client/connection'
-import {
-  OPS_HOST_TOO_OLD,
-  OPS_UNCONFIRMED,
-  OPS_UNREADABLE,
-  opsRun,
-} from '@phosphor/host-client/ops'
+import { createHostConnection, hostEndpoint } from '@phosphor/host-client/connection'
+import { OPS_HOST_TOO_OLD, opsRun } from '@phosphor/host-client/ops'
 import type { FrameSocket } from '@phosphor/shared/host-protocol'
-import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
+import type { OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { ReachBudget, ReachResult } from '@phosphor/session-runtime/ops/reach'
 import { nodeIdentity } from '@phosphor/session-runtime/pi/node-identity'
-import { CONTROL_STAGE_TEXT } from './control'
-import { ReachGrantRefused, type ReachGrants } from './grants'
+import { LANE_WAIT_CONNECTIONS } from '@phosphor/shared/ops'
+import type { ReachGrants } from './grants'
+import {
+  grantRefusal,
+  reachAnswer,
+  refused,
+  sendFailure,
+  stateRefusal,
+  unsupportedOp,
+  type Attempt,
+  type Failure,
+} from './pool-results'
 
 export const REACH_POOL_LIMITS = {
   open: 8,
@@ -49,8 +50,8 @@ export interface ReachPoolPorts {
 }
 
 type Connection = ReturnType<typeof createHostConnection>
-type Failure = Extract<ReachResult, { ok: false }>
 interface Entry {
+  readonly key: string | symbol
   readonly target: ReachTarget
   conn: Connection | null
   /** Null once the connection is ready; the refusal when it never will be. */
@@ -60,84 +61,6 @@ interface Entry {
   used: number
   idle?: ReturnType<typeof setTimeout>
   dropped: boolean
-}
-type Attempt = { readonly result: ReachResult } | { readonly lost: true }
-
-const refused = (code: Failure['code'], message: string): Failure => ({
-  ok: false,
-  code,
-  message,
-})
-
-/** The target's own answer: confirmations and in-band denials keep the result as data. */
-export function reachAnswer(result: OpsRunResult): ReachResult {
-  if (result.status === 'ok') return { ok: true, data: result }
-  if (result.status === 'confirm')
-    return { ok: false, code: 'needs-confirm', message: result.title, data: result }
-  return { ok: false, code: 'denied', message: result.text, data: result }
-}
-
-function grantRefusal(target: ReachTarget, error: unknown): Failure {
-  const reason = error instanceof ReachGrantRefused ? error.reason : 'control-unreachable'
-  switch (reason) {
-    case 'signed-out':
-      return refused(
-        'forbidden',
-        'This machine is not enrolled, so it cannot reach other machines.',
-      )
-    case 'reach-off':
-      return refused(
-        'forbidden',
-        `Machine reach is off for ${target.label} or for this machine. Turn it on under Machines.`,
-      )
-    case 'unavailable':
-      return refused(
-        'offline',
-        `${target.label} is offline, has no tailnet address, or runs a Phosphor too old for this.`,
-      )
-    case 'unknown':
-      return refused('bad-request', `${target.label} is not one of your machines.`)
-    case 'rate-limited':
-      return refused('denied', CONTROL_STAGE_TEXT[reason])
-    case 'control-timeout':
-      return refused('timeout', CONTROL_STAGE_TEXT[reason])
-    default:
-      return refused('offline', CONTROL_STAGE_TEXT[reason])
-  }
-}
-
-function stateRefusal(target: ReachTarget, view: HostConnectionSnapshot): Failure {
-  if (view.lastError === 'forbidden')
-    return refused(
-      'forbidden',
-      `${target.label} refused this machine. Check that machine reach is on there; Phosphor waits a minute before trying again.`,
-    )
-  if (view.state === 'unsupported')
-    return refused('unsupported', `Update that Host: ${target.label}.`)
-  if (view.state === 'wrong-machine')
-    return refused('forbidden', `${target.label} did not prove it is your enrolled machine.`)
-  return refused('offline', `${target.label} is unreachable on your tailnet.`)
-}
-
-/** A failure once the request may have left: a write is never retried, a lost read once. */
-function sendFailure(target: ReachTarget, error: unknown, write: boolean): Attempt {
-  const message = error instanceof Error ? error.message : String(error)
-  const result = (code: Failure['code'], text: string): Attempt => ({ result: refused(code, text) })
-  if (message === 'Invalid agent op request.')
-    return result('bad-request', 'That operation request is not valid.')
-  if (write)
-    return message === OPS_UNCONFIRMED || message === OPS_UNREADABLE
-      ? result(
-          'unconfirmed',
-          `${target.label} did not confirm the change. Check it before you try again.`,
-        )
-      : result('offline', `${target.label} could not take the request.`)
-  if (message === 'Connection closed.' || message === 'Connection unavailable.')
-    return { lost: true }
-  if (message === 'Query timed out.')
-    return result('timeout', `${target.label} did not answer in time.`)
-  if (message === OPS_UNREADABLE) return result('unsupported', `${target.label}: ${OPS_UNREADABLE}`)
-  return result('offline', `${target.label} could not take the request.`)
 }
 
 function abortable<T>(promise: Promise<T>, signal: AbortSignal, stopped: T): Promise<T> {
@@ -158,19 +81,11 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal, stopped: T): Pro
   })
 }
 
-function unsupportedOp(target: ReachTarget, op: string, version?: string): Failure {
-  const hostVersion = version ?? target.hostVersion
-  const host = hostVersion
-    ? `${target.label} runs Host ${hostVersion}`
-    : `${target.label} runs a Host`
-  return refused('unsupported', `${host}, which does not serve ${op}. Update that Host.`)
-}
-
 interface Pool {
   readonly ports: ReachPoolPorts
   readonly limits: ReachPoolLimits
   readonly now: () => number
-  readonly entries: Map<string, Entry>
+  readonly entries: Map<string | symbol, Entry>
   /** Targets that closed 4403, and when they may be tried again. */
   readonly backoff: Map<string, number>
 }
@@ -178,7 +93,7 @@ interface Pool {
 function drop(pool: Pool, entry: Entry) {
   if (entry.dropped) return
   entry.dropped = true
-  if (pool.entries.get(entry.target.id) === entry) pool.entries.delete(entry.target.id)
+  if (pool.entries.get(entry.key) === entry) pool.entries.delete(entry.key)
   clearTimeout(entry.idle)
   entry.settle(refused('offline', `${entry.target.label} is unreachable on your tailnet.`))
   entry.conn?.close()
@@ -247,24 +162,48 @@ function open(
 function evictIdle(pool: Pool): boolean {
   let oldest: Entry | null = null
   for (const entry of pool.entries.values())
-    if (entry.busy === 0 && (!oldest || entry.used < oldest.used)) oldest = entry
+    if (typeof entry.key === 'string' && entry.busy === 0 && (!oldest || entry.used < oldest.used))
+      oldest = entry
   if (oldest) drop(pool, oldest)
   return oldest !== null
 }
 
-function entryFor(pool: Pool, target: ReachTarget, budget: ReachBudget): Entry | Failure {
-  const existing = pool.entries.get(target.id)
-  if (existing) return existing
-  if (pool.entries.size >= pool.limits.open && !evictIdle(pool))
-    return refused(
-      'denied',
-      `Phosphor is already talking to ${pool.limits.open} machines. Try again shortly.`,
-    )
+function entryFor(
+  pool: Pool,
+  target: ReachTarget,
+  budget: ReachBudget,
+  dedicated: boolean,
+): Entry | Failure {
+  const key = dedicated ? Symbol(target.id) : target.id
+  if (dedicated) {
+    const count = [...pool.entries.values()].filter(
+      (entry) => typeof entry.key === 'symbol' && entry.target.id === target.id,
+    ).length
+    if (count >= LANE_WAIT_CONNECTIONS)
+      return refused(
+        'busy',
+        `Already waiting on ${LANE_WAIT_CONNECTIONS} lanes at ${target.label}.`,
+      )
+    if (pool.entries.size >= pool.limits.open - 1)
+      return refused(
+        'busy',
+        'A normal Host connection slot must stay available. Try waiting again shortly.',
+      )
+  } else {
+    const existing = pool.entries.get(key)
+    if (existing) return existing
+    if (pool.entries.size >= pool.limits.open && !evictIdle(pool))
+      return refused(
+        'denied',
+        `Phosphor is already talking to ${pool.limits.open} machines. Try again shortly.`,
+      )
+  }
   let settle: Entry['settle'] = () => {}
   const ready = new Promise<Failure | null>((resolve) => {
     settle = resolve
   })
   const entry: Entry = {
+    key,
     target,
     conn: null,
     ready,
@@ -273,7 +212,7 @@ function entryFor(pool: Pool, target: ReachTarget, budget: ReachBudget): Entry |
     used: pool.now(),
     dropped: false,
   }
-  pool.entries.set(target.id, entry)
+  pool.entries.set(key, entry)
   void connect(pool, entry, budget).catch(() => drop(pool, entry))
   return entry
 }
@@ -300,7 +239,8 @@ async function attempt(
     return { result: refused('forbidden', message) }
   }
   pool.backoff.delete(target.id)
-  const entry = entryFor(pool, target, options)
+  const dedicated = request.op === 'lane.wait'
+  const entry = entryFor(pool, target, options, dedicated)
   if (!('conn' in entry)) return { result: entry }
   entry.busy++
   clearTimeout(entry.idle)
@@ -335,11 +275,20 @@ async function attempt(
       return { result: answer }
     } catch (error) {
       const outcome = sendFailure(target, error, options.write)
-      if ('lost' in outcome) drop(pool, entry)
+      if ('lost' in outcome) {
+        if (dedicated)
+          return {
+            result: refused('offline', `Connection to ${target.label} closed during the wait.`),
+          }
+        drop(pool, entry)
+      }
       return outcome
     }
   } finally {
-    if (options.signal.aborted && entry.busy === 1 && entry.conn?.snapshot().state !== 'ready')
+    if (
+      dedicated ||
+      (options.signal.aborted && entry.busy === 1 && entry.conn?.snapshot().state !== 'ready')
+    )
       drop(pool, entry)
     release(pool, entry)
   }

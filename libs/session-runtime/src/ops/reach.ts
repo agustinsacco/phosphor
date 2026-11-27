@@ -52,6 +52,7 @@ export type ReachResult =
         | 'bad-request'
         | 'needs-confirm'
         | 'denied'
+        | 'busy'
       readonly message: string
       readonly data?: unknown
     }

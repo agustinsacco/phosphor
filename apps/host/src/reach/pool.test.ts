@@ -318,19 +318,19 @@ it('reserves dedicated wait sockets without starving normal ops and closes them 
   const host = sibling('bee2', (request) =>
     request.op === 'lane.wait' ? waits.handler() : LANE_LIST_OK,
   )
-  const { pool } = setup([host], { open: 5 })
+  const { pool } = setup([host], { open: 4 })
   const wait = { op: 'lane.wait', args: { ref: 'peer' } }
-  const controllers = Array.from({ length: 4 }, () => new AbortController())
+  const controllers = Array.from({ length: 3 }, () => new AbortController())
   const pending = controllers.map(({ signal }) => pool.run(host, wait, { write: false, signal }))
   try {
-    await vi.waitFor(() => expect(waits.waiting).toHaveLength(4))
+    await vi.waitFor(() => expect(waits.waiting).toHaveLength(3))
     await expect(pool.run(host, wait, { write: false })).resolves.toMatchObject({
       ok: false,
       code: 'busy',
     })
-    expect(host.sockets).toHaveLength(4)
+    expect(host.sockets).toHaveLength(3)
     await expect(pool.run(host, read, { write: false })).resolves.toMatchObject({ ok: true })
-    expect(host.sockets).toHaveLength(5)
+    expect(host.sockets).toHaveLength(4)
     controllers[0]!.abort()
     await expect(pending[0]).resolves.toMatchObject({ ok: false, code: 'timeout' })
     expect(host.sockets[0]!.client.isOpen()).toBe(false)
@@ -340,12 +340,43 @@ it('reserves dedicated wait sockets without starving normal ops and closes them 
       false,
       false,
       false,
-      false,
       true,
     ])
   } finally {
     controllers.forEach((c) => c.abort())
     pool.close()
     await Promise.all(pending)
+  }
+})
+
+it('does not dispatch a wait into the pool’s last free slot', async () => {
+  const host = sibling('bee2')
+  const { pool } = setup([host], { open: 1 })
+  try {
+    await expect(
+      pool.run(host, { op: 'lane.wait', args: { ref: 'peer' } }, { write: false }),
+    ).resolves.toMatchObject({ ok: false, code: 'busy' })
+    expect(host.sockets).toHaveLength(0)
+    await expect(pool.run(host, read, { write: false })).resolves.toMatchObject({ ok: true })
+  } finally {
+    pool.close()
+  }
+})
+
+it('closes the dedicated socket on a dispatched wait error and does not retry', async () => {
+  const host = sibling('bee2', () => {
+    host.sockets[0]!.sever()
+    return LANE_LIST_OK
+  })
+  const { pool } = setup([host])
+  try {
+    await expect(
+      pool.run(host, { op: 'lane.wait', args: { ref: 'peer' } }, { write: false }),
+    ).resolves.toMatchObject({ ok: false, code: 'offline' })
+    expect(host.sockets).toHaveLength(1)
+    expect(host.sockets[0]!.client.isOpen()).toBe(false)
+    expect(pool.size()).toBe(0)
+  } finally {
+    pool.close()
   }
 })

@@ -136,6 +136,7 @@ const DENY_CODES: Record<Failure['code'], OpsDenyCode> = {
   'bad-request': 'bad-request',
   'needs-confirm': 'unavailable',
   denied: 'limit',
+  busy: 'busy',
 }
 
 /** A reach result as the dispatcher reads it: the target's own answer when it gave one. */

@@ -18,6 +18,7 @@ import {
   type OpsConfirmRef,
   type OpsDenyCode,
 } from '../host-protocol-ops'
+import { HOST_LIMITS } from '../host-protocol/constants'
 import { integer, record, text, utf8Length } from '../host-protocol/primitives'
 
 export const OP_TITLE = 'phosphor-op/v1'
@@ -36,6 +37,7 @@ export const OP_TOOL_NAME = 'phosphor'
 /** Internal, never in the agent catalog: a lane reports its live sub-agent work. */
 export const LANE_LIVENESS_OP = 'lane.liveness'
 
+export const LANE_WAIT_CONNECTIONS = HOST_LIMITS.connectionsPerClient - 1
 export const LANE_WAIT_TIMEOUT = { default: 300, max: 1800 } as const
 export const LANE_WAIT_DEADLINE_MS = (LANE_WAIT_TIMEOUT.max + 60) * 1000
 

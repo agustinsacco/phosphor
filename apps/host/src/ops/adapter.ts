@@ -106,15 +106,18 @@ export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory 
     const principal = connection.principal ?? { kind: 'grant-user', clientId: client.id }
     let closed = false
     let liveCaps: readonly HostCapability[] = []
+    const waits = new AbortController()
     function execute(request: OpsRunRequest, caps: readonly HostCapability[]) {
       const asked = withCaps(opPrincipalFor(principal, client, request.actor), caps, () =>
         closed ? [] : liveCaps,
       )
+      if (request.op === 'lane.wait') return run(asked, request, waits.signal)
       return queue.run(queueKey(asked), opClass(request), () => run(asked, request))
     }
     return {
       close() {
         closed = true
+        waits.abort()
       },
       renew(caps) {
         liveCaps = caps
@@ -132,7 +135,7 @@ export function createOpsAdapter(ports: OpsAdapterPorts = {}): FrameLinkFactory 
               if (!dispatcher.runFromCli) return 'unsupported'
               const envelope = parseOpChannelRequest(JSON.stringify(frame.params ?? null))
               if (envelope && 'argv' in envelope && envelope.argv && !envelope.facts)
-                return dispatcher.runFromCli(principal, envelope)
+                return dispatcher.runFromCli(principal, envelope, waits.signal)
             }
             return 'bad-request'
           }
