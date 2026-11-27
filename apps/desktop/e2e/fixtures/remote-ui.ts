@@ -63,8 +63,16 @@ export async function openRemote(h: RemoteFixture, title = 'Remote test lane') {
   await selectLane(h, title)
 }
 
+/**
+ * Takes the open lane from its locked composer. The fixture's lane starts held by the
+ * connected Second client, which asks first (Take over… then Take over); an unheld or
+ * disconnected lane is one Take control.
+ */
 export async function takeControl(h: RemoteFixture) {
-  await h.page.getByRole('button', { name: 'Take control', exact: true }).click()
+  const take = h.page.getByRole('button', { name: /^Take (control|over…)$/ })
+  const asks = (await take.textContent()) === 'Take over…'
+  await take.click()
+  if (asks) await h.page.getByRole('button', { name: 'Take over', exact: true }).click()
   await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
 }
 
