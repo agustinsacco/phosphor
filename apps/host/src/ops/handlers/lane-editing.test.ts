@@ -294,3 +294,35 @@ it('keeps agent rename available on a stopped lane under the catalog policy', as
   expect(fx.store.getLane(target.laneId)?.title).toBe('Agent named')
   expect(command).not.toHaveBeenCalled()
 })
+
+it('lets the user undo an agent’s rename once they hold the lane, whatever the fence was', async () => {
+  const source = fx.lane('undo-asking', transcript(fx.repo))
+  const target = fx.lane('undo-asked', transcript(fx.repo))
+  live.set(source.laneId, 'undo-asking-session')
+  const agent: OpPrincipal = {
+    kind: 'agent',
+    sessionId: 'undo-asking-session',
+    laneRef: refOf(source.laneId),
+    unattended: false,
+    lineage: 0,
+  }
+  const renamed = ok(await run(agent, 'lane.rename', { ref: target.laneId, name: 'Agent named' }))
+  // Control moves after the rename: the fence the rename saw is gone.
+  fx.store.takeControl(target.laneId, { clientId: surface.clientId, label: surface.label })
+  expect(await service.dispatcher.undo(surface, renamed.auditId!)).toMatchObject({
+    status: 'ok',
+  })
+  expect(fx.store.getLane(target.laneId)?.title).toBe('Source')
+})
+
+it('refuses a fenceless rename of a lane another client holds', async () => {
+  const lane = fx.lane('rename-held', transcript(fx.repo))
+  fx.store.takeControl(lane.laneId, {
+    clientId: '33333333-3333-4333-8333-333333333335',
+    label: 'Other',
+  })
+  expect(await run(surface, 'lane.rename', { ref: lane.laneId, name: 'Mine' })).toMatchObject({
+    code: 'not-controller',
+  })
+  expect(fx.store.getLane(lane.laneId)?.title).toBe('Source')
+})
