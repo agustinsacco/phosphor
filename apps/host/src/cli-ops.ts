@@ -51,12 +51,14 @@ const denied = (
   text: string,
 ): Extract<OpsRunResult, { status: 'denied' }> => ({ status: 'denied', code, text })
 const expired = () => denied('confirm-expired', 'Approval timed out. No change was submitted.')
+// A newly selected CLI can still be talking to the previous Host owner during an update.
+const LEGACY_CLI_BACKSTOP_MS = 600_000
 const envelope = (argv: readonly string[]): OpRequestEnvelope => ({
   v: 1,
   id: randomUUID(),
   argv,
-  // A backstop: the owner applies the resolved op's catalog deadline.
-  deadlineMs: LANE_WAIT_DEADLINE_MS,
+  // The owner still applies the resolved op's catalog deadline.
+  deadlineMs: catalogOp(argv) === 'lane.wait' ? LANE_WAIT_DEADLINE_MS : LEGACY_CLI_BACKSTOP_MS,
 })
 
 async function afterApproval(
