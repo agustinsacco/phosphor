@@ -50,8 +50,10 @@ export function laneRename(deps: DaemonHandlerDeps) {
       checkControl(ctx, lane, args.controlFence)
       return lane
     }
+    // After pi or the file took the name: control was checked before that write, so
+    // only a removed lane stops the title from following it.
     const named = () => {
-      current()
+      stored()
       deps.store.updateLane(laneId, { title: name })
       requireRuntime(deps.laneRuntime).publishSummary(laneId)
     }
