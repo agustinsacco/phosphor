@@ -23,18 +23,14 @@ const useActive = (sessionId: string): boolean =>
  */
 export function LaneChangesPane({ sessionId }: { sessionId: string }): React.JSX.Element {
   const entry = useSessionsStore((s) => s.live[sessionId])
-  const host = useRemoteLanesStore((s) =>
-    entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
-  )
+  const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : null
+  const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const [selected, setSelected] = useState('')
   // Held here: the tree unmounts while a file is open, and "← Changes" keeps its folders.
   const folders = useTreeFolders(selected || null, true)
   const [error, setError] = useState('')
   const [refresh, setRefresh] = useState(0)
-  const gitRevision = useHostResourceRevision(
-    entry?.target?.kind === 'remote' ? entry.target.hostId : null,
-    'git',
-  )
+  const gitRevision = useHostResourceRevision(hostId, 'git')
   const workspace = entry?.workspacePath
   const refusal = hostFeatureRefusal(host, 'workspaces.read')
   const canRead = useActive(sessionId) && !refusal
