@@ -15,7 +15,10 @@ export class FileFailure extends Error {
     super(code)
   }
 }
-export async function laneRoot(context: FeatureContext, laneId: string): Promise<string> {
+export async function laneRoot(
+  context: Pick<FeatureContext, 'store'>,
+  laneId: string,
+): Promise<string> {
   const lane = context.store.getLane(laneId)
   const repo = lane && context.store.listRepositories().find((r) => r.id === lane.repositoryId)
   if (!lane || lane.removedAt !== null || !repo) throw new FileFailure('unknown-lane')

@@ -70,7 +70,9 @@ export function confirmItems(
           a.key,
           a.id,
           a.name,
-          a.path,
+          j.spec.name.startsWith('worktree.') && typeof a.path === 'string' && a.path.length > 128
+            ? undefined
+            : a.path,
         ]
           .filter((v): v is string => typeof v === 'string')
           .slice(0, 1)

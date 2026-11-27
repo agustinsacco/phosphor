@@ -124,6 +124,26 @@
       "types": "./src/git/github-worktrees.ts",
       "default": "./src/git/github-worktrees.ts"
     },
+    "./git/branches": {
+      "types": "./src/git/branches.ts",
+      "default": "./src/git/branches.ts"
+    },
+    "./git/checkout-mutations": {
+      "types": "./src/git/checkout-mutations.ts",
+      "default": "./src/git/checkout-mutations.ts"
+    },
+    "./git/git-sync": {
+      "types": "./src/git/git-sync.ts",
+      "default": "./src/git/git-sync.ts"
+    },
+    "./git/restore-file": {
+      "types": "./src/git/restore-file.ts",
+      "default": "./src/git/restore-file.ts"
+    },
+    "./git/managed-worktree": {
+      "types": "./src/git/managed-worktree.ts",
+      "default": "./src/git/managed-worktree.ts"
+    },
     "./git/git-exec": {
       "types": "./src/git/git-exec.ts",
       "default": "./src/git/git-exec.ts"

@@ -74,18 +74,18 @@ files.rename lane self/other-lane now - - - - - 8829732870262b2daa49cad663d0427b
 files.transfer lane self/other-lane now - - - - - 79860ed39ad3f9e20f679b863159bcdf914b17ea3f4a8423c35cffa837cce907
 git.info read self/other-lane now - - - - - d6a5be87c0479f944540c3f2cf4657e204e0bd6ac775270c90f11257ae6cc29a
 git.status read self/other-lane now - - - - - d6a5be87c0479f944540c3f2cf4657e204e0bd6ac775270c90f11257ae6cc29a
-git.diff read self/other-lane now - - - - - 8996cd39cea295505823de71ea86b92ba22cf9a30d63f51928345c884d925d07
+git.diff read self/other-lane now - - - - paged 8996cd39cea295505823de71ea86b92ba22cf9a30d63f51928345c884d925d07
 git.show read self/other-lane now - - - - - 40e2ccce7f69d115aeb4c62d834977ab9d1f8796177b7b503b54b58a053de2ac
-git.branches read self/other-lane now - - - - - d6a5be87c0479f944540c3f2cf4657e204e0bd6ac775270c90f11257ae6cc29a
-git.worktrees read self/other-lane now - - - - - d6a5be87c0479f944540c3f2cf4657e204e0bd6ac775270c90f11257ae6cc29a
+git.branches read self/other-lane now - - - - paged d6a5be87c0479f944540c3f2cf4657e204e0bd6ac775270c90f11257ae6cc29a
+git.worktrees read self/other-lane now - - - - paged d6a5be87c0479f944540c3f2cf4657e204e0bd6ac775270c90f11257ae6cc29a
 git.fetch lane self/other-lane now - - - - - 3f11ddd1108d977c50e29f55ffdb1aca3659e6d7d4460e42d4341abb86ce45a4
 git.pull lane self/other-lane now - - - - - d6a5be87c0479f944540c3f2cf4657e204e0bd6ac775270c90f11257ae6cc29a
-git.updateFromMain lane self/other-lane now - - - - - 4f77757e2644ad4d1de23a16eae9d8f412dc0055f09f6013e87e5ae12d5325f4
+git.updateFromMain destructive self/other-lane now - - - - - 4f77757e2644ad4d1de23a16eae9d8f412dc0055f09f6013e87e5ae12d5325f4
 git.commitAll lane self/other-lane now - - - - - 3018e97ef8523c134b76525fd515da9cec514ec0c524b4ea77faeead62c6cfcf
-git.checkout lane self/other-lane now - - - - - 10903c93f0cfb22cf9898c9b7195ffe62c80176ad4a0aee9384c6f4ab52f3384
+git.checkout destructive self/other-lane now - - - - - 10903c93f0cfb22cf9898c9b7195ffe62c80176ad4a0aee9384c6f4ab52f3384
 git.renameBranch lane self/other-lane now - - - - - 9d5f3e0177e0856f486918995c139079ad8da576133786170ebed1a3440e4b5e
-git.restoreFile lane self/other-lane now - - - - - 40e2ccce7f69d115aeb4c62d834977ab9d1f8796177b7b503b54b58a053de2ac
-git.merge configure self/other-lane now - - - - - 10903c93f0cfb22cf9898c9b7195ffe62c80176ad4a0aee9384c6f4ab52f3384
+git.restoreFile destructive self/other-lane now - - - - - 40e2ccce7f69d115aeb4c62d834977ab9d1f8796177b7b503b54b58a053de2ac
+git.merge destructive self/other-lane now - - - - - 10903c93f0cfb22cf9898c9b7195ffe62c80176ad4a0aee9384c6f4ab52f3384
 worktree.add create machine now - - - - - 74b3ae00bcad0908815ab12fd77d1a1a36af3d644379a337f485a5088d7934a8
 worktree.restore create machine now - - - - - 74b3ae00bcad0908815ab12fd77d1a1a36af3d644379a337f485a5088d7934a8
 worktree.recreate create machine now - - - - - 74b3ae00bcad0908815ab12fd77d1a1a36af3d644379a337f485a5088d7934a8
@@ -255,6 +255,19 @@ it('freezes lane tool deadline overrides', () => {
       OP_CATALOG.filter((op) => op.deadlineMs !== undefined).map((op) => [op.name, op.deadlineMs]),
     ),
   ).toEqual({
+    'git.checkout': 45_000,
+    'git.commitAll': 45_000,
+    'git.fetch': 45_000,
+    'git.merge': 45_000,
+    'git.pull': 45_000,
+    'git.renameBranch': 45_000,
+    'git.restoreFile': 45_000,
+    'git.updateFromMain': 45_000,
+    'worktree.add': 100_000,
+    'worktree.prune': 100_000,
+    'worktree.recreate': 100_000,
+    'worktree.remove': 100_000,
+    'worktree.restore': 100_000,
     'service.update': 600_000,
     'package.list': 600_000,
     'package.checkUpdates': 600_000,

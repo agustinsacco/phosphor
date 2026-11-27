@@ -344,6 +344,7 @@ it('freezes every IPC invoke channel and its app/machine scope', () => {
 })
 
 it('freezes the Host resource change push subscription', () => {
+  expectTypeOf<Extract<HostResourceChangedEvent['kind'], 'git'>>().toEqualTypeOf<'git'>()
   expectTypeOf<PhosphorApi['onHostResourceChanged']>().toEqualTypeOf<
     (listener: (event: HostResourceChangedEvent) => void) => () => void
   >()

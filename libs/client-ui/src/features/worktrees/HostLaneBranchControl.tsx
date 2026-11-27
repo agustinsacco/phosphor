@@ -64,6 +64,7 @@ export function ServiceBranchControl({ hostId, cwd }: { hostId: string; cwd: str
     <>
       <BranchControl
         workspacePath={cwd}
+        hostId={hostId}
         selectPath={select}
         configured={(path) => host.repositories.some((r) => r.path === path)}
       />

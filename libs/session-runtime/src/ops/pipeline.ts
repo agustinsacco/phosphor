@@ -146,7 +146,10 @@ async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
     principal: j.principal,
     sessionId,
     origin: confirmOrigin(j.principal, j.request, j.askingTitle),
-    spec: j.spec,
+    spec:
+      j.spec.name.startsWith('worktree.') && typeof j.args.path === 'string'
+        ? { ...j.spec, summary: `${j.spec.summary} Exact path: ${JSON.stringify(j.args.path)}` }
+        : j.spec,
     args: confirmationArgs(j),
     ...(j.request.reason !== undefined ? { reason: j.request.reason } : {}),
     items: confirmItems(env.binding, j),

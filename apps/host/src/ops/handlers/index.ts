@@ -1,4 +1,5 @@
 import type { MachineUpdateReport } from '@phosphor/shared/machine-update'
+import type { WorkspaceLeases } from '../../owner/lease'
 import type { AppServices } from '../../session/app-services'
 import { createBrainHandlers } from './brain'
 import type { SettingsOps } from './settings-access'
@@ -43,6 +44,7 @@ import { skillHandlers } from './skills'
 export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly appServices?: AppServices | null
   readonly settingsOps?: SettingsOps
+  readonly workspaceLeases?: WorkspaceLeases
   readonly ownerFolders?: () => readonly RepositorySummary[]
   readonly repositories?: Pick<ReturnType<typeof createRepositories>, 'execute'>
   readonly routines?: Pick<HostRoutines, 'execute'> &

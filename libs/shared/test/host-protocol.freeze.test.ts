@@ -128,12 +128,16 @@ it('freezes the resource change kinds and lanes subscription opt-in', () => {
     'routines',
     'folders',
     'sandboxes',
+    'git',
   ])
   const lanes = CLIENT_FRAMES.subscribe.lanes
   expect(client({ ...lanes, resourceChanges: true })).toEqual({
     ok: true,
     frame: { ...lanes, resourceChanges: true },
   })
+  const git = { ...lanes, resourceChanges: true, gitResourceChanges: true }
+  expect(client(git)).toEqual({ ok: true, frame: git })
+  expect(client({ ...lanes, gitResourceChanges: true })).toEqual({ ok: true, frame: lanes })
   expect(client({ ...lanes, resourceChanges: false })).toEqual({ ok: true, frame: lanes })
 })
 

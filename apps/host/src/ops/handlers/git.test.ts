@@ -65,7 +65,7 @@ function fixture() {
     expect(handler, name).toBeTypeOf('function')
     return handler!(args, {
       lane: { ref: laneRefFor([], laneId) },
-      request,
+      ...request,
     } as OpHandlerContext)
   }
   return { root, write, run, state, changed, laneId, repositoryId }
@@ -164,14 +164,13 @@ it('refuses restore through traversal or a parent symlink', async () => {
 
 it('fetches from a local bare remote and fast-forwards to the fetched tip', async () => {
   const f = fixture()
-  git(f.root, 'clone', '--bare', '.', 'remote.git')
-  git(f.root, 'clone', 'remote.git', 'writer')
+  git(f.root, 'clone', '.', 'writer')
   const writer = join(f.root, 'writer')
   git(writer, 'config', 'user.email', 'test@example.com')
   git(writer, 'config', 'user.name', 'Test')
   writeFileSync(join(writer, 'a.txt'), 'remote\n')
   git(writer, 'commit', '-am', 'remote')
-  git(writer, 'push')
+  git(f.root, 'clone', '--bare', 'writer', 'remote.git')
   git(f.root, 'remote', 'add', 'origin', join(f.root, 'remote.git'))
   const ignore = join(f.root, '.git', 'info', 'exclude')
   writeFileSync(ignore, '/remote.git/\n/writer/\n')

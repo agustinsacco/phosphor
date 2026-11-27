@@ -2,7 +2,7 @@ import { shell } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 
 /** Per-file porcelain status for explorer dots: relativePath → XY code. */
@@ -90,62 +90,8 @@ export async function createSessionBaseline(workspacePath: string): Promise<stri
   }
 }
 
-async function baselineFile(workspacePath: string, ref: string, path: string) {
-  if (
-    !path ||
-    isAbsolute(path) ||
-    path.includes('\\') ||
-    path.includes('\0') ||
-    path.split('/').some((part) => !part || part === '..' || part === '.' || part === '.git')
-  )
-    throw new Error('Expected a file path inside the workspace.')
-  // Resolve once so ref changes cannot alter the object between checking and restoring.
-  // Failure here is NOT evidence that this is a newly created file.
-  const tree = await git(
-    workspacePath,
-    ['rev-parse', '--verify', '--end-of-options', `${ref}^{tree}`],
-    { trim: true },
-  )
-  const listing = await git(workspacePath, ['ls-tree', '-z', tree, '--', path], {
-    env: { GIT_LITERAL_PATHSPECS: '1' },
-  })
-  const entry = listing.split('\0').find((line) => line.slice(line.indexOf('\t') + 1) === path)
-  if (!entry) return { tree, content: null }
-  const [, type, object] = entry.slice(0, entry.indexOf('\t')).split(' ')
-  if (type !== 'blob' || !object) throw new Error('The baseline path is not a file.')
-  const content = await git(workspacePath, ['cat-file', 'blob', object])
-  return { tree, content }
-}
+export { showFileAt } from '@phosphor/session-runtime/git/restore-file'
+import { restoreFileTo as restore } from '@phosphor/session-runtime/git/restore-file'
 
-/** Null means confirmed absence in a valid tree; Git/read failures propagate. */
-export async function showFileAt(
-  workspacePath: string,
-  ref: string,
-  relativePath: string,
-): Promise<string | null> {
-  return (await baselineFile(workspacePath, ref, relativePath)).content
-}
-
-/** Restore one file to its baseline content (file-recovery UX). */
-export async function restoreFileTo(
-  workspacePath: string,
-  ref: string,
-  relativePath: string,
-): Promise<{ restored: boolean; deleted: boolean }> {
-  const baseline = await baselineFile(workspacePath, ref, relativePath)
-  if (baseline.content === null) {
-    // Didn't exist at baseline — the session created it; trash it.
-    const { join } = await import('node:path')
-    await shell.trashItem(join(workspacePath, relativePath))
-    return { restored: false, deleted: true }
-  }
-  // The user's staged changes belong to them. Only restore the working copy.
-  await git(
-    workspacePath,
-    ['restore', `--source=${baseline.tree}`, '--worktree', '--', relativePath],
-    {
-      env: { GIT_LITERAL_PATHSPECS: '1' },
-    },
-  )
-  return { restored: true, deleted: false }
-}
+export const restoreFileTo = (workspacePath: string, ref: string, relativePath: string) =>
+  restore(workspacePath, ref, relativePath, (path) => shell.trashItem(path))

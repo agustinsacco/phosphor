@@ -4,8 +4,7 @@ import { OP_CATALOG, OP_GAPS } from './index'
 it('keeps only the reviewed Phosphor service gaps', () => {
   const expected =
     `lane.move skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane
- git.branches git.worktrees git.diff git.fetch git.pull git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge
- worktree.add worktree.remove worktree.prune worktree.restore worktree.recreate files.search maintenance.scan maintenance.run`
+ files.search maintenance.scan maintenance.run`
       .trim()
       .split(/\s+/)
   expect(Object.keys(OP_GAPS.daemon).sort()).toEqual(expected.sort())

@@ -296,6 +296,7 @@ export interface RunOpsPorts extends Pick<
   | 'appServices'
   | 'skills'
   | 'ownerFolders'
+  | 'workspaceLeases'
   | 'sandboxes'
   | 'stateDirectory'
   | 'sessionsRoot'

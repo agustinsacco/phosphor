@@ -47,7 +47,12 @@ function parseSubscribe(v: Record<string, unknown>): ClientFrameParse {
       type: 'subscribe',
       topic: v.topic,
       ...common,
-      ...(v.resourceChanges === true ? { resourceChanges: true } : {}),
+      ...(v.resourceChanges === true
+        ? {
+            resourceChanges: true,
+            ...(v.gitResourceChanges === true ? { gitResourceChanges: true } : {}),
+          }
+        : {}),
     })
   if (v.topic === 'lane' && isUuid(v.laneId))
     return good({ type: 'subscribe', topic: v.topic, laneId: v.laneId, ...common })

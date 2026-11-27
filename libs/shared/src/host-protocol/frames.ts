@@ -29,6 +29,7 @@ export type ClientFrame =
       readonly topic: 'lanes'
       /** Older Hosts ignore this opt-in; newer Hosts never send the event without it. */
       readonly resourceChanges?: true
+      readonly gitResourceChanges?: true
       /** Replays attention events after this cursor when the epoch matches. */
       readonly after?: StreamCursor
       readonly trace?: string

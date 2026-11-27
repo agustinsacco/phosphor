@@ -31,10 +31,10 @@ function listen(state: SubscriptionState, sub: Subscription) {
       ? state.streams.listen(sub.request.laneId, receive)
       : state.lanesTopic.listen(receive)
   if (sub.request.topic !== 'lanes' || !sub.request.resourceChanges) return
-  const { id } = sub.request
+  const { id, gitResourceChanges } = sub.request
   const dropLanes = sub.drop
   const dropResources = state.lanesTopic.listenResources((change) => {
-    if (change && !sub.stale)
+    if (change && !sub.stale && (change.kind !== 'git' || gitResourceChanges))
       send(state, sub, { type: 'resource-changed', id, change }, (value) => reset(state, value))
   })
   sub.drop = () => {

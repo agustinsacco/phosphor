@@ -12,6 +12,7 @@ export const HOST_RESOURCE_KINDS = [
   'routines',
   'folders',
   'sandboxes',
+  'git',
 ] as const
 
 export interface HostResourceChange {

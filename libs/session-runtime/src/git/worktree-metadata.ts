@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs'
 import type { WorktreeInfo } from '@phosphor/shared/models'
-import { git } from './git-exec'
+import { git, type GitRunner } from './git-exec'
 /**
  * Resolve symlinks the way pi does (`realpathSync.native`) so worktree paths
  * compare equal to session cwds.
@@ -37,7 +37,7 @@ export function parseWorktreeList(
     }
     current = null
   }
-  for (const line of output.split('\n')) {
+  for (const line of output.split(output.includes('\0') ? '\0' : '\n')) {
     if (line.startsWith('worktree ')) {
       flush()
       current = { path: line.slice(9), branch: null, head: '', locked: false, prunable: false }
@@ -59,8 +59,11 @@ export function parseWorktreeList(
   return result
 }
 
-export async function listWorktreeMetadata(repoPath: string): Promise<WorktreeInfo[]> {
-  const parsed = parseWorktreeList(await git(repoPath, ['worktree', 'list', '--porcelain']))
+export async function listWorktreeMetadata(
+  repoPath: string,
+  run: GitRunner = git,
+): Promise<WorktreeInfo[]> {
+  const parsed = parseWorktreeList(await run(repoPath, ['worktree', 'list', '--porcelain', '-z']))
   return parsed.map((wt) => ({
     ...wt,
     realPath: normalizeRealPath(wt.path),

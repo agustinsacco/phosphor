@@ -209,6 +209,7 @@ export function createRunAdministration(options: AdministrationOptions) {
     },
     writes: createWrites(featureContext),
     deleteLane: createLaneDeletion({
+      withCheckout: options.runtime.withSessionFile,
       archiveOwnsCwd: (cwd) => archives.ownsCwd(cwd),
       store: options.store,
       stop: options.binding.deleteStop,

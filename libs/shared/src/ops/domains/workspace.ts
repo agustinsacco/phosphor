@@ -27,7 +27,12 @@ const laneTarget = { laneArg: 'target' } as const
 const read = domain(laneScope, caps('workspaces.read'), { ...untrusted, ...laneTarget })
 const write = domain(laneScope, workspaceWrite, laneTarget)
 const positionalPath = { positional: ['path'] } as const
-const worktree = domain('machine', workspaceWrite)
+const gitWrite = domain(laneScope, workspaceWrite, {
+  ...laneTarget,
+  ...untrusted,
+  deadlineMs: 45_000,
+})
+const worktree = domain('machine', workspaceWrite, { ...untrusted, deadlineMs: 100_000 })
 
 export const workspace = [
   read('files.list', 'List files at a workspace path.', 'read', file, {
@@ -77,37 +82,54 @@ export const workspace = [
   ),
   read('git.info', 'Show the checkout and branch.', 'read', at),
   read('git.status', 'List working tree changes.', 'read', at),
-  read('git.diff', 'Read the working tree diff.', 'read', object({ target, path: optional(path) })),
+  read(
+    'git.diff',
+    'Read the working tree diff.',
+    'read',
+    object({ target, path: optional(path) }),
+    paged,
+  ),
   read('git.show', 'Read a file at a revision.', 'read', atRevision, {
     positional: ['ref', 'path'],
   }),
-  read('git.branches', 'List branches.', 'read', at),
-  read('git.worktrees', 'List worktrees.', 'read', at),
-  write('git.fetch', 'Fetch remote references.', 'lane', object({ target, force: optional(on) })),
-  write('git.pull', 'Fast-forward the current checkout.', 'lane', at),
-  write(
+  read('git.branches', 'List branches.', 'read', at, paged),
+  read('git.worktrees', 'List worktrees.', 'read', at, paged),
+  gitWrite(
+    'git.fetch',
+    'Fetch remote references.',
+    'lane',
+    object({ target, force: optional(on) }),
+  ),
+  gitWrite('git.pull', 'Fast-forward the checkout to its fetched upstream.', 'lane', at),
+  gitWrite(
     'git.updateFromMain',
     'Merge the main branch into the worktree.',
-    'lane',
+    'destructive',
     object({ target, mainBranch: id }),
   ),
-  write(
+  gitWrite(
     'git.commitAll',
     'Commit changes in the checkout.',
     'lane',
     object({ target, message: text(4096) }),
     { positional: ['message'], sensitive: ['message'] },
   ),
-  write('git.checkout', 'Check out a branch.', 'lane', object({ target, branch: id }), {
+  gitWrite('git.checkout', 'Check out a branch.', 'destructive', object({ target, branch: id }), {
     positional: ['branch'],
   }),
-  write('git.renameBranch', 'Rename a branch.', 'lane', object({ target, from: id, to: id }), {
-    positional: ['from', 'to'],
-  }),
-  write('git.restoreFile', 'Restore a file from a revision.', 'lane', atRevision, {
+  gitWrite(
+    'git.renameBranch',
+    'Rename the branch checked out in the lane.',
+    'lane',
+    object({ target, from: id, to: id }),
+    {
+      positional: ['from', 'to'],
+    },
+  ),
+  gitWrite('git.restoreFile', 'Restore a file from a revision.', 'destructive', atRevision, {
     positional: ['ref', 'path'],
   }),
-  write('git.merge', 'Merge a branch.', 'configure', object({ target, branch: id }), {
+  gitWrite('git.merge', 'Merge a branch.', 'destructive', object({ target, branch: id }), {
     positional: ['branch'],
   }),
   ...(['worktree.add', 'worktree.restore', 'worktree.recreate'] as const).map((name) =>
@@ -115,8 +137,9 @@ export const workspace = [
       name,
       {
         'worktree.add': 'Add a worktree.',
-        'worktree.restore': 'Restore a worktree.',
-        'worktree.recreate': 'Recreate a missing worktree.',
+        'worktree.restore': 'Restore a missing worktree on its original branch.',
+        'worktree.recreate':
+          'Recreate a missing worktree, starting from the default branch if needed.',
       }[name],
       'create',
       object({ repo: path, name: id, branch: id }),
@@ -132,7 +155,7 @@ export const workspace = [
   ),
   worktree(
     'worktree.prune',
-    'Prune stale worktree registrations.',
+    'Prune the stale registration of this exact worktree path.',
     'destructive',
     object({ path }),
     positionalPath,

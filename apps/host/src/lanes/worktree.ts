@@ -1,16 +1,7 @@
-import {
-  appendFileSync,
-  closeSync,
-  constants,
-  fstatSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  realpathSync,
-} from 'node:fs'
+import { lstatSync, realpathSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
+import { directory, excludeWorktrees } from '@phosphor/session-runtime/git/managed-worktree'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import {
   FAILED_CLEANUP_MS,
@@ -226,55 +217,5 @@ export async function prepareLaneFolder(input: {
     await undo(worktreeGit(root, performance.now() + FAILED_CLEANUP_MS)).catch(() => {})
     if (error instanceof LaneFolderError) throw error
     throw new LaneFolderError('The worktree could not be created.')
-  }
-}
-
-function directory(path: string): void {
-  try {
-    mkdirSync(path)
-  } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
-  }
-  const stat = lstatSync(path)
-  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('folder')
-}
-function excludeWorktrees(path: string): void {
-  const cap = 1024 * 1024
-  const regular = (fd: number) => {
-    const stat = fstatSync(fd)
-    if (!stat.isFile() || stat.size > cap) throw new Error('exclude')
-  }
-  let ignored = ''
-  let fd: number | undefined
-  try {
-    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
-    regular(fd)
-    const buffer = Buffer.alloc(cap)
-    let size = 0
-    while (size < cap) {
-      const count = readSync(fd, buffer, size, cap - size, size)
-      if (!count) break
-      size += count
-    }
-    regular(fd)
-    ignored = buffer.toString('utf8', 0, size)
-  } catch (error) {
-    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
-  } finally {
-    if (fd !== undefined) closeSync(fd)
-  }
-  if (ignored.split(/\r?\n/).includes('/.phosphor/')) return
-  fd = openSync(
-    path,
-    constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW,
-    0o644,
-  )
-  try {
-    regular(fd)
-    const entry = `${ignored && !ignored.endsWith('\n') ? '\n' : ''}/.phosphor/\n`
-    if (fstatSync(fd).size + Buffer.byteLength(entry) > cap) throw new Error('exclude')
-    appendFileSync(fd, entry)
-  } finally {
-    closeSync(fd)
   }
 }

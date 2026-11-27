@@ -161,7 +161,7 @@ export function createHostConnection(ports: {
             topic: 'lanes',
             after,
             trace: identity.randomHex(8),
-            ...(ports.onResourceChanged ? { resourceChanges: true } : {}),
+            ...(ports.onResourceChanged ? { resourceChanges: true, gitResourceChanges: true } : {}),
           },
     )
     if (!sent) socket?.close(1000, 'Transport failed')

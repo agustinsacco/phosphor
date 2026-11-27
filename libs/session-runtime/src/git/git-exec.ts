@@ -45,6 +45,8 @@ export interface GitOptions {
   /** Optional per-call deadline/cancellation. */
   timeout?: number
   signal?: AbortSignal
+  /** Inspect Git diagnostics separately from stdout (e.g. worktree prune dry run). */
+  stderr?: (stderr: string) => void
 }
 
 export const GIT_TIMEOUT_MS = 30_000
@@ -78,7 +80,7 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
   // worktrees too, so mutations clear all display entries, before and after.
   if (!readOnly) gitInfoCache.invalidate()
   try {
-    const { stdout } = await execFileAsync('git', args, {
+    const { stdout, stderr } = await execFileAsync('git', args, {
       cwd,
       timeout: options.timeout ?? GIT_TIMEOUT_MS,
       signal: options.signal,
@@ -96,6 +98,7 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
           }
         : {}),
     })
+    options.stderr?.(stderr)
     return options.trim ? stdout.trim() : stdout
   } catch (error) {
     if (options.allowFail) return ''
@@ -114,8 +117,10 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
  * splits to a single empty string rather than nothing. The four hand-rolled
  * versions this replaces each got a different subset of that right.
  */
-export async function dirtyCount(cwd: string): Promise<number> {
-  const status = await git(cwd, ['status', '--porcelain'])
+export type GitRunner = typeof git
+
+export async function dirtyCount(cwd: string, run: GitRunner = git): Promise<number> {
+  const status = await run(cwd, ['status', '--porcelain'])
   return status.trim().split('\n').filter(Boolean).length
 }
 

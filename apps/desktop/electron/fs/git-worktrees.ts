@@ -7,13 +7,8 @@ import { promisify } from 'node:util'
 import { mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { AddWorktreeBranch, BranchInfo, StartPoint, WorktreeInfo } from '@shared/models'
-import {
-  abortMergeAndCollectConflicts,
-  dirtyCount,
-  git,
-  gitErrorText,
-} from '@phosphor/session-runtime/git/git-exec'
+import type { AddWorktreeBranch, WorktreeInfo } from '@shared/models'
+import { dirtyCount, git, gitErrorText } from '@phosphor/session-runtime/git/git-exec'
 import { gitInfoCache } from '@phosphor/session-runtime/git/git-info-cache'
 import {
   branchTip,
@@ -24,7 +19,20 @@ import {
 } from '@phosphor/session-runtime/git/branch-landed'
 import { ghEvidence } from './gh-cli'
 import { mapLimit } from '@phosphor/session-runtime/map-limit'
+import {
+  addGitWorktree,
+  removeGitWorktree,
+  worktreeRootFor,
+} from '@phosphor/session-runtime/git/managed-worktree'
+export { worktreeRootFor } from '@phosphor/session-runtime/git/managed-worktree'
 import { ensureExcluded } from './worktree-exclude'
+import { listBranches, refExists, startPoint } from '@phosphor/session-runtime/git/branches'
+export { listBranches, startPoint } from '@phosphor/session-runtime/git/branches'
+export {
+  commitAll,
+  mergeBranch,
+  renameBranch,
+} from '@phosphor/session-runtime/git/checkout-mutations'
 
 const execFileAsync = promisify(execFile)
 
@@ -47,184 +55,11 @@ const execFileAsync = promisify(execFile)
 /** Both dir name and branch name — reject anything path- or ref-hostile. */
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
 
-export function worktreeRootFor(repoPath: string): string {
-  return join(repoPath, '.phosphor', 'worktrees')
-}
-
 export async function listWorktrees(repoPath: string): Promise<WorktreeInfo[]> {
   return mapLimit(await listWorktreeMetadata(repoPath), 4, async (wt) => ({
     ...wt,
     dirtyCount: existsSync(wt.path) ? await dirtyCount(wt.path).catch(() => -1) : -1,
   }))
-}
-
-export async function listBranches(
-  repoPath: string,
-): Promise<{ branches: BranchInfo[]; defaultBranch: string }> {
-  const [refs, worktrees, currentBranch] = await Promise.all([
-    git(repoPath, [
-      'for-each-ref',
-      'refs/heads',
-      '--format=%(refname:short)\t%(committerdate:unix)\t%(subject)',
-    ]),
-    listWorktreeMetadata(repoPath),
-    git(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD']).then((s) => s.trim()),
-  ])
-
-  const byBranch = new Map(worktrees.filter((w) => w.branch).map((w) => [w.branch!, w.path]))
-  const branches: BranchInfo[] = refs
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => {
-      const [name = '', date = '', ...subject] = line.split('\t')
-      return {
-        name,
-        isCurrent: name === currentBranch,
-        worktreePath: byBranch.get(name),
-        lastCommitSubject: subject.join('\t') || undefined,
-        lastCommitAt: date ? Number.parseInt(date, 10) * 1000 : undefined,
-      }
-    })
-    .sort((a, b) => (b.lastCommitAt ?? 0) - (a.lastCommitAt ?? 0))
-
-  const defaultBranch = await defaultBranchOf(repoPath, {
-    names: new Set(branches.map((b) => b.name)),
-    currentBranch,
-  })
-
-  await enrichWithSync(repoPath, branches, defaultBranch)
-  return { branches, defaultBranch }
-}
-
-/**
- * This repo's trunk: what `origin/HEAD` points at, else `main`/`master` if one
- * exists locally, else whatever is checked out.
- *
- * Hints let `listBranches` reuse the branch names and current branch it has
- * already paid for; `startPoint` has neither and asks git directly.
- */
-async function defaultBranchOf(
-  repoPath: string,
-  hints: { names?: Set<string>; currentBranch?: string } = {},
-): Promise<string> {
-  try {
-    return (await git(repoPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']))
-      .trim()
-      .replace(/^origin\//, '')
-  } catch {
-    // No origin/HEAD (no remote, or never set) — fall back to local names.
-  }
-  const names =
-    hints.names ??
-    new Set(
-      (await git(repoPath, ['for-each-ref', 'refs/heads', '--format=%(refname:short)']))
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean),
-    )
-  if (names.has('main')) return 'main'
-  if (names.has('master')) return 'master'
-  return hints.currentBranch ?? (await git(repoPath, ['rev-parse', '--abbrev-ref', 'HEAD'])).trim()
-}
-
-/**
- * Where a new session branch should start.
- *
- * Prefers `origin/<trunk>` over local trunk deliberately. "Branch off the
- * latest main" is the actual intent, and the local `main` in a repo the user
- * has been working in for a week is routinely stale — but bringing it up to
- * date would mean pulling, which fails outright on a dirty main tree and is
- * exactly the kind of surprise a "new chat" button must not spring. Branching
- * straight off the remote-tracking ref gets the freshest trunk while leaving
- * the main tree's checkout untouched, dirty or not.
- *
- * The caller is expected to have fetched (throttled) first; without a fetch
- * this is still correct, just as fresh as the last fetch.
- */
-export async function startPoint(repoPath: string): Promise<StartPoint> {
-  const defaultBranch = await defaultBranchOf(repoPath)
-  if (await refExists(repoPath, `refs/remotes/origin/${defaultBranch}`)) {
-    return { base: `origin/${defaultBranch}`, defaultBranch, fromRemote: true }
-  }
-  if (await refExists(repoPath, `refs/heads/${defaultBranch}`)) {
-    return { base: defaultBranch, defaultBranch, fromRemote: false }
-  }
-  // Neither ref resolves: a repo whose trunk is unborn or oddly named. HEAD is
-  // always *something*, and branching from it beats refusing to start a chat.
-  return { base: 'HEAD', defaultBranch, fromRemote: false }
-}
-
-async function refExists(repoPath: string, ref: string): Promise<boolean> {
-  try {
-    await git(repoPath, ['show-ref', '--verify', '--quiet', ref])
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * Add upstream tracking and distance-from-trunk to an already-built branch
- * list, without a `rev-list` per branch.
- *
- * Deliberately TWO `for-each-ref` calls rather than one with all four atoms.
- * `%(ahead-behind:)` is git 2.41+ (June 2023) and an unknown atom makes git
- * fail the whole command — Ubuntu 22.04 LTS still ships 2.34 — so bundling it
- * with `%(upstream:*)` would cost every older install its "you are N behind
- * origin, pull?" prompt as collateral. Splitting them means old git loses only
- * the behind-trunk markers, which the UI renders as unknown, never as zero.
- *
- * A second pass rather than atoms on `listBranches`' first query because
- * `%(ahead-behind:)` needs the default branch, and resolving that needs the
- * branch names the first query produces.
- */
-async function enrichWithSync(
-  repoPath: string,
-  branches: BranchInfo[],
-  defaultBranch: string,
-): Promise<void> {
-  const byName = new Map(branches.map((b) => [b.name, b]))
-
-  // Pass 1: upstream tracking. These atoms are ancient; a failure here means
-  // something is wrong with the repo itself, not with git's vintage.
-  try {
-    const format = ['%(refname:short)', '%(upstream:short)', '%(upstream:track,nobracket)'].join(
-      '\t',
-    )
-    const out = await git(repoPath, ['for-each-ref', 'refs/heads', `--format=${format}`])
-    for (const line of out.split('\n').filter(Boolean)) {
-      const [name = '', upstream = '', track = ''] = line.split('\t')
-      const branch = byName.get(name)
-      if (!branch || !upstream) continue
-      branch.upstream = upstream
-      // `track` is "ahead 2, behind 1", "gone", or empty when in sync.
-      if (track !== 'gone') {
-        branch.ahead = Number.parseInt(/ahead (\d+)/.exec(track)?.[1] ?? '0', 10)
-        branch.behind = Number.parseInt(/behind (\d+)/.exec(track)?.[1] ?? '0', 10)
-      }
-    }
-  } catch {
-    // Leave tracking unknown.
-  }
-
-  // Pass 2: distance from trunk, best-effort (see the git 2.41 note above).
-  try {
-    const format = ['%(refname:short)', `%(ahead-behind:refs/heads/${defaultBranch})`].join('\t')
-    const out = await git(repoPath, ['for-each-ref', 'refs/heads', `--format=${format}`])
-    for (const line of out.split('\n').filter(Boolean)) {
-      const [name = '', aheadBehind = ''] = line.split('\t')
-      const branch = byName.get(name)
-      if (!branch) continue
-      // "<ahead> <behind>" relative to trunk; the second number is what "this
-      // worktree has fallen behind main" means. Blank on unborn/unknown refs.
-      const behindDefault = aheadBehind.trim().split(/\s+/)[1]
-      if (behindDefault !== undefined && /^\d+$/.test(behindDefault)) {
-        branch.behindDefault = Number.parseInt(behindDefault, 10)
-      }
-    }
-  } catch {
-    // git < 2.41: no behind-trunk markers, everything else still works.
-  }
 }
 
 export async function addWorktree(
@@ -286,56 +121,12 @@ export async function createWorktree(
   await mkdir(worktreeRootFor(repoPath), { recursive: true })
   await ensureExcluded(repoPath)
 
-  if (branch.kind === 'new') {
-    // `--no-track` when the base is a remote-tracking ref: git would otherwise
-    // make `origin/main` the new branch's upstream, so the branch chip would
-    // report it as "behind origin/main" forever and `git push` would aim at
-    // trunk. Distance from trunk is already reported via `behindDefault`.
-    const args = ['worktree', 'add', '-b', branch.branch ?? name]
-    if (branch.noTrack) args.push('--no-track')
-    args.push(path, branch.base)
-    await git(repoPath, args)
-  } else {
-    await git(repoPath, ['worktree', 'add', path, branch.branch])
-  }
+  await addGitWorktree(
+    repoPath,
+    path,
+    branch.kind === 'new' ? { ...branch, branch: branch.branch ?? name } : branch,
+  )
   return path
-}
-
-/**
- * Rename a branch, including one checked out in a linked worktree.
- *
- * This exists because a chat's branch is now cut before its name is known. The
- * naming model costs ~13s, and waiting for it is what made "new chat" feel
- * hung, so the branch is cut immediately from a slug of the first message and
- * brought into agreement with the generated title afterwards.
- *
- * `git branch -m` is safe on a branch that a linked worktree has checked out —
- * git rewrites that worktree's HEAD, so the live pi session running there is
- * undisturbed (its cwd, which is what binds it to its transcript, never
- * moves). The worktree *folder* keeps its original slug on purpose: moving it
- * would move a live session's cwd out from under it.
- *
- * Never throws for the ordinary refusals — a rename is cosmetic, and a chat
- * that is already running must not surface an error because its branch could
- * not be retitled.
- */
-export async function renameBranch(
-  repoPath: string,
-  from: string,
-  to: string,
-): Promise<{ renamed: boolean; branch: string }> {
-  if (from === to) return { renamed: false, branch: from }
-  if (!NAME_PATTERN.test(to) || to.includes('..')) {
-    return { renamed: false, branch: from }
-  }
-  try {
-    // No `-M`: a plain `-m` refuses to clobber an existing branch, which is
-    // the behaviour we want if the caller's dedupe raced another session.
-    await git(repoPath, ['branch', '-m', from, to])
-    return { renamed: true, branch: to }
-  } catch {
-    return { renamed: false, branch: from }
-  }
 }
 
 const proofGit =
@@ -443,11 +234,8 @@ export async function removeWorktree(
     return { removed: false, dirtyCount: target.dirtyCount }
   }
 
-  const args = ['worktree', 'remove']
-  if (options.force) args.push('--force')
-  args.push(target.path)
   beforeRemove?.(target) // Synchronous: no await between the final guard and dispatch.
-  await git(repoPath, args)
+  await removeGitWorktree(repoPath, target.path, options.force === true)
 
   if (!options.deleteBranch || !target.branch) return { removed: true, branchDeleted: false }
   return { removed: true, ...(await deleteLandedBranch(repoPath, target.branch)) }
@@ -465,41 +253,4 @@ export async function pruneWorktrees(repoPath: string): Promise<{ pruned: string
     .map((l) => l.trim())
     .filter(Boolean)
   return { pruned }
-}
-
-/** Stage everything and commit in the worktree. Refuses empty messages. */
-export async function commitAll(worktreePath: string, message: string): Promise<{ sha: string }> {
-  if (!message.trim()) throw new Error('Commit message must not be empty.')
-  await git(worktreePath, ['add', '-A'])
-  await git(worktreePath, ['commit', '-m', message])
-  return { sha: (await git(worktreePath, ['rev-parse', 'HEAD'])).trim() }
-}
-
-/**
- * Merge `branch` into the main tree's current branch. Preflight requires the
- * main tree to be clean (we never checkout or stash for the user); a conflict
- * aborts immediately so the repo is never left mid-merge.
- */
-export async function mergeBranch(
-  repoPath: string,
-  branch: string,
-): Promise<
-  | { merged: true; sha: string }
-  | { merged: false; reason: 'dirty'; dirtyCount: number }
-  | { merged: false; reason: 'conflict'; conflicts: string[] }
-> {
-  const dirty = await dirtyCount(repoPath)
-  if (dirty > 0) {
-    return { merged: false, reason: 'dirty', dirtyCount: dirty }
-  }
-  try {
-    await git(repoPath, ['merge', '--no-ff', '--no-edit', branch])
-  } catch {
-    return {
-      merged: false,
-      reason: 'conflict',
-      conflicts: await abortMergeAndCollectConflicts(repoPath),
-    }
-  }
-  return { merged: true, sha: (await git(repoPath, ['rev-parse', 'HEAD'])).trim() }
 }

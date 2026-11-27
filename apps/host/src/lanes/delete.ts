@@ -105,6 +105,7 @@ export async function branchLanded(
 }
 interface DeletionPorts {
   store: HostStore
+  withCheckout?<T>(path: string, change: () => Promise<T>): Promise<T>
   stop(laneId: string, allowed: () => boolean): Promise<void>
   remove(request: unknown, owner?: boolean): Promise<void>
   forget(laneId: string): void
@@ -114,7 +115,7 @@ interface DeletionPorts {
   archiveOwnsCwd?: (cwd: string) => Promise<boolean>
 }
 export function createLaneDeletion(options: DeletionPorts) {
-  return async (
+  const remove = async (
     op: DeleteLaneOp,
     allowed: () => boolean,
     owner = false,
@@ -188,6 +189,11 @@ export function createLaneDeletion(options: DeletionPorts) {
     } catch {
       return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
     }
+  }
+  return (op: DeleteLaneOp, allowed: () => boolean, owner = false) => {
+    const lane = options.store.getLane(op.laneId)
+    const run = () => remove(op, allowed, owner)
+    return lane && options.withCheckout ? options.withCheckout(lane.cwd, run) : run()
   }
 }
 

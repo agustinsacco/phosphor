@@ -3,6 +3,7 @@ import { RemoteFileTree } from './RemoteFileTree'
 import { useTreeFolders } from './useTreeFolders'
 import { useLaneChanges } from './useLaneChanges'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { hostFeatureRefusal } from '@/stores/hostRefusals'
 import { useSessionsStore } from '@/stores/sessions'
 import { CodeBlock } from '@/components/markdown/CodeBlock'
@@ -30,6 +31,10 @@ export function LaneChangesPane({ sessionId }: { sessionId: string }): React.JSX
   const folders = useTreeFolders(selected || null, true)
   const [error, setError] = useState('')
   const [refresh, setRefresh] = useState(0)
+  const gitRevision = useHostResourceRevision(
+    entry?.target?.kind === 'remote' ? entry.target.hostId : null,
+    'git',
+  )
   const workspace = entry?.workspacePath
   const refusal = hostFeatureRefusal(host, 'workspaces.read')
   const canRead = useActive(sessionId) && !refusal
@@ -38,12 +43,12 @@ export function LaneChangesPane({ sessionId }: { sessionId: string }): React.JSX
   const { status, loading } = useLaneChanges(
     workspace,
     { canRead, loading: !refusal },
-    { epoch, token, refresh },
+    { epoch, token, refresh: refresh + gitRevision },
     setError,
   )
   const file = useChangedFile(
     { workspace, selected, canRead, refusal, status },
-    { epoch, token, refresh },
+    { epoch, token, refresh: refresh + gitRevision },
     setError,
   )
   if (refusal)

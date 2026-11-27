@@ -15,6 +15,7 @@ import { BranchPicker } from './BranchPicker'
 import { PrRow } from './PrRow'
 import { workspaceName } from '@/lib/path'
 import { useWorkspaceNameTransition } from '@/features/sessions/nameTransition'
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { useGitInfo } from './useGitInfo'
 
 /**
@@ -34,13 +35,16 @@ function chipTitle(branch: string, provisional: boolean, worktreeOf: string | un
 
 export function BranchControl({
   workspacePath,
+  hostId,
   selectPath,
   configured,
 }: {
   workspacePath: string
+  hostId?: string
   selectPath?: (cwd: string) => void
   configured?: (path: string) => boolean
 }): React.JSX.Element | null {
+  const gitRevision = useHostResourceRevision(hostId ?? null, 'git')
   const { info, refresh } = useGitInfo(workspacePath)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -75,9 +79,13 @@ export function BranchControl({
    */
   const repoLoadedAt = useWorktreesStore((s) => repoWorktrees(s, repoPath).loadedAt)
   useEffect(() => {
-    if (repoLoadedAt === 0) return
+    if (repoLoadedAt === 0 && gitRevision === 0) return
     refresh(true)
-  }, [repoLoadedAt, refresh])
+  }, [repoLoadedAt, gitRevision, refresh])
+
+  useEffect(() => {
+    if (gitRevision !== 0 && open) void useWorktreesStore.getState().refresh(repoPath)
+  }, [gitRevision, open, repoPath])
 
   const naming = useWorkspaceNameTransition(workspacePath)
 

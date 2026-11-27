@@ -14,12 +14,10 @@ const served = {
 }
 
 /** Reconcile-v1 B8 minus N7 (`mcp.lane`, `artifact.remove`), plus reconcile-v2 #6's additions. */
-const ALLOWED_GAPS =
-  `lane.move git.fetch git.pull git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge
- worktree.add worktree.remove worktree.prune worktree.restore worktree.recreate files.search maintenance.scan maintenance.run
- skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane git.branches git.worktrees git.diff`
-    .trim()
-    .split(/\s+/)
+const ALLOWED_GAPS = `lane.move files.search maintenance.scan maintenance.run
+ skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane`
+  .trim()
+  .split(/\s+/)
 
 /** Ops the never tier refuses to every principal except the surface they are for. */
 const surfaceOnlyNever = OP_CATALOG.filter((s) => s.tier === 'never' && s.surfaceOnly === true)
