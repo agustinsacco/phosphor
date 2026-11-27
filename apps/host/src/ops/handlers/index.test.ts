@@ -209,3 +209,19 @@ it('reports the self-check and the last update in machine.status data.update', a
   const plain = domainHandlers({ ...deps, store: { listLanes: () => [] } as never })
   expect((await plain['machine.status']!({}, surface)).data).not.toHaveProperty('update')
 })
+
+it.each([
+  ['brain.find', 'read'],
+  ['brain.status', 'read'],
+  ['brain.queue', 'lane'],
+  ['files.search', 'read'],
+  ['mcp.expose', 'persistence'],
+  ['routine.check', 'read'],
+  ['routine.fromLane', 'persistence'],
+  ['maintenance.scan', 'read'],
+  ['maintenance.run', 'destructive'],
+])('serves %s through the Host domain binding at the %s tier', (name, tier) => {
+  expect(OP_GAPS.daemon[name]).toBeUndefined()
+  expect(served[name]).toBeTypeOf('function')
+  expect(OP_CATALOG.find((op) => op.name === name)?.tier).toBe(tier)
+})

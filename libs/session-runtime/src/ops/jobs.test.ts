@@ -170,3 +170,17 @@ it('pages summaries past 50 jobs but keeps full legacy surface rows and job.stat
     expect(status.data).toMatchObject({ result })
   }
 })
+
+it('returns the next package update cursor through job.status', async () => {
+  const jobs = createJobStore(db, ports)
+  const { jobId } = await jobs.port.start({
+    creator: 'local:a',
+    op: 'package.checkUpdates',
+    run: async () => ({ text: 'First page', next: 'next-page' }),
+  })
+  await new Promise((r) => setTimeout(r, 0))
+  expect(await jobHandlers(jobs)['job.status']!({ jobId }, ctx('a'))).toMatchObject({
+    next: 'next-page',
+    data: { result: { next: 'next-page' } },
+  })
+})

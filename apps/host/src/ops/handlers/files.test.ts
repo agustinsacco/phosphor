@@ -105,3 +105,21 @@ it('reads git and PR status through the Host’s git and GitHub features', async
     code: 'bad-request',
   })
 })
+
+it('pages literal workspace search through the lane file owner', async () => {
+  const h = harness()
+  h.call.mockResolvedValueOnce({
+    ok: true,
+    data: [
+      { path: 'a.ts', line: 1, snippet: 'a+b' },
+      { path: 'b.ts', line: 2, snippet: 'a+b' },
+    ],
+  } as never)
+  const page = await h.files['files.search']!({ query: 'a+b' }, ctx({ limit: 1 }))
+  expect(page).toMatchObject({
+    text: 'path | line | snippet\na.ts | 1 | a+b',
+    next: expect.any(String),
+  })
+  expect(h.call).toHaveBeenCalledWith('files.search', { laneId: 'L1', query: 'a+b' })
+  expect(h.execute).not.toHaveBeenCalled()
+})
