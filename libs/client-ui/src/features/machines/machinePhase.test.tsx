@@ -102,9 +102,13 @@ describe("This Mac's boot window", () => {
     vi.useFakeTimers()
     grantNothing(true)
     render()
-    act(() => vi.advanceTimersByTime(MACHINE_START_LIMIT_MS - 1))
+    act(() => {
+      vi.advanceTimersByTime(MACHINE_START_LIMIT_MS - 1)
+    })
     expect(render().note).toContain(`Starting ${label()}…`)
-    act(() => vi.advanceTimersByTime(1))
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
     const { chip, bar, note } = render()
     expect(note).toContain(REMOTE_NOT_READY)
     expect(note).not.toContain('Starting')
@@ -122,7 +126,9 @@ describe("This Mac's boot window", () => {
     vi.useFakeTimers()
     grantNothing(true)
     render()
-    act(() => vi.advanceTimersByTime(MACHINE_START_LIMIT_MS))
+    act(() => {
+      vi.advanceTimersByTime(MACHINE_START_LIMIT_MS)
+    })
     act(() =>
       useRemoteLanesStore.setState((s) => ({
         hosts: { ...s.hosts, [MOCK_HOST_ID]: { ...s.hosts[MOCK_HOST_ID]!, state: 'reconnecting' } },
