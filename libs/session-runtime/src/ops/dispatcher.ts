@@ -7,7 +7,11 @@
  * `aborted` when the lane stops. Living contract: docs/agent-control.md.
  */
 import { isOpName, type OpsRunRequest, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
-import type { OpReplyEnvelope, OpRequestEnvelope } from '@phosphor/shared/ops'
+import {
+  LANE_WAIT_DEADLINE_MS,
+  type OpReplyEnvelope,
+  type OpRequestEnvelope,
+} from '@phosphor/shared/ops'
 import { createLaneDeferred, type LaneDeferredQueue } from './deferred'
 import { createLaneWaits } from './lane-waits'
 import { createOpLimits } from './limits'
@@ -199,8 +203,8 @@ async function runOp(
   core: DispatcherCore,
   principal: OpPrincipal,
   request: OpsRunRequest,
-  hosts?: OpRunExtras['hosts'],
-  deadlineMs = 30_000,
+  hosts: OpRunExtras['hosts'],
+  deadlineMs: number,
   caller?: AbortSignal,
 ): Promise<OpsRunResult> {
   const { controller, release } = track(core, principal)
@@ -218,8 +222,8 @@ async function runOp(
   }
 }
 
-/** The lane gives us a backstop; only the owner knows the resolved command. */
-function toolDeadline(core: DispatcherCore, request: OpsRunRequest, backstop: number): number {
+/** Callers give at most a backstop; only the owner knows the resolved command. */
+function catalogDeadline(core: DispatcherCore, request: OpsRunRequest, backstop: number): number {
   const spec = core.pipeline.spec(request.op)
   const tier = spec?.tier
   // Target resolution runs after queue admission. Use the shorter budget only
@@ -252,7 +256,7 @@ async function runFromTool(
   if ('error' in parsed)
     return { v: 1, id, op: parsed.op, status: 'denied', code: 'bad-request', text: parsed.error }
   const { op } = parsed.request
-  const deadline = toolDeadline(core, parsed.request, envelope.deadlineMs)
+  const deadline = catalogDeadline(core, parsed.request, envelope.deadlineMs)
   let phase = 'queue'
   const { controller, release } = track(core, principal)
   const deadlineAt = core.now() + deadline
@@ -324,7 +328,7 @@ export function createOpsDispatcher(binding: OpsBinding, deps: OpsDispatcherDeps
       principal,
       request,
       undefined,
-      request.op === 'lane.wait' ? core.pipeline.spec(request.op)?.deadlineMs : undefined,
+      catalogDeadline(core, request, LANE_WAIT_DEADLINE_MS),
       request.op === 'lane.wait' ? signal : undefined,
     )
   return {
@@ -337,7 +341,7 @@ export function createOpsDispatcher(binding: OpsBinding, deps: OpsDispatcherDeps
         principal,
         parsed.request,
         parsed.hosts,
-        envelope.deadlineMs,
+        catalogDeadline(core, parsed.request, envelope.deadlineMs),
         parsed.request.op === 'lane.wait' ? signal : undefined,
       )
     },

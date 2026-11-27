@@ -55,7 +55,8 @@ const envelope = (argv: readonly string[]): OpRequestEnvelope => ({
   v: 1,
   id: randomUUID(),
   argv,
-  deadlineMs: catalogOp(argv) === 'lane.wait' ? LANE_WAIT_DEADLINE_MS : 30_000,
+  // A backstop: the owner applies the resolved op's catalog deadline.
+  deadlineMs: LANE_WAIT_DEADLINE_MS,
 })
 
 async function afterApproval(
