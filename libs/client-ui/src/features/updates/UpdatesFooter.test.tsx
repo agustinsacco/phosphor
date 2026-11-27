@@ -459,6 +459,26 @@ it('does not revive an offer on remount after it expired while unmounted', () =>
   expect(rows()).toEqual([])
 })
 
+it('keeps an expired offer expired through a brief reconnect, a second drop and a remount', () => {
+  useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
+  setEntry('bee', available)
+  mount(DESKTOP_PLATFORM)
+  wait(3000)
+  act(() => root.unmount())
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ state: 'reconnecting' }) } }))
+  wait(11 * 60_000)
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ connectionToken: '2' }) } }))
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ state: 'reconnecting' }) } }))
+  root = createRoot(container)
+  mount(DESKTOP_PLATFORM)
+  wait(1000)
+  expect(rows()).toEqual([])
+  // Back, but no status read yet: the old status does not bring it back.
+  act(() => useRemoteLanesStore.setState({ hosts: { bee: host({ connectionToken: '3' }) } }))
+  wait(5000)
+  expect(rows()).toEqual([])
+})
+
 it('opens nothing from a machine row that is collapsing', () => {
   useRemoteLanesStore.setState({ hosts: { bee: host() }, filter: 'bee' })
   setEntry('bee', available)

@@ -467,3 +467,34 @@ it('lets a run claim only a result with its own versions; any other is reported'
   const own = { ...other, from: '1.2.3', to: '1.3.0', outcome: 'updated' } as const
   expect(observeResult({ run: updated, last: own }, now).run).toMatchObject({ claimed: true })
 })
+
+it('latches an offer expired after 10 minutes away until a fresh read', () => {
+  const down = trackReady({ readySince: 0 }, { ...host, state: 'reconnecting' }, 1000)
+  expect(down.offerExpired).toBeUndefined()
+  const back = trackReady(down, host, 1000 + 10 * 60_000)
+  expect(back.offerExpired).toBe(true)
+  const again = trackReady(back, { ...host, state: 'reconnecting' }, 1000 + 10 * 60_000 + 5)
+  expect(trackReady(again, host, 1000 + 10 * 60_000 + 10).offerExpired).toBe(true)
+  // Still away past the limit latches too.
+  const away = trackReady(down, { ...host, state: 'reconnecting' }, 1000 + 10 * 60_000)
+  expect(away.offerExpired).toBe(true)
+})
+
+it('never lets a settled run without a target claim a result', () => {
+  const now = Date.parse('2026-11-26T12:00:00.000Z')
+  const last = {
+    from: '1.2.3',
+    to: '1.2.3',
+    outcome: 'rolled-back',
+    at: '2026-11-26T11:00:00.000Z',
+  } as const
+  const settled = {
+    ...startRun('op', {}, host, 0),
+    restartAt: 5,
+    finish: 'download' as const,
+    settled: true as const,
+  }
+  expect(observeResult({ run: settled, last }, now).run).toMatchObject({ reported: true })
+  const active = { ...startRun('op', {}, host, 0), restartAt: 5 }
+  expect(observeResult({ run: active, last }, now).run).toMatchObject({ claimed: true })
+})

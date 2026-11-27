@@ -66,3 +66,27 @@ it('drops a removed machine’s update entry and footer state', () => {
   expect(footer?.targets.machine).toBeNull()
   stop()
 })
+
+it('clears an expired offer’s latch on a fresh machine.status read', async () => {
+  const invoke = vi.fn(async (channel: string) =>
+    channel === 'ops:run'
+      ? {
+          status: 'ok',
+          applies: 'now',
+          text: '',
+          data: { pause: { kind: 'none' }, update: { supported: true, available: '1.3.0' } },
+        }
+      : undefined,
+  )
+  Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  useRemoteLanesStore.setState({
+    hosts: { bee: { ...host, ops: true, capabilities: ['sessions.read'] } },
+  })
+  useMachineUpdatesStore.setState({ byMachine: { bee: { offerExpired: true } } })
+  const stop = watchMachineUpdates(false)
+  await vi.waitFor(() =>
+    expect(useMachineUpdatesStore.getState().byMachine.bee?.status).toBeDefined(),
+  )
+  expect(useMachineUpdatesStore.getState().byMachine.bee?.offerExpired).toBeUndefined()
+  stop()
+})
