@@ -35,7 +35,11 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     resourceRoot: machine.resourceRoot,
   })
   const sessionOwner = (path: string) =>
-    sessionOwnerOf(state.registry.list(), path, (id) => !!state.registry.get(id)?.client.alive)
+    sessionOwnerOf(
+      state.registry.list(),
+      path,
+      (id) => !!state.registry.get(id)?.client.alive || state.registry.isStopping(id),
+    )
   return {
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     ...(options.leases ? { leases: options.leases } : {}),

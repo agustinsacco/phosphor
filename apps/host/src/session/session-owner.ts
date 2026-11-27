@@ -6,8 +6,9 @@ interface RegisteredSession {
 }
 
 /**
- * The live pi that owns a transcript, if any. A pi that exited stays registered until
- * the lane resumes; it owns nothing, so a crashed lane is not "starting or stopping".
+ * The pi that owns a transcript, if any: running, or stopping and not yet exited. A pi
+ * that crashed stays registered until the lane resumes; it owns nothing, so a crashed
+ * lane is not "starting or stopping".
  */
 export function sessionOwnerOf(
   sessions: readonly RegisteredSession[],

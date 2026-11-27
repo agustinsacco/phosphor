@@ -75,6 +75,11 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     }))
   }
 
+  /** Stop sent, pi not exited yet: it may still write its transcript. */
+  isStopping(sessionId: string): boolean {
+    return this.disposing.has(sessionId)
+  }
+
   async dispose(sessionId: string): Promise<void> {
     const pending = this.disposing.get(sessionId)
     if (pending) return pending
