@@ -84,16 +84,17 @@ export async function appendSessionName(
     timestamp: new Date().toISOString(),
     name,
   }
-  allowed()
-  await appendEntry(path, entry)
+  await appendEntry(path, entry, allowed)
 }
 
 /**
  * Append one record. A crash can leave the last line unterminated; appending onto it
  * would merge the two records into one unreadable line, so a leading LF keeps each its own.
  */
-async function appendEntry(path: string, entry: object): Promise<void> {
+async function appendEntry(path: string, entry: object, allowed?: () => void): Promise<void> {
   const boundary = (await endsMidLine(path)) ? '\n' : ''
+  // Last, after every read: control can move while the tail is read.
+  allowed?.()
   await appendFile(path, boundary + JSON.stringify(entry) + '\n', 'utf8')
 }
 

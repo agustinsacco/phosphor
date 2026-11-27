@@ -1,4 +1,4 @@
-import { sessionOwnerOf } from './session-owner'
+import { sessionOwnerOf, type SessionOwner } from './session-owner'
 import { createDrain, endTurn, within } from './lifecycle'
 import { createRuntimeOperations } from './runtime-operations'
 import { createRuntimeState, type HostMachine, type RuntimeOptions } from './runtime-state'
@@ -35,11 +35,10 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     resourceRoot: machine.resourceRoot,
   })
   const sessionOwner = (path: string) =>
-    sessionOwnerOf(
-      state.registry.list(),
-      path,
-      (id) => !!state.registry.get(id)?.client.alive || state.registry.isStopping(id),
-    )
+    sessionOwnerOf(state.registry.list(), path, {
+      alive: (id) => !!state.registry.get(id)?.client.alive,
+      stopping: (id) => state.registry.isStopping(id),
+    })
   return {
     ...createRuntimeOperations(state, service, deleteLane, ownerDeleteLane),
     ...(options.leases ? { leases: options.leases } : {}),
@@ -82,7 +81,7 @@ export function createHostRuntime(machine: HostMachine, options: RuntimeOptions 
     /** Inside the path lock, a fork may read live; a rename checks who owns the file. */
     withSessionFile<T>(
       path: string,
-      use: (owner: () => string | undefined) => Promise<T>,
+      use: (owner: () => SessionOwner | undefined) => Promise<T>,
     ): Promise<T> {
       return state.paths.withSessionPath(path, () => use(() => sessionOwner(path)))
     },

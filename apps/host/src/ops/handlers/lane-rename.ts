@@ -4,6 +4,7 @@ import { op } from '@phosphor/session-runtime/ops/results'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { LaneEditRefused, writeStoppedLaneName } from '../../lanes/editing'
 import type { StoredLane } from '../../lanes/store'
+import type { SessionOwner } from '../../session/session-owner'
 import { hasCaps } from '../binding'
 import type { DaemonHandlerDeps } from './index'
 import { requireRuntime, targetLane } from './lane-target'
@@ -49,9 +50,13 @@ export function laneRename(deps: DaemonHandlerDeps) {
       checkControl(ctx, lane, args.controlFence)
       return lane
     }
-    const rename = async (owner?: () => string | undefined) => {
+    const rename = async (owner?: () => SessionOwner | undefined) => {
       const lane = current()
-      const sessionId = deps.daemonLanes.sessionFor(laneId)
+      // Resume spawns pi, then attaches it after the path lock: a starting pi owns the
+      // file before the lane names it. It takes the name when ready, as an attached one does.
+      const holder = deps.daemonLanes.sessionFor(laneId) ? undefined : owner?.()
+      if (holder?.stopping) throw new OpRefusal('busy', 'The lane is stopping. Try again.')
+      const sessionId = deps.daemonLanes.sessionFor(laneId) ?? holder?.sessionId
       if (sessionId) {
         const result = await requireRuntime(deps.laneRuntime).command(sessionId, {
           type: 'set_session_name',
@@ -60,8 +65,6 @@ export function laneRename(deps: DaemonHandlerDeps) {
         if (!result.success)
           throw new OpRefusal('unavailable', result.error ?? 'pi refused this command.')
       } else {
-        // Resume can still be attaching, or Stop waiting for pi to exit. Never write over it.
-        if (owner?.()) throw new OpRefusal('busy', 'The lane is starting or stopping. Try again.')
         if (!file) throw new OpRefusal('unavailable', 'This lane has no saved conversation yet.')
         try {
           await writeStoppedLaneName(file, name, current)
