@@ -4671,7 +4671,7 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await page.getByRole('button', { name: /Start lane/i }).click()
 
     // While the reviewer runs, its row says who, and what it is on right now.
-    await expect(page.getByText('Delegating to')).toBeVisible({ timeout: 60_000 })
+    await expect(page.getByText('Delegating to', { exact: true })).toBeVisible({ timeout: 60_000 })
     await expect(
       page.getByTestId('transcript-scroll').getByText('read src/auth.ts · 3 tools'),
     ).toBeVisible()
