@@ -238,7 +238,7 @@ function agentArchive() {
   const summary = (id: string): LaneSummary | null => {
     const row = store.getLane(id)
     return row?.removedAt === null
-      ? ({ ...row, activity: 'stopped', control: { fence: 0 } } as LaneSummary)
+      ? { ...row, activity: 'stopped', control: { fence: 0, controller: null } }
       : null
   }
   const deps = {
