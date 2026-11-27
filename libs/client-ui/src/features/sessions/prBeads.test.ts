@@ -24,11 +24,11 @@ describe('prBeadLine', () => {
 })
 
 describe('prBeads', () => {
-  it('shows three, counts the rest and lists them all', () => {
+  it('shows two, counts the rest and lists them all', () => {
     const prs = [1, 2, 3, 4].map((n) => lanePr(prSummary({ ref: prRef(n), number: n })))
     const view = prBeads(prs)
-    expect(view.shown.map((p) => p.number)).toEqual([1, 2, 3])
-    expect(view.more).toBe(1)
+    expect(view.shown.map((p) => p.number)).toEqual([1, 2])
+    expect(view.more).toBe(2)
     expect(view.lines).toHaveLength(4)
     expect(view.tone).toBe('failing')
   })

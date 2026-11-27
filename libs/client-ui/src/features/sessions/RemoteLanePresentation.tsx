@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { PrBadge } from './PrBadge'
+import { AgentDots, AgentStack, useHostLaneSessionId, useLaneWork } from './LaneAgents'
 import { useRemoteLanePrs } from './lanePrMenu'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import type { HostLaneView } from '@shared/ipc'
@@ -68,6 +69,7 @@ export function RemoteLanePresentation({
   ...props
 }: RemoteLanePresentationProps): React.JSX.Element {
   const prs = useRemoteLanePrs(hostId, lane)
+  const work = useLaneWork(useHostLaneSessionId(hostId, lane.laneId))
   const showPr = useLanePrefsStore((s) => s.lanes.prStatus)
   const description = useId()
   const view = remoteLanePresentation(lane, ready)
@@ -89,9 +91,12 @@ export function RemoteLanePresentation({
       'text-text-secondary @container/lane-line flex items-center gap-1 text-base leading-4',
     subtitle: (
       <>
-        <SubtitleSegments segments={view.segments} activity={activity} />
+        <SubtitleSegments segments={view.segments} activity={activity} doing={work.doing} />
         {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
-        {showPr && <PrBadge prs={prs} />}
+        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+          {work.agents && <AgentDots agents={work.agents} />}
+          {showPr && <PrBadge prs={prs} />}
+        </span>
       </>
     ),
     trailing: (
@@ -121,6 +126,7 @@ export function RemoteLanePresentation({
           {body}
         </LaneRow>
       )}
+      {active && work.agents && <AgentStack agents={work.agents} />}
       <span id={description} className="sr-only">
         {laneDescription(view, activity, pinned)}
       </span>
@@ -140,15 +146,7 @@ function laneDescription(
     live: 'Live session. ',
     disk: 'Stored session. ',
   }[view.indicator]
-  const details = view.segments
-    .map((segment) =>
-      segment.key === 'worktree'
-        ? 'worktree wt'
-        : segment.key === 'branch'
-          ? `branch ${segment.text}`
-          : segment.text,
-    )
-    .join(' · ')
+  const details = view.segments.map((segment) => segment.text).join(' · ')
   const doing = activity === 'working' ? 'Working. ' : activity === 'opening' ? 'Opening. ' : ''
   return `${pinned ? 'Pinned. ' : ''}${stateLabel}${doing}${details}${view.needsYou ? ' · needs you' : ''}`
 }

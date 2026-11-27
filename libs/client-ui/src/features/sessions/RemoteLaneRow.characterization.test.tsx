@@ -33,7 +33,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 it.each(['stopped', 'working', 'needs-input', 'failed'] as const)(
-  'characterizes Desktop title, time, worktree, branch and attention for %s',
+  'characterizes Desktop title, time and attention for %s, without worktree or branch',
   (activity) => {
     const lane = {
       ...mockRemoteHosts[MOCK_HOST_ID]!.lanes[0]!,
@@ -45,7 +45,7 @@ it.each(['stopped', 'working', 'needs-input', 'failed'] as const)(
     }
     act(() => root.render(<RemoteLaneRow hostId={MOCK_HOST_ID} lane={lane} ready active={false} />))
     expect(el.querySelector('[data-testid=remote-session-row]')?.textContent).toBe(
-      `⭐Canonical title${activity === 'working' ? 'Working' : '1h ago'}·wt·⎇ feature/parity${activity === 'needs-input' || activity === 'failed' ? 'needs you' : ''}`,
+      `⭐Canonical title${activity === 'working' ? 'Working' : '1h ago'}${activity === 'needs-input' || activity === 'failed' ? 'needs you' : ''}`,
     )
     expect(el.querySelector('[data-testid=session-indicator]')?.getAttribute('data-state')).toBe(
       activity === 'working' ? 'streaming' : 'unseen',

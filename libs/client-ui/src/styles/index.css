@@ -1220,24 +1220,17 @@ fieldset[aria-busy='true'] .composer-field {
   background: var(--px-accent);
   pointer-events: none;
 }
+/* Plain text, not a chip: the row's loader already says it is working. */
 .lane-activity-label {
-  color: var(--px-text);
-  background: var(--px-accent-soft);
-  border-radius: var(--px-radius-sm);
-  padding: 0 0.3rem;
-  font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Prioritize activity, branch and PR over secondary git chips in a narrow
-   working lane; never let the label push controls outside the sidebar. */
+/* Prioritize activity and PRs over the dirty count in a narrow working lane;
+   never let the label push controls outside the sidebar. */
 @container (max-width: 16rem) {
   .lane-row[data-activity] [data-segment='dirty'] {
-    display: none;
-  }
-}
-@container (max-width: 14rem) {
-  .lane-row[data-activity] [data-segment='worktree'] {
     display: none;
   }
 }

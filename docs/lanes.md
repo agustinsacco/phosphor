@@ -64,24 +64,41 @@ dirty worktree removal rather than discarding changes.
 
 ```
 ● 🚀  Give Me The Text Here
-      9m · wt · give-me-the-text-here · ±2                  (✕)(✓)
+      9m · ±2                                               (✕)(✓)
+◌ 🧭  Phosphor Cli Bug Bash
+      Running npm test                       ●●● 2/3  (◷)
+      │ ◌ reviewer  Checking IPC freeze tests
+      │ ◌ scout     Reading host/cli.ts
+      │ ✓ worker    Fixed lint in doctor.ts
 ```
 
-Five parts, each owned by a different module:
+Six parts, each owned by a different module:
 
-| part          | source                       | note                                                            |
-| ------------- | ---------------------------- | --------------------------------------------------------------- |
-| indicator dot | `SessionIndicator`           | derived, never stored: streaming > unseen > live > disk         |
-| marker        | `lib/laneMarker.ts`          | fixed 18px slot                                                 |
-| title         | `lib/sessionTitle.ts`        | live name beats scanned name                                    |
-| subtitle      | `sessionSubtitle.ts`         | `·`-joined segments, branch is the only one allowed to truncate |
-| PR beads      | `prBeads.ts` + `PrBadge.tsx` | right-aligned trailer, **not** a subtitle segment               |
+| part          | source                           | note                                                                   |
+| ------------- | -------------------------------- | ---------------------------------------------------------------------- |
+| indicator dot | `SessionIndicator`               | derived, never stored: streaming > unseen > live > disk                |
+| marker        | `lib/laneMarker.ts`              | fixed 18px slot                                                        |
+| title         | `lib/sessionTitle.ts`            | live name beats scanned name                                           |
+| subtitle      | `sessionSubtitle.ts`             | `·`-joined age, state and dirty count                                  |
+| sub-agents    | `laneWork.ts` + `LaneAgents.tsx` | dots and `running/total` beside the beads; a stack under the open lane |
+| PR beads      | `prBeads.ts` + `PrBadge.tsx`     | right-aligned trailer, **not** a subtitle segment                      |
+
+**No worktree or branch on the row.** The lane header and composer show
+both, and neither is how you pick a lane. **No Working chip either:**
+the loader already says the lane works, so the age gives way to plain text
+naming the parent's running tool (`Reading registry.ts`), else `Working`.
+
+**Sub-agents show while any runs.** A live lane's row lists the agents from
+`currentWork` that are running or finished during the parent's current turn:
+one dot each (up to five) and `2/3`. The open lane also expands into one line
+per agent (up to five, then `+N more`): its state, name, and current tool or
+task. A Host lane shows them only once this client has opened it, since the
+lane summary carries no agent list.
 
 The PR beads are `ml-auto` and `shrink-0`, so they form a scannable column down
-the sidebar instead of floating after a branch name of varying width, and the
-branch truncates before they do. Near the sidebar's minimum width (a subtitle
-under 10.5rem) a row keeps only the lead bead and a `+N`, and the `wt` segment
-gives way, so nothing runs past the edge.
+the sidebar, and the activity text truncates before they do. Near the sidebar's
+minimum width (a subtitle under 10.5rem) a row keeps only the lead bead and a
+`+N`, so nothing runs past the edge.
 
 **The row carries no spend.** A dollar figure is something you go looking for,
 not a way to choose a lane. It lives in the row's context menu ("Copy spend"),
@@ -564,7 +581,7 @@ the first thread, and Escape closes and returns focus to the pill.
 ### PR beads
 
 A row shows its lane's own PRs as **beads** (`PrBadge.tsx`, `prBeads.ts`): one
-16px circle per PR, lead first in `compareLanePrs` order, at most three, then a
+16px circle per PR, lead first in `compareLanePrs` order, at most two, then a
 `+N`. A bead's colour and glyph come from the PR's `prVerdict` tone, the same
 verdict the header pill, the inspector and the Home board read, so no two
 surfaces disagree. The glyph (`PrToneGlyph.tsx`) carries the verdict on its

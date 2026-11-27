@@ -31,8 +31,10 @@ describe('sessionSubtitle', () => {
   it('does not invent an age for pending or orphaned rows', () => {
     expect(sessionSubtitle({}, undefined)).toEqual([])
     expect(
-      sessionSubtitle({}, git({ isWorktree: true, branch: 'task' })).map((s) => s.key),
-    ).toEqual(['worktree', 'branch'])
+      sessionSubtitle({}, git({ isWorktree: true, branch: 'task', dirtyCount: 1 })).map(
+        (s) => s.key,
+      ),
+    ).toEqual(['dirty'])
   })
 
   it('starts with the timestamp when known', () => {
@@ -51,29 +53,25 @@ describe('sessionSubtitle', () => {
     expect(others.map((s) => s.key)).toEqual(['time'])
   })
 
-  it('adds branch and dirty count when available', () => {
+  it('adds the dirty count when available', () => {
     const segments = sessionSubtitle(
       meta({ cost: 1.244 }),
       git({ branch: 'fix/chat-ux', dirtyCount: 3 }),
     )
-    expect(segments.map((s) => s.key)).toEqual(['time', 'branch', 'dirty'])
-    expect(segments.find((s) => s.key === 'branch')).toMatchObject({
-      text: 'fix/chat-ux',
-      truncate: true,
-    })
+    expect(segments.map((s) => s.key)).toEqual(['time', 'dirty'])
     expect(segments.find((s) => s.key === 'dirty')?.text).toBe('±3')
   })
 
-  it('marks worktree sessions', () => {
+  it('never shows the worktree or branch: the lane header owns those', () => {
     const segments = sessionSubtitle(meta(), git({ isWorktree: true, branch: 'task-1' }))
-    expect(segments.map((s) => s.key)).toEqual(['time', 'worktree', 'branch'])
+    expect(segments.map((s) => s.key)).toEqual(['time'])
   })
 
   it('omits git segments outside a repo and zero values', () => {
     const segments = sessionSubtitle(meta({ cost: 0 }), { isRepo: false })
     expect(segments.map((s) => s.key)).toEqual(['time'])
     const clean = sessionSubtitle(meta(), git({ branch: 'main', dirtyCount: 0 }))
-    expect(clean.map((s) => s.key)).toEqual(['time', 'branch'])
+    expect(clean.map((s) => s.key)).toEqual(['time'])
   })
 
   it('renders removal and completion as state text, not the hardcoded worktree badge', () => {
@@ -90,7 +88,7 @@ describe('sessionSubtitle', () => {
   it('never carries spend, however large', () => {
     const rich = sessionSubtitle(meta({ cost: 90.92 }), git({ branch: 'main' }))
     const tiny = sessionSubtitle(meta({ cost: 0.0042 }), undefined)
-    expect(rich.map((s) => s.key)).toEqual(['time', 'branch'])
+    expect(rich.map((s) => s.key)).toEqual(['time'])
     expect(tiny.map((s) => s.key)).toEqual(['time'])
   })
 })
