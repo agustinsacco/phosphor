@@ -351,3 +351,16 @@ it('refuses a rename while the lane’s pi is stopping', async () => {
   expect(await run(surface, 'lane.rename', args)).toMatchObject({ code: 'busy' })
   expect(command).not.toHaveBeenCalled()
 })
+
+it('stores and publishes the name of a lane whose pi is still starting', async () => {
+  const lane = fx.lane('rename-starting-title', transcript(fx.repo))
+  const control = fx.store.takeControl(lane.laneId, {
+    clientId: surface.clientId,
+    label: surface.label,
+  })
+  fx.open.add(lane.sessionFile!)
+  const args = { ref: lane.laneId, name: 'Kept title', controlFence: control.fence }
+  ok(await run(surface, 'lane.rename', args))
+  expect(fx.store.getLane(lane.laneId)?.title).toBe('Kept title')
+  expect(fx.announced).toEqual([lane.laneId])
+})
