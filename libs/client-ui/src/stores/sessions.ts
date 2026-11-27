@@ -2,6 +2,7 @@ import { refreshArtifactsAfter } from '@/features/artifacts/remoteArtifactRefres
 import { hostResourceKey } from '@shared/remote-host'
 import { archivesChanged } from './archiveChanges'
 import { runLaneRemoval } from './laneRemovalRun'
+import { openFlights } from './openFlight'
 import { loadWorktreeRemover, removeLaneWorktree } from './removeLaneWorktree'
 import {
   laneIsBeingDeleted,
@@ -332,7 +333,7 @@ export {
   type BulkDeleteProgress,
 } from './laneRemovalState'
 const unsubscribers = new Map<string, () => void>()
-const pendingOpens = new Map<string, Promise<string>>()
+const diskOpens = openFlights<string>()
 const closingSessions = new Set<string>()
 const pendingDeletes = new Map<string, Promise<void>>()
 
@@ -1136,14 +1137,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // A repeat click on a lane whose open is already running must still land:
     // the running `createSession` captured an older claim and will decline to
     // activate, so the decision is re-made here against the current one.
-    const inFlight = pendingOpens.get(meta.path)
-    const operation =
-      inFlight ?? get().createSession(workspacePath, { sessionPath: meta.path, nav })
-    if (!inFlight) pendingOpens.set(meta.path, operation)
+    const joined = diskOpens.has(meta.path)
     try {
-      const phosphorId = await operation
-      if (get().opening?.nav === nav) get().activate(phosphorId)
-      return phosphorId
+      return await diskOpens.run(
+        meta.path,
+        () => get().createSession(workspacePath, { sessionPath: meta.path, nav }),
+        (phosphorId) => {
+          if (get().opening?.nav === nav) get().activate(phosphorId)
+          return phosphorId
+        },
+      )
     } catch (error) {
       // Say something. Most callers fire this without awaiting, so an open
       // that fails used to clear the overlay and leave the user exactly where
@@ -1151,7 +1154,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       // so they click again, and every retry spawns another pi that dies the
       // same way. Only the call that STARTED the open reports it, so those
       // retries produce one toast between them rather than one each.
-      if (!inFlight)
+      if (!joined)
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore
             .getState()
@@ -1159,7 +1162,6 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         )
       throw error
     } finally {
-      if (!inFlight) pendingOpens.delete(meta.path)
       // A failed open must not leave the overlay up forever.
       if (get().opening?.nav === nav) set({ opening: null })
     }
