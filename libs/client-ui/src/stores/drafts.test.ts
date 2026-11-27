@@ -523,6 +523,31 @@ describe('overlapping saves of one draft', () => {
     expect(setCalls().map((c) => (c[1] as { text: string }).text)).toEqual(['new'])
   })
 
+  it('deletes the image a stale save uploaded after a send, leaving no orphan blob', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'sent')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().clear('home:/a')
+    release()
+    await flush()
+    expect(invoke).toHaveBeenCalledWith('app:deleteDraftBlob', 'blob-id')
+  })
+
+  it('keeps an image a newer save of the same draft still uses', async () => {
+    const release = slowFirstBlob()
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().setText('home:/a', 'old')
+    useDraftsStore.getState().setAttachments('home:/a', [IMAGE])
+    await flush()
+    useDraftsStore.getState().setText('home:/a', 'new')
+    await flush()
+    release()
+    await flush()
+    expect(invoke).not.toHaveBeenCalledWith('app:deleteDraftBlob', expect.anything())
+  })
+
   it('never brings a sent draft back from a save still in flight', async () => {
     const release = slowFirstBlob()
     const { useDraftsStore } = await import('./drafts')

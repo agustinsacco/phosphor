@@ -98,12 +98,39 @@ describe('a wait for working lanes', () => {
     const pause = waitingFor(10 * MIN)
     let run = observePause({ ...startRun('op', {}, host, 0), jobId: 'job' }, pause, 1000)
     const away = observeConnection(run, { status: { pause } }, undefined, 2000)
-    expect(tickRun(away, 1000 + 60 * MIN).finish).toBeUndefined()
-    expect(holdUpdatePage(tickRun(away, 1000 + 60 * MIN))).toBe(true)
+    expect(tickRun(away, 1000 + 16 * MIN - 1).finish).toBeUndefined()
+    expect(holdUpdatePage(tickRun(away, 1000 + 16 * MIN - 1))).toBe(true)
     // Back, and nothing pauses any more, but the job has not said how it ended.
     run = observePause(run, { kind: 'none' }, 1000 + 10 * MIN)
     run = tickRun(run, 1000 + 11 * MIN)
     expect(run.finish).toBeUndefined()
+  })
+
+  it('reads as not back 6 minutes past the cap while the Host stays away, and reconciles its return', () => {
+    const pause = waitingFor(10 * MIN)
+    const run = observePause({ ...startRun('op', {}, host, 0), jobId: 'job' }, pause, 1000)
+    const away = observeConnection(run, { status: { pause } }, undefined, 2000)
+    const lost = tickRun(away, 1000 + 16 * MIN)
+    expect(lost).toMatchObject({ finish: 'not-back', settled: true })
+    expect(holdUpdatePage(lost)).toBe(true)
+    // It came back on the new version: updated.
+    expect(
+      observeConnection(lost, {}, { ...host, hostVersion: '1.3.0' }, 1000 + 20 * MIN),
+    ).toMatchObject({ finish: 'updated', to: '1.3.0' })
+    // Its update result says rolled back: rolled back.
+    const last = {
+      from: '1.2.3',
+      to: '1.3.0',
+      outcome: 'rolled-back',
+      at: '2026-11-27T10:00:00.000Z',
+    } as const
+    expect(observeConnection(lost, { last }, host, 1000 + 20 * MIN)).toMatchObject({
+      finish: 'rolled-back',
+    })
+    // The same instance, unchanged: back to watching, not held as not back.
+    const same = observeConnection(lost, {}, host, 1000 + 20 * MIN)
+    expect(same.finish).toBeUndefined()
+    expect(same.settled).toBeUndefined()
   })
 
   it('still finishes as updated when the Host applied right at the cap', () => {
