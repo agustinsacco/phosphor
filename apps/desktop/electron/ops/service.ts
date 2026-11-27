@@ -55,7 +55,7 @@ export function openDesktopOps(userData: string) {
       machineId: null,
       handlers,
       gaps: OP_GAPS.desktop,
-      flags: new Set(['laneContext', 'pagedLanes']),
+      flags: new Set(['laneContext', 'pagedLanes', 'laneEditing', 'sandboxes']),
       policy: policyStore,
       audit,
       lanes: { resolve: resolveLiveLane, lookup: findDiskLane, createdBy: () => null },
@@ -63,7 +63,7 @@ export function openDesktopOps(userData: string) {
       notifySurfaces: notify,
     }
     const dispatcher = createOpsDispatcher(binding, {
-      parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
+      parseArgv: (argv, content, reason) => parseOpArgv(argv, undefined, { content, reason }),
       agentFor: (id) => {
         const laneRef = liveOpRef(id)
         const lane = liveOpLane(id)

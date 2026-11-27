@@ -1,8 +1,11 @@
+import { localMachineLabel } from '@/lib/localMachine'
 import { HOST_TOO_OLD } from '@shared/host-protocol-repositories'
 import type { HostConnectionView } from '@shared/ipc'
 import type { HostCapability } from '@shared/remote-host'
 
 export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
+export const removedHostLaneNotice = (machine = localMachineLabel()): string =>
+  `This lane was removed on ${machine}`
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
 
 /** Capabilities control grants every client; configuration is a separate opt-in. */
@@ -49,4 +52,15 @@ export function hostFeatureRefusal(
   if (host?.state !== 'ready') return REMOTE_NOT_READY
   if (host.capabilities.includes(capability)) return undefined
   return featureNotOffered(capability, feature)
+}
+
+export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
+  // A first attempt is not a reconnection; the wait notes (`connectingTo`) say the same.
+  return state === 'ready'
+    ? 'Connected'
+    : state === 'connecting'
+      ? 'Connecting'
+      : state === 'reconnecting'
+        ? 'Reconnecting'
+        : 'Down'
 }

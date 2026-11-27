@@ -47,6 +47,8 @@ export function admitLocalMachine(
         trafficLog.frame(hostId, direction, frame, bytes)
       },
       onAttention: (hostId, event) => attention.receive(hostId, event),
+      onResourceChanged: (hostId, change) =>
+        broadcast('hosts:resourceChanged', { hostId, ...change }),
       onRoutinesChanged: (hostId) => broadcast('routines:changed', { machine: `host:${hostId}` }),
     })
     app.once('will-quit', () => {

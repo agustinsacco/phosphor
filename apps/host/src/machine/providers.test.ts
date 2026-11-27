@@ -70,3 +70,17 @@ describe('checkProviders', () => {
     expect(describeProvider(first!)).toBe('pi auth check failed: timed out')
   })
 })
+
+it('reports configured non-default providers once, without accepting argv flags', async () => {
+  const { pi, calls } = recordingPi()
+  const providers = await checkProviders(pi, environment, {
+    defaultProvider: 'api-default',
+    configuredProviders: ['api-secondary', 'api-default', 'xai', '--credentials', 'pi-claude-cli'],
+  })
+  expect(providers.filter((row) => row.id.startsWith('api-'))).toEqual([
+    expect.objectContaining({ id: 'api-default', default: true }),
+    expect.objectContaining({ id: 'api-secondary', status: 'not_ready' }),
+  ])
+  expect(calls()).toHaveLength(9)
+  expect(calls().join('\n')).not.toContain('--credentials')
+})

@@ -302,6 +302,16 @@ Claude logins are a separate set, under Extensions → Claude Code on every mach
 ([settings.md](settings.md#claude-code-pi-claude-cli)), because they are
 config directories, not pi credentials.
 
+### Catalog inspection on the Host
+
+`claude.accounts` pages account metadata, cached usage and lane bindings. It does
+not probe package inventory or authenticate. For current readings, `machine.usage`
+combines provider readiness, usage windows or a failure reason per Claude account,
+and Codex usage windows and credits when available. Provider and account probes
+have independent budgets; a failed or stalled account doesn't hide successful
+readings. A total failure is an `unavailable` refusal, not an empty success.
+Neither operation returns credentials or starts sign-in. See [Agent control](agent-control.md#inspecting-a-machine).
+
 ## Authentication persistence
 
 pi and Claude own durable credentials and their refresh lifecycle. Phosphor does

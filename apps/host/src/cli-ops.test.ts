@@ -1,8 +1,17 @@
 import type * as CliOpsModule from './cli-ops'
 import { describe, expect, it, vi } from 'vitest'
+import { LANE_WAIT_DEADLINE_MS, type OpRequestEnvelope } from '@phosphor/shared/ops'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
 import { readCliRequest } from './cli-args'
-import { runCli, USAGE, type CliContext } from './cli'
+import { runCli, type CliContext } from './cli'
 import { runCliOps } from './cli-ops'
+import { openLocalClient } from './local-client'
+
+vi.mock('./local-client', () => ({
+  openLocalClient: vi.fn(() => {
+    throw new Error('No local socket')
+  }),
+}))
 
 vi.mock('./cli-ops', async (original) => {
   const actual = await original<typeof CliOpsModule>()
@@ -40,11 +49,11 @@ describe('catalog ops routing', () => {
       const result = await cli(argv)
       expect(runCliOps).toHaveBeenCalledOnce()
       expect(result.code).toBe(64)
-      expect(result.stderr).toMatch(/^phosphor: unknown command "/)
+      expect(result.stderr).toMatch(/^phosphor: Unknown domain or command/)
     },
   )
 
-  it.each([[['version']], [['help']], [['--help']], [[]], [['doctor', '--bogus']]])(
+  it.each([[['version']], [['--help']], [[]], [['doctor', '--bogus']]])(
     'keeps %j on the command table',
     async (argv) => {
       vi.mocked(runCliOps).mockClear()
@@ -58,8 +67,12 @@ describe('catalog ops routing', () => {
     expect((await cli(['help', 'lane'])).stdout).toContain('lane.read:')
   })
 
-  it('answers help through the ops CLI as the command table does', async () => {
-    expect(await cli(['lane', '--help'])).toEqual({ code: 0, stdout: USAGE, stderr: '' })
+  it('shows a catalog domain for domain --help', async () => {
+    expect(await cli(['lane', '--help'])).toMatchObject({
+      code: 0,
+      stdout: expect.stringContaining('lane.read:'),
+      stderr: '',
+    })
   })
 })
 
@@ -97,4 +110,68 @@ describe('local setup and staged update flags', () => {
     expect(readCliRequest(['setup'], false)).toMatchObject({ kind: 'command' })
     expect(readCliRequest(['update', '--check'], false)).toMatchObject({ kind: 'command' })
   })
+})
+
+it('asks the local owner for all catalog help forms and routes the service update op', async () => {
+  const run = vi.fn(async () => ({
+    status: 'ok' as const,
+    text: 'owner reply',
+    applies: 'now' as const,
+  }))
+  const close = vi.fn()
+  vi.mocked(openLocalClient).mockReturnValue({ run, close })
+  for (const args of [
+    ['help', 'lane', 'read'],
+    ['help', 'lane.read'],
+    ['lane', 'read', '--help'],
+  ])
+    expect(await cli(args)).toEqual({ code: 0, stdout: 'owner reply\n', stderr: '' })
+  expect(await cli(['help'])).toMatchObject({ stdout: 'owner reply\n' })
+  expect(await cli(['service', 'update'])).toMatchObject({ stdout: 'owner reply\n' })
+  expect(await cli(['service.update'])).toMatchObject({ stdout: 'owner reply\n' })
+  expect(run.mock.calls).toEqual([
+    ...Array.from({ length: 3 }, () => [expect.objectContaining({ argv: ['help', 'lane.read'] })]),
+    [expect.objectContaining({ argv: ['help'] })],
+    [expect.objectContaining({ argv: ['service', 'update'] })],
+    [expect.objectContaining({ argv: ['service.update'] })],
+  ])
+  expect(close).toHaveBeenCalledTimes(6)
+})
+
+it('keeps ordinary CLI envelopes compatible with the old owner’s deadline ceiling', async () => {
+  const run = vi.fn(async (request: OpRequestEnvelope) => {
+    const [domain, verb] = request.argv ?? []
+    const wait = domain === 'lane.wait' || (domain === 'lane' && verb === 'wait')
+    const oldOwnerLimit = wait ? LANE_WAIT_DEADLINE_MS : 600_000
+    if (request.deadlineMs > oldOwnerLimit) throw new Error('Invalid operation request')
+    return { status: 'ok' as const, text: 'owner reply', applies: 'now' as const }
+  })
+  for (const args of [['lane', 'list'], ['lane', 'wait'], ['lane.wait']]) {
+    vi.mocked(openLocalClient).mockReturnValueOnce({ run, close: vi.fn() })
+    expect(await cli(args)).toMatchObject({ code: 0, stdout: 'owner reply\n' })
+  }
+  expect(run.mock.calls.map(([request]) => request.deadlineMs)).toEqual([
+    600_000,
+    LANE_WAIT_DEADLINE_MS,
+    LANE_WAIT_DEADLINE_MS,
+  ])
+})
+
+it('reserves the longer CLI backstop for the only catalog op over 600 seconds', () => {
+  expect(
+    OP_CATALOG.filter((spec) => (spec.deadlineMs ?? 0) > 600_000).map(({ name }) => name),
+  ).toEqual(['lane.wait'])
+})
+
+it('labels offline help as static and keeps an unknown domain error short', async () => {
+  vi.mocked(openLocalClient).mockImplementation(() => {
+    throw new Error('No local socket')
+  })
+  expect(await cli(['help', 'lane.read'])).toMatchObject({
+    stdout: expect.stringMatching(/^Static catalog/),
+  })
+  const unknown = await cli(['lan', 'read'])
+  expect(unknown.stderr).toContain('Did you mean lane?')
+  expect(unknown.stderr).toContain('phosphor help')
+  expect(unknown.stderr.length).toBeLessThan(200)
 })

@@ -535,16 +535,26 @@ unfenced `command` whose op is `{type: 'ops.run', ...OpsRunRequest}`; target lan
 travel in `args`. `LaneOp` gains only this member, and `HOST_CALL_METHODS` and
 `CAPABILITY_FOR` are unchanged.
 
-The request is `{op, args, reason?, actor?, confirm?, batch?, page?}` with exact
+The request is `{op, args, reason?, actor?, confirm?, batch?, page?, limit?}` with exact
 keys. `op` is one to three dot-separated camelCase words, at most 64 characters.
+`page` is an opaque cursor; `limit`, when supplied, is an integer in 1–100.
 `actor: {kind: 'agent', lane?, title?}` is attribution and only ever a downgrade.
 The first submission of an asked op answers `{status: 'confirm', confirmId, digest,
 title, message, items, expiresAt}` and runs nothing; the run submission carries
 `confirm: {confirmId, digest}`. A batch the origin fans out to several Hosts names
 each share as `batch: {id, index, size}`. `OpsRunResult` is `ok`, `confirm` or
 `denied`. Refusals the dispatcher decides travel in band as `{status: 'denied',
-code, text}` on both paths; frame-level refusal stays for malformed frames. An op
-that may outlast the Host's answer deadline answers `ok` with `data: {jobId}`.
+code, text, data?}` on both paths; frame-level refusal stays for malformed frames.
+Job-backed ops answer `ok` with `data: {jobId}`.
+
+A routed batch uses the same v1 result envelope, with `data: {summary: {total,
+ok, failed}, hosts: [...]}` on success or denial. Rows preserve Host order and
+carry `hostId`, `label`, `status`, `text`, and optional `code`, `data`, and raw
+`next`. Mixed batches are `ok`, all-failed batches are `denied`. The origin
+bounds the payload to the call-data budget using a share per Host. Only an
+oversized row's `data` is replaced by `{omitted: true, reason}`; its status and
+cursor remain. No top-level batch cursor exists. To continue, send the row's
+cursor to that Host alone.
 
 The optional `ready.laneRename` boolean advertises live and stopped rename
 through the existing `ops.run` command and catalog op `lane.rename`. Its `args`
@@ -573,9 +583,10 @@ waiting update. An older Host omits the bit; clients do not offer those controls
 No new frame type or connection capability is involved.
 
 `OPS_LIMITS`: the `args` JSON is at most 300 KiB, a content argument inside it at
-most 256 KiB, a command result and tool text 64 KiB, a call's `data` 1 MiB, a reason
-300 characters, 200 ids per op, 20 Hosts per batch reached four at a time, and a
-confirmation lives ten minutes.
+most 256 KiB, a command result 64 KiB, and a call's `data` 1 MiB. Agent/CLI
+inventory pages cap serialized rows at 12 KiB; the tool separately caps rendered
+text at 16 KiB. Reasons are limited to 300 characters, ops to 200 ids, and
+batches to 20 Hosts reached four at a time. Confirmations live ten minutes.
 
 `ready` announces the related UI with additive booleans (`READY_OP_FLAGS`): `ops`,
 `ownerLocal`, `laneEditing`, `laneContext`, `laneReload`, `sandboxes`,
@@ -606,7 +617,23 @@ user to update that machine, and throws on any other failure without resending.
 
 ## Paged lanes
 
-`folder.list` and `lane.list` can page catalog results. `libs/shared/src/host-protocol-paged-lanes.ts` defines page shapes and `ready.pagedLanes` is a catalog capability. It does **not** lift the `lanes` topic’s limit of 64 folders and 1,000 lanes or merge pages into that projection. See [future features](future-features.md#service-follow-ups).
+`folder.list` and `lane.list` can page catalog results. Use the result's canonical
+top-level `next` as the request's `page`; absence means done. Product readers also
+get the compatible `data.next` echo (null on the last page) in the full rows
+projection defined by `libs/shared/src/host-protocol-paged-lanes.ts`.
+`ready.pagedLanes` is a catalog capability. It does **not** lift the `lanes` topic’s limit of 64 folders and 1,000 lanes or merge pages into that projection. See [future features](future-features.md#service-follow-ups).
+
+## Resource invalidations
+
+A client opts in on its `lanes` subscription with `resourceChanges: true`.
+The Host sends `{type: 'resource-changed', id, change: {kind, laneId?, repositoryId?}}`
+on that subscription. `kind` is `archives`, `settings`, `connectors`, `skills`,
+`packages`, `artifacts`, `routines`, `folders`, `sandboxes` or `git`. A `git` hint
+additionally requires `gitResourceChanges: true`. Older subscribers are not sent
+these frames. Hints contain no resource contents and do not replace the lane or
+repository projections. Desktop and the PWA coalesce them per machine and kind
+and refetch through existing authorized reads. On reconnect those reads, not a
+replay of hints, restore the current state.
 
 ## The local socket
 

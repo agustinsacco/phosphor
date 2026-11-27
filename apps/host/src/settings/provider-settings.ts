@@ -1,3 +1,4 @@
+import { activeHold } from '@phosphor/shared/claude-session-account'
 import type { MachineSettings, MachineSettingsChange } from '@phosphor/shared/machine-settings'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { cooldownFromUsage, selectAccount } from '@phosphor/session-runtime/claude/routing'
@@ -48,6 +49,21 @@ function accountViews(state: SettingsContext, accounts: AccountState) {
         : []
     }),
   }))
+}
+
+export async function readAccountSettings(state: SettingsContext) {
+  const { accounts } = state.options
+  const prefs = accounts.readMetadata()
+  const now = Date.now()
+  return accountViews(state, {
+    prefs,
+    views: prefs.accounts.map((account) => ({
+      account,
+      auth: { ok: false, error: 'not checked' },
+      usage: accounts.usage.cachedUsageSnapshot(account.id, now),
+      cooldownUntil: activeHold(prefs.cooldowns[account.id], now),
+    })),
+  })
 }
 
 export async function readProviderSettings(

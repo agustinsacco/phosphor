@@ -6,18 +6,28 @@
  */
 import type { OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 
+export type ReachControlStage =
+  'control-unreachable' | 'control-timeout' | 'rate-limited' | 'bad-response'
+
+export interface ReachBudget {
+  readonly signal?: AbortSignal
+  readonly deadlineAt?: number
+  readonly onRemoteWrite?: () => void
+}
+
 /** Why no machine list is available at all. */
 export type ReachUnavailable =
-  'signed-out' | 'control-old' | 'offline' | 'reach-off' | 'account-disabled'
+  'signed-out' | 'control-old' | 'reach-off' | 'account-disabled' | ReachControlStage
 
 export interface ReachMachine {
   readonly id: string
   readonly label: string
   readonly online: boolean
   readonly hostVersion: string | null
-  /** Ops supported and reach on at both ends. */
+  readonly catalogOps?: boolean | 'unknown'
+  /** Online and eligible for reach in the directory, before contacting the Host. */
   readonly ready: boolean
-  readonly why?: 'offline' | 'update-host' | 'reach-off'
+  readonly why?: 'offline' | 'not-enrolled' | 'reach-off' | 'stale-heartbeat'
 }
 
 export type ReachDirectory =
@@ -42,17 +52,18 @@ export type ReachResult =
         | 'bad-request'
         | 'needs-confirm'
         | 'denied'
+        | 'busy'
       readonly message: string
       readonly data?: unknown
     }
 
 export interface Reach {
-  directory(options?: { readonly fresh?: boolean }): Promise<ReachDirectory>
+  directory(options?: ReachBudget & { readonly fresh?: boolean }): Promise<ReachDirectory>
   /** A write is never resent after a reconnect; an unknown receipt answers `unconfirmed`. */
   run(
     hostId: string,
     request: OpsRunRequest,
-    options: { readonly write: boolean; readonly signal?: AbortSignal },
+    options: ReachBudget & { readonly write: boolean; readonly target?: ReachMachine },
   ): Promise<ReachResult>
   close(): Promise<void>
 }

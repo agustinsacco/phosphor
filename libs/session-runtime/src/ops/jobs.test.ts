@@ -2,7 +2,8 @@ import type { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { loadSqlite } from '../sqlite'
 import { createJobStore, jobHandlers, JOB_RETENTION_MS } from './jobs'
-import type { OpHandlerContext } from './types'
+import type { OpRunContext } from './ports'
+import type { OpPrincipal } from './types'
 
 /** K2's `agent_jobs` shape (apps/host/src/lanes/store/additive.ts). */
 const AGENT_JOBS = `CREATE TABLE agent_jobs (
@@ -14,8 +15,13 @@ let db: DatabaseSync
 let clock = 1000
 let ids = 0
 const ports = { now: () => clock, newId: () => `job-${++ids}`, log: () => {} }
-const ctx = (clientId: string) =>
-  ({ principal: { kind: 'local', clientId } }) as unknown as OpHandlerContext
+const context = (principal: OpPrincipal, page?: string): OpRunContext => ({
+  principal,
+  page,
+  signal: new AbortController().signal,
+  log: () => {},
+})
+const ctx = (clientId: string) => context({ kind: 'local', clientId })
 
 beforeEach(() => {
   db = new (loadSqlite().DatabaseSync)(':memory:')
@@ -117,4 +123,67 @@ it('aborts running jobs on close and prunes finished jobs past retention', async
     run: async () => ({ text: 'ok' }),
   })
   expect(jobs.get(old.jobId, 'local:a')).toBeNull()
+})
+
+it('pages summaries past 50 jobs but keeps full legacy surface rows and job.status results', async () => {
+  const result = { text: `Done\n${'x'.repeat(100)}`, data: { count: 42 } }
+  const insert = db.prepare('INSERT INTO agent_jobs VALUES (?, ?, ?, ?, NULL, ?, ?, ?)')
+  for (const principal of ['local:a', 'surface:a', 'agent:lane-a'])
+    for (let i = 1; i <= 63; i++)
+      insert.run(
+        `job-${principal}-${i}`,
+        principal,
+        'package.update',
+        'done',
+        JSON.stringify(result),
+        i,
+        i + 100,
+      )
+  const jobs = jobHandlers(createJobStore(db, ports))
+  const surface = context({ kind: 'surface', clientId: 'a', label: 'Fixture', via: 'owner' })
+  const legacy = await jobs['job.list']!({}, surface)
+  expect(legacy.data).toHaveLength(50)
+  expect(legacy.next).toBeUndefined()
+  expect((legacy.data as unknown[])[0]).toMatchObject({ result })
+  for (const principal of [
+    { kind: 'local', clientId: 'a' },
+    { kind: 'agent', laneRef: 'lane-a', sessionId: 's', unattended: false, lineage: 0 },
+  ] satisfies OpPrincipal[]) {
+    const seen: string[] = []
+    let page: string | undefined
+    for (const next of ['20', '40', '60', undefined]) {
+      const answer = await jobs['job.list']!({}, context(principal, page))
+      expect(answer.next).toBe(next)
+      expect(answer.text).toMatch(/^jobId \| op \| state \| started \| finished \| result\n/)
+      const rows = answer.data as { jobId: string }[]
+      expect(rows[0]).toMatchObject({
+        state: 'done',
+        resultPreview: `Done ${'x'.repeat(74)}…`,
+      })
+      expect(rows[0]).not.toHaveProperty('result')
+      seen.push(...rows.map(({ jobId }) => jobId))
+      page = next
+    }
+    expect(seen).toHaveLength(63)
+    expect(new Set(seen).size).toBe(63)
+    const status = await jobs['job.status']!({ jobId: seen[0] }, context(principal))
+    expect(status.data).toMatchObject({ result })
+  }
+})
+
+it('returns the next package update cursor through job.status', async () => {
+  const jobs = createJobStore(db, ports)
+  const { jobId } = await jobs.port.start({
+    creator: 'local:a',
+    op: 'package.checkUpdates',
+    run: async () => ({ text: 'First page', next: 'next-page' }),
+  })
+  await new Promise((r) => setTimeout(r, 0))
+  const status = await jobHandlers(jobs)['job.status']!({ jobId }, ctx('a'))
+  expect(status).not.toHaveProperty('next')
+  expect(status.data).toMatchObject({
+    op: 'package.checkUpdates',
+    result: { next: 'next-page' },
+  })
+  expect(status.text).toContain('More: phosphor package check-updates --page next-page')
 })

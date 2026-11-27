@@ -20,6 +20,7 @@ export interface LaneService {
       params: unknown,
       authorized?: () => boolean,
       clientId?: string,
+      signal?: AbortSignal,
     ): Promise<CallOutcome>
     capabilityFor(method: string): HostCapability | null
   }

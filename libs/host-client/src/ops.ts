@@ -5,6 +5,7 @@ import {
   type OpsRunRequest,
   type OpsRunResult,
 } from '@phosphor/shared/host-protocol-ops'
+import { LANE_WAIT_DEADLINE_MS } from '@phosphor/shared/ops'
 import type { OpsChangedEvent } from '@phosphor/shared/ipc'
 import type { createHostConnection } from './connection'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
@@ -40,9 +41,16 @@ export async function opsRun(
   const parsed = parseOpsRunRequest(request)
   if (!parsed) throw new Error('Invalid agent op request.')
   if (!options.write) {
-    const result = await connection.call(OPS_RUN, parsed)
+    const result = await (parsed.op === 'lane.wait'
+      ? connection.call(OPS_RUN, parsed, LANE_WAIT_DEADLINE_MS + 2000)
+      : connection.call(OPS_RUN, parsed))
     if (result.ok) return answer(result.data)
     if (result.error.code === 'unsupported') return tooOld
+    // Hosts that predate request page sizes refuse unknown keys before running anything.
+    if (result.error.code === 'bad-request' && parsed.limit !== undefined) {
+      const { limit: _limit, ...older } = parsed
+      return opsRun(connection, older, options)
+    }
     throw new Error(result.error.message)
   }
   const receipt = await connection.send({ type: OPS_RUN, ...parsed })

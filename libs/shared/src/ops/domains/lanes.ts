@@ -1,10 +1,14 @@
 import { Type } from 'typebox'
+import { LANE_WAIT_DEADLINE_MS, LANE_WAIT_TIMEOUT } from '../channel'
+import type { OpContext } from '../types'
 import { PAGED_LANE_OPS } from '../../host-protocol-paged-lanes'
+import { LANE_STATES } from '../../host-protocol/lanes'
 import { ALL_THINKING_LEVELS } from '../../thinking'
 import {
   caps,
   choice,
   control,
+  requiredContent,
   count,
   domain,
   id,
@@ -14,6 +18,7 @@ import {
   object,
   on,
   optional,
+  paged,
   previous,
   ref,
   reverse,
@@ -27,7 +32,7 @@ const lane = domain('other-lane', control)
 const target = object({ ref })
 const byRef = { positional: ['ref'] } as const
 const editing = { flag: 'laneEditing' } as const
-const filter = { folder: optional(ref), state: optional(id) }
+const filter = { folder: optional(ref), state: optional(choice(...LANE_STATES)) }
 const archive = domain('machine', workspaceWrite)
 const artifact = domain(
   (a) => (a.lane === undefined ? 'machine' : 'other-lane'),
@@ -36,6 +41,7 @@ const artifact = domain(
 )
 export const lanes = [
   read(PAGED_LANE_OPS.lanes, 'List a page of lanes.', 'read', object(filter), {
+    ...paged,
     flag: 'pagedLanes',
   }),
   read(
@@ -43,7 +49,7 @@ export const lanes = [
     'Find lanes matching a query.',
     'read',
     object({ ...filter, q: text(2000) }),
-    { positional: ['q'] },
+    { ...paged, positional: ['q'] },
   ),
   read(
     'lane.read',
@@ -54,11 +60,12 @@ export const lanes = [
       part: optional(choice('summary', 'messages', 'artifacts', 'prs', 'debug')),
       messages: optional(count(50)),
     }),
-    { ...byRef, scope: 'other-lane' },
+    { ...byRef, ...paged, scope: 'other-lane' },
   ),
   read('lane.tree', 'Read the conversation tree for a lane.', 'read', target, {
     ...byRef,
     ...editing,
+    ...paged,
     scope: 'other-lane',
   }),
   lane(
@@ -139,15 +146,35 @@ export const lanes = [
     positional: ['ref', 'to'],
   }),
   read('lane.export', 'Export a lane conversation.', 'read', target, {
+    ...paged,
     ...byRef,
     scope: 'other-lane',
   }),
+  lane(
+    'lane.message',
+    'Send attributed agent text to another lane; defaults to follow-up.',
+    (_, ctx: OpContext) => (ctx.createdByAsking ? 'lane' : 'destructive'),
+    object({ ref, content: requiredContent, mode: optional(choice('follow-up', 'steer')) }),
+    { laneArg: 'ref', positional: ['ref', 'content'], sensitive: ['content'] },
+  ),
+  read(
+    'lane.wait',
+    'Wait for another lane to settle (default), become idle, or need input; timeout in seconds (default 300).',
+    'read',
+    object({
+      ref,
+      until: optional(choice('idle', 'settled')),
+      timeout: optional(count(LANE_WAIT_TIMEOUT.max)),
+    }),
+    { ...byRef, laneArg: 'ref', scope: 'other-lane', deadlineMs: LANE_WAIT_DEADLINE_MS },
+  ),
   lane('lane.markRead', 'Mark a lane as read.', 'lane', target, byRef),
   read(
     'archive.list',
     'List archived lanes and optionally measure their size.',
     'read',
     object({ measure: optional(on) }),
+    paged,
   ),
   archive('archive.restore', 'Restore an archived lane.', 'create', object({ id }), {
     positional: ['id'],
@@ -168,13 +195,14 @@ export const lanes = [
     'List artifacts on this machine or in a lane.',
     'read',
     object({ lane: optional(ref) }),
+    paged,
   ),
   artifact(
     'artifact.read',
     'Read an artifact or one of its versions.',
     'read',
     object({ key: ref, lane: optional(ref), version: optional(count(Number.MAX_SAFE_INTEGER)) }),
-    { positional: ['key'] },
+    { ...paged, positional: ['key'] },
   ),
   artifact('artifact.remove', 'Delete an artifact.', 'destructive', object({ key: ref }), {
     positional: ['key'],

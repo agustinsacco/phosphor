@@ -5,7 +5,7 @@ import { gitHandlers } from './git'
 import type { DaemonHandlerDeps } from './index'
 
 const lane = { ref: 'host:h1/lane:L1', sessionId: null, title: 'L', cwd: '/w', busy: false }
-const ctx = (over: Partial<OpHandlerContext> = {}) =>
+const ctx = (over: Partial<OpHandlerContext & { limit: number }> = {}) =>
   ({ principal: { kind: 'local', clientId: 'cli' }, lane, log: () => {}, ...over }) as never
 
 function harness() {
@@ -71,7 +71,8 @@ it('answers a Host refusal in band and needs a lane', async () => {
     error: { code: 'unknown-lane', message: 'x' },
   } as never)
   await expect(h.files['files.read']!({ path: 'a' }, ctx())).rejects.toMatchObject({
-    code: 'unavailable',
+    code: 'bad-request',
+    message: 'No such lane on this machine.',
   })
   await expect(
     h.files['files.list']!({ path: '.' }, ctx({ lane: undefined })),
@@ -103,4 +104,24 @@ it('reads git and PR status through the Host’s git and GitHub features', async
   await expect(h.git['pr.detail']!({ ref: 'seven' }, ctx())).rejects.toMatchObject({
     code: 'bad-request',
   })
+})
+
+it('pages literal workspace search through the lane file owner', async () => {
+  const h = harness()
+  h.call.mockResolvedValueOnce({
+    ok: true,
+    data: {
+      rows: [
+        { path: 'a.ts', line: 1, snippet: 'a+b' },
+        { path: 'b.ts', line: 2, snippet: 'a+b' },
+      ],
+    },
+  } as never)
+  const page = await h.files['files.search']!({ query: 'a+b' }, ctx({ limit: 1 }))
+  expect(page).toMatchObject({
+    text: 'path | line | snippet\na.ts | 1 | a+b',
+    next: expect.any(String),
+  })
+  expect(h.call).toHaveBeenCalledWith('files.search', { laneId: 'L1', query: 'a+b' })
+  expect(h.execute).not.toHaveBeenCalled()
 })

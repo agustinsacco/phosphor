@@ -116,7 +116,7 @@ export function openLocalClient(context: Context) {
     close: conn.close,
     async run(envelope: OpRequestEnvelope) {
       await ready()
-      const frame = await conn.call(OPS_CLI, envelope)
+      const frame = await conn.call(OPS_CLI, envelope, envelope.deadlineMs + 2000)
       if (!frame.ok)
         throw new Error(frame.error.code === 'internal' ? OPS_UNCONFIRMED : frame.error.message)
       const result = parseOpsRunResult(frame.data)

@@ -38,11 +38,11 @@ const listing: ReachDirectory = {
 describe('--host resolution on the Phosphor service', () => {
   it('names a machine by exact label in any case, or by an id prefix of 8 hex', async () => {
     const { resolver } = resolverOver(listing)
-    expect(await resolver.resolve(['bee1'])).toEqual({
+    expect(await resolver.resolve(['bee1'])).toMatchObject({
       ok: true,
       hosts: [{ id: BEE1, label: 'Bee1' }],
     })
-    expect(await resolver.resolve(['b2b2b2b2', BEE1])).toEqual({
+    expect(await resolver.resolve(['b2b2b2b2', BEE1])).toMatchObject({
       ok: true,
       hosts: [
         { id: BEE2, label: 'bee2' },
@@ -65,7 +65,7 @@ describe('--host resolution on the Phosphor service', () => {
       text: 'Several machines match bee: bee (b1b1b1b1), bee (b1b1b1b1).',
     })
     expect(await resolver.resolve(['b1b1b1b1'])).toMatchObject({ ok: false })
-    expect(await resolver.resolve(['b1b1b1b1-9'])).toEqual({
+    expect(await resolver.resolve(['b1b1b1b1-9'])).toMatchObject({
       ok: true,
       hosts: [{ id: TWIN, label: 'bee' }],
     })
@@ -73,7 +73,7 @@ describe('--host resolution on the Phosphor service', () => {
 
   it('counts a machine named twice once', async () => {
     const { resolver } = resolverOver(listing)
-    expect(await resolver.resolve(['bee1', 'b1b1b1b1'])).toEqual({
+    expect(await resolver.resolve(['bee1', 'b1b1b1b1'])).toMatchObject({
       ok: true,
       hosts: [{ id: BEE1, label: 'Bee1' }],
     })
@@ -102,7 +102,7 @@ describe('--host resolution on the Phosphor service', () => {
       ...listing,
       machines: [...listing.machines, machine(SELF, 'This Mac')],
     })
-    expect(await resolver.resolve('all')).toEqual({
+    expect(await resolver.resolve('all')).toMatchObject({
       ok: true,
       hosts: [
         { id: BEE2, label: 'bee2' },

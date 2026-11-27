@@ -1,11 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   OPS_LIMITS,
+  parseOpsRunResult,
   type OpsRunRequest,
   type OpsRunResult,
 } from '@phosphor/shared/host-protocol-ops'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
+import { parseOpArgv } from '@phosphor/shared/ops-cli'
+import { createOpsDispatcher } from './dispatcher'
 import { createHarness, DIGEST, OWN, type HarnessOptions } from './__fixtures__/dispatcher-harness'
-import { clipBytes } from './route'
+import { clipBytes } from './route-result'
 
 const ok = (text: string): OpsRunResult => ({ status: 'ok', text, applies: 'now' })
 
@@ -108,8 +112,9 @@ describe('--host fan-out', () => {
     const reply = await harness(r.remote).tool({ ...list, hosts: ['bee1', 'bee2', 'bee3'] })
     expect(reply).toMatchObject({
       status: 'ok',
-      text: 'bee1: 3 artifacts\nbee2: unavailable (offline)\nbee3: unsupported: Update that Host.',
+      text: '2 of 3 hosts failed\n== bee1 (ok)\n3 artifacts\n== bee2 (denied)\nCould not reach bee2.\n== bee3 (denied)\nUpdate that Host.',
       data: {
+        summary: { total: 3, ok: 1, failed: 2 },
         hosts: [
           { hostId: 'bee1', label: 'bee1', status: 'ok' },
           { hostId: 'bee2', label: 'bee2', status: 'denied', code: 'unavailable' },
@@ -118,6 +123,175 @@ describe('--host fan-out', () => {
       },
     })
     expect(r.sent.every((s) => s.request.confirm === undefined)).toBe(true)
+  })
+
+  it('denies an all-failed batch using the first code and preserves each failure', async () => {
+    const r = remoteOf({
+      a: async () => ({ status: 'denied', code: 'unsupported', text: 'Update.' }),
+      b: async () => ({ status: 'denied', code: 'policy', text: 'Read-only.' }),
+    })
+    expect(await harness(r.remote).tool({ ...list, hosts: ['a', 'b'] })).toMatchObject({
+      status: 'denied',
+      code: 'unsupported',
+      text: '== a (denied)\nUpdate.\n== b (denied)\nRead-only.',
+      data: {
+        summary: { total: 2, ok: 0, failed: 2 },
+        hosts: [
+          { hostId: 'a', code: 'unsupported', text: 'Update.' },
+          { hostId: 'b', code: 'policy', text: 'Read-only.' },
+        ],
+      },
+    })
+  })
+
+  it('keeps raw per-host cursors and continues on the selected host only', async () => {
+    const a = '20'
+    const b = 'h1_000000000000000000000000_30'
+    const r = remoteOf({
+      idA: async () => ({ ...ok('first'), data: { rows: [1] }, next: a }),
+      idB: async () => ({ ...ok('second'), data: { rows: [2] }, next: b }),
+    })
+    const h = harness(r.remote, {
+      hosts: {
+        resolve: async (hosts) => ({
+          ok: true,
+          hosts: (hosts === 'all' ? ['a', 'b'] : hosts).map((label) => ({
+            id: label === 'a' ? 'idA' : 'idB',
+            label,
+          })),
+        }),
+      },
+    })
+    const result = await h.tool({ ...list, hosts: ['a', 'b'] })
+    expect(result).toMatchObject({
+      status: 'ok',
+      text: expect.stringContaining(`--host "b" --page "${b}"`),
+      data: {
+        hosts: [
+          { hostId: 'idA', label: 'a', data: { rows: [1] }, next: a },
+          { hostId: 'idB', label: 'b', data: { rows: [2] }, next: b },
+        ],
+      },
+    })
+    expect(result).not.toHaveProperty('next')
+    for (const hosts of [['a', 'b'], 'all'] as const) {
+      expect(await h.tool({ ...list, ...{ page: a }, hosts })).toMatchObject({
+        code: 'bad-request',
+        text: expect.stringContaining('one host'),
+      })
+    }
+    expect(r.sent).toHaveLength(2)
+    await h.tool({ ...list, ...{ page: b }, hosts: ['b'] })
+    expect(r.sent[2]).toMatchObject({ hostId: 'idB', request: { page: b } })
+  })
+
+  it('omits only the oversized host data and keeps its continuation', async () => {
+    const r = remoteOf({
+      a: async () => ({
+        ...ok('large'),
+        next: '20',
+        data: 'x'.repeat(OPS_LIMITS.callDataBytes / 2),
+      }),
+      b: async () => ({
+        status: 'denied',
+        code: 'policy',
+        text: 'refused',
+        data: { detail: 'read only' },
+      }),
+    })
+    const out = await harness(r.remote).tool({ ...list, hosts: ['a', 'b'] })
+    expect(parseOpsRunResult(out)).toMatchObject({
+      data: {
+        hosts: [
+          {
+            status: 'ok',
+            text: 'large',
+            next: '20',
+            data: { omitted: true, reason: expect.stringContaining('--host "a"') },
+          },
+          { status: 'denied', code: 'policy', text: 'refused', data: { detail: 'read only' } },
+        ],
+      },
+    })
+  })
+
+  it('routes a qualified ref and refuses conflicting or ambiguous host selections before sends', async () => {
+    const r = remoteOf({ bee2: async () => ok('lane') })
+    const h = harness(r.remote)
+    const lane = { op: 'lane.read', args: { ref: 'host:bee2/lane:x' } }
+    expect(await h.tool(lane)).toMatchObject({ status: 'ok', text: 'lane' })
+    expect(await h.tool({ ...lane, hosts: ['other'] })).toMatchObject({
+      code: 'bad-request',
+      text: expect.stringContaining('conflicts'),
+    })
+    expect(await h.tool({ ...lane, args: { ref: 'x' }, hosts: ['bee2', 'other'] })).toMatchObject({
+      code: 'bad-request',
+    })
+    expect(r.sent).toMatchObject([{ hostId: 'bee2', request: lane }])
+  })
+
+  it('passes one catalog deadline and does not dispatch the second wave after it expires', async () => {
+    vi.useFakeTimers()
+    try {
+      const deadlines: number[] = []
+      const signals: AbortSignal[] = []
+      const h = harness({
+        run: async (_id, _request, options) => {
+          deadlines.push(options.deadlineAt)
+          signals.push(options.signal)
+          await new Promise((resolve) => setTimeout(resolve, 40))
+          return ok('late')
+        },
+      })
+      const dispatcher = createOpsDispatcher(h.binding, {
+        ...h.deps,
+        catalog: OP_CATALOG.map((spec) =>
+          spec.name === list.op ? { ...spec, deadlineMs: 20 } : spec,
+        ),
+        parseArgv: (argv) => parseOpArgv(argv),
+      })
+      const pending = dispatcher.runFromTool('s1', {
+        v: 1,
+        id: 'routed-deadline',
+        argv: ['artifact', 'list', '--host', 'a,b,c,d,e'],
+        deadlineMs: 600_000,
+      })
+      await vi.advanceTimersByTimeAsync(50)
+      expect(await pending).toMatchObject({
+        op: 'artifact.list',
+        code: 'timeout',
+        text: expect.stringContaining('execution after 0.02 seconds'),
+      })
+      expect(deadlines).toEqual(Array(4).fill(h.clock.now + 20))
+      expect(new Set(signals).size).toBe(1)
+      expect(signals[0]?.aborted).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('warns that a remote write may be unconfirmed at the tool deadline', async () => {
+    vi.useFakeTimers()
+    try {
+      const h = harness({
+        async run(_id, _request, budget) {
+          budget.onRemoteWrite?.()
+          await new Promise((resolve) => setTimeout(resolve, 40))
+          return ok('late')
+        },
+      })
+      const result = h.tool(
+        { op: 'settings.set', args: { key: 'contextBudget', value: 1 }, hosts: ['bee2'] },
+        { deadlineMs: 20 },
+      )
+      await vi.advanceTimersByTimeAsync(50)
+      expect(await result).toMatchObject({
+        code: 'timeout',
+        text: expect.stringContaining('unconfirmed'),
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reaches at most four hosts at once', async () => {
@@ -142,7 +316,12 @@ describe('--host fan-out', () => {
     const reply = await harness(r.remote).tool({ ...list, hosts: ['a', 'b'] })
     if (reply.status !== 'ok') throw new Error('expected ok')
     expect(Buffer.byteLength(reply.text)).toBeLessThanOrEqual(OPS_LIMITS.resultBytes)
-    expect(reply.text.split('\n').map((l) => l.endsWith('[…cut]'))).toEqual([true, true])
+    expect(
+      reply.text
+        .split('\n')
+        .filter((l) => l.endsWith('[…cut]'))
+        .map(() => true),
+    ).toEqual([true, true])
   })
 
   it('resolves names and all through the resolver, in directory order', async () => {
@@ -161,7 +340,9 @@ describe('--host fan-out', () => {
             : { ok: false, text: `Several machines match ${hosts.join(',')}: bee1, bee2.` },
       },
     })
-    expect(await h.tool({ ...list, hosts: 'all' })).toMatchObject({ text: 'bee2: two\nbee1: one' })
+    expect(await h.tool({ ...list, hosts: 'all' })).toMatchObject({
+      text: '== bee2 (ok)\ntwo\n== bee1 (ok)\none',
+    })
     expect(await h.tool({ ...list, hosts: ['bee'] })).toMatchObject({
       code: 'bad-request',
       text: 'Several machines match bee: bee1, bee2.',

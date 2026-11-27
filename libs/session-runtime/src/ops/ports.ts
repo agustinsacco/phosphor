@@ -18,7 +18,8 @@ import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '../file-log'
 import type { ConfirmTarget } from './confirm-message'
 import type { AgentPrincipal } from './principals'
-import type { LaneFacts, OpHandlerContext, OpHandlerResult, OpPrincipal } from './types'
+import type { ReachMachine } from './reach'
+import type { OpDeadline, LaneFacts, OpHandlerContext, OpHandlerResult, OpPrincipal } from './types'
 
 /** The argv parser's answer (the `phosphor` tool's command line). */
 export type ParsedOpArgv =
@@ -29,9 +30,10 @@ export type ParsedOpArgv =
       /** `--host a,b` or `--host all`. */
       readonly hosts?: readonly string[] | 'all'
       readonly page?: string
+      readonly limit?: number
       readonly reason?: string
     }
-  | { readonly ok: false; readonly error: string }
+  | { readonly ok: false; readonly error: string; readonly usage?: string; readonly op?: string }
 
 export type OpsConfirmResult = Extract<OpsRunResult, { status: 'confirm' }>
 
@@ -108,6 +110,7 @@ export interface RoutedHost {
   /** The enrolled Host id `binding.remote.run` takes. */
   readonly id: string
   readonly label: string
+  readonly machine?: ReachMachine
 }
 
 /**
@@ -116,8 +119,10 @@ export interface RoutedHost {
  * then runs the op here.
  */
 export interface OpsHostResolver {
+  isSelf?(hostId: string): boolean
   resolve(
     hosts: readonly string[] | 'all',
+    budget?: OpDeadline,
   ): Promise<
     | { readonly ok: true; readonly hosts: readonly RoutedHost[] }
     | { readonly ok: true; readonly self: true }
@@ -128,7 +133,7 @@ export interface OpsHostResolver {
 export type SurfacePrincipal = Extract<OpPrincipal, { kind: 'surface' }>
 
 export interface OpsDispatcherDeps {
-  parseArgv(argv: readonly string[], content?: string): ParsedOpArgv
+  parseArgv(argv: readonly string[], content?: string, reason?: string): ParsedOpArgv
   /** The agent principal for a live pi session, or null when the owner does not know it. */
   agentFor(sessionId: string): AgentPrincipal | null
   /** Whether a surface's connection holds what the op `requires` (caps, configure authority). */
@@ -146,6 +151,8 @@ export interface OpsDispatcherDeps {
   background?(request: OpsRunRequest, self: boolean): boolean
   /** Resolve a destructive wildcard to the exact ids being authorized. */
   archiveIds?(): Promise<string[]>
+  /** Names in a verified cleanup plan; included in the confirmation fingerprint. */
+  maintenanceTargets?(plan: string, signal?: AbortSignal): Promise<string[]>
   /** Absent: `--host` takes Host ids as given and refuses `all`. */
   hosts?: OpsHostResolver
   log: RuntimeLog
@@ -157,9 +164,20 @@ export interface OpsDispatcherDeps {
 /** What a handler sees beyond `OpHandlerContext`: the caller's page token. */
 export interface OpRunContext extends OpHandlerContext {
   readonly page?: string
+  readonly limit?: number
+  /** The exact ops and availability used for this owner’s admission. */
+  readonly help?: {
+    readonly catalog: readonly CatalogSpec[]
+    readonly unavailableReason: (spec: CatalogSpec) => string | undefined
+  }
 }
 
 /** The page token a paged handler continues from. */
 export function requestPage(ctx: OpHandlerContext): string | undefined {
   return (ctx as OpRunContext).page
+}
+
+/** The explicit page size, if the op does not declare its own limit argument. */
+export function requestLimit(ctx: OpHandlerContext): number | undefined {
+  return (ctx as OpRunContext).limit
 }

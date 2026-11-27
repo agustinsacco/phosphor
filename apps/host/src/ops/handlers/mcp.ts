@@ -1,21 +1,28 @@
 import { SettingsFailure } from '@phosphor/session-runtime/pi/settings-file'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op } from '@phosphor/session-runtime/ops/results'
+import { fields, op, pageInventory, cachedMcpStatus } from '@phosphor/session-runtime/ops/results'
 import { projectId, readSection, scopedProject, settingsOps } from './settings-access'
 import type { DaemonHandlerDeps } from './index'
 
 export function mcpHandlers(deps: DaemonHandlerDeps) {
-  const mutate = (action: 'add' | 'update' | 'enable' | 'disable' | 'remove') =>
+  const mutate = (action: 'add' | 'update' | 'enable' | 'disable' | 'remove' | 'expose') =>
     op(async (a, c) => {
       const id = projectId(deps, scopedProject(a.scope, a.project), c)
       const before = await readSection(deps, 'connectors', id, c.signal)
       const name = String(a.name)
       const change =
         action === 'add' || action === 'update'
-          ? { type: 'mcp.upsert', name, config: a.config, approveCode: true }
+          ? { type: 'mcp.upsert', name, config: a.config }
           : action === 'remove'
             ? { type: 'mcp.remove', name }
-            : { type: 'mcp.enabled', name, enabled: action === 'enable' }
+            : action === 'expose'
+              ? {
+                  type: 'mcp.expose',
+                  name,
+                  exposure: a.exposure,
+                  transport: a.transport ?? 'https',
+                }
+              : { type: 'mcp.enabled', name, enabled: action === 'enable' }
       try {
         await settingsOps(deps).settings.changeAgentConnector(
           before,
@@ -32,11 +39,23 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
       return { text: `Saved connector change: ${name}.`, undo: false }
     })
   return {
-    'mcp.list': op(async (a, c) =>
-      dataResult(
-        (await readSection(deps, 'connectors', projectId(deps, a.project, c), c.signal)).connectors,
-      ),
-    ),
+    'mcp.list': op(async (a, c) => {
+      const { connectors } = await readSection(
+        deps,
+        'connectors',
+        projectId(deps, a.project, c),
+        c.signal,
+      )
+      return pageInventory(
+        connectors?.servers ?? [],
+        c,
+        fields('name', 'scope', 'enabled', 'transport', 'state'),
+        {
+          surface: { limit: connectors?.servers.length ?? 0 },
+          wrap: (servers) => connectors && { ...connectors, servers },
+        },
+      )
+    }),
     'mcp.check': op(async (a, c) => {
       const { connectors } = await readSection(
         deps,
@@ -47,7 +66,7 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
       const server = connectors?.servers.find((s) => s.name === a.name)
       if (!server) throw new OpRefusal('bad-request', 'No such connector in this scope.')
       return {
-        text: `${server.name}: ${server.state ?? 'not checked'}. Cached status only; use Settings for a live check.`,
+        text: cachedMcpStatus(server, connectors?.checkedAt),
         data: server,
       }
     }),
@@ -55,6 +74,7 @@ export function mcpHandlers(deps: DaemonHandlerDeps) {
     'mcp.update': mutate('update'),
     'mcp.enable': mutate('enable'),
     'mcp.disable': mutate('disable'),
+    'mcp.expose': mutate('expose'),
     'mcp.remove': mutate('remove'),
   }
 }

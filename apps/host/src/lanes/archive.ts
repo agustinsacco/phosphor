@@ -36,6 +36,7 @@ type Options = {
   sessions: LaneSessions
   forget(id: string): void
   announce(id: string): void
+  changed?(id: string): void
   terminals?: Pick<HostTerminals, 'reap'>
   attachments?: Pick<HostAttachments, 'abort'>
 }
@@ -98,12 +99,13 @@ export class HostArchives {
           },
         )
       }
+      this.inventory.invalidate()
+      this.options.changed?.(op.type === 'lane.archive' ? op.laneId : op.archiveId)
       return { ok: true }
     } catch (error) {
       if (error instanceof WorkspaceLeased) return { ok: false, code: 'busy' }
-      return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
-    } finally {
       this.inventory.invalidate()
+      return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
     }
   }
   private async archive(id: string, allowed: () => boolean) {
@@ -213,6 +215,7 @@ export class HostArchives {
     store.markRemoved(record.id)
     store.archives.forget(record.id)
     await this.storage.finish(record.id)
+    this.options.forget(record.id)
   }
   private async removeCheckout(record: ArchiveRecord, allowed: () => boolean) {
     if (!record.worktree || !record.repository)

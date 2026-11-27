@@ -123,5 +123,6 @@ it('uses an unattested local credential; the daemon parses aliases, flags and ho
   expect(remote.run).toHaveBeenCalledWith(
     'bee',
     expect.objectContaining({ op: 'lane.list', actor: { kind: 'agent', lane: 's1' } }),
+    expect.objectContaining({ deadlineAt: h.clock.now + 30_000, signal: expect.any(AbortSignal) }),
   )
 })

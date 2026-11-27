@@ -16,8 +16,17 @@ export function createLaneCalls(options: LaneQueryOptions & { features?: readonl
       params: unknown,
       authorized?: () => boolean,
       clientId?: string,
+      signal?: AbortSignal,
     ): Promise<CallOutcome> {
       const feature = features.get(method)
+      if (feature && signal)
+        return feature.call(
+          method,
+          params,
+          authorized,
+          feature.clientScoped ? clientId : undefined,
+          signal,
+        )
       if (feature?.clientScoped) return feature.call(method, params, authorized, clientId)
       if (feature)
         return authorized ? feature.call(method, params, authorized) : feature.call(method, params)

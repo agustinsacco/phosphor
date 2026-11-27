@@ -1,9 +1,13 @@
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op, pageOffset } from '@phosphor/session-runtime/ops/results'
+import { fields, op, pageInventory } from '@phosphor/session-runtime/ops/results'
 import type { OpHandler, OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import type { UndoPorts } from '@phosphor/session-runtime/ops/undo'
 import { PAGED_LANES_LIMITS } from '@phosphor/shared/host-protocol-paged-lanes'
-import { parseRepositoryOp, type RepositoryOp } from '@phosphor/shared/host-protocol-repositories'
+import {
+  parseFolderList,
+  parseRepositoryOp,
+  type RepositoryOp,
+} from '@phosphor/shared/host-protocol-repositories'
 import type { DaemonHandlerDeps } from './index'
 import { resourceCall } from './resources-call'
 
@@ -66,14 +70,21 @@ export function folderHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
   return {
     'folder.list': op((_, ctx) => {
       const rows = deps.ownerFolders?.() ?? deps.store.listRepositories()
-      const offset = pageOffset(ctx),
-        folders = rows.slice(offset, offset + PAGED_LANES_LIMITS.foldersPerPage),
-        end = offset + folders.length
-      return dataResult({ folders, next: end < rows.length ? String(end) : null })
+      return pageInventory(rows, ctx, fields('id', 'name', 'path'), {
+        surface: { limit: PAGED_LANES_LIMITS.foldersPerPage },
+        wrap: (folders, next) => ({ folders, next: next ?? null }),
+      })
     }),
-    'folder.browse': op<{ path?: string }>(async (args, ctx) =>
-      dataResult(await resourceCall(deps, 'machine.folders.list', args, ctx.signal)),
-    ),
+    'folder.browse': op<{ path?: string }>(async (args, ctx) => {
+      const list = parseFolderList(
+        await resourceCall(deps, 'machine.folders.list', args, ctx.signal),
+      )
+      if (!list) throw new OpRefusal('unavailable', 'Folder inventory unavailable.')
+      return pageInventory(list.entries, ctx, fields('name', 'isRepository', 'configured'), {
+        surface: { limit: list.entries.length },
+        wrap: (entries) => ({ ...list, entries }),
+      })
+    }),
     'folder.add': add(deps, false),
     'folder.create': add(deps, true),
     'folder.order': op<{ ids: string[] }>(async ({ ids }, ctx) => {

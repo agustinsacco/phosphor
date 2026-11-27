@@ -124,7 +124,7 @@ test('Brain lane attaches to its running turn once, Stop ends Defrag, and other 
     await send(page, opPrompt(['brain.review']))
     await expect(page.getByText('brain.review is not available to agents.')).toBeVisible()
     await send(page, opPrompt(['brain.decideRead']))
-    await expect(page.getByText(/^Unknown operation\./)).toBeVisible()
+    await expect(page.getByText(/^Unknown brain verb\./)).toBeVisible()
     await expect
       .poll(() => launches(seed.audit, (cwd) => cwd.endsWith('/brain/Brain')))
       .toHaveLength(1)

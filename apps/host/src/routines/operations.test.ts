@@ -47,6 +47,7 @@ beforeEach(() => {
     repository,
     scheduler,
     closing: false,
+    deleting: new Set(),
     closed: false,
     stopped: undefined,
     now: () => now,

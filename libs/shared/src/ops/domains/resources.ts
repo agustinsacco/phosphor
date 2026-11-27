@@ -1,4 +1,5 @@
 import { Type } from 'typebox'
+import type { OpArgs } from '../types'
 import { MCP_EXPOSURES } from '../../mcp'
 import { validMcpConfig } from '../../machine-settings-mcp'
 import {
@@ -12,6 +13,7 @@ import {
   object,
   on,
   optional,
+  paged,
   path,
   previous,
   reverse,
@@ -23,6 +25,7 @@ const scope = choice('global', 'project')
 const read = domain('machine', configure, untrusted)
 const change = domain('machine', configure, { applies: 'reload' })
 const byName = { positional: ['name'] } as const
+const packageDeadline = { deadlineMs: 600_000 }
 const skill = { scope: choice('user', 'project'), name: id, project: optional(path) }
 const skillFlag = { flag: 'configFiles' } as const
 const connector = { name: id, scope, project: optional(path) }
@@ -41,8 +44,12 @@ const config = Type.Refine(
   }),
   validMcpConfig,
 )
+const connectorTier = ({ config }: OpArgs) =>
+  validMcpConfig(config) && typeof config.command === 'string' ? 'destructive' : 'persistence'
+
 export const resources = [
   read('skill.list', 'List available skills.', 'read', object({ project: optional(path) }), {
+    ...paged,
     requires: caps('skills.read'),
   }),
   read(
@@ -90,15 +97,16 @@ export const resources = [
     'List configured MCP servers without credentials.',
     'read',
     object({ project: optional(path) }),
+    paged,
   ),
   read(
     'mcp.check',
-    'Check an MCP server.',
+    'Show cached status for an MCP server.',
     'read',
     object({ name: id, project: optional(path) }),
     byName,
   ),
-  change('mcp.add', 'Add an MCP server.', 'persistence', object({ ...connector, config }), {
+  change('mcp.add', 'Add an MCP server.', connectorTier, object({ ...connector, config }), {
     ...byName,
     sensitive: ['config'],
     inverse: ({ name, scope, project }) => ({
@@ -106,7 +114,7 @@ export const resources = [
       args: { name, scope, ...(project ? { project } : {}) },
     }),
   }),
-  change('mcp.update', 'Update an MCP server.', 'persistence', object({ ...connector, config }), {
+  change('mcp.update', 'Update an MCP server.', connectorTier, object({ ...connector, config }), {
     ...byName,
     sensitive: ['config'],
     inverse: previous('mcp.update'),
@@ -122,20 +130,28 @@ export const resources = [
   change(
     'mcp.expose',
     'Change how server tools are exposed.',
-    'persistence',
-    object({ ...connector, exposure: choice(...MCP_EXPOSURES) }),
-    { ...byName, inverse: previous('mcp.expose') },
+    ({ transport }) => (transport === 'stdio' ? 'destructive' : 'persistence'),
+    object({
+      ...connector,
+      exposure: choice(...MCP_EXPOSURES),
+      transport: optional(choice('https', 'stdio')),
+    }),
+    byName,
   ),
   change('mcp.remove', 'Delete an MCP server configuration.', 'destructive', object(connector), {
     ...byName,
     applies: 'now',
   }),
-  read('package.list', 'List installed packages.', 'read', object({ project: optional(path) })),
+  read('package.list', 'List installed packages.', 'read', object({ project: optional(path) }), {
+    ...packageDeadline,
+    ...paged,
+  }),
   read(
     'package.checkUpdates',
     'Check for package updates.',
     'read',
     object({ project: optional(path) }),
+    { ...packageDeadline, ...paged },
   ),
   ...(['install', 'update', 'remove'] as const).map((action) =>
     change(
@@ -148,6 +164,7 @@ export const resources = [
       'persistence',
       object({ spec: action === 'update' ? optional(id) : id, scope, project: optional(path) }),
       {
+        ...packageDeadline,
         job: true,
         positional: ['spec'],
         ...(action === 'update'

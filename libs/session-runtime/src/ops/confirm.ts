@@ -194,7 +194,12 @@ class MemoryConfirmStore implements ConfirmStore {
   readonly create = (ask: ConfirmAsk): ConfirmResult | ConfirmFailure => {
     this.sweep()
     const confirmId = this.newId()
-    const rendered = renderConfirm(ask, confirmId)
+    const path = ask.args.path
+    const exactPath =
+      (ask.op === 'worktree.remove' || ask.op === 'worktree.prune') && typeof path === 'string'
+        ? path
+        : undefined
+    const rendered = renderConfirm({ ...ask, exactPath }, confirmId)
     if (!rendered.ok) return rendered
     const expiresAt = this.now() + OPS_LIMITS.confirmTtlMs
     const argsHash = confirmArgsHash(ask.op, ask.args)

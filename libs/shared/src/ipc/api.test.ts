@@ -9,6 +9,7 @@ import type {
   PhosphorPlatform,
   LocalMachineStatus,
 } from '../ipc'
+import type { HostResourceChangedEvent } from './hosts'
 import type { RpcCommand, RpcResponse, RpcResponseDataMap } from '../rpc'
 import type { AccountView } from '../account'
 import type { VoiceStatus } from '../voice'
@@ -82,6 +83,7 @@ export interface BaselinePhosphorApi {
   /** A change signal only. Refetch the enrolled machines through control:machines. */
   onMachinesChanged(listener: () => void): () => void
   onHostsChanged(listener: () => void): () => void
+  onHostResourceChanged(listener: (event: HostResourceChangedEvent) => void): () => void
   /** Attention from any Host (49). */
   onHostAttention(listener: (event: HostAttention) => void): () => void
   onFileDownloadProgress(listener: (progress: FileDownloadProgress) => void): () => void

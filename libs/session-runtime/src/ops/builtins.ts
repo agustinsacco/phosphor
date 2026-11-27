@@ -60,6 +60,10 @@ export function confirmItems(
   j: Judged,
 ): ConfirmItem[] {
   const a = j.args
+  if (j.spec.name === 'maintenance.run' && Array.isArray(a.targets)) {
+    const names = a.targets.filter((v): v is string => typeof v === 'string')
+    return [{ hostId: binding.machineId, op: j.spec.name, ids: names, labels: names }]
+  }
   const ids = Array.isArray(a.ids)
     ? a.ids.filter((id): id is string => typeof id === 'string')
     : a.all === true
@@ -70,7 +74,9 @@ export function confirmItems(
           a.key,
           a.id,
           a.name,
-          a.path,
+          j.spec.name.startsWith('worktree.') && typeof a.path === 'string' && a.path.length > 128
+            ? undefined
+            : a.path,
         ]
           .filter((v): v is string => typeof v === 'string')
           .slice(0, 1)

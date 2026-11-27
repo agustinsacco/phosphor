@@ -78,6 +78,36 @@ function runLeases(context: RunContext, parts: RunParts) {
   )
 }
 
+function startRoutines(
+  context: RunContext,
+  parts: RunParts,
+  { store, machine }: { store: HostStore; machine: Omit<HostMachine, 'log'> },
+  runtime: ReturnType<typeof createHostRuntime>,
+  live: ReturnType<typeof createHostLiveLanes>['live'],
+) {
+  return createHostRoutines({
+    directory: hostStateDirectory(context.env, context.home),
+    uid: context.uid,
+    store,
+    runtime,
+    checkPi() {
+      if (!machine.pi) throw new Error('pi is unavailable.')
+    },
+    promotion: {
+      sessionsRoot: piSessionsRoot(context.env, context.home),
+      adopt: (input) => store.ensureLane(input),
+      publish: (id) => {
+        const summary = live.summaryFor(id)
+        if (summary) live.lanesTopic.delta([summary])
+      },
+    },
+    changed: live.lanesTopic.routinesChanged,
+    resourceChanged: live.lanesTopic.resourceChanged,
+    now: context.now,
+    paused: () => (parts.services?.pauses?.state().kind ?? 'none') !== 'none',
+  })
+}
+
 /** The runtime and what owns its lanes: live lanes, routines and the lane namer. */
 async function startRuntime(
   context: RunContext,
@@ -136,16 +166,7 @@ async function startRuntime(
   })
   const live = hosted.live
   parts.live = live
-  const activeTopic = live.lanesTopic
-  const routines = createHostRoutines({
-    directory: hostStateDirectory(context.env, context.home),
-    uid: context.uid,
-    store,
-    runtime,
-    changed: () => activeTopic.routinesChanged(),
-    now: context.now,
-    paused: () => (parts.services?.pauses?.state().kind ?? 'none') !== 'none',
-  })
+  const routines = startRoutines(context, parts, { store, machine }, runtime, live)
   parts.routines = routines
   const nameLane = createLaneNamer(machine, hostLaneNaming(config, runtime, accounts))
   parts.nameLane = nameLane
@@ -179,6 +200,7 @@ function runRepositories(
       parts.store
         ?.listLanes()
         .some((l) => l.repositoryId === id && parts.live?.sessionFor(l.laneId) !== null) ?? false,
+    resourceChanged: live.lanesTopic.resourceChanged,
     changed: (roots) => {
       runtime.replaceRoots(roots)
       live.lanesTopic.repositoriesChanged()

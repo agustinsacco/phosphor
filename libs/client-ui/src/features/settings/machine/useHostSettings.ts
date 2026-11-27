@@ -1,3 +1,4 @@
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { patchHostSettings } from './patchHostSettings'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePlatform } from '@/platform/Platform'
@@ -123,6 +124,7 @@ export function useHostSettings(
   repositoryId?: string,
   suspended = false,
 ) {
+  const revision = useHostResourceRevision(section ? hostId : null, resourceKind(section))
   const supported = usePlatform().machineSettings
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
   const generation = useRemoteLanesStore(() => machineReadGeneration(hostId))
@@ -140,8 +142,10 @@ export function useHostSettings(
   useEffect(() => {
     if (suspended) return
     setState(IDLE)
-    void refresh()
   }, [refresh, suspended, setState])
+  useEffect(() => {
+    if (!suspended) void refresh()
+  }, [refresh, suspended, revision])
   const data = state.result && (suspended || state.result.key === key) ? state.result.data : null
   const writer: Writer = { live, saving: state.saving, update }
   return {
@@ -181,4 +185,9 @@ export function useHostSettings(
     },
   }
 }
+function resourceKind(section: MachineSettingsSection | null) {
+  if (section === 'connectors') return 'connectors'
+  return section === 'resources' ? 'packages' : 'settings'
+}
+
 export type HostSettingsState = ReturnType<typeof useHostSettings>

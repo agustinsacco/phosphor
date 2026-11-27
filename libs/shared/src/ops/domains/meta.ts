@@ -10,6 +10,7 @@ import {
   id,
   object,
   optional,
+  paged,
   ref,
   text,
   untrusted,
@@ -38,8 +39,8 @@ export const metaOps = [
     'audit.list',
     'List audited agent operations.',
     'read',
-    object({ lane: optional(ref), limit: optional(count(50)) }),
-    untrusted,
+    object({ lane: optional(ref), limit: optional(count(100)) }),
+    { ...untrusted, ...paged },
   ),
   meta('audit.undo', 'Undo an audited operation as the user.', 'never', object({ auditId: id }), {
     ...surface,
@@ -85,5 +86,5 @@ export const metaOps = [
     object({ jobId: id }),
     { positional: ['jobId'], ...untrusted },
   ),
-  meta('job.list', 'List background operations.', 'read', undefined, untrusted),
+  meta('job.list', 'List background operations.', 'read', undefined, { ...untrusted, ...paged }),
 ]

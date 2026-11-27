@@ -1,18 +1,25 @@
 import { Type, type TSchema } from 'typebox'
 import { Check } from 'typebox/value'
 import { normalizeLabel } from '../control-api'
-import { OPS_LIMITS, parseOpsRunRequest, type OpsRunRequest } from '../host-protocol-ops'
-import { canonicalName } from './aliases'
+import {
+  OPS_LIMITS,
+  OPS_MAX_PAGE_ROWS,
+  parseOpsRunRequest,
+  type OpsRunRequest,
+} from '../host-protocol-ops'
+import { canonicalFlag, helpArgv, kebab, resolveOp, suggestion, unknownOperation } from './aliases'
+import { constraint, validateOpArgs } from './constraints'
+import { record } from '../host-protocol/primitives'
 import type { CatalogSpec } from './domains/spec'
 import { opUsage } from './help'
 import { OP_CATALOG } from './index'
 
 type Hosts = readonly string[] | 'all'
 type ToolFields = { content?: string; reason?: string }
-type Options = { hosts?: Hosts; page?: string; reason?: string; json: boolean }
+type Options = { hosts?: Hosts; page?: string; limit?: number; reason?: string; json: boolean }
 export type OpArgvResult =
   | ({ ok: true } & Pick<OpsRunRequest, 'op' | 'args'> & Options)
-  | { ok: false; error: string; usage: string }
+  | { ok: false; error: string; usage: string; op?: string }
 
 class UsageError extends Error {}
 
@@ -20,31 +27,16 @@ function fail(message: string): never {
   throw new UsageError(message)
 }
 
-function editDistance(a: string, b: string): number {
-  let row = Array.from({ length: b.length + 1 }, (_, i) => i)
-  for (let i = 0; i < a.length; i++) {
-    const next = [i + 1]
-    for (let j = 0; j < b.length; j++) {
-      next.push(Math.min(next[j]! + 1, row[j + 1]! + 1, row[j]! + Number(a[i] !== b[j])))
-    }
-    row = next
-  }
-  return row[b.length]!
-}
-
 function unknownFlag(key: string, spec: CatalogSpec): never {
   const flags = [
     'reason',
-    'page',
     'json',
+    ...(spec.paged ? ['page', 'limit'] : []),
     ...(spec.routable === false ? [] : ['host']),
     ...Object.keys(spec.args.properties),
-  ]
-  const shown = key.slice(0, 64)
-  const closest = flags
-    .map((flag) => ({ flag, distance: editDistance(shown, flag) }))
-    .sort((a, b) => a.distance - b.distance)[0]!
-  return fail(`Unknown flag --${shown}. Did you mean --${closest.flag}?`)
+  ].map((flag) => `--${kebab(flag)}`)
+  const safe = /^[a-zA-Z][\w-]{0,63}$/.test(key) ? ` --${key}` : ''
+  return fail(`Unknown flag${safe}.${safe ? suggestion(`--${key}`, flags) : ''}`)
 }
 
 function hostsOption(value: string): Hosts {
@@ -67,13 +59,13 @@ function scalar(schema: TSchema, raw: string, key: string): unknown {
   if (Type.IsBoolean(schema) || (Type.IsLiteral(schema) && schema.type === 'boolean')) {
     if (raw === 'on' || raw === 'true') return true
     if (raw === 'off' || raw === 'false') return false
-    return fail(`Use on, off, true or false for ${key}.`)
+    return fail(`${key}: expected ${constraint(schema)}.`)
   }
   // Objects (including nested definitions) are one JSON argv token. In a union
   // prefer a matching JSON value; a plain string remains a string when allowed.
   try {
     const data: unknown = JSON.parse(raw)
-    if (Check(schema, data)) return data
+    if (Check(schema, data) || Type.IsObject(schema) || Type.IsInteger(schema)) return data
   } catch {
     // No diagnostic includes a potentially sensitive argument value.
   }
@@ -81,7 +73,7 @@ function scalar(schema: TSchema, raw: string, key: string): unknown {
     if (schema.anyOf.some(Type.IsBoolean) && (raw === 'on' || raw === 'off')) return raw === 'on'
     if (Check(schema, raw)) return raw
   }
-  return fail(`Invalid value for ${key}.`)
+  return fail(`${key}: expected ${constraint(schema)}.`)
 }
 
 function setArg(args: Record<string, unknown>, spec: CatalogSpec, key: string, raw: string) {
@@ -103,7 +95,7 @@ function readTokens(tokens: readonly string[], spec: CatalogSpec, tool: ToolFiel
   const args: Record<string, unknown> = {}
   const options: Options = { json: false }
   if (tool.reason !== undefined) options.reason = tool.reason
-  if (tool.content !== undefined) {
+  if (tool.content !== undefined && spec.name !== 'routine.create') {
     if (!Object.hasOwn(spec.args.properties, 'content'))
       fail('This operation does not take content.')
     setArg(args, spec, 'content', tool.content)
@@ -123,21 +115,39 @@ function readTokens(tokens: readonly string[], spec: CatalogSpec, tool: ToolFiel
       continue
     }
     const equals = token.indexOf('=')
-    const key = token.slice(2, equals < 0 ? undefined : equals)
+    const flag = token.slice(2, equals < 0 ? undefined : equals)
+    const key = canonicalFlag(flag)
     if (key === 'json') {
       if (options.json || equals !== -1) fail('Use --json once, without a value.')
       options.json = true
       continue
     }
     if (key === 'host' && spec.routable === false) fail('This operation does not accept --host.')
-    if (!['host', 'reason', 'page'].includes(key) && !Object.hasOwn(spec.args.properties, key))
-      unknownFlag(key, spec)
+    const commonLimit = key === 'limit' && !Object.hasOwn(spec.args.properties, 'limit')
+    if ((key === 'page' || commonLimit) && !spec.paged)
+      fail(`This operation does not accept --${key}; only paged operations do.`)
+    if (
+      !['host', 'reason', 'page', 'limit'].includes(key) &&
+      !Object.hasOwn(spec.args.properties, key)
+    )
+      unknownFlag(flag, spec)
     const value = equals < 0 ? tokens[++i] : token.slice(equals + 1)
     if (value === undefined || (equals < 0 && value.startsWith('--')))
       fail(`Missing value for --${key}.`)
     if (key === 'host') {
       if (options.hosts !== undefined) fail('Duplicate --host.')
       options.hosts = hostsOption(value)
+    } else if (commonLimit) {
+      const limit = Number(value)
+      if (
+        !/^\d+$/.test(value) ||
+        !Number.isInteger(limit) ||
+        limit < 1 ||
+        limit > OPS_MAX_PAGE_ROWS
+      )
+        fail(`limit: expected an integer 1–${OPS_MAX_PAGE_ROWS}.`)
+      if (options.limit !== undefined) fail('Duplicate --limit.')
+      options.limit = limit
     } else if (key === 'page' || key === 'reason') {
       if (options[key] !== undefined) fail(`Duplicate --${key}.`)
       options[key] = value
@@ -146,31 +156,48 @@ function readTokens(tokens: readonly string[], spec: CatalogSpec, tool: ToolFiel
   return { args, options }
 }
 
+function mergeRoutineInstructions(args: Record<string, unknown>, content: string) {
+  if (!record(args.definition)) return // Schema validation names the absent or malformed definition.
+  if (Object.hasOwn(args.definition, 'instructions')) fail('Duplicate definition.instructions.')
+  args.definition = { ...args.definition, instructions: content }
+}
+
+function validateOptions(spec: CatalogSpec, args: Record<string, unknown>, options: Options) {
+  const { page, reason, limit } = options
+  if (parseOpsRunRequest({ op: spec.name, args, page, reason, limit })) return
+  if (page !== undefined && !parseOpsRunRequest({ op: spec.name, args: {}, page }))
+    fail(
+      `page: expected a cursor of 1–${OPS_LIMITS.pageChars} letters, digits, hyphens or underscores.`,
+    )
+  if (reason !== undefined && !parseOpsRunRequest({ op: spec.name, args: {}, reason }))
+    fail(`reason: expected text of 1–${OPS_LIMITS.reasonChars} characters.`)
+  fail(`arguments: expected no more than ${OPS_LIMITS.argsBytes} UTF-8 bytes.`)
+}
+
 /** Parse CLI argv (without the executable) or a lane tool's argv and separate content/reason. */
 export function parseOpArgv(
   argv: readonly string[],
   catalog: readonly CatalogSpec[] = OP_CATALOG,
   tool: ToolFields = {},
 ): OpArgvResult {
-  const pair = catalog.find((s) => s.name === `${argv[0]}.${argv[1]}`)
-  const spec = pair ?? catalog.find((s) => s.name === canonicalName(argv[0] ?? ''))
+  const normalized = helpArgv(argv, catalog)
+  const { spec, consumed } = resolveOp(normalized, catalog)
   if (!spec)
     return {
       ok: false,
-      error: 'Unknown operation. Use phosphor help to list domains.',
+      error: unknownOperation(argv, catalog),
       usage: opUsage(),
     }
   try {
-    const { args, options } = readTokens(argv.slice(pair ? 2 : 1), spec, tool)
-    const { page, reason } = options
-    if (!parseOpsRunRequest({ op: spec.name, args, page, reason }))
-      fail('Invalid page cursor, reason or argument size.')
-    const missing = spec.args.required?.find((k) => !Object.hasOwn(args, k))
-    if (missing) fail(`Missing argument: ${missing}.`)
-    if (!Check(spec.args, args)) fail(`Invalid arguments for ${spec.name}.`)
+    const { args, options } = readTokens(normalized.slice(consumed), spec, tool)
+    if (spec.name === 'routine.create' && tool.content !== undefined)
+      mergeRoutineInstructions(args, tool.content)
+    const invalid = validateOpArgs(spec, args)
+    if (invalid) fail(invalid)
+    validateOptions(spec, args, options)
     return { ok: true, op: spec.name, args, ...options }
   } catch (e) {
     if (!(e instanceof UsageError)) throw e
-    return { ok: false, error: e.message, usage: opUsage(spec) }
+    return { ok: false, error: e.message, usage: opUsage(spec), op: spec.name }
   }
 }

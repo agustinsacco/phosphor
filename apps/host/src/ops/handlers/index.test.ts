@@ -14,12 +14,7 @@ const served = {
 }
 
 /** Reconcile-v1 B8 minus N7 (`mcp.lane`, `artifact.remove`), plus reconcile-v2 #6's additions. */
-const ALLOWED_GAPS =
-  `lane.move git.fetch git.pull git.updateFromMain git.commitAll git.checkout git.renameBranch git.restoreFile git.merge
- worktree.add worktree.remove worktree.prune worktree.restore worktree.recreate files.search maintenance.scan maintenance.run
- skill.share brain.find brain.queue brain.status mcp.expose routine.check routine.fromLane git.branches git.worktrees git.diff`
-    .trim()
-    .split(/\s+/)
+const ALLOWED_GAPS = `lane.move skill.share brain.find brain.queue brain.status`.trim().split(/\s+/)
 
 /** Ops the never tier refuses to every principal except the surface they are for. */
 const surfaceOnlyNever = OP_CATALOG.filter((s) => s.tier === 'never' && s.surfaceOnly === true)
@@ -65,11 +60,13 @@ it('leaves no H1–H4 op pending', () => {
   for (const { file } of owned) expect(existsSync(join(import.meta.dirname, file)), file).toBe(true)
 })
 
-it('serves machine.doctor through the login-shell refresh', async () => {
+it('projects health without refreshing, and refreshes only on the configure op', async () => {
   let refreshed = 0
   const handlers = domainHandlers({
     ...deps,
+    machineHealth: () => ({ pi: 'ready', control: 'not-enrolled' }),
     shellEnvironment: {
+      status: () => ({ status: 'cached', ageMs: 42 }),
       refresh: async () => {
         refreshed++
         return true
@@ -78,11 +75,20 @@ it('serves machine.doctor through the login-shell refresh', async () => {
   })
   const ctx = { principal: { kind: 'local', clientId: 'cli' } } as never
   expect(await handlers['machine.doctor']!({}, ctx)).toMatchObject({
+    data: {
+      pi: 'ready',
+      control: 'not-enrolled',
+      service: { kind: 'none' },
+      shellEnvironment: { status: 'cached', ageMs: 42 },
+    },
+  })
+  expect(refreshed).toBe(0)
+  expect(await handlers['machine.refreshEnvironment']!({}, ctx)).toMatchObject({
     data: { shellEnvironment: 'refreshed' },
   })
   expect(refreshed).toBe(1)
   expect(await domainHandlers(deps)['machine.doctor']!({}, ctx)).toMatchObject({
-    data: { shellEnvironment: 'not-used' },
+    data: { shellEnvironment: { status: 'not-used' } },
   })
 })
 
@@ -108,7 +114,18 @@ it('serves service.update as an asked background job that wraps the service upda
 
 it('reports the machine’s lanes, version and pause, and its inventory through the lane service', async () => {
   const ctx = { principal: { kind: 'local', clientId: 'cli' } } as never
-  const call = vi.fn(async (method: string) => ({ ok: true, data: { method } }))
+  const call = vi.fn(async (method: string) => ({
+    ok: true,
+    data:
+      method === 'machine.models'
+        ? {
+            models: [
+              { id: 'alpha', name: 'Alpha', provider: 'a', reasoning: true },
+              { id: 'beta', name: 'Beta', provider: 'b', reasoning: false },
+            ],
+          }
+        : { method },
+  }))
   const summaries: Record<string, { activity: string }> = {
     a: { activity: 'working' },
     b: { activity: 'idle' },
@@ -125,12 +142,10 @@ it('reports the machine’s lanes, version and pause, and its inventory through 
     lanes: { total: 3, live: 2, working: 1 },
     pause: { kind: 'none' },
   })
-  await handlers['machine.usage']!({}, ctx)
-  await handlers['machine.models']!({}, ctx)
-  expect(call.mock.calls).toEqual([
-    ['machine.claudeUsage', {}],
-    ['machine.models', {}],
-  ])
+  const models = await handlers['machine.models']!({ provider: 'b' }, ctx)
+  expect(models.data).toMatchObject({ models: [{ id: 'beta' }] })
+  expect(models.text).toBe('id | provider | context | reasoning\nbeta | b |  | false')
+  expect(call.mock.calls).toEqual([['machine.models', {}]])
 })
 
 it('advertises service.pause and serves only a human action during a live pause', async () => {
@@ -190,4 +205,20 @@ it('reports the self-check and the last update in machine.status data.update', a
   expect(report).toHaveBeenCalledTimes(1)
   const plain = domainHandlers({ ...deps, store: { listLanes: () => [] } as never })
   expect((await plain['machine.status']!({}, surface)).data).not.toHaveProperty('update')
+})
+
+it.each([
+  ['files.search', 'read'],
+  ['mcp.expose', 'persistence'],
+  ['routine.check', 'read'],
+  ['routine.fromLane', 'persistence'],
+  ['maintenance.scan', 'read'],
+  ['maintenance.run', 'destructive'],
+])('serves %s through the Host domain binding at the %s tier', (name, tier) => {
+  expect(OP_GAPS.daemon[name]).toBeUndefined()
+  expect(served[name]).toBeTypeOf('function')
+  const policy = OP_CATALOG.find((op) => op.name === name)?.tier
+  expect(typeof policy === 'function' ? policy({}, { self: false }) : policy).toBe(tier)
+  if (name === 'mcp.expose' && typeof policy === 'function')
+    expect(policy({ transport: 'stdio' }, { self: false })).toBe('destructive')
 })

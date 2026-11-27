@@ -31,6 +31,7 @@ import type {
   WritingInvokeMap,
 } from './ipc/services'
 
+export type { HostResourceChangedEvent } from './ipc/hosts'
 export type {
   DesktopControlErrorCode,
   ControlResult,

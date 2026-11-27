@@ -9,6 +9,7 @@
  * ("Machines").
  */
 import { randomUUID } from 'node:crypto'
+import { parseRemoteLaneKey } from '@phosphor/shared/remote-host'
 import { normalizeLabel } from '@phosphor/shared/control-api'
 import {
   OPS_LIMITS,
@@ -19,8 +20,9 @@ import {
 } from '@phosphor/shared/host-protocol-ops'
 import { mapLimit } from '../map-limit'
 import { effectiveLimits, type OpLimits } from './limits'
+import type { CatalogSpec } from '@phosphor/shared/ops-catalog'
 import { gateVerdict, policyVerdict } from './policy'
-import { policyCheck, type Judged, type Refusal } from './judge'
+import { laneRefArg, messageSenderRefusal, policyCheck, type Judged, type Refusal } from './judge'
 import type { OpsDispatcherDeps, RoutedHost } from './ports'
 import {
   askBatch,
@@ -29,7 +31,8 @@ import {
   type RouteBatches,
   type Routed,
 } from './route-batch'
-import type { OpsBinding } from './types'
+import type { OpDeadline, OpPrincipal, OpsBinding } from './types'
+import { batchResult } from './route-result'
 
 type Remote = NonNullable<OpsBinding['remote']>
 
@@ -45,6 +48,8 @@ export function routeRefusal(
     return { code: 'unsupported', text: 'This machine cannot reach other machines.' }
   const gate = gateVerdict(policyCheck(j))
   if (gate?.kind === 'deny') return { code: gate.code, text: gate.text, decision: gate.decision }
+  const sender = messageSenderRefusal(j)
+  if (sender) return sender
   const reach = j.policy.machineOps
   if (reach === 'off' || (reach === 'read' && j.tier !== 'read'))
     return {
@@ -67,15 +72,55 @@ export function routeRefusal(
   return limited ? { code: limited.code, text: limited.text, decision: limited.decision } : null
 }
 
+type HostSelection = readonly string[] | 'all'
+
+export function routeSelection(
+  binding: Pick<OpsBinding, 'machineId'>,
+  principal: OpPrincipal,
+  request: OpsRunRequest,
+  spec: CatalogSpec,
+  hosts?: HostSelection,
+  isSelf?: (hostId: string) => boolean,
+): { hosts?: HostSelection; laneHost?: string; batch: boolean; local?: boolean } | Refusal {
+  const ref = request.op === 'audit.list' ? undefined : laneRefArg(spec, request.args)
+  const laneHost = ref === undefined ? undefined : parseRemoteLaneKey(ref)?.hostId
+  const batch = hosts === 'all' || (hosts?.length ?? 0) > 1
+  if (batch && request.page !== undefined)
+    return {
+      code: 'bad-request',
+      text: '--page continues on one host. Use --host <label> with that host’s cursor.',
+    }
+  if (batch && ref !== undefined)
+    return { code: 'bad-request', text: 'A lane target applies to one host. Specify one --host.' }
+  if (!laneHost) return { hosts, batch }
+  const local = laneHost === (binding.machineId ?? 'local') || isSelf?.(laneHost) === true
+  if (principal.kind === 'machine')
+    return local
+      ? { batch: false }
+      : { code: 'bad-request', text: 'This lane belongs to another host.' }
+  return { hosts: hosts ?? (local ? undefined : [laneHost]), laneHost, batch, local }
+}
+
+export function laneHostConflict(
+  laneHost: string | undefined,
+  targets: Awaited<ReturnType<typeof routeTargets>>,
+  local: boolean | undefined,
+): Refusal | null {
+  if (!laneHost || (targets !== 'self' && 'code' in targets)) return null
+  if (targets === 'self' ? local === true : targets[0]?.id === laneHost) return null
+  return { code: 'bad-request', text: '--host conflicts with the host in the lane ref.' }
+}
+
 /** The machines `--host` names; `self` when its one value names this machine. */
 export async function routeTargets(
   deps: Pick<OpsDispatcherDeps, 'hosts'>,
   hosts: readonly string[] | 'all',
+  budget: OpDeadline,
 ): Promise<readonly RoutedHost[] | 'self' | Refusal> {
   const bad = (text: string): Refusal => ({ code: 'bad-request', text })
   if (!deps.hosts && hosts === 'all') return bad('This machine has no machine list for --host all.')
   const resolved = deps.hosts
-    ? await deps.hosts.resolve(hosts)
+    ? await deps.hosts.resolve(hosts, budget)
     : { ok: true as const, hosts: (hosts as readonly string[]).map((id) => ({ id, label: id })) }
   if (!resolved.ok) return bad(resolved.text)
   if ('self' in resolved) return 'self'
@@ -93,69 +138,22 @@ function forwarded(j: Judged, batch?: OpsBatchRef): OpsRunRequest {
     ...(j.askingLane !== undefined ? { lane: j.askingLane } : {}),
     ...(title !== undefined && normalizeLabel(title) === title ? { title } : {}),
   }
-  const r = j.request
-  return {
-    op: r.op,
-    args: r.args,
-    actor,
-    ...(r.reason !== undefined ? { reason: r.reason } : {}),
-    ...(batch ? { batch } : {}),
-    ...(r.page !== undefined ? { page: r.page } : {}),
-  }
+  const { actor: _actor, confirm: _confirm, batch: _batch, ...request } = j.request
+  return { ...request, actor, ...(batch ? { batch } : {}) }
 }
 
 async function reach(
   remote: Remote,
   host: RoutedHost,
   request: OpsRunRequest,
+  budget: OpDeadline,
 ): Promise<OpsRunResult> {
+  if (budget.signal.aborted || budget.now() >= budget.deadlineAt)
+    return { status: 'denied', code: 'unavailable', text: `Stopped before reaching ${host.label}.` }
   try {
-    return await remote.run(host.id, request)
-  } catch (error) {
-    const why = error instanceof Error ? error.message : String(error)
-    return { status: 'denied', code: 'unavailable', text: `unavailable (${why})` }
-  }
-}
-
-/** Cuts text to `bytes` UTF-8 bytes, saying so. */
-export function clipBytes(text: string, bytes: number): string {
-  if (Buffer.byteLength(text, 'utf8') <= bytes) return text
-  const marker = ' […cut]'
-  const kept = Buffer.from(text, 'utf8')
-    .subarray(0, Math.max(0, bytes - Buffer.byteLength(marker)))
-    .toString('utf8')
-    .replace(/\uFFFD+$/, '')
-  return `${kept}${marker}`
-}
-
-function line(host: RoutedHost, result: OpsRunResult): string {
-  if (result.status === 'ok') return `${host.label}: ${result.text}`
-  if (result.status === 'denied')
-    return result.text.startsWith(result.code)
-      ? `${host.label}: ${result.text}`
-      : `${host.label}: ${result.code}: ${result.text}`
-  return `${host.label}: asks the user first: ${result.title}`
-}
-
-/** Every target's answer, in the caller's order; one target's answer unchanged. */
-function merged(j: Judged, hosts: readonly RoutedHost[], results: readonly OpsRunResult[]) {
-  if (hosts.length === 1) return results[0]!
-  const share = Math.floor(OPS_LIMITS.resultBytes / hosts.length)
-  return {
-    status: 'ok' as const,
-    text: hosts.map((host, i) => clipBytes(line(host, results[i]!), share - 1)).join('\n'),
-    applies: j.spec.applies,
-    data: {
-      hosts: hosts.map((host, i) => {
-        const r = results[i]!
-        return {
-          hostId: host.id,
-          label: host.label,
-          status: r.status,
-          ...(r.status === 'denied' ? { code: r.code } : {}),
-        }
-      }),
-    },
+    return await remote.run(host.id, request, { ...budget, target: host.machine })
+  } catch {
+    return { status: 'denied', code: 'unavailable', text: `Could not reach ${host.label}.` }
   }
 }
 
@@ -177,17 +175,19 @@ export async function routeOp(
   batches: RouteBatches,
   j: Judged,
   targets: readonly RoutedHost[],
+  budget: OpDeadline,
+  batch: boolean,
 ): Promise<Routed | Refusal> {
   const remote = binding.remote
   if (!remote) return { code: 'unsupported', text: 'This machine cannot reach other machines.' }
-  const send = (host: RoutedHost, request: OpsRunRequest) => reach(remote, host, request)
+  const send = (host: RoutedHost, request: OpsRunRequest) => reach(remote, host, request, budget)
   const confirm = j.request.confirm
   if (confirm) {
-    const again = await resubmitBatch(batches, j, confirm, send, (batch) => forwarded(j, batch))
+    const again = await resubmitBatch(batches, j, confirm, send, (ref) => forwarded(j, ref))
     if (!again) return EXPIRED
-    return { result: merged(j, again.hosts, again.results), decision: 'approved' }
+    return { result: batchResult(j, again.hosts, again.results, again.batch), decision: 'approved' }
   }
-  const batchId = targets.length > 1 ? randomUUID() : undefined
+  const batchId = batch ? randomUUID() : undefined
   const results = await mapLimit(targets, OPS_LIMITS.batchConcurrency, (host, index) =>
     send(host, forwarded(j, batchId ? { id: batchId, index, size: targets.length } : undefined)),
   )
@@ -199,5 +199,5 @@ export async function routeOp(
   })
   const asked = await askBatch(deps, batches, j, first, batchId)
   if (asked) return asked
-  return { result: merged(j, targets, results), decision: 'allowed' }
+  return { result: batchResult(j, targets, results, batch), decision: 'allowed' }
 }

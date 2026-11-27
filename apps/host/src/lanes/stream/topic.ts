@@ -2,6 +2,7 @@ import {
   parseHostFrame,
   type AttentionEvent,
   type HostFrame,
+  type HostResourceChange,
   type LaneSummary,
   type RepositorySummary,
   type StreamCursor,
@@ -27,6 +28,7 @@ export interface LanesTopicState extends TopicOptions {
   seq: number
   dispatch: DispatchState<TopicFrame>
   attention: AttentionFrame[]
+  resources: DispatchState<HostResourceChange>
 }
 
 export function createLanesTopicState(options: TopicOptions): LanesTopicState {
@@ -35,6 +37,7 @@ export function createLanesTopicState(options: TopicOptions): LanesTopicState {
     seq: 0,
     dispatch: createDispatchState(options.limits.replayEvents, options.log, { topic: 'lanes' }),
     attention: [],
+    resources: createDispatchState(options.limits.replayEvents, options.log, { topic: 'lanes' }),
   }
 }
 
@@ -76,6 +79,11 @@ export function topicSnapshot(state: LanesTopicState) {
 
 export function repositoriesChanged(state: LanesTopicState) {
   deliverFrame(state.dispatch, null)
+}
+
+export function resourceChanged(state: LanesTopicState, change: HostResourceChange) {
+  const frame = JSON.stringify({ type: 'resource-changed', id: 'check', change })
+  if (parseHostFrame(frame).ok) deliverFrame(state.resources, change)
 }
 
 export function routinesChanged(state: LanesTopicState) {
@@ -121,6 +129,11 @@ export function replayAttention(
   return after?.epoch === state.epoch
     ? state.attention.filter((frame) => frame.cursor.seq > after.seq)
     : []
+}
+
+export function listenResources(state: LanesTopicState, listener: Listener<HostResourceChange>) {
+  state.resources.listeners.add(listener)
+  return () => state.resources.listeners.delete(listener)
 }
 
 export function listenTopic(state: LanesTopicState, listener: Listener<TopicFrame>): () => void {

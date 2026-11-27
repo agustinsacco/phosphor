@@ -1,3 +1,4 @@
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { serviceScope } from '@/stores/localServiceScope'
 import { NeutralSegmented as Segmented } from '@/components/form'
 import { usePlatform } from '@/platform/Platform'
@@ -46,6 +47,7 @@ export const SkillsPage = memo(function SkillsPage({
   const choice = useMachinePagesStore((s) => s.skillsMachine)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const machine = serviceScope(pageMachine(filter, choice), hosts)
+  const revision = useHostResourceRevision(machine, 'skills')
   const generation = useRemoteLanesStore(() => machineReadGeneration(machine))
   const selectedWorkspace =
     machine === 'local'
@@ -55,7 +57,7 @@ export const SkillsPage = memo(function SkillsPage({
       : `host:${machine}/machine`
   useEffect(() => {
     if (machine !== 'local') void useSkillsStore.getState().refresh(selectedWorkspace)
-  }, [machine, generation, selectedWorkspace])
+  }, [machine, generation, selectedWorkspace, revision])
   const catalogue = useMachineCatalogue(machine === 'local' ? null : machine)
   return (
     <SkillsInventory

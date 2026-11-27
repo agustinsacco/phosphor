@@ -7,7 +7,7 @@ import {
   supervisedRun,
   type ValidatedCommand,
 } from './cli-args'
-import { catalogTopic, runCliOps } from './cli-ops'
+import { catalogOp, runCliOps } from './cli-ops'
 import { handleControl, handleRun, handleService } from './cli-control'
 import {
   handleAccept,
@@ -60,14 +60,11 @@ function dispatch<N extends CommandName>(
   return COMMANDS[name](command, io, context)
 }
 
-/**
- * Known commands first. Only argv whose first word the command table does not
- * know, and is not `help`, goes to the catalog ops CLI.
- */
+/** Keep lifecycle/setup commands fixed, except the catalog's explicit service update verb. */
 export function runCli(argv: readonly string[], io: CliIo, context: CliContext): Promise<number> {
   const { command } = scanArgv(argv)
-  return command !== undefined && command !== 'help' && !isCommandName(command)
-    ? runCliOps(argv, io, context, runCommandTable)
+  return command !== undefined && (!isCommandName(command) || catalogOp(argv) === 'service.update')
+    ? runCliOps(argv, io, context)
     : runCommandTable(argv, io, context)
 }
 
@@ -79,7 +76,7 @@ async function runCommandTable(
   const supervised = supervisedRun(argv)
   const request = readCliRequest(argv, context.terminal)
   if (request.kind === 'help') {
-    io.stdout((argv[0] === 'help' && argv.length === 2 && catalogTopic(argv[1])) || USAGE)
+    io.stdout(USAGE)
     return EXIT.ok
   }
   if (request.kind === 'usage') {

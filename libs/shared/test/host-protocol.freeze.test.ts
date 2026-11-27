@@ -11,6 +11,7 @@ import {
   HOST_API_ROUTES,
   HOST_CALL_METHODS,
   HOST_PROTOCOL_VERSION,
+  HOST_RESOURCE_KINDS,
   LANE_PI_OPS,
   UNFENCED_OPS,
   parseClientFrame,
@@ -19,7 +20,12 @@ import {
   type HostFrame,
 } from '@phosphor/shared/host-protocol'
 import { READY_OP_FLAGS } from '@phosphor/shared/host-protocol'
-import { OPS_LIMITS, OPS_RUN } from '@phosphor/shared/host-protocol-ops'
+import {
+  OPS_LIMITS,
+  OPS_RUN,
+  parseOpsRunRequest,
+  parseOpsRunResult,
+} from '@phosphor/shared/host-protocol-ops'
 import {
   OWNER_METHODS,
   OWNER_METHODS_ANY_LOCAL,
@@ -111,6 +117,30 @@ describe('client frame discriminants', () => {
   })
 })
 
+it('freezes the resource change kinds and lanes subscription opt-in', () => {
+  expect(HOST_RESOURCE_KINDS).toEqual([
+    'archives',
+    'settings',
+    'connectors',
+    'skills',
+    'packages',
+    'artifacts',
+    'routines',
+    'folders',
+    'sandboxes',
+    'git',
+  ])
+  const lanes = CLIENT_FRAMES.subscribe.lanes
+  expect(client({ ...lanes, resourceChanges: true })).toEqual({
+    ok: true,
+    frame: { ...lanes, resourceChanges: true },
+  })
+  const git = { ...lanes, resourceChanges: true, gitResourceChanges: true }
+  expect(client(git)).toEqual({ ok: true, frame: git })
+  expect(client({ ...lanes, gitResourceChanges: true })).toEqual({ ok: true, frame: lanes })
+  expect(client({ ...lanes, resourceChanges: false })).toEqual({ ok: true, frame: lanes })
+})
+
 describe('Host frame discriminants', () => {
   it('pins every HostFrame type and its variant keys', () => {
     expect(Object.keys(HOST_FRAMES).sort()).toStrictEqual([
@@ -123,6 +153,7 @@ describe('Host frame discriminants', () => {
       'pong',
       'ready',
       'receipt',
+      'resource-changed',
       'result',
       'routines-changed',
       'snapshot',
@@ -417,12 +448,42 @@ describe('Host API constants and op lists', () => {
     ])
   })
 
+  it('preserves an all-denied v1 batch alongside the original denial fields', () => {
+    const data = {
+      summary: { total: 1, ok: 0, failed: 1 },
+      hosts: [
+        {
+          hostId: 'bee2-id',
+          label: 'bee2',
+          status: 'denied',
+          code: 'unsupported',
+          text: 'Update Host.',
+        },
+      ],
+    }
+    const denial = { status: 'denied', code: 'unsupported', text: '== bee2 (denied)\nUpdate Host.' }
+    expect(parseOpsRunResult(denial)).toStrictEqual(denial)
+    expect(parseOpsRunResult({ ...denial, data })).toStrictEqual({ ...denial, data })
+    expect(parseOpsRunResult({ ...denial, data: 'x'.repeat(OPS_LIMITS.callDataBytes) })).toBeNull()
+  })
+
   it('keeps the agent-op envelope, ready flags and owner methods exactly, in order', () => {
     expect(OPS_RUN).toBe('ops.run')
+    const reply = { status: 'ok', text: 'rows', applies: 'now' }
+    expect(parseOpsRunResult(reply)).toEqual(reply)
+    expect(parseOpsRunResult({ ...reply, read: true })).toEqual({ ...reply, read: true })
+    expect(parseOpsRunResult({ ...reply, read: false })).toBeNull()
+    const request = { op: 'lane.list', args: {} }
+    expect(parseOpsRunRequest(request)).toEqual(request)
+    for (const limit of [1, 100])
+      expect(parseOpsRunRequest({ ...request, limit })).toEqual({ ...request, limit })
+    for (const limit of [0, 101, 1.5, '20'])
+      expect(parseOpsRunRequest({ ...request, limit })).toBeNull()
     expect(OPS_LIMITS).toStrictEqual({
       argsBytes: 307200,
       contentBytes: 262144,
       resultBytes: 65536,
+      pageBytes: 12288,
       callDataBytes: 1048576,
       reasonChars: 300,
       idsPerOp: 200,

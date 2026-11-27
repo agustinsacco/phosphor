@@ -7,10 +7,14 @@
  * Living contract: docs/agent-control.md.
  */
 import type { DatabaseSync } from 'node:sqlite'
+import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
+import { OP_CATALOG } from '@phosphor/shared/ops-catalog'
+import { opCommand } from '@phosphor/shared/ops-cli'
 import type { RuntimeLog } from '../file-log'
 import { OpRefusal } from './builtins'
 import type { OpsJobPort } from './ports'
 import { principalKey } from './principals'
+import { jobInventory } from './meta-inventory'
 import { dataResult, op } from './results'
 
 export type AgentJobState = 'running' | 'done' | 'failed' | 'interrupted'
@@ -20,7 +24,7 @@ export interface AgentJob {
   readonly op: string
   readonly state: AgentJobState
   /** The handler's answer when done, or why it failed. */
-  readonly result: { readonly text: string; readonly data?: unknown } | null
+  readonly result: { readonly text: string; readonly data?: unknown; readonly next?: string } | null
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -97,6 +101,7 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
               finish(jobId, 'done', {
                 text: out.text,
                 ...(out.data !== undefined ? { data: out.data } : {}),
+                ...(out.next !== undefined ? { next: out.next } : {}),
               })
               db.exec('COMMIT')
             } catch (error) {
@@ -122,10 +127,12 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
         db.prepare('SELECT * FROM agent_jobs WHERE id=? AND principal=?').get(jobId, creator),
       )
     },
-    list(creator: string): AgentJob[] {
+    list(creator: string, offset = 0, limit = LIST_LIMIT): AgentJob[] {
       return db
-        .prepare('SELECT * FROM agent_jobs WHERE principal=? ORDER BY created_at DESC, id LIMIT ?')
-        .all(creator, LIST_LIMIT)
+        .prepare(
+          'SELECT * FROM agent_jobs WHERE principal=? ORDER BY created_at DESC, id LIMIT ? OFFSET ?',
+        )
+        .all(creator, limit, offset)
         .flatMap((row) => jobFrom(row) ?? [])
     },
     /** Owner shutdown: running jobs are aborted and read `interrupted` on the next open. */
@@ -137,15 +144,28 @@ export function createJobStore(db: DatabaseSync, ports: JobStorePorts) {
 
 export type JobStore = ReturnType<typeof createJobStore>
 
+function continuation(job: AgentJob): string {
+  const next = job.result?.next
+  if (typeof next !== 'string' || next.length > OPS_LIMITS.pageChars || !/^[\w-]+$/.test(next))
+    return ''
+  const spec = OP_CATALOG.find((entry) => entry.name === job.op && entry.paged)
+  return spec
+    ? `\nMore: phosphor ${opCommand(spec.name)} --page ${next}\nKeep any original filters and options (except the previous --page).`
+    : ''
+}
+
 /** `job.status` and `job.list`, each limited to the asking principal's own jobs. */
 export function jobHandlers(jobs: Pick<JobStore, 'get' | 'list'>) {
   return {
     'job.status': op<{ jobId: string }>(({ jobId }, ctx) => {
       const job = jobs.get(jobId, principalKey(ctx.principal))
       if (!job) throw new OpRefusal('forbidden', `No job ${jobId} that you started.`)
-      const done = job.state === 'done' && job.result ? `\n${job.result.text}` : ''
-      return { ...dataResult(job), text: `Job ${jobId}: ${job.state}.${done}` }
+      const done = job.state === 'done' && job.result
+      return {
+        ...dataResult(job),
+        text: `Job ${jobId}: ${job.state}.${done ? `${continuation(job)}\n${done.text}` : ''}`,
+      }
     }),
-    'job.list': op((_args, ctx) => dataResult(jobs.list(principalKey(ctx.principal)))),
+    'job.list': jobInventory(jobs),
   }
 }

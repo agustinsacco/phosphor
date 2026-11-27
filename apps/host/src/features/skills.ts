@@ -13,6 +13,7 @@ import {
   type MachineSkill,
 } from '@phosphor/shared/host-protocol-machine'
 import type { FeatureContext, HostFeature } from './feature'
+import { withinProbe } from './failure'
 import {
   FeatureFailure,
   featureError,
@@ -42,6 +43,7 @@ async function laneCwd(context: FeatureContext, laneId?: string): Promise<string
 export interface LocatedSkill {
   skill: MachineSkill
   file: string
+  root: string
   cwd?: string
 }
 /** Resolve through this Host's pi; a project skill shadows a global one of the same name. */
@@ -54,7 +56,7 @@ export async function resolveSkills(
 ): Promise<LocatedSkill[]> {
   const cwd = admittedProject ?? (await laneCwd(context, laneId))
   const pi = ports.pi ?? (await featureInspection(context, ports)).pi
-  if (!pi) throw new FeatureFailure('internal')
+  if (!pi) throw new FeatureFailure('internal', 'missing-pi', 'inspection')
   return locateSkills(pi, cwd, !!(laneId || admittedProject), slot)
 }
 async function locateSkills(
@@ -64,17 +66,19 @@ async function locateSkills(
   slot?: ProbeSlot,
 ) {
   const commands = await queryMachine(pi, cwd, 'get_commands', undefined, slot)
-  if (!Array.isArray(commands) || commands.length > 2000) throw new FeatureFailure('too-large')
+  if (!Array.isArray(commands)) throw new FeatureFailure('internal', 'decode', 'pi reply')
+  if (commands.length > 2000) throw new FeatureFailure('too-large')
   const skills = new Map<string, LocatedSkill>()
   let count = 0
   for (const c of commands) {
     if (!machineRecord(c) || c.source !== 'skill') continue
-    if (typeof c.name !== 'string') throw new FeatureFailure('internal')
+    if (typeof c.name !== 'string') throw new FeatureFailure('internal', 'decode', 'pi reply')
     if (++count > MACHINE_LIMITS.skills) throw new FeatureFailure('too-large')
     const source = c.sourceInfo
     if (!machineRecord(source) || typeof source.path !== 'string' || !isAbsolute(source.path))
-      throw new FeatureFailure('internal')
-    if (source.scope !== 'user' && source.scope !== 'project') throw new FeatureFailure('internal')
+      throw new FeatureFailure('internal', 'decode', 'pi reply')
+    if (source.scope !== 'user' && source.scope !== 'project')
+      throw new FeatureFailure('internal', 'decode', 'pi reply')
     if (source.scope === 'project' && !project) continue
     if (source.scope === 'project' && !within(cwd, await realpath(source.path)))
       throw new FeatureFailure('bad-request')
@@ -86,19 +90,22 @@ async function locateSkills(
       },
     ])
     const skill = parsed?.[0]
-    if (!skill) throw new FeatureFailure('internal')
+    if (!skill) throw new FeatureFailure('internal', 'decode', 'pi reply')
     // A project skill shadows a global skill with the same name; never depend on RPC order.
-    if (skills.get(skill.name)?.skill.scope !== 'project')
+    const previous = skills.get(skill.name)
+    if (!previous || (previous.skill.scope === 'user' && skill.scope === 'project'))
       skills.set(skill.name, {
         skill,
         file: source.path,
+        root: await realpath(dirname(source.path)),
         ...(source.scope === 'project' ? { cwd } : {}),
       })
   }
   return [...skills.values()].sort((a, b) => a.skill.name.localeCompare(b.skill.name))
 }
 async function readSkill(entry: LocatedSkill, file?: string) {
-  const root = await realpath(dirname(entry.file))
+  const { root } = entry
+  if ((await realpath(dirname(entry.file))) !== root) throw new FeatureFailure('bad-request')
   const path = file ? join(root, file) : entry.file
   const fd = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
@@ -133,86 +140,132 @@ async function readSkill(entry: LocatedSkill, file?: string) {
 }
 /** Only a SKILL.md folder travels: a loose Markdown skill's folder is the whole skills root. */
 async function exportSkill(entry: LocatedSkill) {
-  if (basename(entry.file) !== 'SKILL.md') throw new FeatureFailure('bad-request')
+  if (basename(entry.file) !== 'SKILL.md' || (await realpath(dirname(entry.file))) !== entry.root)
+    throw new FeatureFailure('bad-request')
   try {
-    return await readSkillBundle(dirname(entry.file), entry.skill.name)
+    return await readSkillBundle(entry.root, entry.skill.name)
   } catch (error) {
     const tooLarge = error instanceof SkillShareError && error.code === 'too-large'
     throw new FeatureFailure(tooLarge ? 'too-large' : 'bad-request')
   }
 }
+const METHODS = [
+  'machine.models',
+  'machine.commands',
+  'machine.providers',
+  'machine.claude',
+  'machine.claudeUsage',
+  'machine.telemetry',
+  'skills.list',
+  'skills.read',
+  'skills.export',
+]
+
+/**
+ * Reads that skip the probe queue. Telemetry is polled every couple of seconds
+ * and must not wait behind a doctor inspection holding the probe slot for 20 s.
+ */
+const UNQUEUED = new Set(['machine.claudeUsage', 'machine.telemetry'])
+
 export function createSkillsFeature(
   context: FeatureContext,
   ports: MachinePorts = {},
   bindModelWindow?: (read: ReturnType<typeof machineCatalogues>['modelWindow']) => void,
-): HostFeature {
+): HostFeature & { resolveProject(cwd: string, signal?: AbortSignal): Promise<LocatedSkill[]> } {
   const cache = machineCatalogues(context, ports)
   bindModelWindow?.(cache.modelWindow)
   const readiness = probeQueue()
-  const methods = [
-    'machine.models',
-    'machine.commands',
-    'machine.providers',
-    'machine.claude',
-    'machine.claudeUsage',
-    'machine.telemetry',
-    'skills.list',
-    'skills.read',
-    'skills.export',
-  ]
   return {
     capability: 'skills.read',
-    methods,
-    async call(method, params) {
-      if (!methods.includes(method)) return featureError(new FeatureFailure('unsupported'))
+    methods: METHODS,
+    async resolveProject(cwd, signal) {
+      try {
+        return await index(cwd, true, probeDeadline(), signal)
+      } catch (error) {
+        throw logFailure('skills.resolveProject', error)
+      }
+    },
+    async call(method, params, _authorized, _clientId, signal) {
+      if (!METHODS.includes(method)) return featureError(new FeatureFailure('unsupported'))
       const parsed = parseMachineParams(method, params)
       if (!parsed) return featureError(new FeatureFailure('bad-request'))
-      return run(method, parsed)
+      return run(method, parsed, signal)
     },
+  }
+  function index(cwd: string, project: boolean, deadline: number, signal?: AbortSignal) {
+    return cache.skills(
+      cwd,
+      project,
+      deadline,
+      (pi, slot) => locateSkills(pi, cwd, project, slot),
+      signal,
+    )
   }
   async function run(
     method: string,
     parsed: NonNullable<ReturnType<typeof parseMachineParams>>,
+    signal?: AbortSignal,
   ): Promise<Awaited<ReturnType<HostFeature['call']>>> {
+    const deadline = probeDeadline()
     try {
       if (method === 'machine.models')
         return { ok: true, data: await cache.models(parsed.partial === true) }
       if (method === 'machine.commands')
-        return { ok: true, data: await cache.commands(parsed.repositoryId) }
-      if (method === 'machine.claudeUsage') return await machineCall(method, context, ports, parsed)
-      // A resource read a client polls every couple of seconds. It must not
-      // queue behind a doctor inspection that can hold the probe slot for 20s.
-      if (method === 'machine.telemetry') return await machineCall(method, context, ports, parsed)
+        return { ok: true, data: await cache.commands(parsed.repositoryId, deadline, signal) }
+      if (UNQUEUED.has(method)) return await machineCall(method, context, ports, parsed)
       if (method.startsWith('machine.'))
-        return await readiness(() => machineCall(method, context, ports, parsed))
-      if (method === 'skills.list') {
-        const deadline = probeDeadline()
-        const cwd = await laneCwd(context, parsed.laneId)
-        const project = !!parsed.laneId
-        const data = await cache.skills(cwd, project, deadline, async (pi, slot) => ({
-          skills: (await locateSkills(pi, cwd, project, slot)).map((s) => s.skill),
-        }))
-        return { ok: true, data }
-      }
-      const skills = await cache.resourceQueue((slot) =>
-        resolveSkills(context, ports, parsed.laneId, undefined, slot),
+        return await readiness(
+          () =>
+            withinProbe(
+              () => machineCall(method, context, ports, parsed),
+              deadline,
+              'inspection',
+              signal,
+            ),
+          deadline,
+          signal,
+        )
+      const cwd = await withinProbe(
+        () => laneCwd(context, parsed.laneId),
+        deadline,
+        'inspection',
+        signal,
       )
-      const entry = skills.find((s) => s.skill.name === parsed.name)
-      if (!entry) throw new FeatureFailure('bad-request')
-      if (method === 'skills.export') return { ok: true, data: await exportSkill(entry) }
-      try {
-        return { ok: true, data: await readSkill(entry, parsed.file) }
-      } catch (error) {
-        throw error instanceof FeatureFailure ? error : new FeatureFailure('bad-request')
-      }
+      const skills = await index(cwd, !!parsed.laneId, deadline, signal)
+      return await skillAnswer(method, parsed, skills, deadline, signal)
     } catch (error) {
-      const result = featureError(error)
-      context.log('feature.failed', {
-        method,
-        ...(parsed.laneId ? { laneId: parsed.laneId } : {}),
-        reason: result.ok ? 'internal' : result.error.code,
-      })
-      return result
+      return featureError(logFailure(method, error))
     }
+  }
+  function logFailure(method: string, error: unknown) {
+    const failure = error instanceof FeatureFailure ? error : new FeatureFailure('internal')
+    context.log('feature.failed', {
+      method,
+      phase: failure.phase ?? 'feature',
+      cause: failure.cause ?? failure.code,
+    })
+    return failure
+  }
+}
+
+async function skillAnswer(
+  method: string,
+  parsed: { name?: string; file?: string },
+  skills: LocatedSkill[],
+  deadline: number,
+  signal?: AbortSignal,
+): Promise<Awaited<ReturnType<HostFeature['call']>>> {
+  if (method === 'skills.list')
+    return { ok: true, data: { skills: skills.map((entry) => entry.skill) } }
+  const entry = skills.find((s) => s.skill.name === parsed.name)
+  if (!entry) throw new FeatureFailure('bad-request')
+  if (method === 'skills.export') return { ok: true, data: await exportSkill(entry) }
+  try {
+    return {
+      ok: true,
+      data: await withinProbe(() => readSkill(entry, parsed.file), deadline, 'skill read', signal),
+    }
+  } catch (error) {
+    throw error instanceof FeatureFailure ? error : new FeatureFailure('bad-request')
   }
 }

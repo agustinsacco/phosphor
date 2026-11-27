@@ -46,6 +46,7 @@ it('exposes only the reviewed phosphor API keys through the original preload', (
     'onFsChanged',
     'onHostAttention',
     'onHostOpenLane',
+    'onHostResourceChanged',
     'onHostsChanged',
     'onLocalMachineChanged',
     'onMachinesChanged',
@@ -141,6 +142,11 @@ const subscriptions: ReadonlyArray<readonly [string, string, Subscribe]> = [
   ['onHostsChanged', 'hosts:changed', (api, listener) => api.onHostsChanged(listener)],
   ['onHostAttention', 'hosts:attention', (api, listener) => api.onHostAttention(listener)],
   ['onHostOpenLane', 'hosts:openLaneRequested', (api, listener) => api.onHostOpenLane(listener)],
+  [
+    'onHostResourceChanged',
+    'hosts:resourceChanged',
+    (api, listener) => api.onHostResourceChanged(listener),
+  ],
   [
     'onFileDownloadProgress',
     'hosts:fileDownloadProgress',

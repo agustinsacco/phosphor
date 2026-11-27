@@ -7,9 +7,11 @@ import {
   count,
   domain,
   object,
+  path,
   ref,
   text,
   optional,
+  paged,
   untrusted,
 } from './spec'
 
@@ -29,17 +31,34 @@ const search = object({
 })
 export const machineOps = [
   read('machine.status', 'Show machine and Phosphor service status.', 'read'),
-  read('machine.doctor', 'Check machine and Phosphor service health.', 'read'),
-  inventory('machine.models', 'List available models.', 'read'),
-  inventory('machine.providers', 'List available providers.', 'read'),
-  inventory('machine.commands', 'List available commands.', 'read'),
+  read('machine.doctor', 'Show cached machine and Phosphor service health.', 'read'),
+  machine(
+    'machine.refreshEnvironment',
+    'Refresh the login-shell environment for new lanes.',
+    'configure',
+  ),
+  inventory(
+    'machine.models',
+    'List available models.',
+    'read',
+    object({ provider: optional(text(200)) }),
+    paged,
+  ),
+  inventory('machine.providers', 'List available providers.', 'read', undefined, paged),
+  inventory(
+    'machine.commands',
+    'List available commands.',
+    'read',
+    object({ project: optional(path) }),
+    paged,
+  ),
   inventory('machine.usage', 'Read provider usage.', 'read'),
   machine(
     'service.update',
     'Pause lanes and update the Phosphor service.',
     'destructive',
     undefined,
-    { job: true },
+    { job: true, deadlineMs: 600_000 },
   ),
   machine(
     'service.pause',
@@ -48,8 +67,18 @@ export const machineOps = [
     object({ action: choice('abort-now', 'cancel') }),
     { surfaceOnly: true, routable: false },
   ),
-  machine('maintenance.scan', 'Scan for cleanup candidates.', 'read'),
-  machine('maintenance.run', 'Run destructive workspace cleanup.', 'destructive'),
+  machine('maintenance.scan', 'Scan for cleanup candidates.', 'read', undefined, {
+    ...paged,
+    ...untrusted,
+    deadlineMs: 15_000,
+  }),
+  machine(
+    'maintenance.run',
+    'Apply an exact plan from maintenance.scan.',
+    'destructive',
+    object({ plan: text(64) }),
+    { positional: ['plan'], deadlineMs: 15_000 },
+  ),
   read('hosts.list', 'List machines available to this lane.', 'read', undefined, {
     routable: false,
   }),
@@ -70,7 +99,7 @@ export const machineOps = [
     }),
     { ...service, positional: ['ref', 'problem', 'reason'], sensitive: ['reason'] },
   ),
-  read('brain.status', 'Show Brain indexing status.', 'read'),
+  read('brain.status', 'Show Brain indexing status.', 'read', undefined, paged),
   read('brain.find', 'Find matching entries in Brain.', 'read', query, {
     positional: ['query'],
     sensitive: ['query'],

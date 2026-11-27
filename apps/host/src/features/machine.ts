@@ -9,7 +9,6 @@ import { hostname } from 'node:os'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { machineRecord, parseMachineProviders } from '@phosphor/shared/host-protocol-machine'
-import type { CallErrorCode } from '@phosphor/shared/host-protocol'
 import { inspectHost } from '../commands/doctor'
 import { sampleTelemetry } from '../machine/telemetry'
 import { defaultConfigPath } from '../config/load'
@@ -17,27 +16,9 @@ import type { HostInspection } from '../commands/doctor'
 import type { ClaudeUsageSnapshotResult } from '@phosphor/shared/models'
 import type { FeatureContext, FeatureOutcome } from './feature'
 
-export class FeatureFailure extends Error {
-  constructor(readonly code: CallErrorCode) {
-    super(code)
-  }
-}
-export function featureError(error: unknown): FeatureOutcome {
-  const code = error instanceof FeatureFailure ? error.code : 'internal'
-  const messages: Partial<Record<CallErrorCode, string>> = {
-    'bad-request': 'Invalid feature request.',
-    'unknown-lane': 'Unknown lane.',
-    'too-large': 'Feature result exceeds its limit.',
-    internal: 'Feature unavailable.',
-  }
-  return {
-    ok: false,
-    error: {
-      code,
-      message: messages[code] ?? 'Feature unavailable.',
-    },
-  }
-}
+import { FeatureFailure, withinProbe } from './failure'
+export { FeatureFailure, featureError } from './failure'
+
 /** Trusted wiring may supply the run command's config path. It is never a call parameter. */
 export type CataloguePi = NonNullable<HostInspection['pi']>
 export interface MachinePorts {
@@ -55,12 +36,10 @@ export function featureInspection(
   context: FeatureContext,
   ports: MachinePorts,
 ): Promise<HostInspection> {
-  let timer: NodeJS.Timeout | undefined
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new FeatureFailure('internal')), INSPECTION_DEADLINE_MS)
-  })
-  return Promise.race([startInspection(context, ports), deadline]).finally(() =>
-    clearTimeout(timer),
+  return withinProbe(
+    () => startInspection(context, ports),
+    performance.now() + INSPECTION_DEADLINE_MS,
+    'inspection',
   )
 }
 function startInspection(context: FeatureContext, ports: MachinePorts): Promise<HostInspection> {
@@ -121,40 +100,47 @@ export function queryMachine(
   pi: NonNullable<HostInspection['pi']>,
   cwd: string,
   type: 'get_available_models' | 'get_commands',
-  timeoutMs = 15_000,
+  // Command discovery loads project extensions and skills; allow a slow cold start.
+  timeoutMs = type === 'get_commands' ? 23_000 : 15_000,
   slot?: ProbeSlot,
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const budget = slot?.budget(timeoutMs) ?? timeoutMs
-    const child = spawn(
-      pi.launch.binaryPath,
-      [...pi.launch.prefixArgs, '--mode', 'rpc', '--no-session'],
-      {
-        cwd,
-        env: pi.environment.env,
-        stdio: ['pipe', 'pipe', 'ignore'],
-        detached: true,
-      },
-    )
+    const child = startQuery(pi, cwd)
     // No pid means spawn failed: there is no live child to hold the slot for.
     if (child.pid !== undefined)
       slot?.holdUntil(new Promise<void>((done) => child.once('exit', () => done())))
     const decoder = new JsonlDecoder()
     let bytes = 0
     let settled = false
+    let started = false
+    const phase = () => (started ? ('pi reply' as const) : ('pi startup' as const))
+    const abort = () => finish(new FeatureFailure('internal', 'cancelled', phase()))
     const finish = (error?: FeatureFailure, data?: unknown) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      slot?.signal?.removeEventListener('abort', abort)
       // Keep reading stdout so pi never blocks on a full pipe while it shuts down.
       stopQuery(child, !error)
       if (error) reject(error)
       else resolve(data)
     }
-    const timer = setTimeout(() => finish(new FeatureFailure('internal')), budget)
-    child.on('error', () => finish(new FeatureFailure('internal')))
-    child.on('close', () => finish(new FeatureFailure('internal')))
-    child.stdin.on('error', () => finish(new FeatureFailure('internal')))
+    const timer = setTimeout(
+      () => finish(new FeatureFailure('internal', 'timeout', phase(), budget)),
+      budget,
+    )
+    const exited = () => finish(new FeatureFailure('internal', 'exited', phase()))
+    child.once('spawn', () => {
+      started = true
+    })
+    child.on('error', () => finish(new FeatureFailure('internal', 'spawn', 'pi startup')))
+    child.on('close', exited)
+    // EPIPE can precede the child's spawn error; the child event decides the cause.
+    child.stdin.on('error', () => {
+      if (started) exited()
+    })
+    slot?.signal?.addEventListener('abort', abort, { once: true })
     child.stdout.on('data', (chunk: Buffer) => {
       if (settled) return
       bytes += chunk.length
@@ -164,17 +150,29 @@ export function queryMachine(
         try {
           value = JSON.parse(line)
         } catch {
-          return finish(new FeatureFailure('internal'))
+          return finish(new FeatureFailure('internal', 'decode', 'pi reply'))
         }
         if (!machineRecord(value) || value.type !== 'response' || value.id !== 'feature') continue
         if (value.success !== true || !machineRecord(value.data))
-          return finish(new FeatureFailure('internal'))
+          return finish(new FeatureFailure('internal', 'decode', 'pi reply'))
         finish(undefined, type === 'get_commands' ? value.data.commands : value.data.models)
         break
       }
     })
     child.stdin.write(JSON.stringify({ id: 'feature', type }) + '\n')
   })
+}
+function startQuery(pi: CataloguePi, cwd: string) {
+  try {
+    return spawn(pi.launch.binaryPath, [...pi.launch.prefixArgs, '--mode', 'rpc', '--no-session'], {
+      cwd,
+      env: pi.environment.env,
+      stdio: ['pipe', 'pipe', 'ignore'],
+      detached: true,
+    })
+  } catch {
+    throw new FeatureFailure('internal', 'spawn', 'pi startup')
+  }
 }
 export async function machineCall(
   method: string,
@@ -195,7 +193,7 @@ export async function machineCall(
   }
   const inspection = ports.pi ? null : await featureInspection(context, ports)
   const pi = ports.pi ?? inspection?.pi
-  if (!pi) throw new FeatureFailure('internal')
+  if (!pi) throw new FeatureFailure('internal', 'missing-pi', 'inspection')
   if (method === 'machine.claude') {
     const data = await inspectClaude(
       await listPackages(undefined, piAgentDir(pi.environment.env, context.home)),
@@ -212,7 +210,7 @@ export async function machineCall(
     const providers = parseMachineProviders(
       inspection ? inspection.report.providers : await currentProviders(pi, context.home),
     )
-    if (!providers) throw new FeatureFailure('internal')
+    if (!providers) throw new FeatureFailure('internal', 'decode', 'inspection')
     const claudeReady = ports.claudeAuthentication ? await ports.claudeAuthentication() : undefined
     const configuredClaude = ports.claudeAuthentication
       ? await inspectClaude(
@@ -240,12 +238,19 @@ export async function machineCall(
 
 async function currentProviders(pi: CataloguePi, home: string) {
   let defaultProvider: string | undefined
+  let configuredProviders: string[] = []
+  const dir = piAgentDir(pi.environment.env, home)
   try {
-    const dir = piAgentDir(pi.environment.env, home)
     const value = settingsFile(join(dir, 'settings.json'), HOST_FILE_POLICY).raw.defaultProvider
     if (typeof value === 'string') defaultProvider = value
   } catch {
-    /* No readable default; check the providers known to pi. */
+    /* No readable default. */
   }
-  return checkProviders(pi.launch, pi.environment, { defaultProvider })
+  try {
+    const value = settingsFile(join(dir, 'models.json'), HOST_FILE_POLICY).raw.providers
+    if (machineRecord(value)) configuredProviders = Object.keys(value)
+  } catch {
+    /* No custom provider definitions. */
+  }
+  return checkProviders(pi.launch, pi.environment, { defaultProvider, configuredProviders })
 }

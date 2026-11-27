@@ -1,9 +1,18 @@
 import { requestPage } from '@phosphor/session-runtime/ops/ports'
 import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult, pageRows } from '@phosphor/session-runtime/ops/results'
+import {
+  op,
+  dataResult,
+  pageInventory,
+  pageLimit,
+  rowTime,
+  surfaceInventory,
+} from '@phosphor/session-runtime/ops/results'
 import type { OpHandlerContext, OpHandlerResult } from '@phosphor/session-runtime/ops/types'
 import { PAGED_LANES_LIMITS } from '@phosphor/shared/host-protocol-paged-lanes'
+import { matchesLaneState } from '@phosphor/shared/host-protocol'
+import { laneRefFor } from '../lane-ref'
 import type { DaemonHandlerDeps } from './index'
 import { artifactList, contentPage } from './artifacts'
 import { archiveCommand } from './archives'
@@ -29,16 +38,27 @@ function listLanes(deps: DaemonHandlerDeps, { folder, state, q }: Filter, c: OpH
     .filter(
       (l) =>
         (!folder || l.repositoryId === folder || l.cwd === folder) &&
-        (!state || l.activity === state) &&
+        matchesLaneState(l.activity, state) &&
         (!q ||
           [l.laneId, l.title, l.cwd, l.branch].some((s) =>
             s?.toLowerCase().includes(q.toLowerCase()),
           )),
     )
-  const page = pageRows(rows, c, PAGED_LANES_LIMITS.lanesPerPage)
-  const lanes = page.data,
-    next = page.next ?? null
-  return { ...dataResult({ lanes, next }), ...(next ? { next } : {}) }
+  return pageInventory(
+    rows.map((l) => ({ ...l, ref: laneRefFor(deps.selfIds(), l.laneId) })),
+    c,
+    {
+      ref: (l) => l.ref,
+      title: (l) => l.title,
+      state: (l) => l.activity,
+      branch: (l) => l.branch,
+      updated: (l) => rowTime(l.updatedAt),
+    },
+    {
+      surface: { limit: PAGED_LANES_LIMITS.lanesPerPage, shrink: true },
+      wrap: (lanes, next) => ({ lanes, next: next ?? null }),
+    },
+  )
 }
 async function readLane(
   deps: DaemonHandlerDeps,
@@ -51,7 +71,7 @@ async function readLane(
     const result = (await laneCall(deps, 'lane.messages', { laneId: id }, c)) as {
       messages: unknown[]
     }
-    return messagePage(result.messages, messages, c)
+    return messagePage(result.messages, surfaceInventory(c) ? messages : pageLimit(c, messages), c)
   }
   if (part === 'debug') return dataResult(await laneCall(deps, 'lane.state', { laneId: id }, c))
   const summary = deps.daemonLanes.summary(id)

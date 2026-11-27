@@ -9,11 +9,14 @@ import type { AgentDirectivePrefs } from '@phosphor/shared/models'
 import type { MachineSettingsSection } from '@phosphor/shared/machine-settings'
 import type { UndoPorts } from '@phosphor/session-runtime/ops/undo'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult } from '@phosphor/session-runtime/ops/results'
 import {
-  readGlobalInstructions,
-  writeGlobalInstructions,
-} from '@phosphor/session-runtime/pi/global-instructions'
+  directiveResult,
+  fields,
+  op,
+  dataResult,
+  pageInventory,
+} from '@phosphor/session-runtime/ops/results'
+import { readGlobalInstructions } from '@phosphor/session-runtime/pi/global-instructions'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import type { DaemonHandlerDeps } from './index'
 import { readSection, patchSection, projectId, settingsOps } from './settings-access'
@@ -107,6 +110,12 @@ function agentHandlers(deps: DaemonHandlerDeps) {
         before: a.project ? undefined : { key, value: settingValue({ ...snapshot.agent }, key) },
       }
     }),
+    'directives.read': op((a, c) => {
+      const { global, project } = settingsOps(deps).settings.readDirectiveOverrides(
+        projectId(deps, a.project, c),
+      )
+      return directiveResult(global, project)
+    }),
     'directives.set': op(async (a, c) => {
       const key = a.key as keyof AgentDirectivePrefs
       if (
@@ -148,7 +157,7 @@ function instructionHandlers(deps: DaemonHandlerDeps) {
     'instructions.read': op((a, c) =>
       dataResult(readGlobalInstructions(instructions(deps, a.project, c), { followLinks: false })),
     ),
-    'instructions.edit': op((a, c) => {
+    'instructions.edit': op(async (a, c) => {
       const dir = instructions(deps, a.project, c)
       const base = readGlobalInstructions(dir, { followLinks: false })
       if (
@@ -157,12 +166,11 @@ function instructionHandlers(deps: DaemonHandlerDeps) {
           : a.revision !== null && a.revision !== base.revision
       )
         throw new OpRefusal('bad-request', 'Instructions changed. Read them again.')
-      writeGlobalInstructions(
-        dir,
+      await settingsOps(deps).settings.writeInstructions(
         a.content as string,
         base.revision,
-        { followLinks: false },
         () => !c.signal.aborted,
+        dir,
       )
       return { text: 'Updated instructions.' }
     }),
@@ -172,9 +180,12 @@ export function settingsHandlers(deps: DaemonHandlerDeps) {
   return {
     ...agentHandlers(deps),
     ...instructionHandlers(deps),
-    'claude.accounts': op(async () =>
-      dataResult((await readSection(deps, 'providers')).providers?.accounts ?? []),
-    ),
+    'claude.accounts': op(async (_, c) => {
+      const rows = await settingsOps(deps).settings.accountMetadata()
+      return pageInventory(rows, c, fields('id', 'label', 'plan'), {
+        surface: { limit: rows.length },
+      })
+    }),
     'claude.routing': op(async (a, c) => {
       const snapshot = await readSection(deps, 'providers', undefined, c.signal)
       const before = snapshot.providers

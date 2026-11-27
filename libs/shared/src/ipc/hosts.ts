@@ -1,3 +1,4 @@
+import type { HostResourceChange } from '../host-protocol/resource-change'
 import type { LaneArchiveList } from '../lane-archive'
 import type { FileRead } from '../host-protocol-files'
 import type { TailscaleStatus } from '../tailscale-status'
@@ -17,6 +18,11 @@ import type { SubagentInspectRequest } from '../subagent-inspect'
 import type { MachineTelemetry } from '../host-protocol-telemetry'
 import type { ClaudeUsageSnapshotResult, LiveSessionInfo } from '../models'
 import type { HostsSnapshot, TrafficPage, RemoteLaneCreate } from './views'
+
+/** An invalidation from a Host, scoped to that machine. No resource data is pushed. */
+export interface HostResourceChangedEvent extends HostResourceChange {
+  readonly hostId: string
+}
 
 export interface HostsInvokeMap {
   'hosts:archiveLane': { args: [hostId: string, laneId: string]; result: void }

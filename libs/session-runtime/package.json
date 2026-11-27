@@ -124,6 +124,26 @@
       "types": "./src/git/github-worktrees.ts",
       "default": "./src/git/github-worktrees.ts"
     },
+    "./git/branches": {
+      "types": "./src/git/branches.ts",
+      "default": "./src/git/branches.ts"
+    },
+    "./git/checkout-mutations": {
+      "types": "./src/git/checkout-mutations.ts",
+      "default": "./src/git/checkout-mutations.ts"
+    },
+    "./git/git-sync": {
+      "types": "./src/git/git-sync.ts",
+      "default": "./src/git/git-sync.ts"
+    },
+    "./git/restore-file": {
+      "types": "./src/git/restore-file.ts",
+      "default": "./src/git/restore-file.ts"
+    },
+    "./git/managed-worktree": {
+      "types": "./src/git/managed-worktree.ts",
+      "default": "./src/git/managed-worktree.ts"
+    },
     "./git/git-exec": {
       "types": "./src/git/git-exec.ts",
       "default": "./src/git/git-exec.ts"
@@ -143,6 +163,10 @@
     "./pi/global-instructions": {
       "types": "./src/pi/global-instructions.ts",
       "default": "./src/pi/global-instructions.ts"
+    },
+    "./pi/codex-usage": {
+      "types": "./src/pi/codex-usage.ts",
+      "default": "./src/pi/codex-usage.ts"
     },
     "./pi/auth-identity": {
       "types": "./src/pi/auth-identity.ts",
@@ -347,6 +371,10 @@
     "./pi/session-content": {
       "types": "./src/pi/session-content.ts",
       "default": "./src/pi/session-content.ts"
+    },
+    "./routines/preflight": {
+      "types": "./src/routines/preflight.ts",
+      "default": "./src/routines/preflight.ts"
     },
     "./routines/repository": {
       "types": "./src/routines/repository.ts",
@@ -596,6 +624,10 @@
       "types": "./src/ops/pipeline.ts",
       "default": "./src/ops/pipeline.ts"
     },
+    "./ops/pipeline-deferred": {
+      "types": "./src/ops/pipeline-deferred.ts",
+      "default": "./src/ops/pipeline-deferred.ts"
+    },
     "./ops/policy": {
       "types": "./src/ops/policy.ts",
       "default": "./src/ops/policy.ts"
@@ -615,6 +647,10 @@
     "./ops/route-batch": {
       "types": "./src/ops/route-batch.ts",
       "default": "./src/ops/route-batch.ts"
+    },
+    "./ops/route-result": {
+      "types": "./src/ops/route-result.ts",
+      "default": "./src/ops/route-result.ts"
     },
     "./owner-lock/types": {
       "types": "./src/owner-lock/types.ts",
@@ -659,6 +695,10 @@
     "./ops/meta-handlers": {
       "types": "./src/ops/meta-handlers.ts",
       "default": "./src/ops/meta-handlers.ts"
+    },
+    "./ops/meta-inventory": {
+      "types": "./src/ops/meta-inventory.ts",
+      "default": "./src/ops/meta-inventory.ts"
     },
     "./ops/deferred-rpc": {
       "types": "./src/ops/deferred-rpc.ts",
@@ -707,6 +747,10 @@
     "./ops/lane-controls": {
       "types": "./src/ops/lane-controls.ts",
       "default": "./src/ops/lane-controls.ts"
+    },
+    "./ops/lane-waits": {
+      "types": "./src/ops/lane-waits.ts",
+      "default": "./src/ops/lane-waits.ts"
     }
   },
   "nx": {

@@ -8,6 +8,14 @@ import type { FeatureContext } from './feature'
 import type { MachinePorts } from './machine'
 import { createSkillsFeature } from './skills'
 import { createSkillInstallFeature } from './skill-install'
+import { skillHandlers } from '../ops/handlers/skills'
+import type { DaemonHandlerDeps } from '../ops/handlers'
+
+vi.mock('@phosphor/session-runtime/skills/catalog', () => ({
+  resolveCatalogBundle: async () => ({
+    bundle: [{ rel: 'SKILL.md', data: Buffer.from('shared') }],
+  }),
+}))
 
 let root: string
 let skillsRoot: string
@@ -44,6 +52,7 @@ beforeEach(async () => {
     home: root,
     env: {},
     log: (event, fields) => logs.push(`${event} ${JSON.stringify(fields)}`),
+    resourceChanged: vi.fn(),
     store: { getLane: () => null, listRepositories: () => [] },
   }
   ports = {
@@ -110,6 +119,7 @@ describe('skills.install', () => {
       data: { status: 'installed', replaced: false },
     })
     expect(await readFile(join(skillsRoot, 'demo', 'lib', 'tool.py'), 'utf8')).toBe('print(1)')
+    expect(context.resourceChanged).toHaveBeenCalledExactlyOnceWith({ kind: 'skills' })
     commands.push(skill(join(skillsRoot, 'demo', 'SKILL.md')))
     const again = { bundle: bundle('second') }
     expect(await feature().call('skills.install', again, allowed)).toEqual({
@@ -128,14 +138,8 @@ describe('skills.install', () => {
   it('immediately lists a copied skill after installation without expiring the cache', async () => {
     let generation = 0
     const read = createSkillsFeature(context, { ...ports, generation: () => generation })
-    const installPorts = {
-      ...ports,
-      skillsRoot,
-      invalidateCatalogue: () => {
-        generation++
-      },
-    }
-    const install = createSkillInstallFeature(context, installPorts)
+    context.resourceChanged = () => generation++
+    const install = createSkillInstallFeature(context, { ...ports, skillsRoot })
     expect(await read.call('skills.list', {})).toEqual({ ok: true, data: { skills: [] } })
     expect(await install.call('skills.install', { bundle: bundle() }, allowed)).toMatchObject({
       data: { status: 'installed' },
@@ -172,4 +176,30 @@ describe('skills.install', () => {
         error: { code: 'bad-request' },
       })
   })
+})
+
+it('publishes the same committed global skill after an agent catalog install', async () => {
+  const agentDir = join(root, 'agent')
+  await mkdir(agentDir)
+  const install = createSkillInstallFeature(context, { ...ports, skillsRoot })
+  const handlers = skillHandlers({
+    skills: { agentDir, context },
+    lanes: { calls: { call: install.call } },
+  } as unknown as DaemonHandlerDeps)
+  await handlers['skill.install']!(
+    { scope: 'user', name: 'demo', libraryId: 'fixture' },
+    {
+      principal: {
+        kind: 'agent',
+        laneRef: 'issuer',
+        sessionId: 'issuer',
+        unattended: false,
+        lineage: 0,
+      },
+      signal: new AbortController().signal,
+      log: () => {},
+    },
+  )
+  expect(await readFile(join(skillsRoot, 'demo', 'SKILL.md'), 'utf8')).toBe('shared')
+  expect(context.resourceChanged).toHaveBeenCalledExactlyOnceWith({ kind: 'skills' })
 })

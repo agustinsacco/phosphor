@@ -1,3 +1,4 @@
+import type { HostResourceChangedEvent } from '@phosphor/shared/ipc'
 import {
   createHostConnection,
   hostEndpoint,
@@ -42,6 +43,7 @@ export interface HostPorts {
   socket?: (url: string) => Promise<FrameSocket>
   identity?: IdentityCrypto
   changed: () => void
+  resourceChanged?: (event: HostResourceChangedEvent) => void
   routinesChanged: (hostId: string) => void
   attention: (hostId: string, event: AttentionEvent) => void
   now?: () => number
@@ -133,7 +135,6 @@ export function createBrowserHosts(ports: HostPorts) {
   function reconcile() {
     if (stopped || !ports.control.session()) return
     for (const [hostId, entry] of entries) {
-      // Heartbeats in a directory nobody refreshed (the page slept) prove nothing: keep the link.
       if (entry.connection && now() - directoryAt > 2 * DIRECTORY_POLL_MS) continue
       const up = machineStatus(entry.machine, now(), offset) === 'up'
       if (!up || !hostEndpoint(entry.machine.endpoint)) {
@@ -153,6 +154,7 @@ export function createBrowserHosts(ports: HostPorts) {
           changed: () => {
             if (active()) changed()
           },
+          onResourceChanged: (change) => active() && ports.resourceChanged?.({ hostId, ...change }),
           onRoutinesChanged: () => {
             if (active()) ports.routinesChanged(hostId)
           },

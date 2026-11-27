@@ -62,6 +62,19 @@ Tailscale HTTPS/WSS, not SSH.
 Enrollment associates a machine key with your account. With **Machine reach** on (the default), that key can obtain grants to run catalog operations on other reach-enabled machines on the same account. Under Machines, switching reach off on either end disables this path in both directions. Older control or a Host without support shows an explanation rather than a switch.
 
 The machine key is a file readable by programs running as that user, including a lane's shell. Hostile instructions on one machine can therefore affect lanes and settings elsewhere. Ops-only grants, target policy, approvals and a target-side audit limit this exposure; they do not isolate two reach-enabled machines. Turn reach off where that trust is inappropriate.
+The origin caches the signed reach directory for 30 seconds and uses short-lived
+machine grants. Its ops-only pool holds at most eight connections, retiring idle
+connections after five minutes. The origin shares one deadline across directory
+lookup, grant acquisition and dispatch; expired requests stop starting new work.
+Directory and grant requests retry transient network failures once with jitter if
+time remains. A rate-limit response sets a cooldown from `Retry-After` (or one
+minute if absent). A failed renewal does not close a connection whose grant is
+still valid. An unavailable directory is reported, not replaced with stale data.
+
+A lost ordinary read can retry once; a dispatched `lane.wait` is not retried.
+A write whose receipt is lost is not resent. Read the target state or check its
+audit before deciding whether to try again. See [catalog targeting and batch results](agent-control.md#machines).
+
 Desktop registers its own client identity and asks control for a five-minute grant.
 The Host authenticates that grant and proves its enrolled identity to Desktop.
 Effective capabilities are the intersection of the grant and the Host's features.

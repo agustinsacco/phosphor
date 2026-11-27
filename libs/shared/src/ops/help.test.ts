@@ -7,12 +7,11 @@ it('builds top-level help from the supplied catalog, including unavailable domai
     ['help', 'lane.list', 'policy.set', 'provider.login'].includes(s.name),
   )
   expect(renderHelp(subset)).toBe(`Usage: phosphor <domain> <verb> [arguments] [options]
-Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json
---host takes a machine name, an ID prefix of 8 or more hex characters, a,b, or all: every other machine, never this one.
 Domains: policy, lane, provider
 Commands: help
 Aliases: lanes
-Use phosphor help <domain> or phosphor help <domain.verb>.
+Use phosphor help <domain> or phosphor help <domain.verb> for arguments and options.
+--host takes a machine name, an ID prefix of 8 or more hex characters, a,b, or all: every other machine, never this one.
 Not available to agents: policy.set, provider.login`)
 })
 
@@ -26,13 +25,40 @@ Not available to agents: audit.undo`)
 it('generates usage, confirmation notes, aliases and supported global options', () => {
   expect(renderHelp(OP_CATALOG, 'folder.remove')).toBe(`Usage: phosphor folder remove <id> [options]
 Remove a folder from the machine’s list. Asks the user first.
-Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json`)
-  expect(renderHelp(OP_CATALOG, 'lanes'))
-    .toBe(`Usage: phosphor lane list [--folder <value>] [--state <value>] [options]
-List a page of lanes.
-Options: --host H|a,b|all, --page <cursor>, --reason <text>, --json`)
+Options: --host H|a,b|all, --reason <text>, --json, --help`)
+  expect(renderHelp(OP_CATALOG, 'lanes')).toContain(
+    'Usage: phosphor lane list [--folder <folder>] [--state stopped|idle|working|needs-input|failed|live]',
+  )
   expect(renderHelp(OP_CATALOG, 'lane.stop')).toContain('Asks the user first for another lane.')
   expect(renderHelp(OP_CATALOG, 'folder.remove', { tierNotes: false })).not.toContain('Asks')
   expect(renderHelp(OP_CATALOG, 'swarm.on')).not.toContain('--host')
   expect(renderHelp(OP_CATALOG, 'missing')).toContain('Unknown help topic')
+})
+
+it('shows semantic labels, schema choices and only the options an op accepts', () => {
+  const catalog = OP_CATALOG.map((s) =>
+    s.name === 'lane.list' ? { ...s, paged: true as const } : { ...s, paged: undefined },
+  )
+  const read = renderHelp(catalog, 'lane read')
+  expect(read).toContain('<lane-ref>')
+  expect(read).toContain('--part summary|messages|artifacts|prs|debug')
+  expect(read).toContain('--messages <1–50>')
+  expect(read).not.toContain('--page')
+  expect(read).not.toContain('--limit')
+  expect(renderHelp(catalog, 'lanes')).toContain('--limit <1–100> (default 20)')
+  expect(renderHelp(catalog, 'files.read')).toContain('--target <lane-ref>')
+})
+
+it('labels a non-paged limit as a catalog argument, not a paging option', () => {
+  const [usage, , options] = renderHelp(OP_CATALOG, 'brain.search').split('\n')
+  expect(usage).toContain('[--limit <1–20>]')
+  expect(options).not.toMatch(/--limit|--page/)
+})
+
+it('shows both paging options on each paged catalog operation', () => {
+  for (const spec of OP_CATALOG.filter((op) => op.paged)) {
+    const help = renderHelp(OP_CATALOG, spec.name)
+    expect(help, spec.name).toContain('--page <cursor>')
+    expect(help, spec.name).toContain('--limit <1–100> (default 20)')
+  }
 })

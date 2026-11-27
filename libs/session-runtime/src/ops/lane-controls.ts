@@ -7,7 +7,8 @@
 import type { LaneEffect } from '@phosphor/shared/ops'
 import { CONTEXT_FILE_KINDS, type ContextFilePrefs } from '@phosphor/shared/context-files'
 import { OpRefusal } from './builtins'
-import { op } from './results'
+import type { RpcSessionState } from '@phosphor/shared/rpc'
+import { dataResult, op } from './results'
 import type { LaneDeferred, LaneFacts, OpHandlerContext } from './types'
 
 /** The lane an op is about; each owner refuses in its own words when there is none. */
@@ -77,4 +78,54 @@ export function laneControlHandlers(targetLane: TargetLane) {
       ({ queue, mode }, c) => later(c, { kind: queue, mode }),
     ),
   }
+}
+
+/** Observe the live session, not spawn defaults; an unknown effective value is null. */
+export function laneControlsRead(
+  readState: (ctx: OpHandlerContext) => Promise<RpcSessionState | null>,
+) {
+  return op(async (_, c) => {
+    const lane = c.lane
+    if (
+      c.principal.kind !== 'agent' ||
+      lane?.sessionId !== c.principal.sessionId ||
+      lane.ref !== c.principal.laneRef
+    )
+      throw new OpRefusal('bad-request', 'Read controls from inside the lane.')
+    const state = await readState(c)
+    const autoRetry = (state as (RpcSessionState & { autoRetryEnabled?: boolean }) | null)
+      ?.autoRetryEnabled
+    return dataResult({
+      effective: {
+        swarm: lane.facts?.swarm ?? null,
+        model: state?.model ? `${state.model.provider}/${state.model.id}` : null,
+        thinking: state?.thinkingLevel ?? null,
+        contextFiles: lane.facts?.contextFiles ?? null,
+        steering: state?.steeringMode ?? null,
+        'follow-up': state?.followUpMode ?? null,
+        autoCompaction: state?.autoCompactionEnabled ?? null,
+        autoRetry: typeof autoRetry === 'boolean' ? autoRetry : null,
+      },
+      pending: c.pending ? pendingControls(c.pending) : 'unknown',
+    })
+  })
+}
+
+function pendingControls(items: readonly LaneDeferred[]) {
+  return items.flatMap<{ control: string; value: string | boolean }>((item) => {
+    switch (item.kind) {
+      case 'model':
+        return [{ control: item.kind, value: `${item.provider}/${item.modelId}` }]
+      case 'thinking':
+        return [{ control: item.kind, value: item.level }]
+      case 'steering':
+      case 'follow-up':
+        return [{ control: item.kind, value: item.mode }]
+      case 'autoCompaction':
+      case 'autoRetry':
+        return [{ control: item.kind, value: item.enabled }]
+      default:
+        return []
+    }
+  })
 }

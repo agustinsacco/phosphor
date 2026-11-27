@@ -37,7 +37,7 @@ describe('hosts.list', () => {
           online: true,
           hostVersion: '0.2.80',
           ready: false,
-          why: 'update-host',
+          why: 'not-enrolled',
         },
         {
           id: 'b4b4b4b4-0',
@@ -56,7 +56,7 @@ describe('hosts.list', () => {
         'This machine: This Mac (aaaaaaaa)',
         'bee1 (b1b1b1b1): online, Host 0.3.0, ready',
         'bee2 (b2b2b2b2): offline, version unknown, not ready: offline',
-        'bee3 (b3b3b3b3): online, Host 0.2.80, not ready: update that Host',
+        'bee3 (b3b3b3b3): online, Host 0.2.80, not ready: not enrolled for reach',
         'bee4 (b4b4b4b4): online, Host 0.3.0, not ready: unreachable on your tailnet',
       ].join('\n'),
     )
@@ -72,9 +72,11 @@ describe('hosts.list', () => {
     expect((await list(async () => empty)).text).toBe(
       'This machine: This Mac (aaaaaaaa)\nNo other machines on your account.',
     )
-    expect(await list(async () => ({ available: false, reason: 'reach-off' }))).toMatchObject({
-      text: DIRECTORY_REFUSALS['reach-off'].message,
+    await expect(
+      list(async () => ({ available: false, reason: 'reach-off' })),
+    ).rejects.toMatchObject({
+      message: DIRECTORY_REFUSALS['reach-off'].message,
     })
-    expect((await list()).text).toBe('This machine cannot reach other machines.')
+    await expect(list()).rejects.toMatchObject({ code: 'unsupported' })
   })
 })

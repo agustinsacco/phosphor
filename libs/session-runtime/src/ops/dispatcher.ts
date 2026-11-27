@@ -6,9 +6,14 @@
  * request is always answered: by its result, `timeout` at its deadline, or
  * `aborted` when the lane stops. Living contract: docs/agent-control.md.
  */
-import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
-import type { OpReplyEnvelope, OpRequestEnvelope } from '@phosphor/shared/ops'
+import { isOpName, type OpsRunRequest, type OpsRunResult } from '@phosphor/shared/host-protocol-ops'
+import {
+  LANE_WAIT_DEADLINE_MS,
+  type OpReplyEnvelope,
+  type OpRequestEnvelope,
+} from '@phosphor/shared/ops'
 import { createLaneDeferred, type LaneDeferredQueue } from './deferred'
+import { createLaneWaits } from './lane-waits'
 import { createOpLimits } from './limits'
 import { createOpPipeline, type OpOutcome, type OpPipeline, type OpRunExtras } from './pipeline'
 import { principalKey } from './principals'
@@ -17,7 +22,7 @@ import type { OpPrincipal, OpsBinding, OpsDispatcher } from './types'
 
 type ToolRequest =
   | { readonly request: OpsRunRequest; readonly hosts?: readonly string[] | 'all' }
-  | { readonly error: string }
+  | { readonly error: string; readonly op?: string }
 
 /** One serial chain per key; a failed task never blocks the next. */
 function createOpQueues() {
@@ -43,8 +48,12 @@ function toolRequest(deps: OpsDispatcherDeps, envelope: OpRequestEnvelope): Tool
     ...(envelope.confirm ? { confirm: envelope.confirm } : {}),
   }
   if (envelope.argv) {
-    const parsed = deps.parseArgv(envelope.argv, envelope.content)
-    if (!parsed.ok) return { error: parsed.error }
+    const parsed = deps.parseArgv(envelope.argv, envelope.content, envelope.reason)
+    if (!parsed.ok)
+      return {
+        op: parsed.op,
+        error: parsed.usage ? `${parsed.error}\n${parsed.usage}` : parsed.error,
+      }
     const reason = envelope.reason ?? parsed.reason
     return {
       request: {
@@ -53,6 +62,7 @@ function toolRequest(deps: OpsDispatcherDeps, envelope: OpRequestEnvelope): Tool
         ...shared,
         ...(reason !== undefined ? { reason } : {}),
         ...(parsed.page !== undefined ? { page: parsed.page } : {}),
+        ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
       },
       ...(parsed.hosts ? { hosts: parsed.hosts } : {}),
     }
@@ -70,7 +80,15 @@ function toolRequest(deps: OpsDispatcherDeps, envelope: OpRequestEnvelope): Tool
 
 function toReply(id: string, outcome: OpOutcome, now: number): OpReplyEnvelope {
   const r = outcome.result
-  if (r.status === 'denied') return { v: 1, id, status: 'denied', code: r.code, text: r.text }
+  if (r.status === 'denied')
+    return {
+      v: 1,
+      id,
+      status: 'denied',
+      code: r.code,
+      text: r.text,
+      ...(r.data !== undefined ? { data: r.data } : {}),
+    }
   if (r.status === 'confirm')
     return {
       v: 1,
@@ -90,6 +108,7 @@ function toReply(id: string, outcome: OpOutcome, now: number): OpReplyEnvelope {
     applies: r.applies,
     ...(r.data !== undefined ? { data: r.data } : {}),
     ...(r.next !== undefined ? { next: r.next } : {}),
+    ...(r.read ? { read: true as const } : {}),
     ...(outcome.effects?.length ? { effects: outcome.effects } : {}),
     ...(outcome.terminate ? { terminate: true as const } : {}),
     ...(outcome.untrusted ? { untrusted: true as const } : {}),
@@ -111,6 +130,7 @@ interface DispatcherCore {
   readonly now: () => number
   readonly pipeline: OpPipeline
   readonly queues: ReturnType<typeof createOpQueues>
+  readonly waits: ReturnType<typeof createLaneWaits>
   readonly deferred: LaneDeferredQueue
   /** Tool and run requests of a lane here, so `cancelLane` can abort them. */
   readonly inflight: Map<string, Set<AbortController>>
@@ -144,43 +164,76 @@ function execute(
   principal: OpPrincipal,
   request: OpsRunRequest,
   signal: AbortSignal,
-  extras: Omit<OpRunExtras, 'signal'> = {},
+  deadlineAt: number,
+  extras: Omit<OpRunExtras, 'signal' | 'deadlineAt' | 'now'> = {},
+  onStart?: () => void,
 ): Promise<OpOutcome | null> {
   // Undo awaits its inverse, which runs on this same principal’s ordinary control queue.
   const group =
     request.op === 'audit.undo' ? request.op : (core.pipeline.spec(request.op)?.class ?? 'control')
   const key = `${principalKey(principal)}|${group}`
-  return core.queues.run(key, async () => {
+  const task = async (): Promise<OpOutcome | null> => {
     if (signal.aborted) return null
+    onStart?.()
     try {
-      return await core.pipeline.execute(principal, request, { ...extras, signal })
-    } catch (error) {
-      core.deps.log('ops', 'op failed', { op: request.op, error: String(error) })
-      const why = error instanceof Error ? error.message : String(error)
+      return await core.pipeline.execute(principal, request, {
+        ...extras,
+        signal,
+        deadlineAt,
+        now: core.now,
+      })
+    } catch {
+      core.deps.log('ops', 'op failed', { op: request.op, phase: 'dispatch' })
       return {
         result: {
           status: 'denied',
           code: 'unavailable',
-          text: `${request.op} failed: ${why}`.slice(0, 1000),
+          text: `${request.op} failed during dispatch. Retry or check the Phosphor service logs.`,
         },
       }
     }
-  })
+  }
+  if (request.op !== 'lane.wait') return core.queues.run(key, task)
+  if (signal.aborted) return Promise.resolve(null)
+  const slot = core.waits.take(principal, signal)
+  return typeof slot === 'function' ? task().finally(slot) : Promise.resolve({ result: slot })
 }
 
 async function runOp(
   core: DispatcherCore,
   principal: OpPrincipal,
   request: OpsRunRequest,
-  hosts?: OpRunExtras['hosts'],
+  hosts: OpRunExtras['hosts'],
+  deadlineMs: number,
+  caller?: AbortSignal,
 ): Promise<OpsRunResult> {
   const { controller, release } = track(core, principal)
+  const deadlineAt = core.now() + deadlineMs
+  const timer = setTimeout(() => controller.abort(), deadlineMs)
   try {
-    const outcome = await execute(core, principal, request, controller.signal, { hosts })
+    const signal = caller ? AbortSignal.any([caller, controller.signal]) : controller.signal
+    const outcome = await execute(core, principal, request, signal, deadlineAt, {
+      hosts,
+    })
     return outcome?.result ?? { status: 'denied', code: 'unavailable', text: STOPPED }
   } finally {
+    clearTimeout(timer)
     release()
   }
+}
+
+/** Callers give at most a backstop; only the owner knows the resolved command. */
+function catalogDeadline(core: DispatcherCore, request: OpsRunRequest, backstop: number): number {
+  const spec = core.pipeline.spec(request.op)
+  const tier = spec?.tier
+  // Target resolution runs after queue admission. Use the shorter budget only
+  // when this invocation is a read regardless of the target.
+  const read =
+    typeof tier === 'function'
+      ? tier(request.args, { self: true }) === 'read' &&
+        tier(request.args, { self: false }) === 'read'
+      : tier === 'read'
+  return Math.min(backstop, spec?.deadlineMs ?? (read ? 30_000 : 60_000))
 }
 
 /** Always answers: the op's reply, `timeout` at the tool's deadline, or `aborted` on Stop. */
@@ -201,26 +254,55 @@ async function runFromTool(
     }
   const parsed = toolRequest(core.deps, envelope)
   if ('error' in parsed)
-    return { v: 1, id, status: 'denied', code: 'bad-request', text: parsed.error }
+    return { v: 1, id, op: parsed.op, status: 'denied', code: 'bad-request', text: parsed.error }
+  const { op } = parsed.request
+  const deadline = catalogDeadline(core, parsed.request, envelope.deadlineMs)
+  let phase = 'queue'
   const { controller, release } = track(core, principal)
+  const deadlineAt = core.now() + deadline
   let settle: (reply: OpReplyEnvelope) => void = () => undefined
   const early = new Promise<OpReplyEnvelope>((resolve) => (settle = resolve))
+  let writeDispatched = false
   const timer = setTimeout(() => {
-    settle(failed('timeout', id, 'Phosphor did not finish this operation in time.'))
+    core.deps.log('ops', 'op timed out', { op, phase, deadlineMs: deadline })
+    const advice = writeDispatched
+      ? 'A remote change may be unconfirmed; check its host before retrying.'
+      : phase === 'queue'
+        ? 'Wait for the earlier operation to finish, then retry.'
+        : 'Check the result before retrying a change.'
+    settle(
+      failed(
+        'timeout',
+        id,
+        `Phosphor timed out during ${phase} after ${deadline / 1000} seconds. ${advice}`,
+      ),
+    )
     controller.abort()
-  }, envelope.deadlineMs)
+  }, deadline)
   controller.signal.addEventListener('abort', () => settle(failed('aborted', id, STOPPED)), {
     once: true,
   })
   const extras = {
+    onRemoteWrite: () => {
+      writeDispatched = true
+    },
     ...(envelope.facts ? { facts: envelope.facts } : {}),
     ...(parsed.hosts ? { hosts: parsed.hosts } : {}),
   }
-  const work = execute(core, principal, parsed.request, controller.signal, extras).then(
-    (outcome) => (outcome ? toReply(id, outcome, core.now()) : failed('aborted', id, STOPPED)),
-  )
+  const work = execute(
+    core,
+    principal,
+    parsed.request,
+    controller.signal,
+    deadlineAt,
+    extras,
+    () => {
+      phase = 'execution'
+    },
+  ).then((outcome) => (outcome ? toReply(id, outcome, core.now()) : failed('aborted', id, STOPPED)))
   try {
-    return await Promise.race([work, early])
+    const reply = await Promise.race([work, early])
+    return isOpName(op) ? { ...reply, op } : reply
   } finally {
     clearTimeout(timer)
     release()
@@ -236,16 +318,32 @@ export function createOpsDispatcher(binding: OpsBinding, deps: OpsDispatcherDeps
     now,
     pipeline,
     queues: createOpQueues(),
+    waits: createLaneWaits(),
     deferred,
     inflight: new Map(),
   }
-  const run = (principal: OpPrincipal, request: OpsRunRequest) => runOp(core, principal, request)
+  const run = (principal: OpPrincipal, request: OpsRunRequest, signal?: AbortSignal) =>
+    runOp(
+      core,
+      principal,
+      request,
+      undefined,
+      catalogDeadline(core, request, LANE_WAIT_DEADLINE_MS),
+      request.op === 'lane.wait' ? signal : undefined,
+    )
   return {
     run,
-    async runFromCli(principal, envelope) {
+    async runFromCli(principal, envelope, signal) {
       const parsed = toolRequest(deps, envelope)
       if ('error' in parsed) return { status: 'denied', code: 'bad-request', text: parsed.error }
-      return runOp(core, principal, parsed.request, parsed.hosts)
+      return runOp(
+        core,
+        principal,
+        parsed.request,
+        parsed.hosts,
+        catalogDeadline(core, parsed.request, envelope.deadlineMs),
+        parsed.request.op === 'lane.wait' ? signal : undefined,
+      )
     },
     runFromTool: (sessionId, envelope) => runFromTool(core, sessionId, envelope),
     surfaceAnswered: (sessionId, response, origin) =>

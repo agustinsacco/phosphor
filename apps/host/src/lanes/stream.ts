@@ -16,11 +16,13 @@ import {
 import {
   createLanesTopicState,
   listenTopic,
+  listenResources,
   publishAttention,
   publishDelta,
   replayAttention,
   repositoriesChanged,
   routinesChanged,
+  resourceChanged,
   topicCursor,
   topicSnapshot,
 } from './stream/topic'
@@ -98,10 +100,12 @@ export function createLanesTopic(options: {
     cursor: topicCursor.bind(null, state),
     snapshot: topicSnapshot.bind(null, state),
     repositoriesChanged: repositoriesChanged.bind(null, state),
+    resourceChanged: resourceChanged.bind(null, state),
     routinesChanged: routinesChanged.bind(null, state),
     delta: publishDelta.bind(null, state),
     attention: publishAttention.bind(null, state),
     replay: replayAttention.bind(null, state),
+    listenResources: listenResources.bind(null, state),
     listen: listenTopic.bind(null, state),
   }
 }

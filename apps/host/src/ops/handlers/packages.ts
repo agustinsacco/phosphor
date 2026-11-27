@@ -1,6 +1,6 @@
 import { isMachinePackageSpec } from '@phosphor/shared/machine-settings'
 import { checkPackageUpdates } from '@phosphor/session-runtime/pi/package-updates'
-import { op, dataResult } from '@phosphor/session-runtime/ops/results'
+import { op, fields, pageInventory } from '@phosphor/session-runtime/ops/results'
 import { projectId, scopedProject, settingsOps, readSection } from './settings-access'
 import type { HeadlessTask } from '../../settings/headless-tasks'
 import type { DaemonHandlerDeps } from './index'
@@ -18,12 +18,18 @@ export function packageHandlers(deps: DaemonHandlerDeps) {
       return { text: `Finished ${name}.\n${output}`, undo: false }
     })
   return {
-    'package.list': op(async (a, c) =>
-      dataResult(
-        (await readSection(deps, 'resources', projectId(deps, a.project, c), c.signal)).resources
-          ?.packages ?? [],
-      ),
-    ),
+    'package.list': op(async (a, c) => {
+      const { resources } = await readSection(
+        deps,
+        'resources',
+        projectId(deps, a.project, c),
+        c.signal,
+      )
+      const rows = resources?.packages ?? []
+      return pageInventory(rows, c, fields('spec', 'scope', 'kind'), {
+        surface: { limit: rows.length },
+      })
+    }),
     'package.checkUpdates': op(async (a, c) => {
       const { resources } = await readSection(
         deps,
@@ -31,12 +37,20 @@ export function packageHandlers(deps: DaemonHandlerDeps) {
         projectId(deps, a.project, c),
         c.signal,
       )
-      return dataResult(
-        await checkPackageUpdates(
-          (resources?.packages ?? []).flatMap(({ spec }) =>
-            isMachinePackageSpec(spec) ? [{ spec, kind: 'npm' }] : [],
-          ),
+      const updates = await checkPackageUpdates(
+        (resources?.packages ?? []).flatMap(({ spec }) =>
+          isMachinePackageSpec(spec) ? [{ spec, kind: 'npm' }] : [],
         ),
+      )
+      const rows = Object.entries(updates)
+      return pageInventory(
+        rows,
+        c,
+        { spec: ([spec]) => spec, latest: ([, latest]) => latest },
+        {
+          surface: { limit: rows.length },
+          wrap: Object.fromEntries,
+        },
       )
     }),
     'package.install': task('package.install'),

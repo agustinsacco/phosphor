@@ -180,7 +180,7 @@ const out = (obj) => {
  * it was added to test.
  */
 const NAME_FLAG = process.argv.indexOf('-n')
-const SESSION_NAME =
+let SESSION_NAME =
   process.env.PHOSPHOR_E2E_SESSION_NAME ??
   (NAME_FLAG !== -1 && process.argv[NAME_FLAG + 1] ? process.argv[NAME_FLAG + 1] : null)
 
@@ -947,6 +947,7 @@ function handle(cmd) {
     // `success: true` would make every rename appear to revert on the next
     // directory refresh, and no rename could be asserted end to end.
     case 'set_session_name':
+      SESSION_NAME = cmd.name
       try {
         const entry = {
           type: 'session_info',

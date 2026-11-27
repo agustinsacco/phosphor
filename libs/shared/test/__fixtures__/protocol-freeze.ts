@@ -286,6 +286,14 @@ export const HOST_FRAMES = {
       remove: [OTHER_LANE_ID],
     },
   },
+  'resource-changed': {
+    changed: { type: 'resource-changed', id: 'lanes', change: { kind: 'archives' } },
+    git: {
+      type: 'resource-changed',
+      id: 'lanes',
+      change: { kind: 'git', laneId: LANE_ID, repositoryId: '0123456789abcdef' },
+    },
+  },
   'routines-changed': {
     changed: { type: 'routines-changed', id: 'lanes', cursor: { epoch: EPOCH, seq: 1 } },
   },

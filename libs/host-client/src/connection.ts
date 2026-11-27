@@ -11,6 +11,7 @@ import { isEndpoint, type GrantIssueResponse } from '@phosphor/shared/control-ap
 import {
   HOST_LIMITS,
   parseHostFrame,
+  type HostResourceChange,
   parseClientFrame,
   utf8Length,
   type ClientFrame,
@@ -39,9 +40,10 @@ export function createHostConnection(ports: {
   endpointAllowed?: (value: unknown) => boolean
   unrefTimer?: (timer: ReturnType<typeof setTimeout>) => void
   socket: (url: string) => Promise<FrameSocket>
-  grant: () => Promise<GrantIssueResponse>
+  grant: (deadlineAt?: number) => Promise<GrantIssueResponse>
   clearGrant: () => void
   changed: () => void
+  onResourceChanged?: (change: HostResourceChange) => void
   onRoutinesChanged?: () => void
   onAttention?: (event: Extract<HostFrame, { type: 'attention' }>['event']) => void
   disabled?: () => void
@@ -153,7 +155,14 @@ export function createHostConnection(ports: {
             after,
             trace: identity.randomHex(8),
           }
-        : { type: 'subscribe', id, topic: 'lanes', after, trace: identity.randomHex(8) },
+        : {
+            type: 'subscribe',
+            id,
+            topic: 'lanes',
+            after,
+            trace: identity.randomHex(8),
+            ...(ports.onResourceChanged ? { resourceChanges: true, gitResourceChanges: true } : {}),
+          },
     )
     if (!sent) socket?.close(1000, 'Transport failed')
   }
@@ -206,11 +215,12 @@ export function createHostConnection(ports: {
     retry.schedule(code === 4429 || error === 'too-many-requests')
   }
   function renew(expiresAt: string) {
+    const expiry = Date.parse(expiresAt)
     later(
       () => {
         const epoch = generation
         void ports
-          .grant()
+          .grant(expiry)
           .then((g) => {
             if (!stopped && epoch === generation) {
               if (!write({ type: 'auth', grant: g.grant, trace }))
@@ -221,14 +231,14 @@ export function createHostConnection(ports: {
               )
             }
           })
-          .catch((error) => {
+          .catch(() => {
             if (epoch === generation && !stopped) {
-              socket?.close(1000, 'Renewal failed')
-              failed(0, error instanceof Error ? error.message : 'offline')
+              log('hosts', 'renewal_failed', { hostId: ports.hostId })
+              later(() => socket?.close(1000, 'Grant expired'), Math.max(0, expiry - now()))
             }
           })
       },
-      Math.max(1000, Date.parse(expiresAt) - now() - HOST_LIMITS.renewBeforeSec * 1000),
+      Math.max(1000, expiry - now() - HOST_LIMITS.renewBeforeSec * 1000),
     )
   }
   function beat() {
@@ -309,6 +319,8 @@ export function createHostConnection(ports: {
               : f.cursor.seq,
         },
       })
+    } else if (f.type === 'resource-changed' && f.id === 'lanes') {
+      ports.onResourceChanged?.(f.change)
     } else if (f.type === 'routines-changed' && f.id === 'lanes') {
       if (!view.cursor || view.cursor.epoch !== f.cursor.epoch || f.cursor.seq <= view.cursor.seq)
         return
@@ -527,13 +539,14 @@ export function createHostConnection(ports: {
         requests.track(frame, resolve)
       })
     },
-    call(method: string, params?: unknown): Promise<Extract<HostFrame, { type: 'result' }>> {
+    call(method: string, params?: unknown, timeoutMs?: number) {
       return requests.call(
         identity.randomUUID(),
         view.state === 'ready',
         method,
         params,
         identity.randomHex(8),
+        timeoutMs,
       )
     },
     watchLane(laneId: string, listener: (frame: LaneFrame) => void) {

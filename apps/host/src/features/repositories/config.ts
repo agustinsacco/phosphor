@@ -13,6 +13,7 @@ import {
   type HostStore,
   type RepositoryIdentity,
 } from '../../lanes/store'
+import type { HostResourceChange } from '@phosphor/shared/host-protocol'
 import { FileFailure } from '../files'
 import { withSettingsFileLock } from '@phosphor/session-runtime/pi/settings-file'
 
@@ -23,6 +24,7 @@ export interface RepositoryConfigSource {
 export interface RepositoryConfigOptions extends RepositoryConfigSource {
   local?: boolean
   store: HostStore
+  resourceChanged?(change: HostResourceChange): void
   changed(roots: readonly string[]): void
 }
 
@@ -79,6 +81,7 @@ async function publishUnlocked(
     if (snapshot) writeOwnerFolders(directory, options.uid, snapshot)
     const summaries = options.store.syncRepositories(paths, undefined, identity)
     options.changed(summaries.map((r) => r.path))
+    options.resourceChanged?.({ kind: 'folders' })
     return summaries
   } finally {
     await unlink(temp).catch(() => {})

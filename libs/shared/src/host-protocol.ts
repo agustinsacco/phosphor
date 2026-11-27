@@ -38,6 +38,7 @@ export type {
   StoppedComposer,
   StreamCursor,
 } from './host-protocol/lanes'
+export { isLiveActivity, matchesLaneState } from './host-protocol/lanes'
 export {
   CAPABILITY_FOR,
   HOST_CALL_METHODS,
@@ -59,4 +60,5 @@ export type { ClientFrame, ClientFrameParse, FrameSocket, HostFrame } from './ho
 export { isLaneBranchName, utf8Length } from './host-protocol/primitives'
 export { parseClientFrame } from './host-protocol/client'
 export { parseHostFrame } from './host-protocol/host'
+export { HOST_RESOURCE_KINDS, type HostResourceChange } from './host-protocol/resource-change'
 export { READY_OP_FLAGS, type ReadyOpFlag } from './host-protocol/host-ready'

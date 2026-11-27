@@ -1,15 +1,15 @@
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 
-interface GrantCachePorts<Reply, Grant extends { expiresAt: string }> {
+interface GrantCachePorts<Reply, Grant extends { expiresAt: string }, Options> {
   now?: () => number
   present(hostId: string): boolean
-  issue(hostId: string, current: () => boolean): Promise<Reply>
+  issue(hostId: string, current: () => boolean, options?: Options): Promise<Reply>
   readGrant(hostId: string, reply: Reply): Grant
 }
 
 /** Per target, single-flight until invalidated and reusable only outside the renewal margin. */
-export function createGrantCache<Reply, Grant extends { expiresAt: string }>(
-  ports: GrantCachePorts<Reply, Grant>,
+export function createGrantCache<Reply, Grant extends { expiresAt: string }, Options = undefined>(
+  ports: GrantCachePorts<Reply, Grant, Options>,
 ) {
   const cache = new Map<string, Grant>()
   const flights = new Map<string, { promise: Promise<Grant>; token: { valid: boolean } }>()
@@ -28,7 +28,7 @@ export function createGrantCache<Reply, Grant extends { expiresAt: string }>(
     flights.delete(hostId)
   }
 
-  function grantFor(hostId: string): Promise<Grant> {
+  function grantFor(hostId: string, options?: Options): Promise<Grant> {
     const saved = cache.get(hostId)
     if (
       saved &&
@@ -43,7 +43,7 @@ export function createGrantCache<Reply, Grant extends { expiresAt: string }>(
     const active = { valid: true }
     const current = () => epoch === generation && active.valid && ports.present(hostId)
     const promise = (async () => {
-      const reply = await ports.issue(hostId, current)
+      const reply = await ports.issue(hostId, current, options)
       if (!current()) throw new Error('signed-out')
       const grant = ports.readGrant(hostId, reply)
       cache.set(hostId, grant)

@@ -14,7 +14,7 @@ import {
 } from '@phosphor/session-runtime/git/branch-landed'
 import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
 import { isLaneBranchName, type RejectCode } from '@phosphor/shared/host-protocol'
-import type { HostStore } from './store'
+import type { HostStore, StoredLane } from './store'
 import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 import { canonicalRemovedPath } from '../machine/repositories'
 import {
@@ -105,6 +105,7 @@ export async function branchLanded(
 }
 interface DeletionPorts {
   store: HostStore
+  withCheckout?<T>(path: string, change: () => Promise<T>): Promise<T>
   stop(laneId: string, allowed: () => boolean): Promise<void>
   remove(request: unknown, owner?: boolean): Promise<void>
   forget(laneId: string): void
@@ -113,8 +114,16 @@ interface DeletionPorts {
   /** Durable manifests survive old-Host tombstone pruning. */
   archiveOwnsCwd?: (cwd: string) => Promise<boolean>
 }
+async function checkoutIsShared(options: DeletionPorts, lane: StoredLane) {
+  return (
+    options.store.archives.ownsCwd(lane.cwd, lane.laneId) ||
+    options.store.listLanes().some((l) => l.laneId !== lane.laneId && l.cwd === lane.cwd) ||
+    (await options.archiveOwnsCwd?.(lane.cwd)) === true
+  )
+}
+
 export function createLaneDeletion(options: DeletionPorts) {
-  return async (
+  const remove = async (
     op: DeleteLaneOp,
     allowed: () => boolean,
     owner = false,
@@ -124,10 +133,7 @@ export function createLaneDeletion(options: DeletionPorts) {
     const repo = options.store.listRepositories().find((r) => r.id === lane.repositoryId)
     if (!repo) return forgetUnlisted(options, lane.laneId, op, allowed)
     if (!allowed()) return { ok: false, code: 'forbidden' }
-    const shared = async () =>
-      options.store.archives.ownsCwd(lane.cwd, lane.laneId) ||
-      options.store.listLanes().some((l) => l.laneId !== lane.laneId && l.cwd === lane.cwd) ||
-      (await options.archiveOwnsCwd?.(lane.cwd)) === true
+    const shared = () => checkoutIsShared(options, lane)
     try {
       if ((op.removeWorktree || op.removeBranch) && (!lane.worktree || (await shared())))
         return { ok: false, code: 'busy' }
@@ -188,6 +194,11 @@ export function createLaneDeletion(options: DeletionPorts) {
     } catch {
       return { ok: false, code: allowed() ? 'bad-request' : 'forbidden' }
     }
+  }
+  return (op: DeleteLaneOp, allowed: () => boolean, owner = false) => {
+    const lane = options.store.getLane(op.laneId)
+    const run = () => remove(op, allowed, owner)
+    return lane && options.withCheckout ? options.withCheckout(lane.cwd, run) : run()
   }
 }
 

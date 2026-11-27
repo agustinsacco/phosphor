@@ -3,7 +3,6 @@ import { createCodexUsageReader, parseCodexUsage } from './codex-usage'
 
 vi.mock('./health', () => ({ checkPiHealth: vi.fn() }))
 vi.mock('./stub', () => ({ piStubPath: () => undefined }))
-vi.mock('@phosphor/session-runtime/pi/shell-env', () => ({ piProcessEnv: vi.fn() }))
 
 const window = (used_percent = 48, limit_window_seconds = 604800) => ({
   used_percent,
@@ -167,6 +166,16 @@ describe('Codex usage', () => {
     const read = createCodexUsageReader(async () => authOutput(), fetcher)
     expect(await read()).toEqual({ ok: false, error })
     expect((await read()).ok).toBe(true)
+  })
+
+  it('does not replace a good cached snapshot when a forced refresh fails', async () => {
+    const fetcher = request()
+    const read = createCodexUsageReader(async () => authOutput(), fetcher)
+    const good = await read()
+    fetcher.mockResolvedValueOnce(new Response(null, { status: 429 }))
+    expect(await read(true)).toEqual({ ok: false, error: 'rate-limited' })
+    expect(await read()).toEqual(good)
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
   it('sanitizes subprocess, network and JSON errors', async () => {

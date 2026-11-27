@@ -34,6 +34,8 @@ function idPrefix(value: string, id: string): boolean {
 
 /** The machines one value names; this machine counts once, whichever of its ids matched. */
 function named(value: string, candidates: readonly Candidate[]): Candidate[] {
+  const exact = candidates.find((c) => c.id === value)
+  if (exact) return [exact]
   const found = candidates.filter(
     (c) => c.label.toLowerCase() === value.toLowerCase() || idPrefix(value, c.id),
   )
@@ -57,28 +59,32 @@ function pick(values: readonly string[], candidates: readonly Candidate[]): Reso
     if (found.length > 1)
       return fail(`Several machines match ${value}: ${found.map(describe).join(', ')}.`)
     if (one.self) namedSelf = true
-    else if (!picked.some((p) => p.id === one.id)) picked.push({ id: one.id, label: one.label })
+    else if (!picked.some((p) => p.id === one.id)) picked.push(routed(one))
   }
   if (!namedSelf) return { ok: true, hosts: picked }
   return picked.length === 0 ? { ok: true, self: true } : fail('Leave this machine out of --host.')
 }
 
+function routed({ id, label, machine }: Candidate): RoutedHost {
+  return { id, label, machine }
+}
+
 /** The dispatcher's `--host` resolver over the reach directory. */
 export function createHostResolver(ports: HostResolverPorts): OpsHostResolver {
   return {
-    async resolve(hosts) {
+    isSelf: (hostId) => ports.selfIds().includes(hostId),
+    async resolve(hosts, budget) {
       const selfIds = new Set(ports.selfIds())
       // This machine's own id needs no directory.
       if (hosts !== 'all' && hosts.length === 1 && selfIds.has(hosts[0]!))
         return { ok: true, self: true }
-      const listing = await ports.directory()
+      const listing = await ports.directory(budget)
       if (!listing.available) return fail(DIRECTORY_REFUSALS[listing.reason].message)
       selfIds.add(listing.self.id)
       const others = listing.machines
         .filter((m) => !selfIds.has(m.id))
-        .map((m): Candidate => ({ id: m.id, label: m.label, self: false }))
-      if (hosts === 'all')
-        return { ok: true, hosts: others.map(({ id, label }) => ({ id, label })) }
+        .map((m): Candidate => ({ id: m.id, label: m.label, machine: m, self: false }))
+      if (hosts === 'all') return { ok: true, hosts: others.map(routed) }
       const self = [...selfIds].map((id): Candidate => ({
         id,
         label: listing.self.label,

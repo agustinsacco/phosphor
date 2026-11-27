@@ -1,5 +1,5 @@
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, dataResult, pageOffset } from '@phosphor/session-runtime/ops/results'
+import { op, pageInventory, rowTime } from '@phosphor/session-runtime/ops/results'
 import { OPS_LIMITS } from '@phosphor/shared/host-protocol-ops'
 import {
   isArchiveId,
@@ -44,13 +44,17 @@ export function archiveHandlers(deps: DaemonHandlerDeps) {
     'archive.list': op<{ measure?: boolean }>(async ({ measure = false }, c) => {
       const list = parseLaneArchiveList(await laneCall(deps, 'archive.list', { measure }, c))
       if (!list) throw new OpRefusal('unavailable', 'Invalid archive inventory.')
-      const start = pageOffset(c),
-        entries = list.entries.slice(start, start + 50),
-        end = start + entries.length
-      return {
-        ...dataResult({ ...list, entries }),
-        ...(end < list.entries.length ? { next: String(end) } : {}),
-      }
+      return pageInventory(
+        list.entries,
+        c,
+        {
+          id: (a) => a.id,
+          title: (a) => a.title,
+          folder: (a) => a.cwd,
+          archived: (a) => rowTime(a.archivedAt),
+        },
+        { surface: { limit: 50 }, wrap: (entries) => ({ ...list, entries }) },
+      )
     }),
     'archive.restore': op<{ id: string }>(async ({ id }, c) => {
       if (!isArchiveId(id)) throw new OpRefusal('bad-request', 'Invalid archive id.')

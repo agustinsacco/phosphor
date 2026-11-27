@@ -16,6 +16,18 @@ export class ControlFailure extends Error {
   }
 }
 
+/** Reach can act on safe metadata without depending on arbitrary error messages. */
+export class ControlRequestFailure extends ControlFailure {
+  constructor(
+    code: ControlFailure['code'],
+    readonly stage?: 'control-unreachable' | 'control-timeout' | 'rate-limited' | 'bad-response',
+    readonly transport?: 'TypeError' | 'AbortError' | 'TimeoutError' | 'Error' | 'http',
+    readonly retryAfterMs?: number,
+  ) {
+    super(code)
+  }
+}
+
 function invalidResponse(response: Response): ControlFailure {
   return new ControlFailure(
     !response.ok && response.status === 429

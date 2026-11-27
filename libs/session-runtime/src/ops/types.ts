@@ -6,7 +6,7 @@
  * docs/agent-control.md.
  */
 import type { OpsRunRequest, OpsRunResult } from '@phosphor/shared/host-protocol-ops'
-import type { ReadyOpFlag } from '@phosphor/shared/host-protocol'
+import type { LaneActivity, ReadyOpFlag } from '@phosphor/shared/host-protocol'
 import type {
   AgentOpRow,
   AgentPolicy,
@@ -17,6 +17,7 @@ import type {
 } from '@phosphor/shared/ops'
 import type { ExtensionUIResponse } from '@phosphor/shared/rpc'
 import type { OpsChangedEvent } from '@phosphor/shared/ipc'
+import type { ReachBudget, ReachMachine } from './reach'
 import type { AuditLog } from './audit'
 import type { RuntimeLog } from '../file-log'
 
@@ -66,6 +67,8 @@ export interface LaneFacts {
   readonly title: string
   /** The lane's working folder; Brain and directives resolve against it. */
   readonly cwd: string
+  /** Host activity, when the owner supplies its lane projection. */
+  readonly activity?: LaneActivity
   /** A turn is running. */
   readonly busy: boolean
   readonly controlFence?: number
@@ -97,11 +100,15 @@ export interface OpHandlerContext {
   readonly signal: AbortSignal
   /** The lane the op is about, when it names one (or is the asking lane's own op). */
   readonly lane?: LaneFacts
+  /** The asking lane's deferred changes; absent when this owner cannot observe them. */
+  readonly pending?: readonly LaneDeferred[]
   readonly log: RuntimeLog
 }
 
 export interface OpHandlerResult {
   readonly text: string
+  /** Status without transcript text, when the result displays untrusted content. */
+  readonly auditText?: string
   readonly data?: unknown
   /** The state an inverse must still match for Undo. */
   readonly undo?: false
@@ -141,6 +148,13 @@ export interface BrainOpsPort {
   flag(input: Readonly<Record<string, unknown>>): Promise<unknown>
 }
 
+/** One caller budget shared by directory resolution and every queued host. */
+export interface OpDeadline extends ReachBudget {
+  readonly deadlineAt: number
+  readonly signal: AbortSignal
+  readonly now: () => number
+}
+
 /** Everything one owner (Desktop in-app, or the daemon) gives the dispatcher. */
 export interface OpsBinding {
   /** The enrolled Host id, or null before enrollment and on Desktop in-app. */
@@ -155,13 +169,19 @@ export interface OpsBinding {
   readonly lanes: {
     resolve(ref: string): LaneFacts | null
     lookup?(ref: string): Promise<LaneFacts | null>
-    createdBy(laneRef: string): { readonly lineage: number } | null
+    createdBy(laneRef: string): { readonly lineage: number; readonly creator?: string } | null
   }
   readonly deferred: {
     apply(sessionOrLaneId: string, items: readonly LaneDeferred[]): Promise<DeferredOutcome>
   }
   /** `--host`: the same request on another machine. */
-  readonly remote?: { run(hostId: string, request: OpsRunRequest): Promise<OpsRunResult> }
+  readonly remote?: {
+    run(
+      hostId: string,
+      request: OpsRunRequest,
+      options: OpDeadline & { readonly target?: ReachMachine },
+    ): Promise<OpsRunResult>
+  }
   readonly brain?: BrainOpsPort
   notifySurfaces(event: Omit<OpsChangedEvent, 'machine'>): void
 }
@@ -171,9 +191,10 @@ export interface OpsDispatcher {
   runFromCli(
     principal: Extract<OpPrincipal, { kind: 'local' }>,
     envelope: OpRequestEnvelope,
+    signal?: AbortSignal,
   ): Promise<OpsRunResult>
   runFromTool(sessionId: string, envelope: OpRequestEnvelope): Promise<OpReplyEnvelope>
-  run(principal: OpPrincipal, request: OpsRunRequest): Promise<OpsRunResult>
+  run(principal: OpPrincipal, request: OpsRunRequest, signal?: AbortSignal): Promise<OpsRunResult>
   /** A surface answered a lane's dialog: relay it, or refuse a forged answer to an op confirm. */
   surfaceAnswered(
     sessionId: string,

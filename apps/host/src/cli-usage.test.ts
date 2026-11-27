@@ -45,6 +45,7 @@ describe('USAGE', () => {
       'logout',
       'run',
       'service',
+      'service',
       'tailscale',
       'update',
       'update',
@@ -53,6 +54,7 @@ describe('USAGE', () => {
       'uninstall',
       'version',
     ])
+    expect(USAGE).toContain('service update (or service.update)')
     expect(USAGE).not.toContain('internal-install-path')
     expect(USAGE.startsWith('usage: phosphor <command>\n')).toBe(true)
     expect(USAGE.endsWith('78 config invalid, 128+n ended by signal n\n')).toBe(true)

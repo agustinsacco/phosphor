@@ -15,7 +15,7 @@ import {
   type SessionArtifactIndex,
 } from '@phosphor/session-runtime/artifacts/artifact-indexer'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { op, pageOffset, pageRows } from '@phosphor/session-runtime/ops/results'
+import { op, pageOffset, pageInventory, rowTime } from '@phosphor/session-runtime/ops/results'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { artifactMeta, artifactSessionId, indexForList } from '../../features/artifacts/query'
 import { readArtifactVersion } from '../../features/artifacts/read'
@@ -59,10 +59,46 @@ export function contentPage(
   }
 }
 /** One lane's artifacts, keyed `<laneId>/<slug>`. */
+type ArtifactRow = ArtifactMeta & { key: string }
+const artifactColumns = {
+  key: (a: ArtifactRow) => a.key,
+  title: (a: ArtifactRow) => a.title,
+  type: (a: ArtifactRow) => a.type,
+  lane: (a: ArtifactRow) => a.laneId,
+  updated: (a: ArtifactRow) => rowTime(a.versions.at(-1)?.createdAt),
+}
+function artifactSummary<T extends ArtifactRow>({ versions, ...row }: T) {
+  const latest = versions.at(-1)
+  return {
+    ...row,
+    versions: versions.length,
+    latest: latest && {
+      version: latest.version,
+      title: latest.title,
+      updated: rowTime(latest.createdAt),
+    },
+  }
+}
+function artifactInventory<T extends ArtifactRow>(rows: readonly T[], ctx: OpHandlerContext) {
+  return pageInventory(rows, ctx, artifactColumns, {
+    surface: { limit: 50, shrink: true },
+    agent: {
+      row: artifactSummary<T>,
+      columns: {
+        key: (a) => a.key,
+        title: (a) => a.title,
+        type: (a) => a.type,
+        lane: (a) => a.laneId,
+        updated: (a) => a.latest?.updated,
+      },
+    },
+  })
+}
+
 export async function artifactList(deps: DaemonHandlerDeps, id: string, c: OpHandlerContext) {
   const items = parseArtifactList(await laneCall(deps, 'artifacts.list', { laneId: id }, c))
   if (!items) throw new OpRefusal('unavailable', 'Invalid artifact list.')
-  return pageRows(
+  return artifactInventory(
     items.map((a) => ({ ...a, key: `${a.laneId}/${a.slug}` })),
     c,
   )
@@ -214,7 +250,7 @@ export function artifactHandlers(deps: DaemonHandlerDeps) {
       const dropped = { invalid: 0, overCaps: 0 }
       const rows = await libraryRows(deps, c, dropped)
       report(dropped)
-      return pageRows(rows, c)
+      return artifactInventory(rows, c)
     }),
     'artifact.read': op<{ key: string; lane?: string; version?: number }>(
       async ({ key, lane, version }, c) => {

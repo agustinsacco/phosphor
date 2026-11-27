@@ -4,12 +4,12 @@ import type {
   OpHandlerContext,
   OpsBinding,
 } from '@phosphor/session-runtime/ops/types'
-import type { RpcCommand } from '@shared/rpc'
+import type { RpcCommand, RpcSessionState } from '@shared/rpc'
 import { deferredRpcCommand } from '@phosphor/session-runtime/ops/deferred-rpc'
 import { broadcast } from '../broadcast'
 import { lanePath, liveOpLane, liveOpRef, targetLane } from './lanes'
 import { op } from '@phosphor/session-runtime/ops/results'
-import { laneControlHandlers } from '@phosphor/session-runtime/ops/lane-controls'
+import { laneControlHandlers, laneControlsRead } from '@phosphor/session-runtime/ops/lane-controls'
 
 async function command(id: string, rpc: RpcCommand) {
   const { desktopSessions } = await import('../pi/session-runtime')
@@ -38,7 +38,14 @@ export const deferred: OpsBinding['deferred'] = {
     return { ok: true }
   },
 }
-export const controlHandlers = laneControlHandlers(targetLane)
+export const controlHandlers = {
+  ...laneControlHandlers(targetLane),
+  'lane.controls': laneControlsRead(async (ctx) => {
+    const { desktopSessions } = await import('../pi/session-runtime')
+    const reply = await desktopSessions.command(targetLane(ctx).sessionId!, { type: 'get_state' })
+    return reply.success ? (reply.data as RpcSessionState) : null
+  }),
+}
 function markChanged(c: OpHandlerContext, field: string) {
   const l = targetLane(c)
   broadcast('ops:changed', { machine: 'local', kind: 'lane', laneRef: l.ref, fields: [field] })

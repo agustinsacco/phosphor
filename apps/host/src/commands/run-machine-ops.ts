@@ -55,6 +55,7 @@ function runSandboxes(
         ownerTrash(!!ports.local && owner, context.platform, context.trashRunner) ??
         transcriptTrash(ports.stateDirectory).move
       )(file),
+    resourceChanged: live.lanesTopic.resourceChanged,
     changed: (roots) => {
       runtime.replaceRoots(roots)
       live.lanesTopic.repositoriesChanged()
@@ -83,6 +84,7 @@ export async function bindRunOps(
   const { runtime, live } = started
   parts.ops = await startRunOps({
     ...started.resources,
+    workspaceLeases: started.leases,
     appServices: parts.services?.appServices,
     sandboxes: runSandboxes(context, ports, started),
     ...daemonLanePorts({
@@ -112,6 +114,14 @@ export async function bindRunOps(
     live,
     command: started.laneCommand,
     shellEnvironment: started.machine.shellEnvironment ?? null,
+    machineHealth: () => ({
+      pi: started.machine.pi ? 'ready' : 'unavailable',
+      control: !ops.enrolled.current
+        ? 'not-enrolled'
+        : ops.enrolled.current.authority.snapshot()
+          ? 'last-heartbeat-accepted'
+          : 'not-ready',
+    }),
     editing: {
       runtime,
       sessionsRoot: piSessionsRoot(context.env, context.home),

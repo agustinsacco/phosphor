@@ -31,6 +31,8 @@ export type OpClass = (typeof OP_CLASSES)[number]
 export interface OpContext {
   /** The op targets the asking lane itself. */
   readonly self: boolean
+  /** The owner recorded the asking lane as this target’s creator. */
+  readonly createdByAsking?: boolean
 }
 
 export type OpArgs = Readonly<Record<string, unknown>>
@@ -47,6 +49,8 @@ export interface OpSpec<A extends OpArgs = OpArgs, S = unknown> {
   readonly args: S
   /** Argument order for the command-line parser. */
   readonly positional?: readonly (keyof A & string)[]
+  /** Which argument identifies the lane (instead of the legacy ref/lane fallback). */
+  readonly laneArg?: 'target' | 'ref' | 'lane'
   readonly tier: OpTier | ((a: A, c: OpContext) => OpTier)
   readonly scope: OpScope | ((a: A, c: OpContext) => OpScope)
   readonly applies: OpApplies
@@ -67,6 +71,10 @@ export interface OpSpec<A extends OpArgs = OpArgs, S = unknown> {
   readonly untrustedResult?: true
   /** False: never accepted with `--host`. */
   readonly routable?: false
+  /** Owner-side deadline override for the lane tool. */
+  readonly deadlineMs?: number
   /** May outlast the Host's answer deadline: answers `OpsJobData` and reports through `job.status`. */
   readonly job?: true
+  /** Pages with --page and --limit; the result carries a top-level next. */
+  readonly paged?: true
 }

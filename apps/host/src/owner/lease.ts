@@ -32,6 +32,19 @@ export class WorkspaceLeases {
     for (const [id, lease] of this.held) if (lease.expires <= now) this.held.delete(id)
   }
 
+  /** Read-only availability hint; a mutation must still acquire the lease. */
+  blocks(path: string): boolean {
+    const overlaps = (p: string) => isInside(p, path) || isInside(path, p)
+    return (
+      [...this.held.values()].some(
+        (lease) => lease.expires > this.now() && lease.paths.some(overlaps),
+      ) ||
+      [...this.starting, ...this.live()].some((entry) =>
+        overlaps(sessionPathKey(entry.workspacePath)),
+      )
+    )
+  }
+
   async take(
     owner: string,
     paths: readonly string[],

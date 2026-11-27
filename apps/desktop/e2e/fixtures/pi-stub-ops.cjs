@@ -5,7 +5,11 @@ const { dirname, join } = require('node:path')
 // Only the model and pi's extension API are fixtures. The Phosphor tool, its
 // editor/confirm handshake, Swarm policy, and application of effects are real.
 function extension(out) {
-  const load = require('jiti').createJiti(__filename, { fsCache: false })
+  const load = require('jiti').createJiti(__filename, {
+    fsCache: false,
+    // A disposable Host build can copy its extensions outside the checkout.
+    alias: { typebox: require.resolve('typebox') },
+  })
   const toolPath = process.argv.find(
     (arg, i) => process.argv[i - 1] === '-e' && arg.endsWith('/phosphor.ts'),
   )

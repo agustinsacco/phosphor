@@ -34,6 +34,7 @@ beforeEach(() => {
       reason: 'Done.',
     })),
     closing: false,
+    deleting: new Set(),
     stopped: undefined,
     closed: false,
     now: () => now,

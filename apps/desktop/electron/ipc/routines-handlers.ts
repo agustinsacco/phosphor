@@ -1,18 +1,14 @@
-import { realpathSync } from 'node:fs'
-import { stat } from 'node:fs/promises'
-import { isAbsolute } from 'node:path'
-import { validateRoutine, type RoutineInput } from '@shared/routines'
 import { remoteRoutineMachines } from './hosts-handlers'
 import { handle } from './handle'
 import { routineScheduler, routinesSnapshot } from '../routines'
 import { configureRoutineBackground } from '../routines/background'
-import { folderTaskObstacle } from '../routines/preflight'
+import { occupiedRoutineFolder } from '../routines/preflight'
 import { broadcast } from '../broadcast'
 import { log } from '../debug-log'
 import { deleteLane } from '../pi/delete-lane'
 import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
-import { gitInfo } from '@phosphor/session-runtime/git/git-info'
+import { checkRoutine, readRoutineInput } from '@phosphor/session-runtime/routines/preflight'
 
 function id(value: unknown): string {
   if (typeof value !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(value))
@@ -20,41 +16,26 @@ function id(value: unknown): string {
   return value
 }
 
-async function input(raw: unknown): Promise<RoutineInput> {
-  const r = validateRoutine(raw)
-  if (!isAbsolute(r.workspacePath) || !(await stat(r.workspacePath)).isDirectory())
-    throw new Error('Choose an existing absolute workspace folder.')
-  return { ...r, workspacePath: realpathSync.native(r.workspacePath) }
-}
-
 export function registerRoutinesHandlers(): void {
   handle('routines:list', () => ({ ...routinesSnapshot(), machines: remoteRoutineMachines() }))
   handle('routines:save', async (_event, raw, routineId, revision) => {
-    const r = await input(raw)
+    const r = await readRoutineInput(raw)
     if (routineId !== undefined) id(routineId)
     if (revision !== undefined && (!Number.isSafeInteger(revision) || revision < 1))
       throw new Error('Invalid revision.')
     routineScheduler().save(r, routineId, revision)
   })
-  handle('routines:check', async (_event, raw) => {
-    const r = await input(raw)
-    if (!piStubPath()) {
-      const health = await checkPiHealth()
-      if (!health.ok) throw new Error(health.message ?? 'pi is unavailable.')
-    }
-    const info = await gitInfo(r.workspacePath)
-    if (r.isolated && !info.isRepo)
-      throw new Error(
-        'Worktree isolation requires a Git repository. Choose Folder task for analysis outside Git.',
-      )
-    // Report what the runner would refuse instead of only what is permanently
-    // misconfigured: these conditions used to be invisible until a run blocked.
-    return {
-      summary:
-        'Folder and pi checked. Model identity is verified at execution. Connector access, account limits, and task results require a real test run, which can have side effects.',
-      warning: r.isolated ? null : await folderTaskObstacle(r.workspacePath, r.intent),
-    }
-  })
+  handle('routines:check', async (_event, raw) =>
+    checkRoutine(
+      await readRoutineInput(raw),
+      async () => {
+        if (piStubPath()) return
+        const health = await checkPiHealth()
+        if (!health.ok) throw new Error(health.message ?? 'pi is unavailable.')
+      },
+      occupiedRoutineFolder,
+    ),
+  )
   handle('routines:run', (_event, routineId, requestId) =>
     routineScheduler().runNow(id(routineId), id(requestId)),
   )

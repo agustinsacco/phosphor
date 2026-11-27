@@ -35,6 +35,21 @@ export function setFolderDirective(
       () => authorized() && state.workspace(id) === cwd,
       HOST_FILE_POLICY,
     )
+    state.options.changed?.({ kind: 'settings', repositoryId: id })
     return cwd
   })
+}
+
+/** The saved override is distinct from effective defaults shown by the settings editor. */
+export function readDirectiveOverrides(state: SettingsContext, id?: string) {
+  const cwd = id && state.workspace(id)
+  if (id && !cwd) throw new SettingsFailure('bad-request', 'Unknown folder.')
+  const file = settingsFile(state.options.configPath, HOST_FILE_POLICY)
+  const validated = validateHostConfig(file.raw)
+  if (!validated.ok) throw new SettingsFailure('bad-request', 'Invalid Host config.')
+  const { agentDirectives, agentDirectivesByProject } = validated.config
+  return {
+    global: agentDirectives,
+    project: cwd ? (agentDirectivesByProject?.[cwd] ?? null) : undefined,
+  }
 }

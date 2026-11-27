@@ -1,4 +1,4 @@
-import { access, constants, realpath, stat } from 'node:fs/promises'
+import { access, constants, lstat, realpath, stat } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import { walkFiles } from '@phosphor/session-runtime/files/walk'
 import { git } from '@phosphor/session-runtime/git/git-exec'
@@ -15,7 +15,10 @@ export class FileFailure extends Error {
     super(code)
   }
 }
-export async function laneRoot(context: FeatureContext, laneId: string): Promise<string> {
+export async function laneRoot(
+  context: Pick<FeatureContext, 'store'>,
+  laneId: string,
+): Promise<string> {
   const lane = context.store.getLane(laneId)
   const repo = lane && context.store.listRepositories().find((r) => r.id === lane.repositoryId)
   if (!lane || lane.removedAt !== null || !repo) throw new FileFailure('unknown-lane')
@@ -32,7 +35,12 @@ export async function laneRoot(context: FeatureContext, laneId: string): Promise
     throw new FileFailure('unknown-lane')
   }
 }
-export async function checkedPath(root: string, path: string, missing = false): Promise<string> {
+export async function checkedPath(
+  root: string,
+  path: string,
+  missing = false,
+  noLinks = false,
+): Promise<string> {
   if (!isFilePath(path)) throw new FileFailure('bad-request')
   const full = join(root, path)
   try {
@@ -41,6 +49,7 @@ export async function checkedPath(root: string, path: string, missing = false): 
     for (const part of path.split('/')) {
       current = join(current, part)
       try {
+        if (noLinks && (await lstat(current)).isSymbolicLink()) throw new FileFailure('bad-request')
         const resolved = await realpath(current)
         if (
           !isInsideResolved(root, resolved) ||
@@ -142,6 +151,7 @@ export function failure(error: unknown): FeatureOutcome {
 }
 export function createFilesFeature(context: FeatureContext): HostFeature {
   const ports = {
+    searchPath: (root: string, path: string) => checkedPath(root, path, true, true),
     laneRoot,
     filePaths,
     checkedPath,
@@ -151,7 +161,8 @@ export function createFilesFeature(context: FeatureContext): HostFeature {
   }
   return {
     capability: 'workspaces.read',
-    methods: ['files.list', 'files.read', FILE_BYTES_METHOD],
-    call: (method, params) => queryFiles(context, method, params, ports),
+    methods: ['files.list', 'files.read', 'files.search', FILE_BYTES_METHOD],
+    call: (method, params, _authorized, _clientId, signal) =>
+      queryFiles(context, method, params, ports, signal),
   }
 }

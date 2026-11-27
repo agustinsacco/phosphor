@@ -1,4 +1,5 @@
 import type { LaneEffect } from '@phosphor/shared/ops'
+import { authenticatedLane } from './principals'
 import type { Judged } from './judge'
 import type { PipelineEnv } from './pipeline'
 import type { LaneDeferred, OpHandlerResult } from './types'
@@ -6,6 +7,8 @@ import { undoRecordFor } from './undo'
 
 /** Bind approval to the controller fence that was shown, not just to the target lane id. */
 export function confirmationArgs(j: Judged) {
+  if (j.spec.name === 'lane.message')
+    return { ...j.args, sender: authenticatedLane(j.principal), controlFence: j.lane?.controlFence }
   return j.lane?.controlFence !== undefined &&
     ['lane.stop', 'lane.archive', 'lane.delete'].includes(j.spec.name)
     ? { ...j.args, controlFence: j.lane.controlFence }

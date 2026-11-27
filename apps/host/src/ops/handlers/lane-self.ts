@@ -1,15 +1,17 @@
+import type { RpcSessionState } from '@phosphor/shared/rpc'
 import type { ContextFilePrefs } from '@phosphor/shared/context-files'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import {
   contextFileArgs,
   laneControlHandlers,
+  laneControlsRead,
   laneEffect,
 } from '@phosphor/session-runtime/ops/lane-controls'
 import { dataResult, op } from '@phosphor/session-runtime/ops/results'
 import type { OpHandler, OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import type { DaemonHandlerDeps } from './index'
 import { laneRename } from './lane-rename'
-import { liveSession, requireRuntime, targetLane } from './lane-target'
+import { laneCall, liveSession, requireRuntime, targetLane } from './lane-target'
 
 /** pi-ext/context-files.ts's command: the composer's CLAUDE.md / AGENTS.md checkboxes send it. */
 const CONTEXT_FILES_COMMAND = 'phosphor-context-files'
@@ -57,6 +59,12 @@ export function laneSelfHandlers(deps: DaemonHandlerDeps): Readonly<Record<strin
   const own = laneControlHandlers(targetLane)
   return {
     ...own,
+    'lane.controls': laneControlsRead(
+      async (ctx) =>
+        (await laneCall(deps.lanes, 'lane.state', {
+          laneId: targetLane(ctx).laneId,
+        })) as RpcSessionState | null,
+    ),
     ...markHandlers(deps),
     'contextFiles.set': op<Partial<ContextFilePrefs>>(async (args, ctx) => {
       if (isOwnLane(ctx)) return own['contextFiles.set'](args, ctx)

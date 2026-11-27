@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import type { OpPrincipal } from '@phosphor/session-runtime/ops/types'
 import { readIndex } from '@phosphor/session-runtime/artifacts/artifact-indexer'
 import { ArtifactLibrary } from '@phosphor/session-runtime/artifacts/artifact-library'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import { openStore, type HostStore } from '../../lanes/store'
-import { ARTIFACT_REMOVE_REFUSALS, removeArtifact } from './artifact-remove'
+import { ARTIFACT_REMOVE_REFUSALS, artifactRemoveHandlers, removeArtifact } from './artifact-remove'
 import type { DaemonHandlerDeps } from './index'
 
 const uid = process.getuid?.()
@@ -99,4 +100,33 @@ it('refuses a conversation still on disk, an unknown artifact and a malformed ke
   await expect(removeArtifact(deps, '../x/notes')).rejects.toEqual(
     refusal('bad-request', ARTIFACT_REMOVE_REFUSALS.key),
   )
+})
+
+it('does not remove a sibling artifact when the key names a missing artifact', async () => {
+  const { file, sessionId } = await sessionWithArtifact()
+  rmSync(file)
+  await expect(removeArtifact(deps, `${sessionId}/missing`)).rejects.toMatchObject({
+    code: 'bad-request',
+  })
+  expect(index(sessionId)?.artifacts.notes).toBeDefined()
+})
+
+const principals: OpPrincipal[] = [
+  { kind: 'agent', laneRef: 'fixture', sessionId: 'agent', lineage: 0, unattended: false },
+  { kind: 'surface', label: 'Desktop', clientId: 'desktop', via: 'owner' },
+]
+it.each(principals)('invalidates artifacts once after remove by $kind', async (principal) => {
+  const { file, sessionId } = await sessionWithArtifact()
+  rmSync(file)
+  const resourceChanged = vi.fn()
+  const handlers = artifactRemoveHandlers({
+    ...deps,
+    lanes: { lanesTopic: { resourceChanged } },
+  } as unknown as DaemonHandlerDeps)
+  await handlers['artifact.remove'](
+    { key: `${sessionId}/notes` },
+    { principal, signal: new AbortController().signal, log: () => {} },
+  )
+  expect(index(sessionId)).toBeNull()
+  expect(resourceChanged).toHaveBeenCalledExactlyOnceWith({ kind: 'artifacts' })
 })

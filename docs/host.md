@@ -265,15 +265,17 @@ phosphor logout [--config FILE] [--local]
 phosphor run [--config FILE] [--supervisor launchd]
 phosphor service install|status|restart|logs|uninstall [--config FILE]
 phosphor service logs [--config FILE] [--follow]
+phosphor service update # catalog op; also phosphor service.update
 phosphor tailscale status|enable|disable [--config FILE]
 phosphor update [--version X.Y.Z] [--check] [--json]
 phosphor update --rollback [--json]
 phosphor uninstall [--purge --yes] [--json]
 phosphor version [--json]  # --version and -v also print the version
-phosphor help
+phosphor --help
+phosphor help [DOMAIN [VERB]]
 ```
 
-`--help` also prints usage.
+`phosphor --help` prints installer and Host usage with the static catalog. `phosphor help` asks the running owner about its catalog.
 
 stdout carries only the report or the JSON. Usage errors and accept's progress
 go to stderr.
@@ -293,7 +295,7 @@ agents and pipes read the same lines as before.
 for dev builds (`0.0.0-dev.source` when no commit is stamped). `version --json`
 reports these release features: `ops`, `machine-grants`, `headroom`, `app-services`, `service-pause`, `local-mode`, `owner-socket`, `owner-lock` and `migrate-v1`. An attested owner sees the same list in `machine.local.features`. These describe the bundle; a client uses the connected Host’s `ready` frame for admission. See [This Mac’s service](local-service.md) for the installation gate.
 
-Fixed commands win over catalog names. For tool syntax, routing, approvals and catalog-specific exit codes, see [From a terminal](agent-control.md#from-a-terminal). `setup --local` takes `--owner-id`, `--owner-key` and `--owner-label`; it pairs without enrollment and can install in standby. It does not replace a valid configuration.
+Fixed commands win over catalog names. Top-level `update` is the installer; `service update` asks for a governed background update through the running service. For tool syntax, routing, approvals and catalog-specific exit codes, see [From a terminal](agent-control.md#from-a-terminal). `setup --local` takes `--owner-id`, `--owner-key` and `--owner-label`; it pairs without enrollment and can install in standby. It does not replace a valid configuration.
 
 | Exit          | Meaning                                                                                                             |
 | ------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -1815,7 +1817,16 @@ diff or textconv, and no lazy fetch of missing objects. Clean filters that the
 machine owner configured (Git LFS, for example) still run during `git.status` and
 `git.diff`, as they do for the owner's own git. Turning them off can falsely report
 filtered files, including Git LFS files, as modified. A caller cannot choose or
-change the command.
+change the command. The [Git and worktree catalog](agent-control.md#git-and-worktrees)
+also serves governed checkout writes and managed worktree operations; this does
+not add write controls to the Host Files or Changes UI.
+
+The Host publishes payload-free [resource invalidations](remote-protocol.md#resource-invalidations)
+from shared mutation paths used by the app and the catalog. For example, purging
+an archive updates both the lane projection and the archive inventory. Git hints
+refresh the affected checkout or repository; branch changes also publish lane
+summary deltas. Existing lane, repository and routine streams still run, and
+ordinary reads remain the source of truth.
 
 `workspaces.read` also covers the GitHub reads, on the Host's own `gh` and
 credentials. `github.prs {repositoryId, options?}` finds the PRs of a configured

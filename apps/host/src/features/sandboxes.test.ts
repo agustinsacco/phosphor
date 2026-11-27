@@ -125,3 +125,32 @@ it('refuses a rename onto an occupied transcript directory without moving the wo
   expect(existsSync(path)).toBe(true)
   expect(existsSync(other)).toBe(false)
 })
+
+it('scans only empty unleased sandboxes and publishes folders and sandboxes after exact cleanup', async () => {
+  const changed = vi.fn()
+  const service = createHostSandboxes({ ...p, resourceChanged: changed })
+  const { path: a } = await service.create('a')
+  const { path: b } = await service.create('b')
+  const { path: c } = await service.create('c')
+  mkdirSync(join(c, '.git'))
+  const held = await p.leases.take('test', [b], Infinity)
+  changed.mockClear()
+  const scan = await service.cleanup.inspect()
+  expect(scan).toMatchObject({
+    rows: [{ path: a, bytes: expect.any(Number) }],
+    skipped: { leased: 1, 'not-empty': 1 },
+  })
+  expect(changed).not.toHaveBeenCalled()
+  expect(existsSync(a)).toBe(true)
+  if ('leaseId' in held) p.leases.release('test', held.leaseId)
+  const { rows } = await service.cleanup.inspect()
+  writeFileSync(join(b, 'new'), 'work')
+  const signal = new AbortController().signal
+  await expect(service.cleanup.apply(rows, signal)).rejects.toThrow('stale')
+  expect(existsSync(a)).toBe(true)
+  expect(changed).not.toHaveBeenCalled()
+  expect(await service.cleanup.apply(scan.rows, signal)).toEqual({ removed: 1, remaining: 0 })
+  expect(existsSync(a)).toBe(false)
+  expect(existsSync(join(b, 'new'))).toBe(true)
+  expect(changed.mock.calls.flat()).toEqual([{ kind: 'folders' }, { kind: 'sandboxes' }])
+})

@@ -1,5 +1,16 @@
 import { PAGED_LANE_OPS } from '../../host-protocol-paged-lanes'
-import { caps, domain, id, ids, object, optional, path, previous, workspaceWrite } from './spec'
+import {
+  caps,
+  domain,
+  id,
+  ids,
+  object,
+  optional,
+  paged,
+  path,
+  previous,
+  workspaceWrite,
+} from './spec'
 
 const read = domain('machine', caps('workspaces.read'))
 const write = domain('machine', workspaceWrite)
@@ -7,6 +18,7 @@ const sandbox = { flag: 'sandboxes' } as const
 const byPath = { positional: ['path'] } as const
 export const folders = [
   read(PAGED_LANE_OPS.folders, 'List a page of folders.', 'read', undefined, {
+    ...paged,
     flag: 'pagedLanes',
   }),
   read(
@@ -14,7 +26,7 @@ export const folders = [
     'Browse folders on this machine.',
     'read',
     object({ path: optional(path) }),
-    byPath,
+    { ...byPath, ...paged },
   ),
   write('folder.add', 'Add an existing folder.', 'create', object({ path }), {
     ...byPath,
@@ -34,7 +46,7 @@ export const folders = [
     object({ id }),
     { positional: ['id'] },
   ),
-  read('sandbox.list', 'List sandboxes.', 'read', undefined, sandbox),
+  read('sandbox.list', 'List sandboxes.', 'read', undefined, { ...sandbox, ...paged }),
   write('sandbox.create', 'Create a sandbox.', 'create', object({ name: id }), {
     ...sandbox,
     positional: ['name'],

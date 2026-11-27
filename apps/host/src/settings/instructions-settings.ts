@@ -35,10 +35,11 @@ export async function writeInstructionsSettings(
   content: string,
   revision: string,
   authorized: () => boolean,
+  directory = state.agentDir,
 ): Promise<void> {
-  await withSettingsFileLock(globalInstructionsPath(state.agentDir).path, async () => {
+  await withSettingsFileLock(globalInstructionsPath(directory).path, async () => {
     try {
-      writeGlobalInstructions(state.agentDir, content, revision, POLICY, () => {
+      writeGlobalInstructions(directory, content, revision, POLICY, () => {
         if (!authorized())
           throw new SettingsFailure('forbidden', 'Configuration access was revoked.')
         return true
@@ -47,4 +48,5 @@ export async function writeInstructionsSettings(
       throw settingsFailure(error)
     }
   })
+  state.options.changed?.({ kind: 'settings' })
 }

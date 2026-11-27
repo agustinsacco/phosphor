@@ -294,6 +294,14 @@ const HOST_FRAMES: Table<HostFrame> = {
   'lanes-delta': {
     delta: [DELTA, 'stripped', { ...DELTA, cursor: AFTER }, { ...DELTA, remove: ['bad'] }],
   },
+  'resource-changed': {
+    changed: [
+      { type: 'resource-changed', id: 'lanes', change: { kind: 'archives' } },
+      'stripped',
+      { type: 'resource-changed', id: 'lanes', change: { kind: 'routes' } },
+      { type: 'resource-changed', id: 'lanes', change: { kind: 'archives', laneId: 'bad' } },
+    ],
+  },
   'routines-changed': {
     changed: [ROUTINES, 'rejected', { ...ROUTINES, cursor: AFTER }, { ...ROUTINES, id: 'a.b' }],
   },

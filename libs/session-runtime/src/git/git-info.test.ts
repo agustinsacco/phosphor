@@ -64,6 +64,16 @@ describe('Git display cache integration', () => {
     expect(invalidate).toHaveBeenCalledTimes(2)
   })
 
+  it('classifies commands after leading -c overrides', async () => {
+    const invalidate = vi.spyOn(gitInfoCache, 'invalidate')
+    await runner.git(repo, ['-c', 'core.fsmonitor=false', 'status', '--porcelain'])
+    expect(invalidate).not.toHaveBeenCalled()
+    await expect(
+      runner.git(repo, ['-c', 'core.fsmonitor=false', 'checkout', 'missing-branch']),
+    ).rejects.toThrow()
+    expect(invalidate).toHaveBeenCalledTimes(2)
+  })
+
   it('deduplicates overlapping sidebar batches and preserves original result keys', async () => {
     const spy = vi.spyOn(runner, 'git')
     const alias = `${repo}/.`

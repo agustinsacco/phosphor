@@ -31,6 +31,7 @@ Set up a Host: phosphor setup. Re-run it to resume or finish setup.
                                     keep this machine online with heartbeats
   service install|status|restart|logs|uninstall [--config FILE]
                                     manage the Linux or macOS user service; logs takes --follow
+  service update (or service.update) pause lanes and update via the running service
   tailscale status|enable|disable [--config FILE]
                                     expose the loopback API on your tailnet, never Funnel
   update [--version X.Y.Z] [--check] [--json]
@@ -40,6 +41,7 @@ Set up a Host: phosphor setup. Re-run it to resume or finish setup.
   uninstall [--purge --yes] [--json] remove the program and service; keep data by default
   version [--json]                  print the Host's version
 
+Static catalog (use phosphor help for the running service):
 ${renderHelp()}
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { LANE_WAIT_DEADLINE_MS } from '@phosphor/shared/ops'
 import type { CommandResult } from './connection'
 import { OPS_HOST_TOO_OLD, OPS_UNCONFIRMED, OPS_UNREADABLE, opsRun } from './ops'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
@@ -25,6 +26,13 @@ describe('opsRun', () => {
     expect(c.send).not.toHaveBeenCalled()
     await expect(opsRun(c, request, { write: true })).resolves.toEqual(ok)
     expect(c.send).toHaveBeenCalledExactlyOnceWith({ type: 'ops.run', ...request })
+  })
+
+  it('allows the remote lane wait to finish before the query transport expires', async () => {
+    const c = connection({})
+    const wait = { op: 'lane.wait', args: { ref: 'lane', timeout: 1800 } }
+    await expect(opsRun(c, wait, { write: false })).resolves.toEqual(ok)
+    expect(c.call).toHaveBeenCalledExactlyOnceWith('ops.run', wait, LANE_WAIT_DEADLINE_MS + 2000)
   })
 
   it('reads in-band denials and confirmations as they are', async () => {
@@ -82,5 +90,24 @@ describe('opsRun', () => {
     )
     expect(c.call).not.toHaveBeenCalled()
     await expect(opsRun(c, request, { write: false })).rejects.toThrow(OPS_UNREADABLE)
+  })
+
+  // Hosts before request `limit` parse ops.run with exact keys and answer `bad-request`
+  // before running anything, so asking again without the page size is safe.
+  it('asks an older Host again without --limit, and only then', async () => {
+    const badRequest: CallResult = {
+      type: 'result',
+      id: 'c',
+      ok: false,
+      error: { code: 'bad-request', message: 'bad-request' },
+    }
+    const c = connection({})
+    c.call.mockResolvedValueOnce(badRequest)
+    await expect(opsRun(c, { ...request, limit: 10 }, { write: false })).resolves.toEqual(ok)
+    expect(c.call).toHaveBeenNthCalledWith(1, 'ops.run', { ...request, limit: 10 })
+    expect(c.call).toHaveBeenNthCalledWith(2, 'ops.run', request)
+    const plain = connection({ call: badRequest })
+    await expect(opsRun(plain, request, { write: false })).rejects.toThrow('bad-request')
+    expect(plain.call).toHaveBeenCalledOnce()
   })
 })

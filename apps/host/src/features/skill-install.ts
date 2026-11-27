@@ -20,7 +20,7 @@ const forbidden: FeatureOutcome = {
  */
 export function createSkillInstallFeature(
   context: FeatureContext,
-  ports: MachinePorts & { skillsRoot: string; invalidateCatalogue?: () => void },
+  ports: MachinePorts & { skillsRoot: string },
 ): HostFeature {
   let tail: Promise<unknown> = Promise.resolve()
   let pending = 0
@@ -39,7 +39,7 @@ export function createSkillInstallFeature(
         overwrite,
         elsewhere,
       })
-      if (data.status === 'installed') ports.invalidateCatalogue?.()
+      if (data.status === 'installed') context.resourceChanged?.({ kind: 'skills' })
       context.log('skills.install', { name: bundle.name, status: data.status })
       return { ok: true, data }
     } catch (error) {

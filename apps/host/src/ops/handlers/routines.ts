@@ -1,7 +1,13 @@
 import { routineRunHandlers } from './routine-output'
+import { laneRefFor } from '../lane-ref'
 import { randomUUID } from 'node:crypto'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
-import { dataResult, op, pageRows } from '@phosphor/session-runtime/ops/results'
+import {
+  dataResult,
+  op,
+  pageInventory,
+  routineColumns,
+} from '@phosphor/session-runtime/ops/results'
 import type { OpHandler } from '@phosphor/session-runtime/ops/types'
 import type { UndoPorts } from '@phosphor/session-runtime/ops/undo'
 import {
@@ -88,9 +94,27 @@ export async function routineUndoCurrent(
 export function routineHandlers(deps: DaemonHandlerDeps): Readonly<Record<string, OpHandler>> {
   return {
     'routine.list': op(async (_, ctx) =>
-      pageRows(parseRoutineList(await resourceCall(deps, 'routines.list', {})) ?? [], ctx),
+      pageInventory(
+        parseRoutineList(await resourceCall(deps, 'routines.list', {})) ?? [],
+        ctx,
+        routineColumns,
+        { surface: { limit: 50, shrink: true } },
+      ),
     ),
     ...routineRunHandlers(deps),
+    'routine.check': op<{ definition: Definition }>(async ({ definition }) => {
+      if (!deps.routines?.check)
+        throw new OpRefusal('unavailable', 'Routine preflight unavailable.')
+      return dataResult(
+        await deps.routines.check({ ...definition, enabled: false, trusted: false }),
+      )
+    }),
+    'routine.fromLane': op<{ runId: string }>(async ({ runId }, ctx) => {
+      if (!deps.routines?.promote)
+        throw new OpRefusal('unavailable', 'Routine promotion unavailable.')
+      const id = await deps.routines.promote(runId, ctx.signal)
+      return { ...dataResult({ ref: laneRefFor(deps.selfIds(), id) }), undo: false }
+    }),
     'routine.create': op<{ definition: Definition }>(async ({ definition }) => {
       const data = await execute(deps, {
         type: 'routine.save',

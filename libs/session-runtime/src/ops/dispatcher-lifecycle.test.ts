@@ -159,6 +159,7 @@ describe('tool replies', () => {
     expect(renamed).toEqual({
       v: 1,
       id: 'r1',
+      op: 'lane.rename',
       status: 'ok',
       text: 'Renamed.',
       applies: 'now',
@@ -179,7 +180,7 @@ describe('tool replies', () => {
       },
     })
     const read = await h.tool({ op: 'lane.read', args: { ref: OTHER } })
-    expect(read).toMatchObject({ status: 'ok', untrusted: true })
+    expect(read).toMatchObject({ status: 'ok', op: 'lane.read', read: true, untrusted: true })
     expect(read.status === 'ok' && read.effects).toBeFalsy()
   })
 

@@ -4,9 +4,11 @@ import { parseFileParams, type FileParams } from '@phosphor/shared/host-protocol
 import { FILE_BYTES_METHOD, parseFileBytesParams } from '@phosphor/shared/host-protocol-file-bytes'
 import { errnoIs } from '@phosphor/session-runtime/fs-safety'
 import type { FeatureContext, FeatureOutcome } from '../feature'
+import { parseSearch, searchLaneFiles } from './search'
 import { guardedBytes, guardedRead, type ReadPorts } from './read'
 
 export interface QueryPorts extends ReadPorts {
+  searchPath?(root: string, path: string): Promise<string>
   laneRoot(context: FeatureContext, laneId: string): Promise<string>
   filePaths(root: string): Promise<string[]>
   failure(error: unknown): FeatureOutcome
@@ -59,12 +61,29 @@ export async function queryFiles(
   method: string,
   params: unknown,
   ports: QueryPorts,
+  signal?: AbortSignal,
 ): Promise<FeatureOutcome> {
-  const query = parseQuery(method, params)
+  const search = method === 'files.search' ? parseSearch(params) : null
+  const query = search
+    ? { target: { laneId: search.laneId } as FileParams, bytes: null }
+    : parseQuery(method, params)
   if (!query) return ports.failure(ports.error('bad-request'))
   const p = query.target
   try {
     const { root, recheck } = await queryRoot(context, p, ports)
+    if (search && ports.searchPath) {
+      const searchPath = ports.searchPath
+      const result = await searchLaneFiles(
+        root,
+        search.query,
+        await ports.filePaths(root),
+        { ...ports, checkedPath: searchPath },
+        signal,
+      )
+      recheck()
+      if ((await ports.laneRoot(context, search.laneId)) !== root) throw ports.error('unknown-lane')
+      return { ok: true, data: result }
+    }
     if (query.bytes) return await guardedBytes(root, query.bytes, recheck, ports)
     if (method === 'files.list') {
       const files = await ports.filePaths(root)

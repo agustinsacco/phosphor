@@ -105,7 +105,7 @@ describe('reach pool', () => {
     await expect(pool.run(old, read, { write: false })).resolves.toEqual({
       ok: false,
       code: 'unsupported',
-      message: 'Update that Host: old.',
+      message: 'old runs Host 0.0.0, which does not serve lane.list. Update that Host.',
     })
     expect(opsFrames(old)).toEqual([])
     pool.close()
@@ -144,6 +144,27 @@ describe('reach pool', () => {
     expect(bee2.sockets).toHaveLength(1)
     expect(opsFrames(bee2)).toHaveLength(1)
     expect(pool.size()).toBe(0)
+  })
+
+  it('reports a deadline after dispatch as unconfirmed without sending again', async () => {
+    const answer = held()
+    const bee2 = sibling('bee2', answer.handler)
+    const { pool, clock } = setup([bee2])
+    const controller = new AbortController()
+    try {
+      const result = pool.run(bee2, write, {
+        write: true,
+        signal: controller.signal,
+        deadlineAt: clock.now + 1000,
+      })
+      await vi.waitFor(() => expect(answer.waiting).toHaveLength(1))
+      controller.abort()
+      answer.waiting[0]!(LANE_LIST_OK)
+      await expect(result).resolves.toMatchObject({ ok: false, code: 'unconfirmed' })
+      expect(opsFrames(bee2)).toHaveLength(1)
+    } finally {
+      pool.close()
+    }
   })
 
   it('reports an unknown receipt as unconfirmed', async () => {
@@ -263,7 +284,7 @@ describe('reach pool', () => {
     ['reach-off', 'forbidden', 'Machine reach is off for bee2 or for this machine.'],
     ['unavailable', 'offline', 'bee2 is offline, has no tailnet address'],
     ['signed-out', 'forbidden', 'This machine is not enrolled'],
-    ['too-many-requests', 'denied', 'Too many machine grants this minute.'],
+    ['rate-limited', 'denied', 'rate-limited the request'],
   ] as const)('reads a %s grant refusal as %s', async (reason, code, text) => {
     const bee2 = sibling('bee2')
     const pool = createReachPool({
@@ -290,4 +311,72 @@ describe('reach pool', () => {
     expect(opsFrames(bee2)).toEqual([])
     pool.close()
   })
+})
+
+it('reserves dedicated wait sockets without starving normal ops and closes them on result or abort', async () => {
+  const waits = held()
+  const host = sibling('bee2', (request) =>
+    request.op === 'lane.wait' ? waits.handler() : LANE_LIST_OK,
+  )
+  const { pool } = setup([host], { open: 4 })
+  const wait = { op: 'lane.wait', args: { ref: 'peer' } }
+  const controllers = Array.from({ length: 3 }, () => new AbortController())
+  const pending = controllers.map(({ signal }) => pool.run(host, wait, { write: false, signal }))
+  try {
+    await vi.waitFor(() => expect(waits.waiting).toHaveLength(3))
+    await expect(pool.run(host, wait, { write: false })).resolves.toMatchObject({
+      ok: false,
+      code: 'busy',
+    })
+    expect(host.sockets).toHaveLength(3)
+    await expect(pool.run(host, read, { write: false })).resolves.toMatchObject({ ok: true })
+    expect(host.sockets).toHaveLength(4)
+    controllers[0]!.abort()
+    await expect(pending[0]).resolves.toMatchObject({ ok: false, code: 'timeout' })
+    expect(host.sockets[0]!.client.isOpen()).toBe(false)
+    waits.waiting.slice(1).forEach((resolve) => resolve(LANE_LIST_OK))
+    await Promise.all(pending)
+    expect(host.sockets.map((socket) => socket.client.isOpen())).toEqual([
+      false,
+      false,
+      false,
+      true,
+    ])
+  } finally {
+    controllers.forEach((c) => c.abort())
+    pool.close()
+    await Promise.all(pending)
+  }
+})
+
+it('does not dispatch a wait into the pool’s last free slot', async () => {
+  const host = sibling('bee2')
+  const { pool } = setup([host], { open: 1 })
+  try {
+    await expect(
+      pool.run(host, { op: 'lane.wait', args: { ref: 'peer' } }, { write: false }),
+    ).resolves.toMatchObject({ ok: false, code: 'busy' })
+    expect(host.sockets).toHaveLength(0)
+    await expect(pool.run(host, read, { write: false })).resolves.toMatchObject({ ok: true })
+  } finally {
+    pool.close()
+  }
+})
+
+it('closes the dedicated socket on a dispatched wait error and does not retry', async () => {
+  const host = sibling('bee2', () => {
+    host.sockets[0]!.sever()
+    return LANE_LIST_OK
+  })
+  const { pool } = setup([host])
+  try {
+    await expect(
+      pool.run(host, { op: 'lane.wait', args: { ref: 'peer' } }, { write: false }),
+    ).resolves.toMatchObject({ ok: false, code: 'offline' })
+    expect(host.sockets).toHaveLength(1)
+    expect(host.sockets[0]!.client.isOpen()).toBe(false)
+    expect(pool.size()).toBe(0)
+  } finally {
+    pool.close()
+  }
 })

@@ -15,6 +15,7 @@ import { BranchPicker } from './BranchPicker'
 import { PrRow } from './PrRow'
 import { workspaceName } from '@/lib/path'
 import { useWorkspaceNameTransition } from '@/features/sessions/nameTransition'
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { useGitInfo } from './useGitInfo'
 
 /**
@@ -32,12 +33,42 @@ function chipTitle(branch: string, provisional: boolean, worktreeOf: string | un
   return worktreeOf ? `Worktree of ${worktreeOf}` : `Branch ${branch}`
 }
 
+function useBranchRefresh(
+  hostId: string | undefined,
+  open: boolean,
+  repoPath: string,
+  refresh: (force?: boolean) => void,
+) {
+  const gitRevision = useHostResourceRevision(hostId ?? null, 'git')
+  /**
+   * Re-read after any worktree-store mutation — rename, checkout, add, remove.
+   *
+   * The fs watcher above cannot cover these: they all write inside `.git`,
+   * which `fs:watchWorkspace` does not report, so the chip kept displaying
+   * whatever `git:info` said when the workspace was opened. That was invisible
+   * until branches started being renamed under a live session (a chat's branch
+   * is cut from a slug and retitled once its name arrives), which left the chip
+   * naming a branch that no longer existed.
+   */
+  const repoLoadedAt = useWorktreesStore((s) => repoWorktrees(s, repoPath).loadedAt)
+  useEffect(() => {
+    if (repoLoadedAt === 0 && gitRevision === 0) return
+    refresh(true)
+  }, [repoLoadedAt, gitRevision, refresh])
+
+  useEffect(() => {
+    if (gitRevision !== 0 && open) void useWorktreesStore.getState().refresh(repoPath)
+  }, [gitRevision, open, repoPath])
+}
+
 export function BranchControl({
   workspacePath,
+  hostId,
   selectPath,
   configured,
 }: {
   workspacePath: string
+  hostId?: string
   selectPath?: (cwd: string) => void
   configured?: (path: string) => boolean
 }): React.JSX.Element | null {
@@ -63,21 +94,7 @@ export function BranchControl({
     void useWorktreesStore.getState().syncRemote(repoPath)
   }, [info?.isRepo, repoPath])
 
-  /**
-   * Re-read after any worktree-store mutation — rename, checkout, add, remove.
-   *
-   * The fs watcher above cannot cover these: they all write inside `.git`,
-   * which `fs:watchWorkspace` does not report, so the chip kept displaying
-   * whatever `git:info` said when the workspace was opened. That was invisible
-   * until branches started being renamed under a live session (a chat's branch
-   * is cut from a slug and retitled once its name arrives), which left the chip
-   * naming a branch that no longer existed.
-   */
-  const repoLoadedAt = useWorktreesStore((s) => repoWorktrees(s, repoPath).loadedAt)
-  useEffect(() => {
-    if (repoLoadedAt === 0) return
-    refresh(true)
-  }, [repoLoadedAt, refresh])
+  useBranchRefresh(hostId, open, repoPath, refresh)
 
   const naming = useWorkspaceNameTransition(workspacePath)
 

@@ -1,3 +1,4 @@
+import type { HostResourceChange } from '@phosphor/shared/host-protocol'
 import { fetchSocketHello, openLocalSocket } from '@phosphor/session-runtime/host-local/transport'
 import { randomBytes } from 'node:crypto'
 import { createHostConnection } from '@phosphor/host-client/connection'
@@ -40,6 +41,7 @@ export interface LocalMachinePorts {
     hostId: string,
     event: Parameters<NonNullable<ConnectionPorts['onAttention']>>[0],
   ) => void
+  onResourceChanged?: (hostId: string, change: HostResourceChange) => void
   onRoutinesChanged?: (hostId: string) => void
   now?: () => number
   /** Tests replace the transport; production uses `transport.ts`. */
@@ -116,6 +118,7 @@ export function createLocalMachineConnection(
     log: ports.log,
     traffic: (...frame) => ports.traffic?.(machineId, ...frame),
     onAttention: (event) => ports.onAttention?.(machineId, event),
+    onResourceChanged: (change) => ports.onResourceChanged?.(machineId, change),
     onRoutinesChanged: () => ports.onRoutinesChanged?.(machineId),
     now: ports.now,
   })

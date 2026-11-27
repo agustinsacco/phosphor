@@ -34,21 +34,10 @@ import {
   remoteLaneGroupKey,
   requestReveal,
 } from '@/features/sessions/laneReveal'
-
+import { attachHostResourceChanges } from './hostResourceChanges'
+import { removedHostLaneNotice } from './hostRefusals'
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
-const laneRemoved = (machine = localMachineLabel()): string => `This lane was removed on ${machine}`
-export { REMOTE_NOT_READY } from './hostRefusals'
-export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
-  // A first attempt is not a reconnection; the wait notes (`connectingTo`) say the same.
-  return state === 'ready'
-    ? 'Connected'
-    : state === 'connecting'
-      ? 'Connecting'
-      : state === 'reconnecting'
-        ? 'Reconnecting'
-        : 'Down'
-}
-
+export { connectionLabel, REMOTE_NOT_READY } from './hostRefusals'
 export function useActiveMachine(): HostTarget {
   return useSessionsStore((s) =>
     s.activeSessionId ? (s.live[s.activeSessionId]?.target ?? LOCAL) : LOCAL,
@@ -201,7 +190,8 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const host = hosts[remote.hostId]
     const label = machineLabel(remote.hostId)
     if (host?.state !== 'ready') return `${label} is offline`
-    if (!host.lanes.some((lane) => lane.laneId === remote.laneId)) return laneRemoved(label)
+    if (!host.lanes.some((lane) => lane.laneId === remote.laneId))
+      return removedHostLaneNotice(label)
     return undefined
   }
   try {
@@ -220,7 +210,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     const problemAfterOpen = unavailable()
     if (problemAfterOpen) throw new Error(problemAfterOpen)
     const entry = sessionId ? useSessionsStore.getState().live[sessionId] : undefined
-    if (!sessionId || !entry) throw new Error(laneRemoved())
+    if (!sessionId || !entry) throw new Error(removedHostLaneNotice())
     stopWatching()
     alignLaneMachineFilter(remote?.hostId ?? 'local')
     useSessionsStore.getState().activate(sessionId)
@@ -244,7 +234,8 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
       }
     }
     if (!current()) return false
-    const message = problem ?? (remote ? 'Could not open the remote lane.' : laneRemoved())
+    const message =
+      problem ?? (remote ? 'Could not open the remote lane.' : removedHostLaneNotice())
     useRemoteLanesStore.setState({ error: message })
     useExtensionUiStore.getState().pushToast(message, 'error')
     settleOpening(nav, message)
@@ -282,7 +273,6 @@ function acceptSnapshot(hosts: HostsSnapshot): void {
   }))
 }
 
-/** Main owns the bounded cache. Refetch serially, and reject replies after detach. */
 export function attachRemoteLanesListener(): () => void {
   useRemoteLanesStore.setState({ snapshotStatus: 'loading' })
   let active = true
@@ -357,6 +347,7 @@ export function attachRemoteLanesListener(): () => void {
       if (state.activeSessionId) void refreshRemoteArtifacts(state.activeSessionId)
     }
   })
+  const offResources = attachHostResourceChanges()
   reportFocus()
   const offChanged = window.phosphor.onHostsChanged(() => void refresh())
   const offAttention = window.phosphor.onHostAttention((event) => {
@@ -386,6 +377,7 @@ export function attachRemoteLanesListener(): () => void {
     active = false
     invalidateRemoteArtifactReads()
     offFocus()
+    offResources()
     offChanged()
     offAttention()
     offOpen()

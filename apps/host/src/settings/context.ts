@@ -1,3 +1,4 @@
+import type { HostResourceChange } from '@phosphor/shared/host-protocol'
 import { createHash } from 'node:crypto'
 import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
@@ -15,6 +16,7 @@ import {
 } from '@phosphor/session-runtime/pi/settings-file'
 
 export interface MachineSettingsOptions {
+  changed?: (change: HostResourceChange) => void
   invalidateCatalogue?: () => void
   context: FeatureContext
   configPath: string

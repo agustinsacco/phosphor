@@ -15,18 +15,13 @@ import {
 } from '@phosphor/shared/host-protocol-ops'
 import { OP_CATALOG, type CatalogSpec } from '@phosphor/shared/ops-catalog'
 import type { AuditDecision, LaneEffect, OpFacts } from '@phosphor/shared/ops'
-import {
-  inverse,
-  completed,
-  afterAudit,
-  confirmationArgs,
-  firstLine,
-  withToast,
-} from './completion'
+import { inverse, completed, afterAudit, confirmationArgs, withToast } from './completion'
 import type { UndoRecord } from './audit'
-import { orderDeferred, type LaneDeferredQueue } from './deferred'
+import type { LaneDeferredQueue } from './deferred'
+import { askingLanePending, placeDeferred, reloadPlan } from './pipeline-deferred'
 import {
   argsError,
+  availability,
   judgeOp,
   laneRefArg,
   policyCheck,
@@ -39,12 +34,13 @@ import {
 import { LANE_CREATING_OPS, type OpLimits } from './limits'
 import { policyVerdict } from './policy'
 import { askingSession, confirmOrigin, isUnattended } from './principals'
-import { clipBytes, routeOp, routeRefusal, routeTargets } from './route'
+import { laneHostConflict, routeOp, routeRefusal, routeSelection, routeTargets } from './route'
+import { clipBytes } from './route-result'
 import { createRouteBatches, type RouteBatches } from './route-batch'
 import { builtinHandlers, confirmItems, OpRefusal } from './builtins'
 import { REDEMPTION } from './confirm-message'
 import type { OpRunContext, OpsDispatcherDeps } from './ports'
-import type { LaneDeferred, OpHandler, OpHandlerResult, OpPrincipal, OpsBinding } from './types'
+import type { OpHandler, OpHandlerResult, OpPrincipal, OpsBinding, OpDeadline } from './types'
 
 /** The pipeline's answer: the wire result plus what only a lane's own tool receives. */
 export interface OpOutcome {
@@ -54,22 +50,15 @@ export interface OpOutcome {
   readonly untrusted?: true
 }
 
-export interface OpRunExtras {
+export interface OpRunExtras extends OpDeadline {
   /** What the asking lane's tool reported; only `runFromTool` has it. */
   readonly facts?: OpFacts
   readonly hosts?: readonly string[] | 'all'
-  readonly signal: AbortSignal
 }
 
 const denied = (code: OpsDenyCode, text: string): OpOutcome => ({
   result: { status: 'denied', code, text: clipBytes(text, 1000) },
 })
-
-const REFUSED_RELOAD = {
-  live: 'This lane cannot reload while sub-agent work is live; the change applies on its next reload.',
-  again:
-    'This lane already reloaded since the user’s last message; the change applies on its next reload.',
-}
 
 /** What every pipeline step reads: the owner's binding, the ports and the in-memory state. */
 export interface PipelineEnv {
@@ -167,53 +156,6 @@ async function ask(env: PipelineEnv, j: Judged): Promise<OpOutcome | null> {
   return { result }
 }
 
-/** The self-reload rule: one per user prompt, never under live sub-agent work. */
-function reloadPlan(env: PipelineEnv, j: Judged, out: OpHandlerResult) {
-  const items = out.deferred ?? []
-  if (j.spec.applies !== 'reload' || !j.self || j.principal.kind !== 'agent')
-    return { items, note: '' }
-  const withoutReload = items.filter((item) => item.kind !== 'reload')
-  const account = items.some((i) => i.kind === 'account')
-  if (account && j.lane?.facts?.subagentsLive) throw new OpRefusal('busy', REFUSED_RELOAD.live)
-  if (j.lane?.facts?.subagentsLive) return { items: withoutReload, note: REFUSED_RELOAD.live }
-  if (!env.deferred.claimReload(j.principal.sessionId)) {
-    if (account) throw new OpRefusal('busy', REFUSED_RELOAD.again)
-    return { items: withoutReload, note: REFUSED_RELOAD.again }
-  }
-  if (account) return { items: withoutReload, note: '', terminate: true as const }
-  const reload: LaneDeferred = { kind: 'reload', what: firstLine(out.text) || j.spec.name }
-  return {
-    items: items.some((item) => item.kind === 'reload') ? items : [...items, reload],
-    note: '',
-    terminate: true as const,
-  }
-}
-
-/** The asking lane's own work waits for its run; another lane's waits only while it runs. */
-async function placeDeferred(
-  env: PipelineEnv,
-  j: Judged,
-  items: readonly LaneDeferred[],
-): Promise<void> {
-  if (items.length === 0) return
-  const own = j.self && j.principal.kind === 'agent' ? j.principal.sessionId : null
-  const sessionId = own ?? j.lane?.sessionId ?? null
-  if (sessionId === null) {
-    env.deps.log('ops', 'deferred work has no lane', { op: j.spec.name })
-    return
-  }
-  if (own !== null || j.lane?.busy) {
-    env.deferred.hold(sessionId, items)
-    return
-  }
-  const outcome = await env.binding.deferred.apply(sessionId, orderDeferred(items))
-  if (!outcome.ok)
-    env.deps.log('ops', 'deferred work did not apply', {
-      op: j.spec.name,
-      message: outcome.message,
-    })
-}
-
 async function finish(
   env: PipelineEnv,
   j: Judged,
@@ -224,7 +166,9 @@ async function finish(
   const plan = reloadPlan(env, j, out)
   const text = clipBytes(plan.note ? `${out.text}\n${plan.note}` : out.text, OPS_LIMITS.resultBytes)
   const record = j.governed === 'surface' ? null : inverse(env, j, out)
-  const auditId = started ? started.auditId : await audit(env, j, decision, text, record)
+  const auditId = started
+    ? started.auditId
+    : await audit(env, j, decision, out.auditText ?? text, record)
   const undo =
     auditId !== undefined && record !== null && env.binding.audit.get(auditId)?.undo === true
   const items = afterAudit(env, j, auditId, plan.items)
@@ -236,6 +180,7 @@ async function finish(
       status: 'ok',
       text,
       applies: j.spec.applies,
+      ...(j.tier === 'read' ? { read: true as const } : {}),
       ...(out.data !== undefined ? { data: out.data } : {}),
       ...(out.next !== undefined ? { next: out.next } : {}),
       ...(undo ? { undo: true } : {}),
@@ -254,14 +199,24 @@ async function perform(
   signal: AbortSignal,
 ): Promise<OpOutcome> {
   const handler = env.builtins[j.spec.name] ?? env.binding.handlers[j.spec.name]
-  if (!handler) return denied('unsupported', `${j.spec.name} is not available on this machine.`)
+  if (!handler) return denied('unsupported', availability(env.binding, j.spec)!.text)
   const ctx = (s: AbortSignal): OpRunContext => ({
     principal: j.principal,
     reason: j.request.reason,
     signal: s,
     log: env.deps.log,
+    pending: askingLanePending(env, j),
     ...(j.lane ? { lane: j.lane } : {}),
     ...(j.request.page !== undefined ? { page: j.request.page } : {}),
+    ...(j.request.limit !== undefined ? { limit: j.request.limit } : {}),
+    ...(j.spec.name === 'help'
+      ? {
+          help: {
+            catalog: [...env.specs.values()],
+            unavailableReason: (spec: CatalogSpec) => availability(env.binding, spec)?.text,
+          },
+        }
+      : {}),
   })
   try {
     if ((j.spec.job || env.deps.background?.(j.request, j.self)) && env.deps.jobs) {
@@ -295,24 +250,50 @@ async function perform(
 async function executeRouted(
   env: PipelineEnv,
   input: Omit<Parameters<typeof judgeOp>[1], 'target' | 'routed'>,
-  hosts: readonly string[] | 'all',
+  selection: {
+    hosts: readonly string[] | 'all'
+    laneHost?: string
+    batch: boolean
+    local?: boolean
+  },
+  budget: OpDeadline,
 ): Promise<OpOutcome | null> {
   const j = judgeOp(env.binding, { ...input, target: { self: false }, routed: true })
   const refusal = routeRefusal(env.binding, env.limits, j)
   if (refusal) return refuse(env, j, refusal)
   const confirm = j.request.confirm
-  // A pending batch already holds the machines the user approved.
-  const targets =
-    confirm && env.batches.has(confirm.confirmId) ? [] : await routeTargets(env.deps, hosts)
-  if (targets === 'self') return null
-  if ('code' in targets) return refuse(env, j, targets)
+  // A pending batch already holds the approved machines. A qualified ref still
+  // has to agree with an explicitly named host before we redeem the approval.
+  const remembered = confirm !== undefined && env.batches.has(confirm.confirmId)
+  const checkHost = selection.laneHost !== undefined && selection.hosts[0] !== selection.laneHost
+  const resolved =
+    remembered && !checkHost ? null : await routeTargets(env.deps, selection.hosts, budget)
+  if (resolved !== null) {
+    const conflict = laneHostConflict(selection.laneHost, resolved, selection.local)
+    if (conflict) return refuse(env, j, conflict)
+    if (resolved === 'self') return null
+    if ('code' in resolved) return refuse(env, j, resolved)
+  }
   const blocked = confirm ? await redeem(env, j, confirm) : null
   if (blocked) return blocked
-  const routed = await routeOp(env.binding, env.deps, env.batches, j, targets)
+  const routed = await routeOp(
+    env.binding,
+    env.deps,
+    env.batches,
+    j,
+    resolved ?? [],
+    budget,
+    selection.batch,
+  )
   if ('code' in routed) return refuse(env, j, routed)
   const { result } = routed
-  await audit(env, j, routed.decision, result.status === 'ok' ? result.text : result.status)
-  return { result, ...(j.spec.untrustedResult ? { untrusted: true as const } : {}) }
+  const auditText =
+    result.status === 'ok' && j.spec.name !== 'lane.wait' ? result.text : result.status
+  await audit(env, j, routed.decision, auditText)
+  return {
+    result: result.status === 'ok' && j.tier === 'read' ? { ...result, read: true } : result,
+    ...(j.spec.untrustedResult ? { untrusted: true as const } : {}),
+  }
 }
 
 async function execute(
@@ -326,41 +307,70 @@ async function execute(
   const invalid = argsError(spec, request.args)
   if (invalid) return denied('bad-request', `${spec.name}: ${invalid}`)
   const { policy } = await env.binding.policy.read()
-  const routed = extras.hosts
-    ? await executeRouted(env, { principal, request, spec, policy }, extras.hosts)
+  const selection = routeSelection(
+    env.binding,
+    principal,
+    request,
+    spec,
+    extras.hosts,
+    env.deps.hosts?.isSelf,
+  )
+  if ('code' in selection) return denied(selection.code, selection.text)
+  const routed = selection.hosts
+    ? await executeRouted(
+        env,
+        { principal, request, spec, policy },
+        { ...selection, hosts: selection.hosts },
+        extras,
+      )
     : null
   if (routed) return routed
   // An audit filter names a historical ref, not an execution target. A gap has no target
   // to discover; let the usual kill/never/gap checks decide without probing disk.
   const args = request.op === 'audit.list' || env.binding.gaps[spec.name] ? {} : request.args
-  const ref = laneRefArg(spec.name, args)
+  const ref = laneRefArg(spec, args)
   const discovered =
     ref !== undefined && env.binding.lanes.lookup && !env.binding.lanes.resolve(ref)
       ? await env.binding.lanes.lookup(ref)
       : null
-  const target = resolveTarget(env.binding, principal, spec.name, args, extras.facts, discovered)
+  const target = resolveTarget(env.binding, principal, spec, args, extras.facts, discovered)
   if ('code' in target) return denied(target.code, target.text)
   let j = judgeOp(env.binding, { principal, request, spec, target, policy })
   const refusal = refuseOp(env.binding, env.deps, env.limits, j)
   if (refusal) return refuse(env, j, refusal)
   const verdict = policyVerdict(policyCheck(j))
   if (verdict.kind === 'deny') return refuse(env, j, verdict)
-  if (j.spec.name === 'archive.purge' && j.args.all === true && env.deps.archiveIds) {
-    try {
-      const { all: _all, ...rest } = j.args
-      j = { ...j, args: { ...rest, ids: await env.deps.archiveIds() } }
-    } catch (error) {
-      return denied(
-        error instanceof OpRefusal ? error.code : 'unavailable',
-        error instanceof Error ? error.message : 'Inventory unavailable.',
-      )
-    }
+  try {
+    j = await selectDestructiveTargets(env.deps, j, extras.signal)
+  } catch (error) {
+    return denied(
+      error instanceof OpRefusal ? error.code : 'unavailable',
+      error instanceof OpRefusal ? error.message : 'Inventory unavailable.',
+    )
   }
   if (verdict.kind === 'ask') {
     const pending = await ask(env, j)
     if (pending) return pending
   }
   return perform(env, j, verdict.kind === 'ask' ? 'approved' : 'allowed', extras.signal)
+}
+
+async function selectDestructiveTargets(deps: OpsDispatcherDeps, j: Judged, signal?: AbortSignal) {
+  if (j.spec.name === 'archive.purge' && j.args.all === true && deps.archiveIds) {
+    const { all: _all, ...rest } = j.args
+    return { ...j, args: { ...rest, ids: await deps.archiveIds() } }
+  }
+  if (
+    j.spec.name === 'maintenance.run' &&
+    typeof j.args.plan === 'string' &&
+    deps.maintenanceTargets
+  ) {
+    return {
+      ...j,
+      args: { ...j.args, targets: await deps.maintenanceTargets(j.args.plan, signal) },
+    }
+  }
+  return j
 }
 
 export function createOpPipeline(

@@ -11,6 +11,9 @@ import {
   parseMachineModels,
 } from '@phosphor/shared/host-protocol-machine'
 import type { FeatureContext } from './feature'
+import { withinProbe } from './failure'
+import { realpath } from 'node:fs/promises'
+import type { LocatedSkill } from './skills'
 import { CatalogueCache, catalogueIdentity } from './catalogue-cache'
 import {
   FeatureFailure,
@@ -55,7 +58,7 @@ async function modelsFromPi(
   )
   if (Array.isArray(raw) && raw.length > 1000) throw new FeatureFailure('too-large')
   const models = parseMachineModels(raw)
-  if (!models) throw new FeatureFailure('internal')
+  if (!models) throw new FeatureFailure('internal', 'decode', 'pi reply')
   return modelAnswer(dir, models, 'pi')
 }
 async function commandsFromPi(pi: CataloguePi, cwd: string, slot: ProbeSlot) {
@@ -63,7 +66,7 @@ async function commandsFromPi(pi: CataloguePi, cwd: string, slot: ProbeSlot) {
   if (Array.isArray(raw) && raw.length > MACHINE_COMMANDS_LIMIT)
     throw new FeatureFailure('too-large')
   const commands = parseMachineCommands(raw)
-  if (!commands) throw new FeatureFailure('internal')
+  if (!commands) throw new FeatureFailure('internal', 'decode', 'pi reply')
   return { commands }
 }
 
@@ -75,7 +78,10 @@ async function foreground<T>(probe: Promise<T>, waitMs: number, fromConfig?: () 
     return await Promise.race([
       probe,
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new FeatureFailure('internal')), waitMs)
+        timer = setTimeout(
+          () => reject(new FeatureFailure('internal', 'timeout', 'catalogue', waitMs)),
+          waitMs,
+        )
       }),
     ])
   } catch (error) {
@@ -91,13 +97,18 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
   const resourceQueue = probeQueue()
   const models = new CatalogueCache<ReturnType<typeof modelAnswer>>()
   const commands = new CatalogueCache<Awaited<ReturnType<typeof commandsFromPi>>>()
-  const skills = new CatalogueCache<unknown>()
+  const skills = new CatalogueCache<LocatedSkill[]>()
   let inspectedPi = ports.pi
-  const pi = async () => ports.pi ?? (await featureInspection(context, ports)).pi
+  const pi = async () => {
+    const launch = ports.pi ?? (await featureInspection(context, ports)).pi
+    if (!launch) throw new FeatureFailure('internal', 'missing-pi', 'inspection')
+    return launch
+  }
+  const activePi = (deadline: number, signal?: AbortSignal) =>
+    withinProbe(pi, deadline, 'inspection', signal)
   const key = (dir: string, pi: CataloguePi, scope?: string) =>
     JSON.stringify([ports.generation?.(), catalogueIdentity(dir, pi), scope])
   return {
-    resourceQueue,
     modelWindow({ provider, id }: NonNullable<LaneSummary['model']>) {
       const dir = piAgentDir(inspectedPi?.environment.env ?? context.env, context.home)
       const match = (answer: ReturnType<typeof modelAnswer> | undefined) =>
@@ -112,7 +123,6 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
       return foreground(
         (async () => {
           const launch = await pi()
-          if (!launch) throw new FeatureFailure('internal')
           inspectedPi = launch
           dir = piAgentDir(launch.environment.env, context.home)
           return models.get(key(dir, launch), () =>
@@ -126,29 +136,37 @@ export function machineCatalogues(context: FeatureContext, ports: MachinePorts) 
         partial ? () => fallback(dir) : undefined,
       )
     },
-    async commands(repositoryId?: string, deadline = probeDeadline()) {
+    async commands(repositoryId?: string, deadline = probeDeadline(), signal?: AbortSignal) {
       const repo =
         repositoryId && context.store.listRepositories().find((r) => r.id === repositoryId)
       if (repositoryId && !repo) throw new FeatureFailure('bad-request')
       const cwd = repo ? repo.path : context.home
-      const launch = await pi()
-      if (!launch) throw new FeatureFailure('internal')
+      if (
+        repo &&
+        (await withinProbe(() => realpath(repo.path), deadline, 'inspection', signal)) !== cwd
+      )
+        throw new FeatureFailure('forbidden')
+      const launch = await activePi(deadline, signal)
       const dir = piAgentDir(launch.environment.env, context.home)
       return commands.get(key(dir, launch, cwd), () =>
-        resourceQueue((slot) => commandsFromPi(launch, cwd, slot), deadline),
+        resourceQueue((slot) => commandsFromPi(launch, cwd, slot), deadline, signal),
       )
     },
     async skills(
       cwd: string,
       project: boolean,
       deadline: number,
-      read: (pi: CataloguePi, slot: ProbeSlot) => Promise<unknown>,
+      read: (pi: CataloguePi, slot: ProbeSlot) => Promise<LocatedSkill[]>,
+      signal?: AbortSignal,
     ) {
-      const launch = await pi()
-      if (!launch) throw new FeatureFailure('internal')
+      const launch = await activePi(deadline, signal)
       const dir = piAgentDir(launch.environment.env, context.home)
       return skills.get(key(dir, launch, JSON.stringify([cwd, project])), () =>
-        resourceQueue((slot) => read(launch, slot), deadline),
+        resourceQueue(
+          (slot) => withinProbe(() => read(launch, slot), deadline, 'catalogue', signal),
+          deadline,
+          signal,
+        ),
       )
     },
   }

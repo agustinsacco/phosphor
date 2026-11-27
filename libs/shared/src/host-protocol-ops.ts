@@ -14,6 +14,7 @@ import { integer, member, record, text, utf8Length } from './host-protocol/primi
 import { keys } from './machine-settings-fields'
 
 export const OPS_RUN = 'ops.run'
+export const OPS_MAX_PAGE_ROWS = 100
 
 export const OPS_LIMITS = {
   /** UTF-8 bytes of the request's `args` JSON, any `content` argument included. */
@@ -22,6 +23,8 @@ export const OPS_LIMITS = {
   contentBytes: 256 * 1024,
   /** A command result and the tool text a lane receives, UTF-8 bytes of its JSON. */
   resultBytes: 64 * 1024,
+  /** Serialized rows in one inventory page. */
+  pageBytes: 12 * 1024,
   /** A call result's `data`, UTF-8 bytes of its JSON (artifact and transcript chunks). */
   callDataBytes: 1024 * 1024,
   reasonChars: 300,
@@ -70,6 +73,7 @@ export interface OpsRunRequest {
   readonly confirm?: OpsConfirmRef
   readonly batch?: OpsBatchRef
   readonly page?: string
+  readonly limit?: number
 }
 export type OpsRunOp = { readonly type: typeof OPS_RUN } & OpsRunRequest
 
@@ -110,6 +114,7 @@ export type OpsRunResult =
       readonly applies: OpApplies
       readonly data?: unknown
       readonly next?: string
+      readonly read?: true
       readonly undo?: boolean
       readonly auditId?: string
     }
@@ -123,7 +128,12 @@ export type OpsRunResult =
       /** Epoch milliseconds. */
       readonly expiresAt: number
     }
-  | { readonly status: 'denied'; readonly code: OpsDenyCode; readonly text: string }
+  | {
+      readonly status: 'denied'
+      readonly code: OpsDenyCode
+      readonly text: string
+      readonly data?: unknown
+    }
 
 /** `data` of an op that may outlast the Host's answer deadline: poll `job.status`. */
 export interface OpsJobData {
@@ -172,7 +182,7 @@ function batchRef(v: unknown): OpsBatchRef | null {
     : null
 }
 
-const REQUEST_KEYS = ['op', 'args', 'reason', 'actor', 'confirm', 'batch', 'page'] as const
+const REQUEST_KEYS = ['op', 'args', 'reason', 'actor', 'confirm', 'batch', 'page', 'limit'] as const
 
 /** Exact keys and bounded sizes. Args stay opaque here; the catalog validates them. */
 export function parseOpsRunRequest(v: unknown): OpsRunRequest | null {
@@ -180,6 +190,7 @@ export function parseOpsRunRequest(v: unknown): OpsRunRequest | null {
   if (!record(v.args) || jsonBytes(v.args) > OPS_LIMITS.argsBytes) return null
   if (v.reason !== undefined && !text(v.reason, OPS_LIMITS.reasonChars)) return null
   if (v.page !== undefined && !token(v.page, OPS_LIMITS.pageChars)) return null
+  if (v.limit !== undefined && (!integer(v.limit, 1) || v.limit > OPS_MAX_PAGE_ROWS)) return null
   const a = v.actor === undefined ? undefined : actor(v.actor)
   const c = v.confirm === undefined ? undefined : parseOpsConfirmRef(v.confirm)
   const b = v.batch === undefined ? undefined : batchRef(v.batch)
@@ -192,6 +203,7 @@ export function parseOpsRunRequest(v: unknown): OpsRunRequest | null {
     ...(c ? { confirm: c } : {}),
     ...(b ? { batch: b } : {}),
     ...(v.page !== undefined ? { page: v.page } : {}),
+    ...(v.limit !== undefined ? { limit: v.limit } : {}),
   }
 }
 
@@ -238,6 +250,7 @@ function okResult(v: Record<string, unknown>): OpsRunResult | null {
     !member(v.applies, OP_APPLIES) ||
     (v.data !== undefined && jsonBytes(v.data) > OPS_LIMITS.callDataBytes) ||
     (v.next !== undefined && !text(v.next, HOST_LIMITS.messageChars)) ||
+    (v.read !== undefined && v.read !== true) ||
     (v.undo !== undefined && typeof v.undo !== 'boolean') ||
     (v.auditId !== undefined && !token(v.auditId, HOST_LIMITS.idChars))
   )
@@ -248,6 +261,7 @@ function okResult(v: Record<string, unknown>): OpsRunResult | null {
     applies: v.applies,
     ...(v.data !== undefined ? { data: v.data } : {}),
     ...(v.next !== undefined ? { next: v.next } : {}),
+    ...(v.read === true ? { read: true as const } : {}),
     ...(v.undo !== undefined ? { undo: v.undo } : {}),
     ...(v.auditId !== undefined ? { auditId: v.auditId } : {}),
   }
@@ -284,8 +298,15 @@ export function parseOpsRunResult(v: unknown): OpsRunResult | null {
   if (v.status === 'ok') return okResult(v)
   if (v.status === 'confirm') return confirmResult(v)
   if (v.status === 'denied')
-    return member(v.code, OPS_DENY_CODES) && text(v.text, HOST_LIMITS.messageChars)
-      ? { status: 'denied', code: v.code, text: v.text }
+    return member(v.code, OPS_DENY_CODES) &&
+      text(v.text, HOST_LIMITS.messageChars) &&
+      (v.data === undefined || jsonBytes(v.data) <= OPS_LIMITS.callDataBytes)
+      ? {
+          status: 'denied',
+          code: v.code,
+          text: v.text,
+          ...(v.data !== undefined ? { data: v.data } : {}),
+        }
       : null
   return null
 }

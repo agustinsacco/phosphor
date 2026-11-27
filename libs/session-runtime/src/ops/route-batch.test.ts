@@ -100,6 +100,23 @@ describe('--host asks: one origin confirmation over every target', () => {
     ])
   })
 
+  it('rejects a conflicting --host on qualified confirmation resubmission without a send', async () => {
+    const r = remoteOf({ [BEE1]: asking(1, ['lane-a']) })
+    const h = createHarness({ remote: r.remote, hosts: resolver })
+    const stop = { op: 'lane.stop', args: { ref: `host:${BEE1}/lane:lane-a` } }
+    const reply = await h.tool(stop)
+    if (reply.status !== 'confirm') throw new Error('expected confirm')
+    h.approve(reply.confirmId)
+    const confirm = { confirmId: reply.confirmId, digest: reply.digest }
+    expect(await h.tool({ ...stop, hosts: [BEE2] }, { confirm })).toMatchObject({
+      code: 'bad-request',
+      text: expect.stringContaining('conflicts'),
+    })
+    expect(r.sent).toHaveLength(1)
+    expect(await h.tool(stop, { confirm })).toMatchObject({ status: 'ok' })
+    expect(r.sent.map((s) => s.hostId)).toEqual([BEE1, BEE1])
+  })
+
   it('lists every asking machine’s exact ids in one confirmation and reports per machine', async () => {
     const r = remoteOf({
       [BEE1]: asking(1, ['a1']),
@@ -126,7 +143,7 @@ describe('--host asks: one origin confirmation over every target', () => {
     })
     expect(done).toMatchObject({
       status: 'ok',
-      text: 'bee1: purged\nbee2: nothing to purge\nbee3: purged',
+      text: '== bee1 (ok)\npurged\n== bee2 (ok)\nnothing to purge\n== bee3 (ok)\npurged',
     })
     // The machine that already answered is never contacted again.
     expect(r.sent.slice(3).map((s) => s.hostId)).toEqual([BEE1, BEE3])
@@ -150,7 +167,7 @@ describe('--host asks: one origin confirmation over every target', () => {
     })
     expect(done).toMatchObject({
       status: 'ok',
-      text: 'bee1: purged\nbee2: confirm-denied: Not approved on bee2. Approve from an updated Phosphor app.',
+      text: '1 of 2 hosts failed\n== bee1 (ok)\npurged\n== bee2 (denied)\nNot approved on bee2. Approve from an updated Phosphor app.',
       data: {
         hosts: [
           { hostId: BEE1, status: 'ok' },

@@ -5,6 +5,7 @@
  * that names an agent actor is governed as an agent, and nothing gains authority
  * from them. Living contract: docs/agent-control.md ("Policy and confirmations").
  */
+import { parseRemoteLaneKey } from '@phosphor/shared/remote-host'
 import type { OpsRunRequest } from '@phosphor/shared/host-protocol-ops'
 import type { ConfirmInfo } from '@phosphor/shared/ops'
 import type { OpPrincipal } from './types'
@@ -62,6 +63,20 @@ export function askingLane(
 export function isUnattended(principal: OpPrincipal): boolean {
   return principal.kind === 'agent' && principal.unattended
 }
+
+/** A lane identity the owner can use for creator checks, not an arbitrary actor label. */
+export function authenticatedLane(principal: OpPrincipal): string | undefined {
+  if (principal.kind === 'agent') return principal.laneRef
+  if (
+    principal.kind === 'machine' &&
+    principal.lane &&
+    parseRemoteLaneKey(principal.lane)?.hostId === principal.machineId
+  )
+    return principal.lane
+}
+
+export const MESSAGE_SENDER_REQUIRED =
+  'Only an authenticated agent lane can use lane message. To send a user message, use the normal prompt path.'
 
 /** The pi session whose dialog a confirmation binds to; only an agent has one. */
 export function askingSession(principal: OpPrincipal): string | null {

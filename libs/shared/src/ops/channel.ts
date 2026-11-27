@@ -18,6 +18,7 @@ import {
   type OpsConfirmRef,
   type OpsDenyCode,
 } from '../host-protocol-ops'
+import { HOST_LIMITS } from '../host-protocol/constants'
 import { integer, record, text, utf8Length } from '../host-protocol/primitives'
 
 export const OP_TITLE = 'phosphor-op/v1'
@@ -36,11 +37,15 @@ export const OP_TOOL_NAME = 'phosphor'
 /** Internal, never in the agent catalog: a lane reports its live sub-agent work. */
 export const LANE_LIVENESS_OP = 'lane.liveness'
 
+export const LANE_WAIT_CONNECTIONS = HOST_LIMITS.connectionsPerClient - 1
+export const LANE_WAIT_TIMEOUT = { default: 300, max: 1800 } as const
+export const LANE_WAIT_DEADLINE_MS = (LANE_WAIT_TIMEOUT.max + 60) * 1000
+
 export const OP_CHANNEL_LIMITS = {
   idChars: 64,
   argvItems: 64,
   argvItemChars: 4096,
-  deadlineMs: 600_000,
+  deadlineMs: LANE_WAIT_DEADLINE_MS,
   /**
    * UTF-8 bytes of an editor prefill. Twice `argsBytes`, because content is
    * JSON-escaped inside it; the lane refuses above it as `too-large`, the
@@ -71,7 +76,7 @@ export interface OpRequestEnvelope {
   readonly v: 1
   readonly id: string
   readonly argv?: readonly string[]
-  /** The tool's content argument, mapped to the op's content flag; counted in `argsBytes`. */
+  /** The tool's content argument, mapped to the op's content flag or routine instructions; counted in `argsBytes`. */
   readonly content?: string
   readonly reason?: string
   readonly op?: string
@@ -98,7 +103,7 @@ export type LaneEffect =
   | { readonly kind: 'pr'; readonly action: 'pin' | 'hide' | 'clear'; readonly url: string }
   | { readonly kind: 'notify'; readonly message: string; readonly level: 'info' | 'warning' }
 
-export type OpReplyEnvelope =
+export type OpReplyEnvelope = { readonly op?: string } & (
   | {
       readonly v: 1
       readonly id: string | null
@@ -107,6 +112,7 @@ export type OpReplyEnvelope =
       readonly applies: OpApplies
       readonly data?: unknown
       readonly next?: string
+      readonly read?: true
       readonly effects?: readonly LaneEffect[]
       readonly terminate?: true
       readonly untrusted?: true
@@ -128,6 +134,7 @@ export type OpReplyEnvelope =
       readonly status: 'denied' | 'error'
       readonly code: OpsDenyCode | 'timeout' | 'aborted'
       readonly text: string
+      readonly data?: unknown
     }
   /** Nothing listens on the channel. */
   | {
@@ -136,6 +143,7 @@ export type OpReplyEnvelope =
       readonly status: 'unsupported'
       readonly code: 'no-owner'
     }
+)
 
 /** The reply an RPC client writes when no owner listens (no `phosphor-op` listener). */
 export function noOwnerReply(id: string | null): OpReplyEnvelope {

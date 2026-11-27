@@ -71,9 +71,14 @@ describe('Host import boundary', () => {
         }
         const library = Object.keys(LIBRARIES).find((name) => specifier!.startsWith(`${name}/`))
         if (library) {
-          // Tests share a library's fixtures as they share the Host's own; production never does.
+          // Tests share library fixtures and can drive the shipped tool through the Host dispatcher.
           if (support && specifier!.includes('/__fixtures__/')) continue
-          expect(LIBRARIES[library], where).toContain(`./${specifier!.slice(library.length + 1)}`)
+          const subpath = `./${specifier!.slice(library.length + 1)}`
+          const allowed =
+            support && library === '@phosphor/pi-extensions'
+              ? [...LIBRARIES[library]!, './phosphor']
+              : LIBRARIES[library]
+          expect(allowed, where).toContain(subpath)
           continue
         }
         // A bundle carries Node builtins only; tests may use their runner.

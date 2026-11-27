@@ -1,3 +1,4 @@
+import { useHostResourceRevision } from './hostResourceChanges'
 import { create } from 'zustand'
 import { useArchiveChanges } from './archiveChanges'
 export { archivesChanged } from './archiveChanges'
@@ -83,6 +84,7 @@ export function loadArchives(
 export function useArchiveInventory(machine: string, available: boolean): View {
   const view = useArchivesStore((state) => state.machines[machine] ?? EMPTY)
   const generation = useRemoteLanesStore(() => identity(machine))
+  const hostRevision = useHostResourceRevision(machine === 'local' ? null : machine, 'archives')
   const revision = useArchiveChanges((state) => state[machine] ?? 0)
   // Only a different machine or identity forgets the list. A refresh keeps what
   // it already has: clearing it here blanked the page after every cleanup, which
@@ -109,6 +111,6 @@ export function useArchiveInventory(machine: string, available: boolean): View {
       stopped = true
       clearTimeout(timer)
     }
-  }, [machine, available, generation, revision])
+  }, [machine, available, generation, revision, hostRevision])
   return view.token === generation ? view : EMPTY
 }

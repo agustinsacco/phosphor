@@ -57,6 +57,11 @@ export async function applySettings(
     default:
       await changeConnectorSettings(state, change, before, cwd, input.revision, commitAllowed)
   }
+  if (input.section !== 'connectors' && change.type !== 'instructions.write')
+    state.options.changed?.({
+      kind: input.section === 'resources' ? 'packages' : 'settings',
+      repositoryId: input.repositoryId,
+    })
   state.options.invalidateCatalogue?.()
   return snapshot(input.section, input.repositoryId, true)
 }

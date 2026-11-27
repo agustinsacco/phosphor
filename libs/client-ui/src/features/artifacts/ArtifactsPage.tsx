@@ -1,3 +1,4 @@
+import { useHostResourceRevision } from '@/stores/hostResourceChanges'
 import { runAgentOp } from '@/features/agent-control/agentOps'
 import { serviceScope } from '@/stores/localServiceScope'
 import { usePlatform } from '@/platform/Platform'
@@ -47,15 +48,19 @@ import {
  * (deleted, or its folder gone) opens here instead, read-only; a deleted
  * session's can also be removed.
  */
+function artifactResourceScope(machine: string) {
+  return machine === 'local' ? null : machine === 'all' ? '*' : machine
+}
+
 export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
   const filter = useRemoteLanesStore((s) => s.filter)
   const override = useMachinePagesStore((s) => s.artifactsMachine)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const machine = serviceScope(pageMachine(filter, override, true), hosts)
+  const revision = useHostResourceRevision(artifactResourceScope(machine), 'artifacts')
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
-  // Reload when a session opens, closes or changes on disk, so a session
-  // deleted while this page is open shows as deleted instead of going stale.
+  // Refresh deletion status after changes to the session inventory.
   const liveIds = useSessionsStore((s) => Object.keys(s.live).join('\n'))
   const disk = useSessionsStore((s) => s.disk)
   const [listingError, setListingError] = useState(false)
@@ -84,7 +89,7 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
     return () => {
       current = false
     }
-  }, [liveIds, disk, removals, hosts])
+  }, [liveIds, disk, removals, hosts, revision])
 
   const rows = useMemo(
     () =>

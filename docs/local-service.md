@@ -56,6 +56,13 @@ Routine-owned sessions stay out of the lane list. The service reads a run’s ou
 
 The service owns the lanes, routine scheduler and [artifact library](remote-desktop.md#remote-artifacts). Quitting Desktop does not stop those lanes. Skills, routines, machine settings and artifacts scoped to **This Mac** use the service connection; a disconnected service shows unavailable, not the frozen in-app data. Device UI and [Brain](brain.md#recall) still live in Desktop, including Brain Agent's private [Brain lane](brain.md#brain-agent), the one lane Desktop starts itself. Machine IPC routes are enumerated by `@phosphor/shared/ipc-local-route`; same-machine file operations resolve local lane/folder keys, and destructive workspace maintenance takes an owner lease. The service refuses lane starts and restores in a leased workspace.
 
+The service applies [catalog changes](agent-control.md) to the same records as
+Desktop's controls. After a change, the service sends [resource hints](remote-protocol.md#resource-invalidations)
+so open views reread their inventory without reopening the app. This includes
+catalog skill creation, deletion and project installation, even though the
+service UI has no controls for those actions. The in-app runtime is the migration
+path, not an alternate owner or a fallback on disconnect.
+
 Signing in can enroll the service over the owner socket without restarting lanes. Desktop checks the account-side fingerprint before approving; an account mismatch is not permission to re-enroll. Signing out leaves the service enrolled. Desktop keeps the local socket slot, not a second connection to the enrolled directory entry.
 
 In **Settings → Advanced → Software**, **Update…** stages a signed release and waits for working turns, live sub-agents and routines. **Stop turns and update now** saves and stops unfinished turns; **Cancel update** leaves the service on the same version. A wait that times out stops nothing. Settings stays mounted during the restart and shows success only when the version changes; the same pipeline appears for a remote Host in Desktop and the PWA. A genuine outage outside an update still offers **Start service** or **Retry**. A failed move offers **Retry** or **Export diagnostics** (status-only JSON).

@@ -123,6 +123,31 @@ when the Host reports the folder as `git: false` ([Host](host.md)). The saved
 preference is untouched, so the box comes back ticked as before on a git
 repository.
 
+## Host catalog
+
+[Agent and CLI Git commands](agent-control.md#git-and-worktrees) can inspect a
+Host checkout and change it under the owner's policy. The worktree commands are
+limited to `<repo>/.phosphor/worktrees/<name>` in a configured repository; they
+do not manage arbitrary linked checkouts. `worktree add <repo> <name> <branch>` uses
+a local branch if it exists, or starts one from the default branch.
+
+- `worktree restore <repo> <name> <branch>` reattaches the exact existing branch
+  at its original path. `worktree recreate` uses the same arguments and, if the
+  branch is missing, creates it from the default branch. Both refuse an occupied
+  path or a mismatched recorded checkout.
+- `worktree remove <path>` asks by default and names the exact, absolute managed
+  path. It refuses live or leased checkouts. Dirty worktrees need explicit
+  `--force on`; `--delete-branch on` still needs an unreferenced, landed branch.
+- `worktree prune <path>` asks for the exact stale registration. It runs only
+  when Git can prove that registration is the sole prune target. If other
+  registrations are prunable it refuses and lists them. After the dry run, the
+  Host verifies the registration still points to the missing checkout and is
+  unlocked, then removes only that registration.
+
+These are Host catalog operations, not new controls on the Worktrees tab. Clients
+that opt in to Git invalidations reread affected checkout data after Host changes;
+branch changes also update lane summaries.
+
 ## Git display queries
 
 `git:info` caches full display metadata for one second; sidebar summaries use

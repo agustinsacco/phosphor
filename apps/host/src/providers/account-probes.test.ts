@@ -69,7 +69,7 @@ it('probes from a private temporary cwd with the selected account environment', 
   expect(h.print).toHaveBeenCalledExactlyOnceWith(
     '/trusted/claude',
     ['-p', '/usage', '--output-format', 'json', '--no-session-persistence'],
-    expect.objectContaining({ cwd: directory, env: { ...env, ...extraEnv }, timeoutMs: 20_000 }),
+    expect.objectContaining({ cwd: directory, env: { ...env, ...extraEnv }, timeoutMs: 12_000 }),
   )
   expect(existsSync(directory)).toBe(false)
 })

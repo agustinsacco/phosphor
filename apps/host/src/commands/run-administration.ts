@@ -27,7 +27,7 @@ import { createGitFeature } from '../features/git'
 import { githubRunner } from '../features/git/github'
 import { createLaneDeletion } from '../lanes/delete'
 import { createArtifactsFeature } from '../features/artifacts'
-import { createSkillsFeature, resolveSkills } from '../features/skills'
+import { createSkillsFeature } from '../features/skills'
 import { createSkillInstallFeature } from '../features/skill-install'
 import { createLaneTransferFeatures } from '../features/lane-transfer'
 import { hostTransferRuntime } from '../features/lane-transfer/runtime'
@@ -76,8 +76,7 @@ function features(
   context: FeatureContext,
   settings: ReturnType<typeof createMachineSettings>,
   archives: HostArchives,
-  generation: () => number,
-  invalidateCatalogue: () => void,
+  skills: ReturnType<typeof createSkillsFeature>,
 ) {
   return [
     settings.feature,
@@ -87,30 +86,10 @@ function features(
     options.routines.feature,
     createFilesFeature(context),
     createGitFeature(context),
-    // Inspect this Host's effective config and selected private account.
-    createSkillsFeature(
-      context,
-      {
-        pi: options.cataloguePi ?? undefined,
-        generation,
-        configPath: options.configPath,
-        claudeAuthentication: options.accounts.authenticationReady,
-        claudeUsage: createLaneUsage({
-          accounts: options.accounts,
-          accountForLane: (laneId, prefs) => {
-            const sessionId = options.live.sessionFor(laneId)
-            if (sessionId) return options.runtime.accountForSession(sessionId)
-            const file = options.store.getLane(laneId)?.sessionFile
-            return file ? prefs.bindings[file] : undefined
-          },
-        }),
-      },
-      options.bindModelWindow,
-    ),
+    skills,
     createArtifactsFeature({ ...context, store: options.store }),
     // Shared skills land where this Host's pi reads global skills.
     createSkillInstallFeature(context, {
-      invalidateCatalogue,
       pi: options.cataloguePi ?? undefined,
       configPath: options.configPath,
       skillsRoot: join(settings.agentDir, 'skills'),
@@ -160,6 +139,7 @@ function runArchives(options: AdministrationOptions) {
     stop: options.binding.deleteStop,
     sessions: options.binding.sessions,
     forget: options.live.forget,
+    changed: (laneId) => options.live.lanesTopic.resourceChanged({ kind: 'archives', laneId }),
     terminals,
     attachments: options.attachments,
     announce: (id) => {
@@ -172,20 +152,25 @@ function runArchives(options: AdministrationOptions) {
 /** Bind administration to this run's existing runtime, path locks and terminal owner. */
 export function createRunAdministration(options: AdministrationOptions) {
   const { context, terminals, accounts } = options
+  let catalogueGeneration = 0
+  const invalidateCatalogue = () => {
+    catalogueGeneration++
+  }
   const featureContext: FeatureContext = {
     store: options.store,
     env: context.env,
     home: context.home,
+    resourceChanged: (change) => {
+      if (change.kind === 'skills') invalidateCatalogue()
+      options.live.lanesTopic.resourceChanged(change)
+    },
     log: (event, fields) => options.log('host', event, fields),
-  }
-  let catalogueGeneration = 0
-  const invalidateCatalogue = () => {
-    catalogueGeneration++
   }
   const providerLogins = terminals
     ? createProviderLogins(context, terminals, undefined, accounts, invalidateCatalogue)
     : undefined
   const settings = createMachineSettings({
+    changed: options.live.lanesTopic.resourceChanged,
     context: featureContext,
     invalidateCatalogue,
     configPath: options.configPath,
@@ -205,12 +190,12 @@ export function createRunAdministration(options: AdministrationOptions) {
     binding: options.binding,
   })
   const { machineTasks, task } = runTaskPorts(options, settings)
+  const skillsFeature = runSkillCatalogue(options, featureContext, () => catalogueGeneration)
   return {
     skills: {
       agentDir: settings.agentDir,
       context: featureContext,
-      resolveProject: (cwd: string) =>
-        resolveSkills(featureContext, { configPath: options.configPath }, undefined, cwd),
+      resolveProject: skillsFeature.resolveProject,
     },
     archives,
     providerLogins,
@@ -224,6 +209,7 @@ export function createRunAdministration(options: AdministrationOptions) {
     },
     writes: createWrites(featureContext),
     deleteLane: createLaneDeletion({
+      withCheckout: options.runtime.withSessionFile,
       archiveOwnsCwd: (cwd) => archives.ownsCwd(cwd),
       store: options.store,
       stop: options.binding.deleteStop,
@@ -232,16 +218,34 @@ export function createRunAdministration(options: AdministrationOptions) {
       // The merged-PR proof asks gh with the same environment as the PR reads.
       github: githubRunner(context.env),
     }),
-    features: () =>
-      features(
-        options,
-        featureContext,
-        settings,
-        archives,
-        () => catalogueGeneration,
-        invalidateCatalogue,
-      ),
+    features: () => features(options, featureContext, settings, archives, skillsFeature),
   }
+}
+
+function runSkillCatalogue(
+  options: AdministrationOptions,
+  context: FeatureContext,
+  generation: () => number,
+) {
+  return createSkillsFeature(
+    context,
+    {
+      pi: options.cataloguePi ?? undefined,
+      generation,
+      configPath: options.configPath,
+      claudeAuthentication: options.accounts.authenticationReady,
+      claudeUsage: createLaneUsage({
+        accounts: options.accounts,
+        accountForLane: (laneId, prefs) => {
+          const sessionId = options.live.sessionFor(laneId)
+          if (sessionId) return options.runtime.accountForSession(sessionId)
+          const file = options.store.getLane(laneId)?.sessionFile
+          return file ? prefs.bindings[file] : undefined
+        },
+      }),
+    },
+    options.bindModelWindow,
+  )
 }
 
 /** This run's Host terminals, when node-pty loads; their state lives beside the lanes'. */

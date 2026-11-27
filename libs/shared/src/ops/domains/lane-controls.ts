@@ -33,6 +33,7 @@ const pr = object({ url: text(2048) })
 const after = { applies: 'after-run' } as const
 const next = { applies: 'next-request' } as const
 export const laneControls = [
+  self('lane.controls', 'Read effective and pending controls in this lane.', 'read'),
   self(
     'swarm.on',
     'Request Swarm for this lane unless the user turned it off.',
@@ -137,7 +138,7 @@ export const laneControls = [
   conversation(
     'mcp.lane',
     'Inspect or reconnect a server in a lane.',
-    ownOrNever,
+    (a, c) => (a.action === 'inspect' ? 'read' : ownOrNever(a, c)),
     object({ ref: target, server: id, action: choice('inspect', 'reconnect') }),
     { positional: ['server', 'action'], flag: 'laneContext', untrustedResult: true },
   ),

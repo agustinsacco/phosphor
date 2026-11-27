@@ -54,10 +54,11 @@ export type SearchWorkerMessage =
   | { type: 'done'; summary: SearchSummary }
   | { type: 'failed'; error: string }
 
-type Candidate = { kind: 'text'; text: string } | { kind: 'skipped' } | { kind: 'gone' }
+export type SearchCandidate =
+  { kind: 'text'; text: string } | { kind: 'skipped' } | { kind: 'gone' }
 
-const SKIPPED: Candidate = { kind: 'skipped' }
-const GONE: Candidate = { kind: 'gone' }
+const SKIPPED: SearchCandidate = { kind: 'skipped' }
+const GONE: SearchCandidate = { kind: 'gone' }
 
 /**
  * Never follow a symlink (`O_NOFOLLOW`), and never block opening a FIFO
@@ -72,7 +73,7 @@ const CHECK_LINKS = constants.O_NOFOLLOW === undefined
  * over (binary, too large, unreadable), `gone` for what is not a file any more
  * (deleted since the listing, a symlink, a directory).
  */
-async function readText(full: string): Promise<Candidate> {
+async function readText(full: string): Promise<SearchCandidate> {
   let handle
   try {
     if (CHECK_LINKS && (await lstat(full)).isSymbolicLink()) return GONE
@@ -95,19 +96,22 @@ async function readText(full: string): Promise<Candidate> {
     }
     const bytes = buffer.subarray(0, length)
     if (looksBinary(bytes)) return SKIPPED
-    let text = bytes.toString('utf8')
-    // Monaco drops a byte-order mark from the model, so a column counted with
-    // it would land one character late.
-    if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
-    // Monaco also ends a line at CRLF or a lone CR; as `\n` they end one here,
-    // and a regex's `\n` matches them. Columns stay put: a CR ends its line.
-    if (text.includes('\r')) text = text.replace(/\r\n?/g, '\n')
-    return { kind: 'text', text }
+    return searchText(bytes.toString('utf8'))
   } catch {
     return SKIPPED
   } finally {
     await handle.close().catch(() => {})
   }
+}
+
+export function searchText(text: string): SearchCandidate {
+  // Monaco drops a byte-order mark from the model, so a column counted with
+  // it would land one character late.
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+  // Monaco also ends a line at CRLF or a lone CR; as `\n` they end one here,
+  // and a regex's `\n` matches them. Columns stay put: a CR ends its line.
+  if (text.includes('\r')) text = text.replace(/\r\n?/g, '\n')
+  return { kind: 'text', text }
 }
 
 /**
@@ -117,7 +121,7 @@ async function readText(full: string): Promise<Candidate> {
  * link out of the workspace. So each folder is resolved once and must still
  * be the root or below it.
  */
-function createReader(root: string): (path: string) => Promise<Candidate> {
+function createReader(root: string): (path: string) => Promise<SearchCandidate> {
   const realRoot = realpath(root)
   const folders = new Map<string, Promise<string | null>>()
   const realFolder = (dir: string): Promise<string | null> => {
@@ -151,6 +155,7 @@ function createReader(root: string): (path: string) => Promise<Candidate> {
 export async function searchFiles(
   job: SearchJob,
   onBatch: (batch: SearchBatch) => void,
+  options?: { read(path: string): Promise<SearchCandidate>; signal?: AbortSignal },
 ): Promise<SearchSummary> {
   const none = { matchCount: 0, searchedFiles: 0, skippedFiles: 0 }
   const compiled = compileSearch(job)
@@ -158,7 +163,7 @@ export async function searchFiles(
   if (compiled.status === 'empty') return none
 
   const { regex } = compiled
-  const read = createReader(job.root)
+  const read = options?.read ?? createReader(job.root)
   const wanted = job.files.filter(compiled.wants)
   let matchCount = 0
   let searchedFiles = 0
@@ -167,6 +172,7 @@ export async function searchFiles(
   let more = false
 
   for (let next = 0; next < wanted.length && !more; next += READ_BATCH) {
+    options?.signal?.throwIfAborted()
     const chunk = wanted.slice(next, next + READ_BATCH)
     const candidates = await Promise.all(chunk.map(read))
     const found: FileSearchResult[] = []

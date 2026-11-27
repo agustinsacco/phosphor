@@ -60,7 +60,7 @@ const lane = (): StoredLane => ({
   read: 0,
 })
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'host-skills-'))
+  root = await realpath(await mkdtemp(join(tmpdir(), 'host-skills-')))
   repo = join(root, 'repo')
   await mkdir(repo)
   execFileSync('git', ['init', '-q', repo])
@@ -132,20 +132,13 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 const read = (params: unknown = { name: 'demo' }) => feature.call('skills.read', params)
-const error = (code: string) => ({
-  ok: false,
-  error: {
-    code,
-    message:
-      code === 'bad-request'
-        ? 'Invalid feature request.'
-        : code === 'unknown-lane'
-          ? 'Unknown lane.'
-          : code === 'too-large'
-            ? 'Feature result exceeds its limit.'
-            : 'Feature unavailable.',
-  },
-})
+const messages: Record<string, string> = {
+  'bad-request': 'Invalid feature request.',
+  'unknown-lane': 'No such lane on this machine.',
+  'too-large': 'Feature result exceeds its limit; narrow the request.',
+  unsupported: 'This feature is unavailable on this binding: it is not configured here.',
+}
+const error = (code: string, message = messages[code]) => ({ ok: false, error: { code, message } })
 describe('createSkillsFeature', () => {
   it('rejects methods outside the allowlist', async () => {
     expect(await feature.call('machine.execute', {})).toEqual(error('unsupported'))
@@ -250,7 +243,9 @@ describe('createSkillsFeature', () => {
       expect(await feature.call('machine.commands', params)).toEqual(error('bad-request'))
     generation++
     commands = [{ name: 'x', source: 'native' }]
-    expect(await feature.call('machine.commands', {})).toEqual(error('internal'))
+    expect(await feature.call('machine.commands', {})).toMatchObject({
+      error: { code: 'internal', message: expect.stringContaining('protocol error') },
+    })
     commands = Array(2001).fill({ name: 'x', source: 'prompt' })
     expect(await feature.call('machine.commands', {})).toEqual(error('too-large'))
   })
@@ -428,9 +423,13 @@ describe('createSkillsFeature', () => {
       },
     )
     const first = stalled.call('machine.providers', {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(calls).toBe(1)
     const second = stalled.call('machine.models', { partial: true })
     await vi.advanceTimersByTimeAsync(INSPECTION_DEADLINE_MS)
-    expect(await first).toEqual(error('internal'))
+    expect(await first).toEqual(
+      error('internal', 'Feature probe timed out during inspection after 20s; try again shortly.'),
+    )
     expect(await second).toEqual({ ok: true, data: { models: [], source: 'config' } })
     expect(calls).toBe(2)
   })
@@ -466,7 +465,9 @@ describe('createSkillsFeature', () => {
       Array.from({ length: 9 }, () => feature.call('machine.providers', {})),
     )
     expect(burst.filter((r) => r.ok)).toHaveLength(8)
-    expect(burst.filter((r) => !r.ok)).toEqual([error('internal')])
+    expect(burst.filter((r) => !r.ok)).toEqual([
+      error('internal', 'The feature probe queue is full; try again shortly.'),
+    ])
   })
 })
 
@@ -520,4 +521,14 @@ it('serves machine.claudeUsage for live lanes only, outside the pi probe queue',
   removed = true
   expect(await usage.call('machine.claudeUsage', { laneId })).toEqual(error('unknown-lane'))
   expect(reads).toHaveLength(2)
+})
+
+it('will not follow a replaced skill directory after indexing it', async () => {
+  expect((await feature.call('skills.list', {})).ok).toBe(true)
+  const redirected = join(root, 'redirected')
+  await mkdir(redirected)
+  await writeFile(join(redirected, 'SKILL.md'), 'elsewhere')
+  await rm(bundle, { recursive: true })
+  await symlink(redirected, bundle)
+  expect(await read()).toEqual(error('bad-request'))
 })

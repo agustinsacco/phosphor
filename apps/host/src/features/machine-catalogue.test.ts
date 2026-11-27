@@ -127,3 +127,28 @@ it('reads a positive configured window in a cold catalogue without starting pi',
     expect(windowFor({ provider: 'p', id: `invalid-${i}` })).toBeUndefined()
   expect(windowFor({ provider: 'other', id: 'custom' })).toBeUndefined()
 })
+
+it('recovers after a malformed command probe and shares the skill index with reads', async () => {
+  const marker = join(home, 'probe')
+  const skill = join(home, 'SKILL.md')
+  await writeFile(skill, 'fixture')
+  const feature = scriptFeature(`
+    const fs = require('node:fs'); const marker = ${JSON.stringify(marker)};
+    process.stdin.once('data', input => {
+      const count = fs.existsSync(marker) ? Number(fs.readFileSync(marker)) + 1 : 1;
+      fs.writeFileSync(marker, String(count));
+      if (count === 1) return console.log('not JSON');
+      console.log(JSON.stringify({id:JSON.parse(input).id,type:'response',success:true,
+        data:{commands:[{name:'skill:fixture',source:'skill',sourceInfo:{scope:'user',path:${JSON.stringify(skill)}}}]}}));
+    })`)
+  expect(await feature.call('skills.list', {})).toMatchObject({
+    error: { message: expect.stringContaining('protocol error') },
+  })
+  expect(await feature.call('skills.list', {})).toMatchObject({
+    data: { skills: [{ name: 'fixture' }] },
+  })
+  expect(await feature.call('skills.read', { name: 'fixture' })).toMatchObject({
+    data: { content: 'fixture' },
+  })
+  expect(await readFile(marker, 'utf8')).toBe('2')
+}, 30_000)

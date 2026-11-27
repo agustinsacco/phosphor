@@ -10,6 +10,8 @@ import {
   type AuditExtras,
   type UndoRecord,
 } from './audit'
+import { auditInventory } from './meta-inventory'
+import type { OpRunContext } from './ports'
 import { argsSummary } from './redact'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -211,4 +213,31 @@ describe('createAuditLog', () => {
     for (let i = 0; i < 205; i += 1) await log.append(row(3 + i))
     expect(await log.list({ limit: 1000 })).toHaveLength(AUDIT_LIMITS.page)
   })
+})
+
+it('walks byte-fitted keyset pages without picking up concurrent audit appends', async () => {
+  const log = createAuditLog(openDb(), { now: () => 100, newId: counter() })
+  const expected: string[] = []
+  for (let i = 0; i < 5; i++)
+    expected.unshift(await log.append(row(i, { argsSummary: '"😀'.repeat(1200) })))
+  const seen: string[] = []
+  const read = auditInventory(log)
+  let page: string | undefined
+  for (let i = 0; i < expected.length; i++) {
+    const context: OpRunContext = {
+      page,
+      principal: { kind: 'local', clientId: 'fixture' },
+      signal: new AbortController().signal,
+      log: () => {},
+    }
+    const answer = await read({}, context)
+    expect(answer.text).toMatch(/^id \| at \| op \| decision \| laneRef \| result\n/)
+    expect(Buffer.byteLength(JSON.stringify(answer.data))).toBeLessThanOrEqual(12 * 1024)
+    expect(answer.next).toBe(expected[i + 1] === undefined ? undefined : expected[i])
+    seen.push(...(answer.data as AgentOpRow[]).map(({ id }) => id))
+    await log.append(row(100 + i, { op: 'audit.list' }))
+    page = answer.next
+    if (page === undefined) break
+  }
+  expect(seen).toEqual(expected)
 })

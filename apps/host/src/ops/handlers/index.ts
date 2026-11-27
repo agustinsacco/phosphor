@@ -1,4 +1,5 @@
 import type { MachineUpdateReport } from '@phosphor/shared/machine-update'
+import type { WorkspaceLeases } from '../../owner/lease'
 import type { AppServices } from '../../session/app-services'
 import { createBrainHandlers } from './brain'
 import type { SettingsOps } from './settings-access'
@@ -31,7 +32,9 @@ import { hostsHandlers } from './hosts'
 import { laneEditingHandlers, laneEditingUndoChecks } from './lane-editing'
 import { laneSelfHandlers } from './lane-self'
 import type { DaemonLaneRuntime } from './lane-target'
+import { laneCoordinationHandlers } from './lane-coordination'
 import { laneHandlers } from './lanes'
+import { maintenanceHandlers } from './maintenance'
 import { machineHandlers } from './machine'
 import { mcpHandlers } from './mcp'
 import { packageHandlers } from './packages'
@@ -43,10 +46,11 @@ import { skillHandlers } from './skills'
 export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly appServices?: AppServices | null
   readonly settingsOps?: SettingsOps
+  readonly workspaceLeases?: WorkspaceLeases
   readonly ownerFolders?: () => readonly RepositorySummary[]
   readonly repositories?: Pick<ReturnType<typeof createRepositories>, 'execute'>
   readonly routines?: Pick<HostRoutines, 'execute'> &
-    Partial<Pick<HostRoutines, 'sessionPathForRun'>>
+    Partial<Pick<HostRoutines, 'sessionPathForRun' | 'check' | 'promote'>>
   readonly skills?: SkillPorts
   readonly sandboxes?: ReturnType<typeof createHostSandboxes>
   readonly store: HostStore
@@ -54,6 +58,7 @@ export interface DaemonHandlerDeps extends LaneHandlerPorts {
   readonly lanes: LaneService
   /** The login-shell capture on a local-mode daemon; null on a headless Host. */
   readonly shellEnvironment: HostShellEnvironment | null
+  readonly machineHealth?: () => { pi: string; control: string }
   /** Control's machine directory (X3 reach); absent: this machine reaches no other. */
   readonly directory?: Reach['directory']
   readonly log: RuntimeLog
@@ -85,6 +90,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
   return {
     ...createBrainHandlers(deps.appServices),
     ...laneHandlers(deps),
+    ...laneCoordinationHandlers(deps),
     ...archiveHandlers(deps),
     ...artifactHandlers(deps),
     ...artifactRemoveHandlers(deps),
@@ -99,6 +105,7 @@ export function domainHandlers(deps: DaemonHandlerDeps): Readonly<Record<string,
     ...laneSelfHandlers(deps),
     ...laneEditingHandlers(deps),
     ...machineHandlers(deps),
+    ...maintenanceHandlers(deps),
     ...fileHandlers(deps),
     ...gitHandlers(deps),
     ...hostsHandlers(deps),

@@ -119,7 +119,11 @@ describe('principals', () => {
       code: 'forbidden',
     })
     expect(h.calls.created).toEqual([])
-    expect((await h.run(agent(), { op, args: {} })).status).toBe('confirm')
+    expect(await h.run(agent(), { op, args: {} })).toMatchObject({
+      status: 'denied',
+      code: 'bad-request',
+    })
+    expect((await h.run(agent(), { op, args: { id: args.runId } })).status).toBe('confirm')
     expect((await h.run(surface(), { op, args })).status).toBe('ok')
   })
 
@@ -286,7 +290,7 @@ describe('other lanes', () => {
       const args = {
         ref: OTHER,
         ...(op === 'contextFiles.set' ? { agents: false } : {}),
-        ...(op === 'mcp.lane' ? { server: 'gh', action: 'inspect' } : {}),
+        ...(op === 'mcp.lane' ? { server: 'gh', action: 'reconnect' } : {}),
       }
       const h = controlled('c2')
       expect(await h.tool({ op, args })).toMatchObject({ status: 'denied', code: 'never' })

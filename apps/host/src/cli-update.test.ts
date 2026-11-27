@@ -63,7 +63,7 @@ it('dispatches update check with JSON and offline rollback, and exposes help', a
   })
   expect(await runCli(['update', '--rollback', '--json'], io, context)).toBe(75)
   expect(JSON.parse(stdout.pop() ?? '').exitCode).toBe(75)
-  expect(await runCli(['help'], io, context)).toBe(0)
+  expect(await runCli(['--help'], io, context)).toBe(0)
   expect(stdout.pop()).toContain('uninstall [--purge --yes]')
 })
 it('dispatches uninstall with a JSON report', async () => {

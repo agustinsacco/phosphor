@@ -7,6 +7,9 @@ import { runPrintMode } from '@phosphor/session-runtime/pi/print-mode'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { readMcpConfigs } from '@phosphor/session-runtime/pi/mcp-config'
 import { createMachineTasks } from './tasks'
+import { createHeadlessTasks } from './headless-tasks'
+import { packageHandlers } from '../ops/handlers/packages'
+import type { DaemonHandlerDeps } from '../ops/handlers'
 vi.mock('../machine/executables', () => ({ which: vi.fn() }))
 vi.mock('@phosphor/session-runtime/pi/print-mode', () => ({ runPrintMode: vi.fn() }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: vi.fn() }))
@@ -241,3 +244,47 @@ describe('fixed-purpose private machine programs', () => {
     expect(args).toContain('--max-filesize')
   })
 })
+
+it.each(['package.install', 'package.update', 'package.remove'] as const)(
+  'invalidates packages only after a successful %s from either UI PTY or catalog runner',
+  async (task) => {
+    const args = { name: 'npm:sample' }
+    vi.mocked(listPackages).mockResolvedValue([{ spec: args.name, scope: 'global' }] as never)
+    vi.mocked(runPrintMode).mockResolvedValue({ stdout: '', stderr: '' })
+    const f = fixture()
+    const resourceChanged = vi.fn()
+    const settings = { ...f.settings, resourceChanged }
+    const options = {
+      settings,
+      home: '/host/home',
+      env: {},
+      pi: { binaryPath: '/trusted/pi', prefixArgs: [] },
+    }
+    const ui = createMachineTasks({ ...options, terminals: f.terminals })
+    await ui.execute({ type: 'machine.task', task, ...args }, 'client', () => true)
+    expect(resourceChanged).not.toHaveBeenCalled()
+    f.finish()
+    await vi.waitFor(() => expect(ui.active()).toBe(false))
+    const change = { kind: 'packages' }
+    expect(resourceChanged).toHaveBeenCalledExactlyOnceWith(change)
+    resourceChanged.mockClear()
+    const handlers = packageHandlers({
+      settingsOps: { task: createHeadlessTasks(options, (s) => s) },
+    } as unknown as DaemonHandlerDeps)
+    await handlers[task](
+      { scope: 'global', spec: args.name },
+      {
+        principal: {
+          kind: 'agent',
+          laneRef: 'issuer',
+          sessionId: 'pi',
+          lineage: 0,
+          unattended: false,
+        },
+        signal: new AbortController().signal,
+        log: () => {},
+      },
+    )
+    expect(resourceChanged).toHaveBeenCalledExactlyOnceWith(change)
+  },
+)

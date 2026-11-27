@@ -10,6 +10,7 @@ import { AGENT_OPS_SCHEMA, createAuditLog } from '@phosphor/session-runtime/ops/
 import { confirmPort, createConfirmStore } from '@phosphor/session-runtime/ops/confirm'
 import { createOpsDispatcher } from '@phosphor/session-runtime/ops/dispatcher'
 import { createJobStore } from '@phosphor/session-runtime/ops/jobs'
+import { maintenanceTargets } from './handlers/maintenance'
 import { archiveSelection } from './handlers/archives'
 import { laneJob } from './handlers/lanes'
 import { recordCreator } from './binding'
@@ -247,13 +248,14 @@ function bindOps(ports: OpsServicePorts, db: DatabaseSync, now: () => number): O
   )
   const dispatcher = createOpsDispatcher(binding, {
     catalog: DAEMON_CATALOG,
-    parseArgv: (argv, content) => parseOpArgv(argv, undefined, { content }),
+    parseArgv: (argv, content, reason) => parseOpArgv(argv, undefined, { content, reason }),
     agentFor: daemonAgentFor(ports, laneBinding.lanes.createdBy),
     surfaceAdmits,
     confirms: confirmPort(confirms, changed),
     redact: argsSummary,
     background: (r, self) => !inverseRequests.has(r) && laneJob(r.op, self),
     archiveIds: () => archiveSelection(domain),
+    maintenanceTargets: (plan, signal) => maintenanceTargets(domain, plan, signal),
     undo: { run: (principal, id) => undo(principal, id) },
     jobs: jobs.port,
     ...(ports.directory
@@ -296,6 +298,7 @@ export interface RunOpsPorts extends Pick<
   | 'appServices'
   | 'skills'
   | 'ownerFolders'
+  | 'workspaceLeases'
   | 'sandboxes'
   | 'stateDirectory'
   | 'sessionsRoot'
@@ -305,6 +308,7 @@ export interface RunOpsPorts extends Pick<
   | 'management'
   | 'settingsOps'
   | 'shellEnvironment'
+  | 'machineHealth'
   | 'editing'
   | 'enrolledId'
   | 'remote'

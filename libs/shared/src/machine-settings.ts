@@ -5,7 +5,7 @@ import type { ThinkingLevel } from './rpc'
 import type { MachineAgentBehavior } from './machine-agent-behavior'
 import type { WebAccessKey } from './web-access'
 import { machineRecord, type MachineClaude, type MachineProvider } from './host-protocol-machine'
-import { MCP_SERVER_NAME, type McpServerConfig } from './mcp'
+import { MCP_SERVER_NAME, type McpExposure, type McpServerConfig } from './mcp'
 import { text, keys, repositoryId } from './machine-settings-fields'
 import { validSettingsChange } from './machine-settings-change'
 export { isMachineAccountId } from './machine-settings-fields'
@@ -144,6 +144,7 @@ export type MachineSettingsChange =
   | { type: 'agent.patch'; patch: MachineAgentPatch }
   | { type: 'mcp.upsert'; name: string; config: McpServerConfig; approveCode?: true }
   | { type: 'mcp.remove'; name: string }
+  | { type: 'mcp.expose'; name: string; exposure: McpExposure; transport: 'stdio' | 'https' }
   | { type: 'mcp.enabled'; name: string; enabled: boolean }
   | { type: 'instructions.write'; content: string }
   /** Set one Web access key (`resources`, machine-wide), or clear it with `null`. */

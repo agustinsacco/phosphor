@@ -2,7 +2,7 @@ import type { BrainStatus } from '@phosphor/shared/brain'
 import { OpRefusal } from '@phosphor/session-runtime/ops/builtins'
 import type { OpHandlerContext } from '@phosphor/session-runtime/ops/types'
 import { liveOpLane, lanePath, targetLane } from './lanes'
-import { op, dataResult } from '@phosphor/session-runtime/ops/results'
+import { op, dataResult, fields, pageInventory } from '@phosphor/session-runtime/ops/results'
 const service = async () => (await import('../brain/runtime')).brainService()
 async function port(ctx: OpHandlerContext) {
   const p = ctx.principal
@@ -30,10 +30,10 @@ function briefing(value: unknown) {
   return { text: value.text, data: value.data }
 }
 /** Lane tool text and structured data come from the same indexing-only projection. */
-function statusResult(status: BrainStatus, ctx: OpHandlerContext) {
-  if (ctx.principal.kind !== 'agent') return dataResult(status)
+function visibleStatus(status: BrainStatus, ctx: OpHandlerContext) {
+  if (ctx.principal.kind !== 'agent') return status
   const { prefs, embedding, counts, jobs } = status
-  return dataResult({
+  return {
     supported: status.supported,
     prefs: { enabled: prefs.enabled, recall: prefs.recall },
     embedding: { phase: embedding.phase },
@@ -44,21 +44,29 @@ function statusResult(status: BrainStatus, ctx: OpHandlerContext) {
       memories,
       progress: progress && { stage: progress.stage, done: progress.done, total: progress.total },
     })),
-  })
+  }
 }
 export const brainHandlers = {
   'brain.search': op(async (a, c) => briefing(await (await port(c)).search(a))),
   'brain.flag': op(async (a, c) => briefing(await (await port(c)).flag(a))),
-  'brain.status': op(async (_a, c) => statusResult(await (await service()).api.status(), c)),
+  'brain.status': op(async (_a, c) => {
+    const status = visibleStatus(await (await service()).api.status(), c)
+    return pageInventory(status.jobs, c, fields('id', 'state', 'memories'), {
+      surface: { limit: status.jobs.length },
+      wrap: (jobs) => ({ ...status, jobs }),
+    })
+  }),
   'brain.find': op<{ query: string; limit?: number }>(async (args, ctx) =>
     ctx.principal.kind === 'agent'
       ? briefing(await (await port(ctx)).search(args))
       : dataResult(await (await service()).api.find(args.query, args.limit ?? 8)),
   ),
   'brain.queue': op(async (_a, c) =>
-    statusResult(
-      await (await service()).api.queue({ title: targetLane(c).title, sessionPath: lanePath(c) }),
-      c,
+    dataResult(
+      visibleStatus(
+        await (await service()).api.queue({ title: targetLane(c).title, sessionPath: lanePath(c) }),
+        c,
+      ),
     ),
   ),
 }

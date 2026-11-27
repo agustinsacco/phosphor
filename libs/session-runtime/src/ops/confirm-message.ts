@@ -29,6 +29,7 @@ interface RenderInput {
   readonly origin: ConfirmInfo['origin']
   readonly summary: string
   readonly reason?: string
+  readonly exactPath?: string
   readonly targets: readonly ConfirmTarget[]
 }
 
@@ -39,6 +40,14 @@ const UNSAFE =
 /** One line: control, bidi and line-separator characters become spaces. */
 export function oneLine(text: string): string {
   return text.replace(UNSAFE, ' ').replace(/\s+/g, ' ').trim()
+}
+
+/** Quote without losing repeated spaces, and escape characters that can forge a line. */
+function quotedPath(path: string) {
+  return JSON.stringify(path).replace(
+    UNSAFE,
+    (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  )
 }
 
 /** At most `units` UTF-16 units, never splitting a surrogate pair. */
@@ -103,6 +112,7 @@ export function renderConfirm(input: RenderInput, confirmId: string): Rendered {
   const render = (labels: boolean) =>
     [
       originLine(input.origin, summary),
+      ...(input.exactPath === undefined ? [] : [`Exact path: ${quotedPath(input.exactPath)}`]),
       '',
       ...shown.flatMap((target) => [...targetLines(target, labels), '']),
       CONFIRM_REASON_HEADING,

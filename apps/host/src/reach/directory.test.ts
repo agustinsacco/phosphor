@@ -43,10 +43,10 @@ describe('reach directory', () => {
       [
         'bee3',
         { lastSeenAt: new Date(Date.now() - 120_000).toISOString() },
-        { ready: false, online: false, why: 'offline' },
+        { ready: false, online: false, why: 'stale-heartbeat' },
       ],
       ['bee4', { machineReach: false }, { ready: false, online: true, why: 'reach-off' }],
-      ['bee5', { machineGrants: false }, { ready: false, online: true, why: 'update-host' }],
+      ['bee5', { machineGrants: false }, { ready: false, online: true, why: 'not-enrolled' }],
       ['bee6', { reachable: false }, { ready: false, online: true, why: 'offline' }],
       ['bee7', { lastSeenAt: null, state: null }, { ready: false, online: false, why: 'offline' }],
     ]
@@ -62,6 +62,7 @@ describe('reach directory', () => {
         id: peers[i]!.id,
         label: peers[i]!.label,
         hostVersion: '0.3.0',
+        catalogOps: 'unknown',
         ...expected,
       })),
     })
@@ -99,16 +100,48 @@ describe('reach directory', () => {
     expect(calls).toHaveLength(1)
   })
 
+  it('retries a fetch TypeError once and can recover', async () => {
+    let first = true
+    const { directory, calls } = setup(() => {
+      if (!first) return listing([])
+      first = false
+      return 'offline'
+    })
+    await expect(directory.read()).resolves.toMatchObject({ available: true })
+    expect(calls).toHaveLength(2)
+  })
+
   it.each([
-    [{ status: 410, code: 'gone' }, 'signed-out'],
-    [{ status: 403, code: 'forbidden' }, 'account-disabled'],
-    [{ status: 503, code: 'unavailable' }, 'offline'],
-    ['offline', 'offline'],
-  ] as const)('maps %j to %s and asks again next time', async (answer, reason) => {
+    [{ status: 410, code: 'gone' }, 'signed-out', 1],
+    [{ status: 403, code: 'forbidden' }, 'account-disabled', 1],
+    [{ status: 503, code: 'unavailable' }, 'control-unreachable', 2],
+    ['offline', 'control-unreachable', 2],
+    [{ status: 429, code: 'too-many-requests' }, 'rate-limited', 1],
+    [{ status: 200, body: { unexpected: true } }, 'bad-response', 1],
+  ] as const)('maps %j to %s after %i attempts', async (answer, reason, count) => {
     const { directory, calls } = setup(() => answer)
     await expect(directory.read()).resolves.toEqual({ available: false, reason })
-    await directory.read()
-    expect(calls).toHaveLength(2)
+    expect(calls).toHaveLength(count)
+  })
+
+  it('honors Retry-After across directory calls without retrying a 429', async () => {
+    const clock = { now: Date.now() }
+    let count = 0
+    const directory = createReachDirectory({
+      control: reachControl,
+      now: () => clock.now,
+      fetch: async () =>
+        ++count === 1
+          ? Response.json({}, { status: 429, headers: { 'Retry-After': '2' } })
+          : Response.json((listing([]) as { body: unknown }).body),
+    })
+    expect(await directory.read()).toEqual({ available: false, reason: 'rate-limited' })
+    clock.now += 1999
+    expect(await directory.read()).toEqual({ available: false, reason: 'rate-limited' })
+    expect(count).toBe(1)
+    clock.now++
+    expect(await directory.read()).toMatchObject({ available: true })
+    expect(count).toBe(2)
   })
 
   it('answers signed-out without asking control before enrollment', async () => {

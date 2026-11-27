@@ -55,6 +55,7 @@ const FRAMES = {
   'auth-renewed': { type: 'auth-renewed', grantExpiresAt: TIME },
   lanes: { type: 'lanes', id: 'l', cursor: CURSOR, repositories: [], lanes: [SUMMARY] },
   'lanes-delta': { type: 'lanes-delta', id: 'l', cursor: CURSOR, upsert: [], remove: [LANE] },
+  'resource-changed': { type: 'resource-changed', id: 'l', change: { kind: 'archives' } },
   'routines-changed': { type: 'routines-changed', id: 'r', cursor: CURSOR },
   attention: {
     type: 'attention',
