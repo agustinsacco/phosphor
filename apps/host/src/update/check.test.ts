@@ -143,3 +143,19 @@ it('reads the v2 manifest for this machine’s target and falls back to v1', asy
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+it('offers only what this Host’s updater can install: no offer for a v2-only target', async () => {
+  vi.useRealTimers()
+  const root = mkdtempSync(join(tmpdir(), 'release-check-'))
+  try {
+    const mirror = localReleaseMirror(root)
+    const source = { env: mirror.env, keys: mirror.keys }
+    const signal = new AbortController().signal
+    mirror.publish({ version: '1.3.0', targets: ['darwin-arm64', 'darwin-x64', 'linux-x64'] })
+    // The updater reads the v1 manifest, which has no darwin-x64: an offer there could never install.
+    expect(await newestRelease(source, 'darwin-x64', signal)).toBeUndefined()
+    expect(await newestRelease(source, 'darwin-arm64', signal)).toBe('1.3.0')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
