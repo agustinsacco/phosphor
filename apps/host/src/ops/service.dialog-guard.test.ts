@@ -160,7 +160,7 @@ it('starts a catalog download as a job without terminating the asking lane for a
 it('names the exact sandbox in a user confirmation and refuses its replacement', async () => {
   const cli = { kind: 'local', clientId: 'cleanup-test' } as const
   const scan = await service.dispatcher.run(cli, { op: 'maintenance.scan', args: {} })
-  if (scan.status !== 'ok') throw new Error(scan.text)
+  if (scan.status !== 'ok') throw new Error('No cleanup scan.')
   const { plan } = scan.data as { plan: string }
   const request = { op: 'maintenance.run', args: { plan } }
   const ask = await service.dispatcher.run(cli, request)
