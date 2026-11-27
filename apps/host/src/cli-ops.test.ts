@@ -192,11 +192,16 @@ describe('the brain domain', () => {
     ])
     expect(runBrain).not.toHaveBeenCalled()
     expect(await cli(['brain', 'status'])).toMatchObject({ code: 0 })
-    expect(runBrain).toHaveBeenCalledExactlyOnceWith(
-      { op: BRAIN_SURFACE, args: { method: 'brain:status', args: [] } },
-      false,
+    expect(await cli(['brain.status'])).toMatchObject({ code: 0 })
+    expect(runBrain.mock.calls).toEqual(
+      Array.from({ length: 2 }, () => [
+        { op: BRAIN_SURFACE, args: { method: 'brain:status', args: [] } },
+        false,
+      ]),
     )
-    expect(run).toHaveBeenCalledTimes(2)
+    expect(await cli(['brain.search', 'Harbor'])).toMatchObject({ code: 0 })
+    expect(run).toHaveBeenCalledTimes(3)
+    expect(runBrain).toHaveBeenCalledTimes(2)
   })
 
   it('answers Brain help offline in every spelling, and leaves lane recall help to the catalog', async () => {

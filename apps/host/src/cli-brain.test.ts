@@ -7,9 +7,10 @@ import { brainHelp, parseBrainCli } from './cli-brain-args'
 import { runCliBrain } from './cli-brain'
 import type { CliContext } from './cli-handlers'
 import { openLocalClient } from './local-client'
+import type * as LocalClient from './local-client'
 
 vi.mock('./local-client', async (original) => ({
-  ...(await original<typeof import('./local-client')>()),
+  ...(await original<typeof LocalClient>()),
   openLocalClient: vi.fn(),
 }))
 
@@ -189,6 +190,7 @@ describe('runCliBrain', () => {
     message: 'Approve',
     confirmId,
     digest: 'd'.repeat(64),
+    items: [],
     expiresAt,
   })
   const state = (value: string): OpsRunResult => ({

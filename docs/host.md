@@ -277,9 +277,10 @@ phosphor uninstall [--purge --yes] [--json]
 phosphor version [--json]  # --version and -v also print the version
 phosphor --help
 phosphor help [DOMAIN [VERB]]
+phosphor brain <command> [operands] [--expected GENERATION:REVISION] [--json]  # this Host's Brain
 ```
 
-`phosphor --help` prints installer and Host usage with the static catalog. `phosphor help` asks the running owner about its catalog.
+`phosphor --help` prints installer and Host usage with the static catalog. `phosphor help` asks the running owner about its catalog. `phosphor brain` is the private [Brain CLI](host-brain-api.md#cli-approval); its help is offline.
 
 stdout carries only the report or the JSON. Usage errors and accept's progress
 go to stderr.

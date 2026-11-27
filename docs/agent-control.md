@@ -33,7 +33,7 @@ The tool labels replies with the owner's canonical `op`. Its display is bounded;
 
 See [provider inspection](cli-providers.md#catalog-inspection-on-the-host) for `machine.usage` and `claude.accounts`, and [Connector catalog access](mcp.md#catalog-access) for cached `mcp.check` and lane inspection/reconnect. Config writes expose reviewed behavior fields, not trust or credentials. `mcp.expose` changes only a server's exposure and keeps its other fields. Pass `--transport stdio` for a command-based server: that asks, while HTTPS is persistence tier. The owner checks the stored entry and refuses a mismatch before writing. `routine.check` is a side-effect-free preflight. `routine.fromLane <runId>` promotes a settled run with a valid transcript to a stopped lane. When a background result has another page, `job.status` names the producing command in a `More:` hint. Run that command with the cursor and the original filters (such as `--project`), not `job status --page`. JSON includes the producing op in `data.op` and the cursor in `data.result.next`.
 
-The Host service doesn't serve `brain.find`, `brain.status` or `brain.queue`. Brain is owned by Desktop's main-process bridge, and serving it from the Host needs a scoped credential that hasn't been designed yet.
+The Host service doesn't serve `brain.find`, `brain.status` or `brain.queue` as catalog ops. On the command line those spellings, and every `phosphor brain` command except `search` and `flag`, run the [private Brain CLI](host-brain-api.md#cli-approval) on this Host, one approval per command; they never go through the catalog or `--host`.
 
 ## Policy and confirmations
 
