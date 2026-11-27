@@ -35,8 +35,9 @@ without opening Settings:
 
 - **A Host reports its own update status.** The Host checks its signed release
   manifest in the background (the check `update/handoff.ts` already does, no
-  download), a few minutes after start and then every few hours, and reports an
-  additive `machine.status` `data.update { available?, checkedAt?, last? }`, where
+  download), a few minutes after start and then every few hours, and reports
+  them in `machine.status` `data.update`, beside today's `pauseControl`: `available?`,
+  `checkedAt?` and `last?`, where
   `last` is the existing `update-result.json` (updated, rolled back, failed). Older
   Hosts fall back to "a newer version runs on another of your machines". No new op,
   frame or capability.

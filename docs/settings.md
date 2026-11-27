@@ -906,13 +906,13 @@ and the raw editor.
   the login shell's PATH on This Mac). A Host reports its pi as additive
   `advanced.pi { version, path, agentDir }`; a Host without it shows **Update this
   Host to see its pi** and its agent directory and PATH only.
-- **Updates and version**, first on both, in the same rows (`MachineRuntimeRows`):
-  This Mac's Phosphor version and platform (`app:about`) with the app's own update
-  row, the one About shows (**Check now**, then **Restart to update** or
-  **Download**); a Host's, or This Mac's service's, version, platform and config path
-  with the **Software** row: **Update…** confirms once, then shows the same step
-  pipeline described under Advanced → Software above (`SoftwareUpdateRow`,
-  `stores/machineUpdates.ts`). Both name the platform alike (macOS, Linux); a
+- **Updates and version**, first on both: in-app, This Mac's Phosphor version and
+  platform (`app:about`) with the app's own update row, the one About shows
+  (**Check now**, then **Restart to update** or **Download**), in
+  `MachineRuntimeRows`. A Host, or This Mac's service, shows its version and platform
+  in the **Software** row (`HostSoftware`, `SoftwareUpdateRow`,
+  `stores/machineUpdates.ts`): **Update…** confirms once, then shows the step pipeline
+  described under Advanced → Software above; `MachineRuntimeRows` adds its config path. Both name the platform alike (macOS, Linux); a
   version This Mac cannot read shows as unknown beside its update row.
 - **Environment availability**, a Host only: each allowlisted variable's name and
   whether it reaches pi, never its value.
