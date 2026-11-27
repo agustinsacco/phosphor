@@ -5,7 +5,7 @@ import {
   renameNoReplace,
   transferEntry as transfer,
 } from '@phosphor/session-runtime/files/mutations'
-import { inside } from '../files'
+import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 import { mutationPath, WriteFailure } from './guards'
 
 export async function createEntry(
@@ -26,7 +26,7 @@ export async function renameEntry(
 ): Promise<void> {
   const from = await mutationPath(root, op.from)
   const to = await mutationPath(root, op.to, true)
-  if (inside(from, to)) throw new WriteFailure('bad-request')
+  if (isInsideResolved(from, to)) throw new WriteFailure('bad-request')
   await mutationPath(root, op.from)
   await renameNoReplace(from, to)
 }
@@ -39,7 +39,7 @@ export async function transferEntry(
   const directory = op.directory === '.' ? root : await mutationPath(root, op.directory)
   let entries = 0
   const path = await transfer(root, source, directory, op.mode, async (path, missing) => {
-    if (++entries > 40000 || !inside(root, path)) throw new WriteFailure('bad-request')
+    if (++entries > 40000 || !isInsideResolved(root, path)) throw new WriteFailure('bad-request')
     if (path !== root) await mutationPath(root, relative(root, path).split(sep).join('/'), missing)
   })
   return { path: relative(root, path).split(sep).join('/') }

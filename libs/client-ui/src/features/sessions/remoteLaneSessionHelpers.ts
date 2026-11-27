@@ -3,7 +3,9 @@ import { ensureServiceLaneControl, ServiceLaneControlRefused } from '@/platform/
 import { refreshHostsSnapshot } from '@/stores/hostsSnapshotRead'
 import type { HostLaneView } from '@shared/ipc'
 import type { SessionDebugSource } from '@/lib/sessionDebugInfo'
-import { piCall, piCallOk } from '@/lib/rpc'
+import { markersChosenByOthers } from '@/lib/laneMarker'
+import { piCall } from '@/lib/rpc'
+import { applySessionRename } from './sessionActions'
 import { useChatStore } from '@/stores/chat'
 import { machineLabel, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { makeRoutine } from '@/stores/routines'
@@ -14,14 +16,15 @@ import { makeRoutine } from '@/stores/routines'
  * as on This Mac: derived markers collide by design.
  */
 export function usedMarkers(lanes: readonly HostLaneView[], lane: HostLaneView): Set<string> {
-  return new Set(
-    lanes.flatMap((other) => (other.laneId !== lane.laneId && other.marker ? [other.marker] : [])),
+  return markersChosenByOthers(
+    lanes.map((other) => [other.laneId, other.marker] as const),
+    lane.laneId,
   )
 }
 
+/** A running lane's rename through pi; a refusal throws to the lane's dialog runner. */
 export async function renameLane(sessionId: string, name: string): Promise<void> {
-  if (!(await piCallOk(sessionId, { type: 'set_session_name', name }))) throw new Error()
-  useChatStore.getState().patchMeta(sessionId, { sessionName: name })
+  if (!(await applySessionRename(sessionId, name))) throw new Error()
 }
 
 /** The capable Host chooses the running or stopped path at the time of the edit. */

@@ -1,8 +1,6 @@
-import { useState } from 'react'
 import type { HostLaneView } from '@shared/ipc'
 import { useMenuTriggers } from '@/components/ContextMenu'
-import { RenameInput } from './RenameInput'
-import { committedRename } from './inlineRename'
+import { useInlineRename } from './laneRowBody'
 import { useNavigation } from '@/navigation/Navigation'
 import { RemoteLanePresentation } from './RemoteLanePresentation'
 import { LaneMarker } from './LaneMarker'
@@ -36,17 +34,15 @@ export function RemoteLaneRow({
   select?: Omit<LaneSelect, 'title'>
 }): React.JSX.Element {
   const { navigate } = useNavigation()
-  const [draft, setDraft] = useState<string | null>(null)
   const actions = useRemoteLaneActions({ hostId, lane, ready, onRename: rename })
   const { title, canRename } = actions
   const menu = useMenuTriggers(actions.items, { title, disabled: !ready, revision: lane.activity })
+  const inline = useInlineRename(title, (name) => void actions.saveName(name), {
+    maxLength: 80,
+    label: 'Lane name',
+  })
   function rename(): void {
-    setDraft(title)
-  }
-  function save(): void {
-    setDraft(null)
-    const name = draft === null ? undefined : committedRename(draft, title)
-    if (name) void actions.saveName(name)
+    inline.begin()
   }
   return (
     <>
@@ -55,18 +51,7 @@ export function RemoteLaneRow({
         hostId={hostId}
         lane={lane}
         title={title}
-        titleEditor={
-          draft === null ? undefined : (
-            <RenameInput
-              value={draft}
-              onChange={setDraft}
-              onCommit={save}
-              onCancel={() => setDraft(null)}
-              maxLength={80}
-              label="Lane name"
-            />
-          )
-        }
+        titleEditor={inline.editor}
         ready={ready}
         disabled={!ready || actions.deletingInBulk}
         active={active}

@@ -1,5 +1,5 @@
 import { useBrain } from '@/features/brain/useBrain'
-import { laneMarker } from '@/lib/laneMarker'
+import { laneMarker, markersChosenByOthers } from '@/lib/laneMarker'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { useLaneBrainActions } from './useLaneBrainActions'
 import type { ContextMenuItem } from '@/components/ContextMenu'
@@ -196,13 +196,10 @@ function LocalMarkerPicker({
    * palette is finite) and dimming them would grey out most of the grid.
    */
   const usedMarkers = useSessionsStore((s) => s.laneMarkers)
-  const takenMarkers = useMemo(() => {
-    const taken = new Set<string>()
-    for (const [path, glyph] of Object.entries(usedMarkers)) {
-      if (path !== meta.path && glyph) taken.add(glyph)
-    }
-    return taken
-  }, [usedMarkers, meta.path])
+  const takenMarkers = useMemo(
+    () => markersChosenByOthers(Object.entries(usedMarkers), meta.path),
+    [usedMarkers, meta.path],
+  )
   return (
     <Suspense fallback={null}>
       <MarkerPickerModal

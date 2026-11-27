@@ -17,7 +17,7 @@ import type { HostRuntime } from '../session/runtime'
 import type { HostTerminals } from '../terminals/service'
 import type { HostStore } from './store'
 import type { LaneSessions } from './create'
-import { inside } from '../features/files'
+import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 import {
   archiveAttachmentsPath,
   attachmentIdentity,
@@ -231,7 +231,7 @@ export class HostArchives {
     const cwd = await realpath(record.cwd)
     if (
       !store.listRepositories().some((repo) => repo.path === record.repository) ||
-      !inside(join(root, '.phosphor', 'worktrees'), cwd)
+      !isInsideResolved(join(root, '.phosphor', 'worktrees'), cwd)
     )
       throw new Error('Checkout ownership changed.')
     requireAllowed(allowed)

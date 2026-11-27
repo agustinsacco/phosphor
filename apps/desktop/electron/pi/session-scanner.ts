@@ -6,14 +6,8 @@ import { compareSessionsByCreation } from '@shared/session-order'
 import type { AgentMessage } from '@shared/rpc'
 import { parseSessionEntries, sessionContext } from '@phosphor/session-runtime/pi/session-context'
 import { sessionDirForCwd } from './pi-paths'
-import {
-  cloneFold,
-  emptyFold,
-  foldFrom,
-  metaFromFold,
-  readSignature,
-  type FoldState,
-} from '@phosphor/session-runtime/pi/session-fold'
+import { emptyFold, foldFrom, metaFromFold } from '@phosphor/session-runtime/pi/session-fold'
+import { createResumableFolds, touchLru } from '@phosphor/session-runtime/pi/session-fold-resume'
 import { withSubagentPrs } from '@phosphor/session-runtime/pi/lane-pr-runs'
 
 export { piAgentDir, piSessionsRoot, sessionDirForCwd, sessionDirNameForCwd } from './pi-paths'
@@ -40,17 +34,6 @@ interface CacheEntry {
 }
 
 /**
- * State needed to continue a parse instead of restarting it: where the last
- * one stopped, proof the file was appended to rather than rewritten, and the
- * running totals.
- */
-interface ResumeEntry {
-  consumedBytes: number
-  signature: string
-  state: FoldState
-}
-
-/**
  * Metadata for every session ever scanned. Bounded because this process runs
  * for days: it used to be a plain Map that also kept entries for deleted
  * files forever.
@@ -66,24 +49,13 @@ const METAS_CACHED = 512
  */
 const RESUMES_CACHED = 16
 
-/** Insertion-ordered Map used as an LRU: re-set on hit, evict from the front. */
-function touch<V>(cache: Map<string, V>, key: string, value: V, cap: number): void {
-  cache.delete(key)
-  cache.set(key, value)
-  while (cache.size > cap) {
-    const oldest = cache.keys().next().value
-    if (oldest === undefined) break
-    cache.delete(oldest)
-  }
-}
-
 const metaCache = new Map<string, CacheEntry>()
-const resumeCache = new Map<string, ResumeEntry>()
+const resumableFolds = createResumableFolds(RESUMES_CACHED)
 
 /** Test seam: drop every cached parse. */
 export function clearSessionCaches(): void {
   metaCache.clear()
-  resumeCache.clear()
+  resumableFolds.clear()
 }
 
 /**
@@ -145,11 +117,11 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
         const info = await stat(path)
         const cached = metaCache.get(path)
         if (cached && cached.mtimeMs === info.mtimeMs && cached.size === info.size) {
-          touch(metaCache, path, cached, METAS_CACHED)
+          touchLru(metaCache, path, cached, METAS_CACHED)
           return cached.meta
         }
         const meta = await scanSessionFile(path, info.mtimeMs, info.size)
-        touch(metaCache, path, { mtimeMs: info.mtimeMs, size: info.size, meta }, METAS_CACHED)
+        touchLru(metaCache, path, { mtimeMs: info.mtimeMs, size: info.size, meta }, METAS_CACHED)
         return meta
       } catch {
         return null
@@ -162,7 +134,7 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
   for (const path of [...metaCache.keys()]) {
     if (path.startsWith(dir) && !present.has(path)) {
       metaCache.delete(path)
-      resumeCache.delete(path)
+      resumableFolds.forget(path)
     }
   }
 
@@ -171,62 +143,23 @@ async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {
 
 /**
  * Parse a session file, continuing a previous parse when the file has only
- * grown since.
- *
- * The append is PROVEN, not assumed: the bytes ending where the last parse
- * stopped are re-read and compared. A rewrite, a truncation, or anything else
- * that moves that boundary falls back to a full parse, so the worst case is
- * the old cost and never a wrong answer.
+ * grown since (`createResumableFolds` proves the append). A file with no
+ * usable header answers null and keeps no resume.
  */
 async function scanSessionFile(
   path: string,
   mtimeMs: number,
   size: number,
 ): Promise<SessionMeta | null> {
-  const resume = resumeCache.get(path)
-  // `size > consumedBytes` is load-bearing, not an optimization. Reaching here
-  // means the file changed, so a file that did NOT grow was rewritten in
-  // place — and a same-length rewrite can leave the last 64 bytes untouched,
-  // which the signature alone would read as "nothing happened" and answer
-  // with stale totals. Requiring new bytes sends that case to a full parse.
-  if (resume && size > resume.consumedBytes) {
-    const signature = await readSignature(path, resume.consumedBytes)
-    if (signature === resume.signature) {
-      // Fold into a copy: a throw partway through would otherwise leave the
-      // cached totals double-counted for every later turn.
-      const state = cloneFold(resume.state)
-      try {
-        const consumedBytes = await foldFrom(path, resume.consumedBytes, state)
-        return await remember(path, mtimeMs, state, consumedBytes)
-      } catch {
-        // Fall through to the full parse below.
-      }
-    }
-  }
-  resumeCache.delete(path)
-
-  const state = emptyFold()
-  const consumedBytes = await foldFrom(path, 0, state)
-  return remember(path, mtimeMs, state, consumedBytes)
-}
-
-async function remember(
-  path: string,
-  mtimeMs: number,
-  state: FoldState,
-  consumedBytes: number,
-): Promise<SessionMeta | null> {
-  const meta = metaFromFold(state, path, mtimeMs)
-  if (!meta) return null
-  // Only when the lane's own file changed: a subagent's progress lands there
-  // too, so a cold lane never re-reads its runs.
-  const pullRequests = await withSubagentPrs(path, meta.parentSession, state.prs)
-  if (pullRequests) meta.pullRequests = pullRequests
-  const signature = await readSignature(path, consumedBytes)
-  if (signature !== null) {
-    touch(resumeCache, path, { consumedBytes, signature, state }, RESUMES_CACHED)
-  }
-  return meta
+  return resumableFolds.fold(path, size, async (state) => {
+    const meta = metaFromFold(state, path, mtimeMs)
+    if (!meta) return null
+    // Only when the lane's own file changed: a subagent's progress lands there
+    // too, so a cold lane never re-reads its runs.
+    const pullRequests = await withSubagentPrs(path, meta.parentSession, state.prs)
+    if (pullRequests) meta.pullRequests = pullRequests
+    return meta
+  })
 }
 
 /** Single-pass parse of a whole file. Kept for callers outside the scan loop. */

@@ -9,7 +9,8 @@ import type { FeatureContext } from './feature'
 import type { StoredLane } from '../lanes/store'
 import { constants } from 'node:fs'
 import * as fs from 'node:fs/promises'
-import { checkedPath, createFilesFeature, inside, laneRoot } from './files'
+import { checkedPath, createFilesFeature, laneRoot } from './files'
+import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 
 vi.mock('node:fs/promises', { spy: true })
 
@@ -169,7 +170,7 @@ describe('files feature', () => {
     )
     expect(fs.open).not.toHaveBeenCalled()
     await expect(checkedPath(f.root, 'parent/missing', true)).rejects.toThrow()
-    expect(inside(f.root, f.root + '-sibling')).toBe(false)
+    expect(isInsideResolved(f.root, f.root + '-sibling')).toBe(false)
   })
   it('rejects removed, unknown, inactive and escaped lane roots', async () => {
     const feature = createFilesFeature(f.context)

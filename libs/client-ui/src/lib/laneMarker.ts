@@ -227,3 +227,17 @@ export function laneMarker(
 export function allMarkers(): string[] {
   return MARKER_CATEGORIES.flatMap((c) => [...c.markers])
 }
+
+/**
+ * Markers other lanes chose, for the picker to dim: every `[lane, marker]`
+ * pair but `self`'s. Explicit choices only: Auto (absent) and None (`''`) are
+ * not choices of a glyph, and derived markers collide by design.
+ */
+export function markersChosenByOthers<K>(
+  choices: Iterable<readonly [K, string | null | undefined]>,
+  self: K,
+): Set<string> {
+  const taken = new Set<string>()
+  for (const [lane, glyph] of choices) if (lane !== self && glyph) taken.add(glyph)
+  return taken
+}

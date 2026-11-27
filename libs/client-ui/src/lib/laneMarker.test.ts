@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { autoMarker, laneMarker, allMarkers, AUTO_MARKERS, MARKER_CATEGORIES } from './laneMarker'
+import {
+  autoMarker,
+  laneMarker,
+  allMarkers,
+  AUTO_MARKERS,
+  MARKER_CATEGORIES,
+  markersChosenByOthers,
+} from './laneMarker'
 
 describe('autoMarker', () => {
   it('is stable for the same key', () => {
@@ -96,4 +103,20 @@ it('derives the Brain Agent marker only in auto mode, without overriding explici
   expect(laneMarker('', null, '/brain/Brain', 'auto', '/brain/Brain')).toBe('')
   expect(laneMarker(undefined, null, '/brain/Brain', 'manual', '/brain/Brain')).toBe('')
   expect(laneMarker(undefined, null, '/brain/Brain', 'off', '/brain/Brain')).toBe('')
+})
+
+describe('markersChosenByOthers', () => {
+  it("keeps other lanes' glyphs and drops the lane's own, None and Auto", () => {
+    const taken = markersChosenByOthers(
+      [
+        ['a', '🐙'],
+        ['b', '🦊'],
+        ['c', ''],
+        ['d', undefined],
+        ['e', null],
+      ],
+      'a',
+    )
+    expect([...taken]).toEqual(['🦊'])
+  })
 })

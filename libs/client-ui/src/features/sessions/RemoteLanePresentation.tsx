@@ -11,6 +11,7 @@ import { LANE_ROW_CLASS, LaneRow, SESSION_TITLE_CLASS, SubtitleSegments } from '
 import { SelectableIndicator, type LaneSelect } from './LaneSelect'
 import { PinIcon } from '@/components/icons'
 import { LaneWorkspaceBadge } from './LaneWorkspaceBadge'
+import { laneRowBody } from './laneRowBody'
 import { remoteLanePresentation, remoteLaneTitle } from './remoteLaneView'
 import { useHostLaneOpenInFlight } from '@/stores/hostLaneOpen'
 
@@ -80,26 +81,30 @@ export function RemoteLanePresentation({
     'data-activity': activity,
     className: active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
   }
-  const body = (
-    <>
-      <SelectableIndicator state={view.indicator} select={select} />
-      {marker}
-      <span className="min-w-0 flex-1">
-        {titleEditor ?? <span className={SESSION_TITLE_CLASS}>{title}</span>}
-        <span className="text-text-secondary @container/lane-line flex items-center gap-1 text-base leading-4">
-          <SubtitleSegments segments={view.segments} activity={activity} />
-          {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
-          {showPr && <PrBadge prs={prs} />}
-        </span>
-      </span>
-      {workspaceName && <LaneWorkspaceBadge name={workspaceName} />}
-      {pinned && (
-        <span data-testid="lane-pin" className="shrink-0">
-          <PinIcon className="text-text-tertiary" />
-        </span>
-      )}
-    </>
-  )
+  const body = laneRowBody({
+    indicator: <SelectableIndicator state={view.indicator} select={select} />,
+    marker: marker,
+    title: titleEditor ?? <span className={SESSION_TITLE_CLASS}>{title}</span>,
+    subtitleClassName:
+      'text-text-secondary @container/lane-line flex items-center gap-1 text-base leading-4',
+    subtitle: (
+      <>
+        <SubtitleSegments segments={view.segments} activity={activity} />
+        {view.needsYou && <span className="text-warning shrink-0">needs you</span>}
+        {showPr && <PrBadge prs={prs} />}
+      </>
+    ),
+    trailing: (
+      <>
+        {workspaceName && <LaneWorkspaceBadge name={workspaceName} />}
+        {pinned && (
+          <span data-testid="lane-pin" className="shrink-0">
+            <PinIcon className="text-text-tertiary" />
+          </span>
+        )}
+      </>
+    ),
+  })
   return (
     <>
       {titleEditor ? (

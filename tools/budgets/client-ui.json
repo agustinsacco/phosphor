@@ -40,7 +40,6 @@
     "src/features/chat/SubagentPanel.tsx::SubagentPanel[1]": 430,
     "src/features/chat/SubagentPreview.tsx::SubagentPreview[1]": 185,
     "src/features/chat/SubagentWorkRow.tsx::SubagentWorkRow[1]": 100,
-    "src/features/chat/composer/CommandMenu.tsx::CommandMenu[1]": 81,
     "src/features/chat/composer/ComposerField.tsx::ComposerField[1]": 205,
     "src/features/chat/composer/ComposerInput.tsx::ComposerInput[1]": 141,
     "src/features/chat/composer/ContextMeter.tsx::file": 711,

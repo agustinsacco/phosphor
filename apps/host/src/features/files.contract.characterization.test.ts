@@ -10,7 +10,8 @@ import type { FeatureContext } from './feature'
 import type { StoredLane } from '../lanes/store'
 import { constants } from 'node:fs'
 import * as fs from 'node:fs/promises'
-import { checkedPath, createFilesFeature, inside, laneRoot } from './files'
+import { checkedPath, createFilesFeature, laneRoot } from './files'
+import { isInsideResolved } from '@phosphor/session-runtime/fs-safety'
 
 vi.mock('node:fs/promises', { spy: true })
 vi.mock('@phosphor/session-runtime/git/git-exec', { spy: true })
@@ -175,7 +176,7 @@ describe('files public contract', () => {
     )
     expect(fs.open).not.toHaveBeenCalled()
     await expect(checkedPath(f.root, 'parent/missing', true)).rejects.toThrow()
-    expect(inside(f.root, f.root + '-sibling')).toBe(false)
+    expect(isInsideResolved(f.root, f.root + '-sibling')).toBe(false)
   })
   it('rejects removed, unknown, inactive and escaped lane roots', async () => {
     const feature = createFilesFeature(f.context)
@@ -272,8 +273,8 @@ describe('files public contract', () => {
       ['/repo', '/repo/dir/../file', true],
       ['/repo', '/repo/', true],
     ] as const)
-      expect(inside(root, candidate)).toBe(expected)
-    expect(inside(sep, sep)).toBe(true)
+      expect(isInsideResolved(root, candidate)).toBe(expected)
+    expect(isInsideResolved(sep, sep)).toBe(true)
   })
   it('refuses a lane removed while reading and preserves fixed error envelopes', async () => {
     const original = (await vi.importActual<typeof fs>('node:fs/promises')).open
