@@ -22,13 +22,13 @@ are unchanged.
 | S6  | `message_end` fold is O(items + tools), and pi emits one message per tool call ⇒ O(n²) per session          | `libs/client-ui/src/features/chat/toolIdentity.ts`, `messageContent.ts`                  |
 | S7  | `FilesChangedPane` re-derives every touched file (re-parsing every patch) on every tool delta               | `libs/client-ui/src/features/files/FilesChangedPane.tsx` — depends on `tools` (S2)       |
 | S8  | Artifact `versions[]` grows unbounded with full content per version, duplicated on the tool payload         | `libs/client-ui/src/stores/artifacts.ts`                                                 |
-| S9  | `ArtifactsPane` runs `clearUnseen` (a `set`) on every render — no dep array                                 | `libs/client-ui/src/features/artifacts/ArtifactsPane.tsx`                                |
 
 Two more that are worth reading in full because their history is misleading:
 
-- **S10 — `releaseWorkspace` is never called.** It is the documented fix for
-  editor/Monaco retention, it exists in `libs/client-ui/src/stores/files.ts`, and its only
-  callers anywhere are its own tests. `disposeSession` does not call it.
+- **S10 — `releaseWorkspace` runs only for Host lanes.** It is the documented
+  fix for editor/Monaco retention in `libs/client-ui/src/stores/files.ts`. Session
+  cleanup in `libs/client-ui/src/stores/sessions.ts` calls it when a Host lane
+  goes away; an in-app lane's workspace is never released.
 - **S11 — live pi subprocesses are unbounded.** ~172 MB RSS for one _idle_ pi
   tree, and nothing reclaims them. This was genuinely fixed once by an
   idle-session reaper, and then the reaper was deleted wholesale with the

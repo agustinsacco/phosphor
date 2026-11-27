@@ -5,7 +5,6 @@
     "e2e/browser.spec.ts::test[3]": 148,
     "e2e/fixture.ts::browserFixture[1]": 488,
     "src/platform/control.ts::createBrowserControl[1]": 276,
-    "src/platform/control.ts::createBrowserControl[1]/json[1]": 83,
     "src/platform/drafts.ts::createBrowserDrafts[1]": 130,
     "src/platform/handlers.ts::createBrowserHandlers[1]": 101,
     "src/platform/hosts.ts::createBrowserHosts[1]": 224,

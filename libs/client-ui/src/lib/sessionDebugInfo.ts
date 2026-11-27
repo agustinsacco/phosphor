@@ -47,19 +47,6 @@ export interface SessionDebugSource {
 }
 
 /**
- * pi mangles a cwd to `--home-user-project--`: one leading separator dropped,
- * then every `/`, `\\` and `:` becomes a dash, wrapped in double dashes — so
- * `C:\\Users\\dev\\proj` is `--C--Users-dev-proj--`. Mirrors
- * `electron/pi/pi-paths.ts`, which is the source of truth on the main side;
- * this is the renderer's read-only copy for display, so it deliberately does
- * not resolve symlinks (it has no fs access and the value is a pointer for a
- * human, not a lookup key).
- */
-export function piSessionDirName(cwd: string): string {
-  return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
-}
-
-/**
  * Where the Claude Code CLI keeps its copy of this conversation.
  *
  * Returns null for sessions that did not run on that provider — there is no

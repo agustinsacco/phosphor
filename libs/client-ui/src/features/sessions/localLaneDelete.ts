@@ -91,12 +91,8 @@ export function buildLaneDelete(paths: string[], workspacePath: string): Preflig
 }
 
 /**
- * A single row's Delete. A lane that is the only session in its own
- * worktree gets the lane confirm, worktree removal on by default: deleting
- * just the transcript left the directory (and its `node_modules`) behind
- * with nothing in the sidebar pointing at it — 177 of them, 133 GB, on one
- * install. Anything else — the main checkout, a shared worktree, a row with
- * no git info yet — keeps the transcript-only confirm.
+ * A single row's Archive: the archive confirm for this one session. The
+ * conversation and its worktree stay on disk; the row leaves the sidebar.
  */
 export function archiveLocalRow(meta: SessionMeta, title: string, workspacePath: string): void {
   confirmSessionDelete({
@@ -105,10 +101,4 @@ export function archiveLocalRow(meta: SessionMeta, title: string, workspacePath:
     workspacePath: meta.cwd || workspacePath,
     archive: true,
   })
-}
-
-export function deleteLocalRow(meta: SessionMeta, title: string, workspacePath: string): void {
-  const summary = buildLaneDelete([meta.path], workspacePath)
-  if (summary.worktreeCount > 0) confirmLaneDelete(summary)
-  else confirmSessionDelete({ title, path: meta.path, workspacePath: meta.cwd || workspacePath })
 }

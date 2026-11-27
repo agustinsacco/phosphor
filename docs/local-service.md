@@ -1,6 +1,6 @@
 # This Mac’s Phosphor service
 
-On packaged macOS and Linux builds, This Mac’s lanes run in the Phosphor service: the Host as a per-user launchd agent (macOS) or systemd user unit (Linux). Quitting Desktop does not stop them. Windows keeps the in-app runtime; development builds install no service. Desktop decides the runtime once per launch, in `local-machine/launch.ts`.
+On packaged macOS and Linux builds, This Mac’s lanes run in the Phosphor service: the Host as a per-user launchd agent (macOS) or systemd user unit (Linux). Quitting Desktop does not stop them. Development builds install no service. Desktop decides the runtime once per launch, in `local-machine/launch.ts`.
 
 - **A new install** starts in-app. Its first launch installs the service in standby, and the next launch moves This Mac to it with the same one-time migration, which has little or nothing to move.
 - **An existing in-app install** does the same when a compatible signed release is available: standby install while in-app, then the one-time migration of its lanes, routines and device state at the next eligible launch ([Handing over existing lanes](#handing-over-existing-lanes)).

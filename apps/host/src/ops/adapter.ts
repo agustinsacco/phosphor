@@ -9,9 +9,6 @@ import { opPrincipalFor } from '../api/principal'
 import { OPS_CLI } from './cli-method'
 import type { HostSurfacePrincipal } from './binding'
 
-/** `ops.run` needs no capability: the dispatcher decides per principal and op. */
-export const OPS_RUN_CAPABILITY: HostCapability | null = null
-
 /**
  * Where `ops.run` executions wait. Never the Host's machine queue: a long op
  * must not hold lane commands. Each principal has its own FIFO, and `service`
