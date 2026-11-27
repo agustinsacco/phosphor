@@ -337,3 +337,40 @@ it('threads an agent page limit through the dispatcher and renders local and per
   }
   expect(batchText).not.toContain('More:')
 })
+
+it('renders the producing command for a job page and follows it through the tool', async () => {
+  read.mockResolvedValue({
+    ok: true,
+    data: { resources: { packages: [{ spec: 'npm:first' }, { spec: 'npm:second' }] } },
+  })
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async () => Response.json({ version: '2.0.0' }))
+  const { run, dispatch } = connectAgentTool()
+  async function completedPage(args: string[]) {
+    const started = await run(args)
+    expect(started.details.status).toBe('ok')
+    const jobId = /phosphor job status (\S+)/.exec(started.content[0]!.text)?.[1]
+    expect(jobId).toBeTruthy()
+    return vi.waitFor(async () => {
+      const status = await run(['job', 'status', jobId!])
+      expect(status.content[0]!.text).toContain(`Job ${jobId}: done.`)
+      const reply = await dispatch.mock.results.at(-1)!.value
+      return { text: status.content[0]!.text, reply }
+    })
+  }
+
+  const first = await completedPage(['package', 'check-updates', '--limit', '1'])
+  expect(first.reply).not.toHaveProperty('next')
+  expect(first.reply).toMatchObject({
+    data: { op: 'package.checkUpdates', result: { next: '1', data: { 'npm:first': '2.0.0' } } },
+  })
+  expect(first.text).not.toContain('More: phosphor job status')
+  const hint = /^More: phosphor (.+)$/m.exec(first.text)?.[1]
+  expect(hint).toBe('package check-updates --page 1')
+
+  const second = await completedPage(hint!.split(' '))
+  expect(second.reply).toMatchObject({
+    data: { op: 'package.checkUpdates', result: { data: { 'npm:second': '2.0.0' } } },
+  })
+  expect(second.text).not.toContain('npm:first')
+  expect(second.text).not.toContain('More:')
+})

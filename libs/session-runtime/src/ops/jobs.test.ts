@@ -179,8 +179,11 @@ it('returns the next package update cursor through job.status', async () => {
     run: async () => ({ text: 'First page', next: 'next-page' }),
   })
   await new Promise((r) => setTimeout(r, 0))
-  expect(await jobHandlers(jobs)['job.status']!({ jobId }, ctx('a'))).toMatchObject({
-    next: 'next-page',
-    data: { result: { next: 'next-page' } },
+  const status = await jobHandlers(jobs)['job.status']!({ jobId }, ctx('a'))
+  expect(status).not.toHaveProperty('next')
+  expect(status.data).toMatchObject({
+    op: 'package.checkUpdates',
+    result: { next: 'next-page' },
   })
+  expect(status.text).toContain('More: phosphor package check-updates --page next-page')
 })
