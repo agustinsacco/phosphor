@@ -735,9 +735,12 @@ the click, closes any page and shows its machine, so its row selects and
 while the open runs in the background. Routines’ Continue and lane notices
 also put the target in the browser URL as soon as it starts opening.
 `hostLaneOpen.ts` runs one open per lane at a time, through transcript and
-session bootstrap and any required Host snapshot refresh. A click back joins
-that open, and its row says `Opening` even if the lane is working or is not
-selected. The lane activates only if no newer navigation came first; a late
+session bootstrap, any required Host snapshot refresh and the activation that
+follows. A click back joins that open, and its row says `Opening` even if the
+lane is working or is not selected. In-app lanes use the same keyed flight
+(`stores/openFlight.ts`): the lane is released only after the click that
+started the open has activated it, so a repeat click never starts a second
+open. The lane activates only if no newer navigation came first; a late
 open is adopted quietly, with no focus change and no toast. A failed open
 stops the loader and offers Retry until the user changes page, machine, or
 lane. Retry starts a fresh open.

@@ -6,6 +6,7 @@ import { warmOpenedLane } from '@/platform/serviceLaneControl'
 import { useExtensionUiStore } from './extensionUi'
 import { refreshHostsSnapshot } from './hostsSnapshotRead'
 import { useLayoutStore } from './layout'
+import { openFlights } from './openFlight'
 import { useSessionsStore } from './sessions'
 
 /**
@@ -20,32 +21,31 @@ export function useHostLaneOpenInFlight(hostId: string, laneId: string): boolean
   return useHostLaneOpensStore((s) => s.inFlight[remoteLaneKey(hostId, laneId)] === true)
 }
 
-const running = new Map<string, Promise<string>>()
+const flights = openFlights<string>((key, flying) =>
+  useHostLaneOpensStore.setState((s) => {
+    const { [key]: _done, ...inFlight } = s.inFlight
+    return { inFlight: flying ? { ...inFlight, [key]: true } : inFlight }
+  }),
+)
 
 /**
  * Opens a Host lane and adopts its handle, once per lane at a time: a click
- * back to a lane whose open is running waits on that open rather than
- * starting a second one. A finished open, failed or not, is forgotten, so the
- * next click starts afresh. Resolves to the adopted session id.
+ * back to a lane whose open is running joins that open rather than starting
+ * a second one. Each caller then lands (activates) with the adopted session
+ * id. The lane is released once the open's starter has landed, failed or not,
+ * so the next click after that starts afresh.
  */
-export function openHostLane(
+export function openHostLane<R>(
   target: { hostId: string; laneId: string },
   /** A service or warm-on-open Host's lane snapshot lands before its debounced notification. */
   refreshSnapshot: boolean,
-): Promise<string> {
-  const key = remoteLaneKey(target.hostId, target.laneId)
-  const existing = running.get(key)
-  if (existing) return existing
-  const open = adoptHostLane(target, refreshSnapshot).finally(() => {
-    running.delete(key)
-    useHostLaneOpensStore.setState((s) => {
-      const { [key]: _done, ...inFlight } = s.inFlight
-      return { inFlight }
-    })
-  })
-  running.set(key, open)
-  useHostLaneOpensStore.setState((s) => ({ inFlight: { ...s.inFlight, [key]: true } }))
-  return open
+  land: (sessionId: string) => R | Promise<R>,
+): Promise<R> {
+  return flights.run(
+    remoteLaneKey(target.hostId, target.laneId),
+    () => adoptHostLane(target, refreshSnapshot),
+    land,
+  )
 }
 
 /**
@@ -86,7 +86,7 @@ export function beginHostLaneOpening(lane: { hostId: string; laneId: string }, t
   const sessions = useSessionsStore.getState()
   // Adoption publishes the handle before its transcript and state are ready.
   const held =
-    !running.has(remoteLaneKey(lane.hostId, lane.laneId)) &&
+    !flights.has(remoteLaneKey(lane.hostId, lane.laneId)) &&
     Object.values(sessions.live).some((entry) => holdsHostLane(entry, lane))
   if (held) return sessions.claimNav()
   useLayoutStore.getState().setPage(null)
